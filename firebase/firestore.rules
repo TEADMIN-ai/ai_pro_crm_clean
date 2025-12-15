@@ -1,0 +1,22 @@
+﻿rules_version = "2";
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    match /contractors/{docId} {
+      allow read, write: if true;
+    }
+
+    match /tender_fixes/{docId} {
+      allow read, write: if true;
+    }
+
+    match /tenders/{docId} {
+      allow read, write: if true;
+    }
+
+    match /users/{docId} {
+      allow read, write: if true;
+    }
+  }
+}

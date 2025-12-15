@@ -1,26 +1,27 @@
 {
   "name": "ai_pro_crm",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev --webpack",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "next lint",
+    "doctor": "node scripts/doctor.js"
   },
   "dependencies": {
-    "next": "16.0.3",
-    "react": "19.2.0",
-    "react-dom": "19.2.0"
+    "@react-pdf/renderer": "^4.3.1",
+    "adm-zip": "^0.5.16",
+    "bcryptjs": "^2.4.3",
+    "firebase": "^10.14.1",
+    "firebase-admin": "^12.7.0",
+    "next": "16.0.8",
+    "react": "^18.3.0",
+    "react-dom": "^18.3.0"
   },
   "devDependencies": {
-    "@tailwindcss/postcss": "^4",
-    "@types/node": "^20",
-    "@types/react": "^19",
-    "@types/react-dom": "^19",
-    "eslint": "^9",
-    "eslint-config-next": "16.0.3",
-    "tailwindcss": "^4",
-    "typescript": "^5"
+    "@types/node": "^25.0.2",
+    "@types/react": "^19.2.7",
+    "typescript": "^5.9.3"
   }
 }

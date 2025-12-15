@@ -1,0 +1,68 @@
+:root {
+  --empire-bg: #020d16;
+  --empire-panel: #031b2e;
+  --empire-accent: #00eaff;
+  --empire-accent-2: #14ffec;
+  --empire-text: #c8f6ff;
+  --empire-header: #5ee8ff;
+  --empire-glow: 0 0 12px rgba(0,234,255,0.55);
+}
+
+body {
+  background: var(--empire-bg);
+  color: var(--empire-text);
+  font-family: 'Inter', sans-serif;
+}
+
+h1, h2, h3 {
+  font-family: 'Orbitron', sans-serif;
+  color: var(--empire-header);
+  text-shadow: 0 0 12px rgba(20,255,236,0.4);
+}
+
+.empire-card {
+  background: var(--empire-panel);
+  border-radius: 12px;
+  padding: 28px;
+  box-shadow: 0 0 12px rgba(0,234,255,0.25);
+  border: 1px solid rgba(0,234,255,0.15);
+}
+
+.empire-btn {
+  padding: 12px 22px;
+  background: var(--empire-accent);
+  color: #02131d;
+  font-weight: bold;
+  border-radius: 8px;
+  transition: 0.2s ease-in-out;
+}
+
+.empire-btn:hover {
+  background: var(--empire-accent-2);
+  box-shadow: 0 0 15px rgba(0,234,255,0.75);
+  transform: translateY(-2px);
+}
+
+.sidebar {
+  background: #031b2e;
+  padding: 24px;
+  min-height: 100vh;
+  border-right: 1px solid rgba(0,234,255,0.15);
+}
+
+.sidebar a {
+  display: block;
+  margin-bottom: 14px;
+  color: var(--empire-text);
+  font-size: 16px;
+  text-decoration: none;
+  padding: 8px 6px;
+  border-radius: 6px;
+  transition: 0.15s;
+}
+
+.sidebar a:hover {
+  color: var(--empire-accent);
+  text-shadow: var(--empire-glow);
+  transform: translateX(3px);
+}
