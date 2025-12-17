@@ -1,16 +1,12 @@
-'use client';
-import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+"use client";
+
+import LogoutButton from "@/components/LogoutButton";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const router = useRouter();
-
-  useEffect(() => {
-    const token = localStorage.getItem('dolibarr_token');
-    if (!token) {
-      router.push('/login');
-    }
-  }, []);
-
-  return <>{children}</>;
+  return (
+    <div>
+      <LogoutButton />
+      {children}
+    </div>
+  );
 }
