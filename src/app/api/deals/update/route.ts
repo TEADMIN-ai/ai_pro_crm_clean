@@ -1,4 +1,12 @@
 import { NextResponse } from 'next/server';
+import { getAuth } from 'firebase-admin/auth';
+import admin from 'firebase-admin';
+
+if (!admin.apps.length) {
+  admin.initializeApp({
+    credential: admin.credential.applicationDefault(),
+  });
+}
 
 const STATUS_MAP: Record<string, number> = {
   prospect: 0,
@@ -10,9 +18,17 @@ const STATUS_MAP: Record<string, number> = {
 
 export async function POST(req: Request) {
   try {
-    const { id, status } = await req.json();
+    const token = req.headers.get('authorization')?.replace('Bearer ', '');
+    if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-    const dolibarrStatus = STATUS_MAP[status];
+    const decoded = await getAuth().verifyIdToken(token);
+    const role = decoded.role || 'staff';
+
+    if (role !== 'admin') {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
+    const { id, status } = await req.json();
 
     await fetch(
       \\/comm/propal/\\,
@@ -22,7 +38,7 @@ export async function POST(req: Request) {
           'Content-Type': 'application/json',
           DOLAPIKEY: process.env.DOLIBARR_API_KEY!,
         },
-        body: JSON.stringify({ statut: dolibarrStatus }),
+        body: JSON.stringify({ statut: STATUS_MAP[status] }),
       }
     );
 
