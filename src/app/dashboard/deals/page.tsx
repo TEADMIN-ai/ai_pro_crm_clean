@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { auth } from '@/lib/firebase/config';
 import { getUserRole } from '@/lib/firebase/getUserRole';
 import DealNotes from '@/components/DealNotes';
+import DealFiles from '@/components/DealFiles';
 
 const COLUMNS = ['prospect', 'qualified', 'proposal', 'won', 'lost'];
 
@@ -76,6 +77,7 @@ export default function DealsKanban() {
                   <div>€{d.amount}</div>
 
                   <DealNotes dealId={d.id} />
+                  <DealFiles dealId={d.id} />
                 </div>
               ))}
           </div>
