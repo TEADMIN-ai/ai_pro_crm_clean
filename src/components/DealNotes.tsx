@@ -3,10 +3,12 @@
 import { useEffect, useState } from 'react';
 import { auth } from '@/lib/firebase/config';
 import { addDealNote, getDealNotes } from '@/lib/firebase/dealNotes';
+import { notifyUser } from '@/lib/firebase/notifications';
 
 export default function DealNotes({ dealId }: { dealId: string }) {
   const [notes, setNotes] = useState<any[]>([]);
   const [text, setText] = useState('');
+  const user = auth.currentUser;
 
   const load = async () => {
     const data = await getDealNotes(dealId);
@@ -18,13 +20,20 @@ export default function DealNotes({ dealId }: { dealId: string }) {
   }, [dealId]);
 
   const submit = async () => {
-    if (!text || !auth.currentUser) return;
+    if (!text || !user) return;
 
     await addDealNote({
       dealId,
       note: text,
-      userId: auth.currentUser.uid,
-      userEmail: auth.currentUser.email || '',
+      userId: user.uid,
+      userEmail: user.email || '',
+    });
+
+    await notifyUser({
+      userId: user.uid,
+      title: 'New deal note',
+      message: text,
+      link: '/dashboard/deals',
     });
 
     setText('');
@@ -35,13 +44,11 @@ export default function DealNotes({ dealId }: { dealId: string }) {
     <div style={{ marginTop: 12 }}>
       <h4>Notes</h4>
 
-      <div style={{ marginBottom: 8 }}>
-        {notes.map((n, i) => (
-          <div key={i} style={{ fontSize: 13, marginBottom: 4 }}>
-            <strong>{n.userEmail}</strong>: {n.note}
-          </div>
-        ))}
-      </div>
+      {notes.map((n, i) => (
+        <div key={i} style={{ fontSize: 13 }}>
+          <strong>{n.userEmail}</strong>: {n.note}
+        </div>
+      ))}
 
       <textarea
         value={text}
@@ -50,9 +57,7 @@ export default function DealNotes({ dealId }: { dealId: string }) {
         style={{ width: '100%' }}
       />
 
-      <button onClick={submit} style={{ marginTop: 4 }}>
-        Add Note
-      </button>
+      <button onClick={submit}>Add Note</button>
     </div>
   );
 }
