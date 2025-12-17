@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 export const dynamic = "force-dynamic";
 
@@ -44,7 +44,7 @@ export default function DashboardPage() {
   }, []);
 
   if (!ready) {
-    return <div style={{ padding: 24 }}>Loading dashboard…</div>;
+    return <div style={{ padding: 24 }}>Loading dashboard�</div>;
   }
 
   return (
@@ -54,21 +54,21 @@ export default function DashboardPage() {
       </div>
 
       <div>
-        <h1 className="text-2xl font-bold mb-2">📊 Firebase Stats</h1>
+        <h1 className="text-2xl font-bold mb-2">?? Firebase Stats</h1>
         <ul className="list-disc ml-5 space-y-1">
-          <li>📁 Tenders: {stats.tenders}</li>
-          <li>🧑‍🤝‍🧑 Contractors: {stats.contractors}</li>
-          <li>🚗 Car Sales: {stats.carsales}</li>
+          <li>?? Tenders: {stats.tenders}</li>
+          <li>???????? Contractors: {stats.contractors}</li>
+          <li>?? Car Sales: {stats.carsales}</li>
         </ul>
       </div>
 
       <div>
-        <h2 className="text-xl font-semibold mt-4 mb-2">📇 Dolibarr Contacts</h2>
+        <h2 className="text-xl font-semibold mt-4 mb-2">?? Dolibarr Contacts</h2>
         <TestContacts />
       </div>
 
       <div>
-        <h2 className="text-xl font-semibold mt-4 mb-2">📁 Dolibarr Deals</h2>
+        <h2 className="text-xl font-semibold mt-4 mb-2">?? Dolibarr Deals</h2>
         <DealsList />
       </div>
     </div>
