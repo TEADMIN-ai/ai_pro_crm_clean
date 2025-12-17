@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { auth } from '@/lib/firebase/config';
 import { getUserRole } from '@/lib/firebase/getUserRole';
-import { logDealActivity } from '@/lib/firebase/logDealActivity';
+import DealNotes from '@/components/DealNotes';
 
 const COLUMNS = ['prospect', 'qualified', 'proposal', 'won', 'lost'];
 
@@ -11,7 +11,6 @@ export default function DealsKanban() {
   const [deals, setDeals] = useState<any[]>([]);
   const [dragging, setDragging] = useState<any>(null);
   const [role, setRole] = useState<string>('staff');
-  const user = auth.currentUser;
 
   useEffect(() => {
     fetch('/api/deals').then(r => r.json()).then(setDeals);
@@ -25,15 +24,13 @@ export default function DealsKanban() {
   }, []);
 
   const onDrop = async (status: string) => {
-    if (!dragging || role !== 'admin' || !user) return;
-
-    const previous = dragging.status;
+    if (!dragging || role !== 'admin') return;
 
     setDeals(ds =>
       ds.map(d => (d.id === dragging.id ? { ...d, status } : d))
     );
 
-    const token = await user.getIdToken();
+    const token = await auth.currentUser?.getIdToken();
 
     await fetch('/api/deals/update', {
       method: 'POST',
@@ -42,15 +39,6 @@ export default function DealsKanban() {
         Authorization: \Bearer \\,
       },
       body: JSON.stringify({ id: dragging.id, status }),
-    });
-
-    await logDealActivity({
-      dealId: dragging.id,
-      action: 'status_change',
-      fromStatus: previous,
-      toStatus: status,
-      userId: user.uid,
-      userEmail: user.email || '',
     });
 
     setDragging(null);
@@ -82,12 +70,12 @@ export default function DealsKanban() {
                     padding: 10,
                     marginBottom: 8,
                     borderRadius: 4,
-                    cursor: role === 'admin' ? 'grab' : 'not-allowed',
-                    opacity: role === 'admin' ? 1 : 0.6,
                   }}
                 >
                   <strong>{d.title}</strong>
                   <div>€{d.amount}</div>
+
+                  <DealNotes dealId={d.id} />
                 </div>
               ))}
           </div>
