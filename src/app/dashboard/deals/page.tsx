@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { auth } from '@/lib/firebase/config';
 import { getUserRole } from '@/lib/firebase/getUserRole';
+import { logDealActivity } from '@/lib/firebase/logDealActivity';
 
 const COLUMNS = ['prospect', 'qualified', 'proposal', 'won', 'lost'];
 
@@ -10,26 +11,29 @@ export default function DealsKanban() {
   const [deals, setDeals] = useState<any[]>([]);
   const [dragging, setDragging] = useState<any>(null);
   const [role, setRole] = useState<string>('staff');
+  const user = auth.currentUser;
 
   useEffect(() => {
     fetch('/api/deals').then(r => r.json()).then(setDeals);
 
-    auth.onAuthStateChanged(async user => {
-      if (user) {
-        const r = await getUserRole(user.uid);
+    auth.onAuthStateChanged(async u => {
+      if (u) {
+        const r = await getUserRole(u.uid);
         setRole(r);
       }
     });
   }, []);
 
   const onDrop = async (status: string) => {
-    if (role !== 'admin' || !dragging) return;
+    if (!dragging || role !== 'admin' || !user) return;
+
+    const previous = dragging.status;
 
     setDeals(ds =>
       ds.map(d => (d.id === dragging.id ? { ...d, status } : d))
     );
 
-    const token = await auth.currentUser?.getIdToken();
+    const token = await user.getIdToken();
 
     await fetch('/api/deals/update', {
       method: 'POST',
@@ -38,6 +42,15 @@ export default function DealsKanban() {
         Authorization: \Bearer \\,
       },
       body: JSON.stringify({ id: dragging.id, status }),
+    });
+
+    await logDealActivity({
+      dealId: dragging.id,
+      action: 'status_change',
+      fromStatus: previous,
+      toStatus: status,
+      userId: user.uid,
+      userEmail: user.email || '',
     });
 
     setDragging(null);
