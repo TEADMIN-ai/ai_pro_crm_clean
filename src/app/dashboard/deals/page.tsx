@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useEffect, useState } from 'react';
 import { auth } from '@/lib/firebase/config';
@@ -74,7 +74,7 @@ export default function DealsKanban() {
                   }}
                 >
                   <strong>{d.title}</strong>
-                  <div>�{d.amount}</div>
+                  <div>€{d.amount}</div>
 
                   <DealNotes dealId={d.id} />
                   <DealFiles dealId={d.id} />
@@ -86,3 +86,5 @@ export default function DealsKanban() {
     </div>
   );
 }
+
+

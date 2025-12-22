@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useEffect, useState } from 'react';
 import { auth } from '@/lib/firebase/config';
@@ -34,7 +34,7 @@ export default function AdminUsersPage() {
 
   return (
     <div style={{ padding: 24 }}>
-      <h1>Admin � User Management</h1>
+      <h1>Admin — User Management</h1>
 
       <table>
         <thead>
@@ -66,3 +66,5 @@ export default function AdminUsersPage() {
     </div>
   );
 }
+
+

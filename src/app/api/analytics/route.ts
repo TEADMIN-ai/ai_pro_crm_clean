@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+﻿import { NextResponse } from 'next/server';
 import { db } from '@/lib/firebase/config';
 import { collection, getDocs } from 'firebase/firestore';
 
@@ -43,3 +43,5 @@ export async function GET() {
     return NextResponse.json({ error: 'Analytics failed' }, { status: 500 });
   }
 }
+
+

@@ -1,37 +1,59 @@
-Get-ChildItem src -Recurse -Include *.jsx,*.ts,*.tsx | ForEach-Object {
-    try {
-        $content = Get-Content $_.FullName -Raw
+Write-Host "Running AI Pro CRM Build Doctor..."
 
-        # --- Convert JSX to TSX only when TypeScript syntax exists ---
-        if ($_.Extension -eq ".jsx" -and ($content -match "import type|" -or $content -match "<[A-Z][A-Za-z0-9]*")) {
-            $newPath = $_.FullName -replace "\.jsx$", ".tsx"
-            Move-Item $_.FullName $newPath -Force
-            $_ = Get-Item $newPath
-            $content = Get-Content $_.FullName -Raw
-        }
+# 1. Fix UTF-8 encoding issues
+$utf8Files = @(
+  "src/app/dashboard/admin/users/page.tsx",
+  "src/app/dashboard/analytics/page.tsx",
+  "src/app/dashboard/deals/page.tsx",
+  "src/app/dashboard/page.tsx"
+)
 
-        # --- Ensure 'use client' is the FIRST line ---
-        if ($content -match '"use client"' -and $content -notmatch '^\s*"use client"') {
-            $content = $content -replace '"use client";?', ''
-            $content = '"use client";' + "`n" + $content
-        }
-
-        # --- Prevent Firebase from running during build ---
-        if ($content -match "firebase/firestore" -and $content -notmatch "typeof window") {
-            $content = $content -replace "useEffect\(\(\)\s*=>\s*\{",
-@"
-useEffect(() => {
-  if (typeof window === "undefined") return;
-"@
-        }
-
-        Set-Content $_.FullName $content -Encoding UTF8
-        Write-Host "✔ Fixed:" $_.FullName
-    }
-    catch {
-        Write-Host "⚠ Skipped:" $_.FullName
-    }
+foreach ($file in $utf8Files) {
+  if (Test-Path $file) {
+    $content = Get-Content $file -Raw
+    Set-Content -Path $file -Value $content -Encoding UTF8
+    Write-Host "Fixed encoding: $file"
+  }
 }
 
-# --- Clean Next build ---
-Remove-Item -Recurse -Force .next -ErrorAction SilentlyContinue
+# 2. Fix invalid escaped fetch URLs
+$apiFiles = @(
+  "src/app/api/analytics/route.ts",
+  "src/app/api/deals/route.ts",
+  "src/app/api/deals/update/route.ts"
+)
+
+foreach ($file in $apiFiles) {
+  if (Test-Path $file) {
+    $text = Get-Content $file -Raw
+    $text = $text -replace "\\\\/comm/propal\\\\", "/comm/propal"
+    Set-Content -Path $file -Value $text -Encoding UTF8
+    Write-Host "Fixed fetch URL: $file"
+  }
+}
+
+# 3. Ensure Firestore db export exists
+$firebaseConfig = "src/lib/firebase/config.ts"
+if (Test-Path $firebaseConfig) {
+  $cfg = Get-Content $firebaseConfig -Raw
+  if ($cfg -notmatch "export const db") {
+    Add-Content $firebaseConfig ""
+    Add-Content $firebaseConfig "import { getFirestore } from 'firebase/firestore';"
+    Add-Content $firebaseConfig "export const db = getFirestore(app);"
+    Write-Host "Added Firestore db export"
+  }
+}
+
+# 4. Clear Next.js cache
+if (Test-Path ".next") {
+  Remove-Item -Recurse -Force ".next"
+  Write-Host "Cleared .next cache"
+}
+
+Write-Host ""
+Write-Host "Doctor finished."
+Write-Host "Next steps:"
+Write-Host "git add ."
+Write-Host "git commit -m `"fix: repair encoding, api routes, firestore db export`""
+Write-Host "git push"
+Write-Host "Redeploy on Vercel"

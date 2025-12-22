@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+﻿import { NextResponse } from 'next/server';
 import { getAuth } from 'firebase-admin/auth';
 import admin from 'firebase-admin';
 
@@ -47,3 +47,5 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Update failed' }, { status: 500 });
   }
 }
+
+

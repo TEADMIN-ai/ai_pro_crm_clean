@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+﻿import { NextResponse } from 'next/server';
 
 const STATUS_MAP: Record<number, string> = {
   0: 'prospect',
@@ -34,3 +34,5 @@ export async function GET() {
     return NextResponse.json({ error: 'Deals fetch failed' }, { status: 500 });
   }
 }
+
+
