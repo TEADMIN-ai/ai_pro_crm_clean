@@ -1,4 +1,6 @@
-﻿"use client";
+﻿'use client';
+
+"use client";
 
 import { useState } from "react";
 import { signInWithEmailAndPassword } from "firebase/auth";
@@ -56,3 +58,4 @@ export default function LoginPage() {
     </div>
   );
 }
+
