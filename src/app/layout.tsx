@@ -1,10 +1,4 @@
-// src/app/layout.tsx
-import type { Metadata } from "next";
-import type { ReactNode } from "react";
-
-export const metadata: Metadata = {
-  title: "Torque Empire AI Pro CRM",
-};
+import type { ReactNode } from 'react';
 
 export default function RootLayout({
   children,
@@ -17,9 +11,9 @@ export default function RootLayout({
         style={{
           margin: 0,
           padding: 0,
-          background: "#020d16",
-          color: "white",
-          fontFamily: "Arial, sans-serif",
+          background: '#020d16',
+          color: 'white',
+          fontFamily: 'Arial, sans-serif',
         }}
       >
         {children}
