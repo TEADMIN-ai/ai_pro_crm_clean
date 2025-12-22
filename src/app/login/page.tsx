@@ -12,11 +12,11 @@ export default function LoginPage() {
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
+  const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   const handleLogin = async () => {
-    setError('');
+    setError(null);
     setLoading(true);
 
     try {
@@ -31,11 +31,16 @@ export default function LoginPage() {
       );
 
       await createUserInFirestore(cred.user);
-
       router.push('/dashboard');
     } catch (err: any) {
-      console.error('LOGIN ERROR', err);
-      setError(err.code || err.message || 'Login failed');
+      console.error('LOGIN ERROR:', err);
+
+      // ✅ ALWAYS convert error to STRING
+      setError(
+        err?.code === 'auth/invalid-credential'
+          ? 'Invalid email or password'
+          : err?.message || 'Login failed'
+      );
     } finally {
       setLoading(false);
     }
@@ -66,7 +71,11 @@ export default function LoginPage() {
         {loading ? 'Signing in…' : 'Login'}
       </button>
 
-      {error && <p style={{ color: 'red' }}>{error}</p>}
+      {error && (
+        <p style={{ color: 'red', marginTop: 10 }}>
+          {error}
+        </p>
+      )}
     </div>
   );
 }
