@@ -1,52 +1,17 @@
-﻿import { db } from './config';
-import {
-  collection,
-  addDoc,
-  query,
-  where,
-  getDocs,
-  serverTimestamp,
-} from 'firebase/firestore';
-import {
-  getStorage,
-  ref,
-  uploadBytes,
-  getDownloadURL,
-} from 'firebase/storage';
-
-const storage = getStorage();
+﻿import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { storage } from "./config";
 
 export async function uploadDealFile(data: {
   dealId: string;
   file: File;
-  userId: string;
-  userEmail: string;
-}) {
-  const storageRef = ref(
-    storage,
-    \deal_files/\/\-\\
-  );
+}): Promise<string> {
+  if (!storage) {
+    throw new Error("Firebase storage not initialized");
+  }
+
+  const filePath = `deal_files/${data.dealId}/${data.file.name}`;
+  const storageRef = ref(storage, filePath);
 
   await uploadBytes(storageRef, data.file);
-  const url = await getDownloadURL(storageRef);
-
-  await addDoc(collection(db, 'deal_files'), {
-    dealId: data.dealId,
-    fileName: data.file.name,
-    fileUrl: url,
-    uploadedBy: data.userId,
-    userEmail: data.userEmail,
-    createdAt: serverTimestamp(),
-  });
+  return await getDownloadURL(storageRef);
 }
-
-export async function getDealFiles(dealId: string) {
-  const q = query(
-    collection(db, 'deal_files'),
-    where('dealId', '==', dealId)
-  );
-
-  const snap = await getDocs(q);
-  return snap.docs.map(d => d.data());
-}
-
