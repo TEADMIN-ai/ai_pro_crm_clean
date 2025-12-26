@@ -25,7 +25,7 @@ export default function DealNotes({ dealId }: { dealId: string }) {
 
     await addDealNote({
       dealId,
-      note: text,
+      text: text,
       userId: user.uid,
       userEmail: user.email || '',
     });
