@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { signOut } from 'firebase/auth';
 import { useRouter } from 'next/navigation';
@@ -9,10 +9,13 @@ export default function LogoutButton() {
 
   return (
     <button onClick={async () => {
-      await signOut(auth);
+      if (!auth) return;
+        await signOut(auth);
       router.push('/login');
     }}>
       Logout
     </button>
   );
 }
+
+

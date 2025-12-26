@@ -1,4 +1,4 @@
-import { doc, setDoc, serverTimestamp } from "firebase/firestore";
+﻿import { doc, setDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase/config";
 
 /**
@@ -9,7 +9,7 @@ export async function saveContractorToFirestore(
   contractorId: string,
   data: any
 ) {
-  // 🔒 During build / SSR, db is null → do nothing
+  // ðŸ”’ During build / SSR, db is null â†’ do nothing
   if (!db) {
     return { skipped: true };
   }

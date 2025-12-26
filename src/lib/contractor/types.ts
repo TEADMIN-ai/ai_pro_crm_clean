@@ -1,4 +1,4 @@
-export interface ContractorData {
+﻿export interface ContractorData {
   name: string;
   company: string;
   phone: string;
@@ -7,4 +7,5 @@ export interface ContractorData {
   csd: string;
   address: string;
 }
+
 

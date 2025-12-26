@@ -1,4 +1,4 @@
-import { db } from './config';
+﻿import { db } from './config';
 import {
   collection,
   addDoc,
@@ -49,3 +49,4 @@ export async function getDealFiles(dealId: string) {
   const snap = await getDocs(q);
   return snap.docs.map(d => d.data());
 }
+

@@ -2,6 +2,7 @@
 import { doc, setDoc, getDoc } from "firebase/firestore";
 
 export async function createUserInFirestore(user: {
+  if (!db) return;
   uid: string;
   email: string | null;
 }) {
@@ -20,3 +21,5 @@ export async function createUserInFirestore(user: {
     });
   }
 }
+
+

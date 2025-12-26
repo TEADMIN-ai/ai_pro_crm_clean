@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+﻿import { NextResponse } from "next/server";
 import { saveContractorToFirestore } from "@/lib/contractor/firestore";
 
 export async function POST(req: Request) {
@@ -29,3 +29,4 @@ export async function POST(req: Request) {
     );
   }
 }
+

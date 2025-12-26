@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import React from "react";
 import Link from "next/link";
@@ -29,16 +29,17 @@ export default function TenderHub({ tenderId }: Props) {
           href={`/tenders/${tenderId}/summary`}
           style={{ color: "#00e0ff", fontSize: "1.2rem" }}
         >
-          📄 View AI Tender Summary
+          ðŸ“„ View AI Tender Summary
         </Link>
 
         <Link
           href={`/tenders/${tenderId}/summary/fix`}
           style={{ color: "#00ff72", fontSize: "1.2rem" }}
         >
-          🛠 AI Fix Suggestions
+          ðŸ›  AI Fix Suggestions
         </Link>
       </div>
     </div>
   );
 }
+

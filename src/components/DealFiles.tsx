@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useEffect, useState } from 'react';
 import { auth } from '@/lib/firebase/config';
@@ -6,7 +6,8 @@ import { uploadDealFile, getDealFiles } from '@/lib/firebase/dealFiles';
 
 export default function DealFiles({ dealId }: { dealId: string }) {
   const [files, setFiles] = useState<any[]>([]);
-  const user = auth.currentUser;
+  const user = auth?.currentUser;
+  if (!user) return null;
 
   const load = async () => {
     const data = await getDealFiles(dealId);
@@ -43,10 +44,12 @@ export default function DealFiles({ dealId }: { dealId: string }) {
             <a href={f.fileUrl} target="_blank">
               {f.fileName}
             </a>{' '}
-            � {f.userEmail}
+            — {f.userEmail}
           </li>
         ))}
       </ul>
     </div>
   );
 }
+
+

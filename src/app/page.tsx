@@ -1,8 +1,10 @@
-export default function Home() {
+﻿export default function Home() {
   return (
     <main style={{ padding: 40 }}>
       <h1>AI Pro CRM</h1>
-      <a href="/login">Login</a>
+      <p>System online.</p>
+      <a href="/login">Go to Login</a>
     </main>
   );
 }
+

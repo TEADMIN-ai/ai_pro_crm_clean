@@ -1,15 +1,16 @@
-'use client';
+﻿'use client';
 
 import { useEffect, useState } from 'react';
 import { auth } from '@/lib/firebase/config';
 import {
   getUserNotifications,
   markNotificationRead,
-} from '@/lib/firebase/notifications';
+} from '@/lib/notifications';
 
 export default function NotificationBell() {
   const [items, setItems] = useState<any[]>([]);
-  const user = auth.currentUser;
+  const user = auth?.currentUser;
+  if (!user) return null;
 
   const load = async () => {
     if (!user) return;
@@ -41,3 +42,5 @@ export default function NotificationBell() {
     </div>
   );
 }
+
+

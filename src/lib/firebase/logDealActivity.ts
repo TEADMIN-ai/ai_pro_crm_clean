@@ -1,4 +1,4 @@
-import { db } from './config';
+﻿import { db } from './config';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 
 export async function logDealActivity(data: {
@@ -14,3 +14,4 @@ export async function logDealActivity(data: {
     timestamp: serverTimestamp(),
   });
 }
+
