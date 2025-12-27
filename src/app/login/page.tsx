@@ -7,25 +7,26 @@ import { auth } from "@/lib/firebase/config";
 
 export default function LoginPage() {
   const router = useRouter();
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  async function handleLogin(e: React.FormEvent) {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setLoading(true);
 
     try {
-      await signInWithEmailAndPassword(auth, email, password);
+      await signInWithEmailAndPassword(auth!, email, password);
       router.push("/dashboard");
     } catch (err: any) {
       setError(err.message || "Login failed");
     } finally {
       setLoading(false);
     }
-  }
+  };
 
   return (
     <main style={{ padding: 40 }}>
@@ -34,6 +35,8 @@ export default function LoginPage() {
       <form onSubmit={handleLogin}>
         <div>
           <input
+            id="email"
+            name="email"
             type="email"
             placeholder="Email"
             value={email}
@@ -46,6 +49,8 @@ export default function LoginPage() {
 
         <div>
           <input
+            id="password"
+            name="password"
             type="password"
             placeholder="Password"
             value={password}
@@ -60,7 +65,11 @@ export default function LoginPage() {
           {loading ? "Logging in..." : "Login"}
         </button>
 
-        {error && <p style={{ color: "red" }}>{error}</p>}
+        {error && (
+          <p style={{ color: "red", marginTop: 12 }}>
+            {error}
+          </p>
+        )}
       </form>
     </main>
   );
