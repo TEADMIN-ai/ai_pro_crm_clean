@@ -12,12 +12,11 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    console.log("🔥 LOGIN HANDLER TRIGGERED");
+  const handleLogin = async () => {
+    console.log("🔥 LOGIN BUTTON CLICKED");
 
     if (!auth) {
-      setError("Auth not initialized");
+      setError("Firebase auth not initialized");
       return;
     }
 
@@ -41,31 +40,25 @@ export default function LoginPage() {
     <main style={{ padding: 40 }}>
       <h1>Login</h1>
 
-      <form onSubmit={handleLogin}>
-        <input
-          type="email"
-          name="email"
-          placeholder="Email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          required
-        />
-        <br />
+      <input
+        type="email"
+        placeholder="Email"
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+      />
+      <br />
 
-        <input
-          type="password"
-          name="password"
-          placeholder="Password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          required
-        />
-        <br />
+      <input
+        type="password"
+        placeholder="Password"
+        value={password}
+        onChange={(e) => setPassword(e.target.value)}
+      />
+      <br />
 
-        <button type="submit" disabled={loading}>
-          {loading ? "Logging in..." : "Login"}
-        </button>
-      </form>
+      <button onClick={handleLogin} disabled={loading}>
+        {loading ? "Logging in..." : "Login"}
+      </button>
 
       {error && <p style={{ color: "red" }}>{error}</p>}
     </main>
