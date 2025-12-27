@@ -12,9 +12,9 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const handleLogin = async (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    console.log("🔥 LOGIN HANDLER FIRED");
+    console.log("🔥 LOGIN HANDLER TRIGGERED");
 
     if (!auth) {
       setError("Auth not initialized");
@@ -27,9 +27,10 @@ export default function LoginPage() {
 
       await signInWithEmailAndPassword(auth, email, password);
 
+      console.log("✅ LOGIN SUCCESS");
       router.push("/dashboard");
     } catch (err: any) {
-      console.error(err);
+      console.error("❌ LOGIN ERROR", err);
       setError(err.message || "Login failed");
     } finally {
       setLoading(false);
@@ -43,6 +44,7 @@ export default function LoginPage() {
       <form onSubmit={handleLogin}>
         <input
           type="email"
+          name="email"
           placeholder="Email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
@@ -52,6 +54,7 @@ export default function LoginPage() {
 
         <input
           type="password"
+          name="password"
           placeholder="Password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
