@@ -24,8 +24,8 @@ export default function DealFiles({ dealId }: { dealId: string }) {
     await uploadDealFile({
       dealId,
       file: e.target.files[0],
-      userId: user.uid,
-      userEmail: user.email || '',
+
+
     });
 
     e.target.value = '';

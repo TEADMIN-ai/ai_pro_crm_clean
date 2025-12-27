@@ -1,21 +1,21 @@
-﻿import { doc, setDoc, getDoc } from "firebase/firestore";
+﻿import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "./config";
 
 export async function createUserInFirestore(user: {
   uid: string;
   email: string | null;
-}): Promise<void> {
-  if (!db) return;
+}) {
+  if (!user.uid || !user.email) return;
 
-  const userRef = doc(db, "users", user.uid);
-  const userSnap = await getDoc(userRef);
+  const ref = doc(db, "users", user.uid);
+  const snap = await getDoc(ref);
 
-  if (!userSnap.exists()) {
-    await setDoc(userRef, {
+  if (!snap.exists()) {
+    await setDoc(ref, {
       uid: user.uid,
       email: user.email,
-      createdAt: new Date(),
       role: "user",
+      createdAt: serverTimestamp(),
     });
   }
 }
