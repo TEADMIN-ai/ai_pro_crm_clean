@@ -12,20 +12,15 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  async function handleSubmit(e: React.FormEvent) {
+  async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
     setLoading(true);
 
     try {
-      if (!auth) {
-        throw new Error("Firebase auth not initialized");
-      }
-
       await signInWithEmailAndPassword(auth, email, password);
       router.push("/dashboard");
     } catch (err: any) {
-      console.error("LOGIN ERROR:", err);
       setError(err.message || "Login failed");
     } finally {
       setLoading(false);
@@ -36,7 +31,7 @@ export default function LoginPage() {
     <main style={{ padding: 40 }}>
       <h1>Login</h1>
 
-      <form onSubmit={handleSubmit}>
+      <form onSubmit={handleLogin}>
         <div>
           <input
             type="email"
@@ -46,6 +41,8 @@ export default function LoginPage() {
             required
           />
         </div>
+
+        <br />
 
         <div>
           <input
@@ -57,8 +54,10 @@ export default function LoginPage() {
           />
         </div>
 
+        <br />
+
         <button type="submit" disabled={loading}>
-          {loading ? "Signing in..." : "Login"}
+          {loading ? "Logging in..." : "Login"}
         </button>
 
         {error && <p style={{ color: "red" }}>{error}</p>}
