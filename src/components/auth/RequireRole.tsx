@@ -1,31 +1,27 @@
-﻿'use client';
+'use client';
 
-import { useEffect, useState } from 'react';
-import { auth } from '@/lib/firebase/config';
-import { getUserRole } from '@/lib/firebase/getUserRole';
+import { ReactNode } from 'react';
+import { useAuth } from '@/context/AuthContext';
 
-export default function RequireRole({
-  allow,
-  children,
-  fallback = null,
-}: {
-  allow: Array<'admin' | 'user'>;
-  children: React.ReactNode;
-  fallback?: React.ReactNode;
-}) {
-  const [ok, setOk] = useState<boolean | null>(null);
+type RequireRoleProps = {
+  role: string;
+  children: ReactNode;
+};
 
-  useEffect(() => {
-    const run = async () => {
-      const user = auth?.currentUser;
-      if (!user) return setOk(false);
-      const role = await getUserRole(user.uid);
-      setOk(allow.includes(role as any));
-    };
-    run();
-  }, [allow]);
+export default function RequireRole({ role, children }: RequireRoleProps) {
+  const { user, role: userRole, loading } = useAuth();
 
-  if (ok === null) return null;
-  if (!ok) return <>{fallback}</>;
+  if (loading) {
+    return <div style={{ padding: 40 }}>Loading…</div>;
+  }
+
+  if (!user) {
+    return <div style={{ padding: 40 }}>Not authenticated</div>;
+  }
+
+  if (userRole !== role) {
+    return <div style={{ padding: 40 }}>Access denied</div>;
+  }
+
   return <>{children}</>;
 }
