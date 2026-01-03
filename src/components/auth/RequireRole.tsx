@@ -1,7 +1,7 @@
-'use client';
+"use client";
 
-import { ReactNode } from 'react';
-import { useAuth } from '@/context/AuthContext';
+import { ReactNode } from "react";
+import { useAuth } from "@/context/AuthContext";
 
 type RequireRoleProps = {
   role: string;
@@ -20,6 +20,7 @@ export default function RequireRole({ role, children }: RequireRoleProps) {
   }
 
   if (userRole !== role) {
+    console.warn("Access denied. Required:", role, "User role:", userRole);
     return <div style={{ padding: 40 }}>Access denied</div>;
   }
 
