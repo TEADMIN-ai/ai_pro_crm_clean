@@ -1,30 +1,29 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { signInWithEmailAndPassword } from 'firebase/auth';
-import { auth } from '@/lib/firebase/config';
+import { useState } from "react";
+import { signInWithEmailAndPassword } from "firebase/auth";
+import { auth } from "@/lib/firebase/config";
+import { useRouter } from "next/navigation";
 
 export default function LoginPage() {
   const router = useRouter();
-
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState<string | null>(null);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault(); // 🔴 REQUIRED
     setLoading(true);
+    setError(null);
 
     try {
       await signInWithEmailAndPassword(auth, email, password);
-      console.log('LOGIN SUCCESS');
-      router.push('/dashboard');
+      console.log("LOGIN SUCCESS");
+      router.push("/dashboard");
     } catch (err: any) {
-      console.error(err);
-      setError(err.message || 'Login failed');
+      console.error("LOGIN FAILED", err);
+      setError(err.message || "Login failed");
     } finally {
       setLoading(false);
     }
@@ -34,7 +33,7 @@ export default function LoginPage() {
     <main style={{ padding: 40 }}>
       <h1>Login</h1>
 
-      <form onSubmit={handleLogin}>
+      <form onSubmit={handleSubmit}>
         <div>
           <input
             type="email"
@@ -45,7 +44,7 @@ export default function LoginPage() {
           />
         </div>
 
-        <div style={{ marginTop: 8 }}>
+        <div>
           <input
             type="password"
             placeholder="Password"
@@ -55,17 +54,11 @@ export default function LoginPage() {
           />
         </div>
 
-        <div style={{ marginTop: 12 }}>
-          <button type="submit" disabled={loading}>
-            {loading ? 'Logging in…' : 'Login'}
-          </button>
-        </div>
+        <button type="submit" disabled={loading}>
+          {loading ? "Signing in…" : "Login"}
+        </button>
 
-        {error && (
-          <p style={{ color: 'red', marginTop: 12 }}>
-            {error}
-          </p>
-        )}
+        {error && <p style={{ color: "red" }}>{error}</p>}
       </form>
     </main>
   );
