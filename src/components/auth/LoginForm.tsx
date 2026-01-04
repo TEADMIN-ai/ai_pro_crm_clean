@@ -14,17 +14,13 @@ export default function LoginForm() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log("FORM SUBMITTED");
-
     setLoading(true);
     setError(null);
 
     try {
       await signInWithEmailAndPassword(auth, email, password);
-      console.log("LOGIN SUCCESS");
       router.push("/dashboard");
     } catch (err: any) {
-      console.error("LOGIN FAILED", err);
       setError(err.message || "Login failed");
     } finally {
       setLoading(false);
@@ -51,6 +47,7 @@ export default function LoginForm() {
         value={password}
         onChange={(e) => setPassword(e.target.value)}
         required
+        autoComplete="current-password"
       />
 
       <button type="submit" disabled={loading}>

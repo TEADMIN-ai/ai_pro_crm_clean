@@ -1,3 +1,5 @@
+"use client";
+
 import RequireRole from "@/components/auth/RequireRole";
 
 export default function DashboardPage() {
