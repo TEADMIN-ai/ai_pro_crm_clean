@@ -3,25 +3,33 @@
 import { ReactNode } from "react";
 import { useAuth } from "@/context/AuthContext";
 
+export type Role = "user" | "admin";
+
 type RequireRoleProps = {
-  role: string;
+  role: Role;
   children: ReactNode;
+};
+
+const ROLE_LEVEL: Record<Role, number> = {
+  user: 1,
+  admin: 2,
 };
 
 export default function RequireRole({ role, children }: RequireRoleProps) {
   const { user, role: userRole, loading } = useAuth();
 
   if (loading) {
-    return <div style={{ padding: 40 }}>Loading…</div>;
+    return <p>Loading…</p>;
   }
 
-  if (!user) {
-    return <div style={{ padding: 40 }}>Not authenticated</div>;
+  if (!user || !userRole) {
+    return <p>Not authenticated</p>;
   }
 
-  if (userRole !== role) {
+  // 🔒 role guard
+  if (ROLE_LEVEL[userRole as Role] < ROLE_LEVEL[role]) {
     console.warn("Access denied. Required:", role, "User role:", userRole);
-    return <div style={{ padding: 40 }}>Access denied</div>;
+    return <p>Access denied</p>;
   }
 
   return <>{children}</>;
