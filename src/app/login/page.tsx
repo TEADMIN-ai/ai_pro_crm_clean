@@ -1,4 +1,5 @@
 "use client";
+
 import { useState } from "react";
 import { signInWithEmailAndPassword } from "firebase/auth";
 import { auth } from "@/lib/firebase/config";
@@ -6,13 +7,16 @@ import { useRouter } from "next/navigation";
 
 export default function LoginPage() {
   const router = useRouter();
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault(); // 🔴 REQUIRED
+    e.preventDefault();
+    console.log("FORM SUBMITTED");
+
     setLoading(true);
     setError(null);
 
