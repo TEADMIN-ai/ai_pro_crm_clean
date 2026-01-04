@@ -1,20 +1,36 @@
-import { collection, getDocs, addDoc, serverTimestamp } from 'firebase/firestore';
-import { db } from './config';
-
-export async function getDeals() {
-  if (!db) return [];
-  const snap = await getDocs(collection(db, 'deals'));
-  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
-}
+import {
+  collection,
+  addDoc,
+  serverTimestamp,
+} from 'firebase/firestore';
+import { db } from '@/lib/firebase/config';
+import type { DealStage } from '@/types/deal';
 
 export async function createDeal(data: {
   title: string;
-  value: number;
-  status: string;
+  clientName: string;
+  description?: string;
+  value?: number;
+  currency?: string;
+  stage?: DealStage;
+  ownerId: string;
+  createdBy: string;
 }) {
-  if (!db) return;
-  await addDoc(collection(db, 'deals'), {
-    ...data,
+  if (!db) throw new Error('Firestore not initialized');
+
+  const docRef = await addDoc(collection(db, 'deals'), {
+    title: data.title,
+    clientName: data.clientName,
+    description: data.description ?? '',
+    value: data.value ?? null,
+    currency: data.currency ?? 'AUD',
+    stage: data.stage ?? 'lead',
+    ownerId: data.ownerId,
+    createdBy: data.createdBy,
+    isArchived: false,
     createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
   });
+
+  return docRef.id;
 }
