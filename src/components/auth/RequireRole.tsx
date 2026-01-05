@@ -3,34 +3,29 @@
 import { ReactNode } from "react";
 import { useAuth } from "@/context/AuthContext";
 
-type Role = "user" | "admin";
+type Role = "admin" | "manager" | "staff";
 
-type RequireRoleProps = {
-  role: Role;
+type Props = {
+  allow: Role[];
+  fallback?: ReactNode;
   children: ReactNode;
 };
 
-export default function RequireRole({ role, children }: RequireRoleProps) {
-  const { user, role: userRole, loading } = useAuth();
+export default function RequireRole({ allow, fallback, children }: Props) {
+  const { user, role, loading } = useAuth();
 
-  // Still loading auth state
   if (loading) {
-    return <p>Loading...</p>;
+    return <div style={{ padding: 40 }}>Loading…</div>;
   }
 
-  // Not logged in
   if (!user) {
-    return <p>Not authenticated</p>;
+    return <div style={{ padding: 40 }}>Not authenticated</div>;
   }
 
-  // Admins can access user routes
-  if (role === "user" && userRole === "admin") {
-    return <>{children}</>;
-  }
-
-  // Role mismatch
-  if (userRole !== role) {
-    return <p>Access denied</p>;
+  // ⛑️ SAFETY: role can be null before Firestore resolves
+  if (!role || !allow.includes(role as Role)) {
+    console.warn("Access denied", { required: allow, role });
+    return fallback ?? <p>Access denied</p>;
   }
 
   return <>{children}</>;
