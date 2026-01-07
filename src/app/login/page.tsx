@@ -2,29 +2,27 @@
 
 import { useState } from "react";
 import { signInWithEmailAndPassword } from "firebase/auth";
-import { auth } from "@/lib/firebase/config";
 import { useRouter } from "next/navigation";
 
-export default function LoginForm() {
+import { auth } from "@/lib/firebase";
+
+export default function LoginPage() {
   const router = useRouter();
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log("FORM SUBMITTED");
-
-    setLoading(true);
     setError(null);
+    setLoading(true);
 
     try {
       await signInWithEmailAndPassword(auth, email, password);
-      console.log("LOGIN SUCCESS");
       router.push("/dashboard");
     } catch (err: any) {
-      console.error("LOGIN FAILED", err);
       setError(err.message || "Login failed");
     } finally {
       setLoading(false);
@@ -32,32 +30,38 @@ export default function LoginForm() {
   };
 
   return (
-    <form onSubmit={handleSubmit}>
-      <input
-        id="email"
-        name="email"
-        type="email"
-        placeholder="Email"
-        value={email}
-        onChange={(e) => setEmail(e.target.value)}
-        required
-      />
+    <main style={{ padding: 32, maxWidth: 400 }}>
+      <h1>Login</h1>
 
-      <input
-        id="password"
-        name="password"
-        type="password"
-        placeholder="Password"
-        value={password}
-        onChange={(e) => setPassword(e.target.value)}
-        required
-      />
+      <form onSubmit={handleLogin}>
+        <div style={{ marginBottom: 12 }}>
+          <input
+            type="email"
+            placeholder="Email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+            style={{ width: "100%", padding: 8 }}
+          />
+        </div>
 
-      <button type="submit" disabled={loading}>
-        {loading ? "Signing in…" : "Login"}
-      </button>
+        <div style={{ marginBottom: 12 }}>
+          <input
+            type="password"
+            placeholder="Password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+            style={{ width: "100%", padding: 8 }}
+          />
+        </div>
 
-      {error && <p style={{ color: "red" }}>{error}</p>}
-    </form>
+        {error && <p style={{ color: "red" }}>{error}</p>}
+
+        <button type="submit" disabled={loading}>
+          {loading ? "Signing in..." : "Login"}
+        </button>
+      </form>
+    </main>
   );
 }

@@ -1,10 +1,16 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { collection, getDocs, query, where } from "firebase/firestore";
-import { db } from "@/lib/firebase/config";
+import {
+  collection,
+  getDocs,
+  query,
+  where,
+} from "firebase/firestore";
+
 import RequireRole from "@/components/auth/RequireRole";
-import { useAuth } from "@/context/AuthContext";
+import { useAuthContext } from "@/context/AuthContext";
+import { db } from "@/lib/firebase";
 
 type Deal = {
   id: string;
@@ -12,64 +18,52 @@ type Deal = {
   reference?: string;
   clientName?: string;
   status: string;
-  ownerId?: string;
 };
 
 export default function StaffDashboard() {
-  const { user } = useAuth();
+  const { user } = useAuthContext();
   const [deals, setDeals] = useState<Deal[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!user) return;
 
-    const fetchDeals = async () => {
-      try {
-        const q = query(
-          collection(db, "deals"),
-          where("ownerId", "==", user.uid)
-        );
+    const loadDeals = async () => {
+      const q = query(
+        collection(db, "deals"),
+        where("companyId", "==", user.companyId)
+      );
 
-        const snapshot = await getDocs(q);
-        const results: Deal[] = snapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...(doc.data() as Omit<Deal, "id">),
-        }));
-
-        setDeals(results);
-      } catch (err) {
-        console.error("Failed to load staff deals", err);
-      } finally {
-        setLoading(false);
-      }
+      const snap = await getDocs(q);
+      setDeals(
+        snap.docs.map((d) => ({
+          id: d.id,
+          ...(d.data() as Omit<Deal, "id">),
+        }))
+      );
+      setLoading(false);
     };
 
-    fetchDeals();
+    loadDeals();
   }, [user]);
 
   return (
-    <RequireRole allow={["admin", "manager", "staff"]}>
+    <RequireRole allow={["staff"]}>
       <main style={{ padding: 32 }}>
-        <h1 style={{ fontSize: 28, marginBottom: 20 }}>Staff Dashboard</h1>
+        <h1>Staff Dashboard</h1>
 
-        {loading && <p>Loading deals…</p>}
-
-        {!loading && deals.length === 0 && (
-          <p>No deals assigned to you yet.</p>
-        )}
-
-        {!loading && deals.length > 0 && (
-          <table
-            border={1}
-            cellPadding={8}
-            style={{ width: "100%", borderCollapse: "collapse" }}
-          >
+        {loading ? (
+          <p>Loading deals...</p>
+        ) : deals.length === 0 ? (
+          <p>No deals available.</p>
+        ) : (
+          <table border={1} cellPadding={8} style={{ width: "100%" }}>
             <thead>
               <tr>
-                <th align="left">Title</th>
-                <th align="left">Reference</th>
-                <th align="left">Client</th>
-                <th align="left">Status</th>
+                <th>Title</th>
+                <th>Reference</th>
+                <th>Client</th>
+                <th>Status</th>
               </tr>
             </thead>
             <tbody>
