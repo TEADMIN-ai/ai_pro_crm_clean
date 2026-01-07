@@ -1,170 +1,123 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { collection, getDocs, query, where, orderBy } from "firebase/firestore";
+import { collection, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase/config";
 import RequireRole from "@/components/auth/RequireRole";
-import { useAuth } from "@/context/AuthContext";
-
-/* ---------------- TYPES ---------------- */
-
-type DealStatus = "draft" | "in_review" | "submitted" | "awarded" | "lost";
 
 type Deal = {
   id: string;
-  title: string;
-  clientName?: string;
-  status: DealStatus;
-  value?: number;
-  managerId?: string;
-  updatedAt?: any;
+  title?: string;
+  status?: string;
+  createdAt?: any;
 };
 
-/* ---------------- PAGE ---------------- */
-
-export default function ManagerDashboardPage() {
-  const { user } = useAuth();
-
+export default function ManagerDashboard() {
   const [deals, setDeals] = useState<Deal[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeStatus, setActiveStatus] = useState<DealStatus | "all">("all");
-
-  /* ---------------- FETCH DEALS ---------------- */
 
   useEffect(() => {
-    if (!user?.uid) return;
-
     const fetchDeals = async () => {
       try {
-        const q = query(
-          collection(db, "deals"),
-          where("managerId", "==", user.uid),
-          orderBy("createdAt", "desc")
-        );
-
-        const snap = await getDocs(q);
-        const results: Deal[] = snap.docs.map((doc) => ({
+        const snap = await getDocs(collection(db, "deals"));
+        const data: Deal[] = snap.docs.map((doc) => ({
           id: doc.id,
           ...(doc.data() as Omit<Deal, "id">),
         }));
-
-        setDeals(results);
+        setDeals(data);
       } catch (err) {
-        console.error("Failed to load manager deals", err);
+        console.error("Failed to load deals", err);
       } finally {
         setLoading(false);
       }
     };
 
     fetchDeals();
-  }, [user]);
+  }, []);
 
-  /* ---------------- STATUS COUNTS ---------------- */
+  const totalDeals = deals.length;
 
-  const statusCounts: Record<DealStatus, number> = {
-    draft: 0,
-    in_review: 0,
-    submitted: 0,
-    awarded: 0,
-    lost: 0,
-  };
-
-  deals.forEach((deal) => {
-    statusCounts[deal.status]++;
-  });
-
-  /* ---------------- FILTERED DEALS ---------------- */
-
-  const visibleDeals =
-    activeStatus === "all"
-      ? deals
-      : deals.filter((deal) => deal.status === activeStatus);
-
-  /* ---------------- UI ---------------- */
+  const statusCounts = deals.reduce<Record<string, number>>((acc, deal) => {
+    const status = deal.status || "unknown";
+    acc[status] = (acc[status] || 0) + 1;
+    return acc;
+  }, {});
 
   return (
-    <RequireRole allow={["admin", "manager"]}>
-      <main style={{ padding: 40 }}>
-        <h1>Manager Dashboard</h1>
+    <RequireRole role="manager">
+      <div style={{ padding: 32 }}>
+        <h1 style={{ fontSize: 28, marginBottom: 20 }}>
+          Manager Overview
+        </h1>
 
-        <h3>Deal status overview</h3>
+        {loading ? (
+          <p>Loading deals…</p>
+        ) : (
+          <>
+            {/* Summary cards */}
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+                gap: 16,
+                marginBottom: 32,
+              }}
+            >
+              <div style={cardStyle}>
+                <h3>Total Deals</h3>
+                <strong style={countStyle}>{totalDeals}</strong>
+              </div>
 
-        {/* STATUS CARDS */}
-        <div style={{ display: "flex", gap: 16, marginBottom: 32 }}>
-          {(["all", "draft", "in_review", "submitted", "awarded", "lost"] as const).map(
-            (status) => {
-              const isActive = activeStatus === status;
-              const label =
-                status === "all"
-                  ? "ALL"
-                  : status.replace("_", " ").toUpperCase();
-
-              const count =
-                status === "all"
-                  ? deals.length
-                  : statusCounts[status];
-
-              return (
-                <div
-                  key={status}
-                  onClick={() => setActiveStatus(status)}
-                  style={{
-                    cursor: "pointer",
-                    border: isActive ? "2px solid #000" : "1px solid #ccc",
-                    padding: 16,
-                    minWidth: 120,
-                    textAlign: "center",
-                    background: isActive ? "#f5f5f5" : "#fff",
-                  }}
-                >
-                  <strong>{label}</strong>
-                  <div>{count}</div>
+              {Object.entries(statusCounts).map(([status, count]) => (
+                <div key={status} style={cardStyle}>
+                  <h3>{status}</h3>
+                  <strong style={countStyle}>{count}</strong>
                 </div>
-              );
-            }
-          )}
-        </div>
-
-        {/* DEAL TABLE */}
-        <h3>
-          Deals {activeStatus !== "all" && `(${activeStatus.replace("_", " ")})`}
-        </h3>
-
-        {loading && <p>Loading deals…</p>}
-
-        {!loading && visibleDeals.length === 0 && (
-          <p>No deals for this status.</p>
-        )}
-
-        {!loading && visibleDeals.length > 0 && (
-          <table border={1} cellPadding={8} style={{ width: "100%" }}>
-            <thead>
-              <tr>
-                <th>Title</th>
-                <th>Client</th>
-                <th>Status</th>
-                <th>Value</th>
-                <th>Last Updated</th>
-              </tr>
-            </thead>
-            <tbody>
-              {visibleDeals.map((deal) => (
-                <tr key={deal.id}>
-                  <td>{deal.title}</td>
-                  <td>{deal.clientName || "-"}</td>
-                  <td>{deal.status}</td>
-                  <td>{deal.value ?? "-"}</td>
-                  <td>
-                    {deal.updatedAt?.toDate
-                      ? deal.updatedAt.toDate().toLocaleDateString()
-                      : "-"}
-                  </td>
-                </tr>
               ))}
-            </tbody>
-          </table>
+            </div>
+
+            {/* Recent deals */}
+            <h2 style={{ marginBottom: 12 }}>Recent Deals</h2>
+            <table style={{ width: "100%", borderCollapse: "collapse" }}>
+              <thead>
+                <tr>
+                  <th style={th}>Title</th>
+                  <th style={th}>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {deals.slice(0, 10).map((deal) => (
+                  <tr key={deal.id}>
+                    <td style={td}>{deal.title || "Untitled"}</td>
+                    <td style={td}>{deal.status || "unknown"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </>
         )}
-      </main>
+      </div>
     </RequireRole>
   );
 }
+
+const cardStyle: React.CSSProperties = {
+  background: "#0b1a2a",
+  padding: 16,
+  borderRadius: 8,
+};
+
+const countStyle: React.CSSProperties = {
+  fontSize: 24,
+};
+
+const th: React.CSSProperties = {
+  textAlign: "left",
+  padding: 8,
+  borderBottom: "1px solid #333",
+};
+
+const td: React.CSSProperties = {
+  padding: 8,
+  borderBottom: "1px solid #222",
+};
