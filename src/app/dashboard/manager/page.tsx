@@ -1,12 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   collection,
   getDocs,
   orderBy,
   query,
-  where,
 } from "firebase/firestore";
 
 import { db } from "@/lib/firebase";
@@ -21,60 +21,50 @@ type Deal = {
   createdAt?: any;
 };
 
-type DealActivity = {
-  id: string;
-  type: string;
-  from?: string | null;
-  to?: string | null;
-  by: string;
-  createdAt?: any;
-};
+type UserMap = Record<string, string>; // uid -> email
 
 export default function ManagerDashboardPage() {
-  const [deals, setDeals] = useState<Deal[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [expandedDealId, setExpandedDealId] = useState<string | null>(null);
-  const [activity, setActivity] = useState<Record<string, DealActivity[]>>({});
+  const router = useRouter();
 
-  // 🔹 Load manager deals
+  const [deals, setDeals] = useState<Deal[]>([]);
+  const [users, setUsers] = useState<UserMap>({});
+  const [loading, setLoading] = useState(true);
+
   useEffect(() => {
-    const loadDeals = async () => {
-      const q = query(
+    const loadData = async () => {
+      // 🔹 Load users (for UID → email resolution)
+      const usersSnap = await getDocs(collection(db, "users"));
+      const userMap: UserMap = {};
+
+      usersSnap.docs.forEach((doc) => {
+        const data = doc.data();
+        if (data.email) {
+          userMap[doc.id] = data.email;
+        }
+      });
+
+      setUsers(userMap);
+
+      // 🔹 Load deals
+      const dealsQuery = query(
         collection(db, "deals"),
         orderBy("createdAt", "desc")
       );
-      const snap = await getDocs(q);
+
+      const dealsSnap = await getDocs(dealsQuery);
+
       setDeals(
-        snap.docs.map((d) => ({
+        dealsSnap.docs.map((d) => ({
           id: d.id,
-          ...(d.data() as Deal),
+          ...(d.data() as Omit<Deal, "id">),
         }))
       );
+
       setLoading(false);
     };
 
-    loadDeals();
+    loadData();
   }, []);
-
-  // 🔹 Load activity for a deal (only when expanded)
-  const loadActivity = async (dealId: string) => {
-    if (activity[dealId]) return;
-
-    const q = query(
-      collection(db, "deals", dealId, "activity"),
-      orderBy("createdAt", "desc")
-    );
-
-    const snap = await getDocs(q);
-
-    setActivity((prev) => ({
-      ...prev,
-      [dealId]: snap.docs.map((d) => ({
-        id: d.id,
-        ...(d.data() as DealActivity),
-      })),
-    }));
-  };
 
   if (loading) {
     return <div style={{ padding: 32 }}>Loading manager dashboard…</div>;
@@ -87,79 +77,43 @@ export default function ManagerDashboardPage() {
 
         <h1>Manager Dashboard</h1>
 
-        {deals.map((deal) => (
-          <div
-            key={deal.id}
-            style={{
-              border: "1px solid #ddd",
-              padding: 16,
-              marginBottom: 16,
-              borderRadius: 6,
-            }}
-          >
-            <strong>{deal.title}</strong>
-            <div>Status: {deal.status}</div>
-            <div>
-              Assigned to: {deal.assignedTo || "Unassigned"}
-            </div>
+        {deals.length === 0 && (
+          <p style={{ opacity: 0.6 }}>No deals found.</p>
+        )}
 
-            {/* 🔽 Toggle activity */}
-            <button
-              style={{ marginTop: 8 }}
-              onClick={() => {
-                const next =
-                  expandedDealId === deal.id ? null : deal.id;
-                setExpandedDealId(next);
-                if (next) loadActivity(deal.id);
+        {deals.map((deal) => {
+          const assignedLabel =
+            deal.assignedTo && users[deal.assignedTo]
+              ? users[deal.assignedTo]
+              : "Unassigned";
+
+          return (
+            <div
+              key={deal.id}
+              style={{
+                border: "1px solid #ddd",
+                padding: 16,
+                marginBottom: 16,
+                borderRadius: 6,
               }}
             >
-              {expandedDealId === deal.id
-                ? "Hide activity"
-                : "View activity"}
-            </button>
+              <strong>{deal.title}</strong>
 
-            {/* 🔹 Activity timeline */}
-            {expandedDealId === deal.id && (
-              <div
-                style={{
-                  marginTop: 12,
-                  paddingLeft: 12,
-                  borderLeft: "3px solid #eee",
-                }}
+              <div>Status: {deal.status}</div>
+
+              <div>Assigned to: {assignedLabel}</div>
+
+              <button
+                style={{ marginTop: 10 }}
+                onClick={() =>
+                  router.push(`/dashboard/deals/${deal.id}`)
+                }
               >
-                {activity[deal.id]?.length ? (
-                  activity[deal.id].map((a) => (
-                    <div
-                      key={a.id}
-                      style={{
-                        fontSize: 14,
-                        marginBottom: 8,
-                        opacity: 0.9,
-                      }}
-                    >
-                      <div>
-                        <strong>{a.type}</strong>
-                      </div>
-                      {a.from !== undefined && (
-                        <div>
-                          {a.from || "Unassigned"} →{" "}
-                          {a.to || "Unassigned"}
-                        </div>
-                      )}
-                      <div style={{ fontSize: 12, opacity: 0.6 }}>
-                        by {a.by}
-                      </div>
-                    </div>
-                  ))
-                ) : (
-                  <div style={{ opacity: 0.6 }}>
-                    No activity recorded.
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        ))}
+                View activity
+              </button>
+            </div>
+          );
+        })}
       </main>
     </RequireRole>
   );
