@@ -6,15 +6,16 @@ import {
   getDocs,
   query,
   where,
+  orderBy,
   updateDoc,
   doc,
-  orderBy,
 } from "firebase/firestore";
 
 import RequireRole from "@/components/auth/RequireRole";
 import LogoutButton from "@/components/auth/LogoutButton";
-import { useAuthContext } from "@/context/AuthContext";
 import { db } from "@/lib/firebase";
+import { useAuthContext } from "@/context/AuthContext";
+import { logDealActivity } from "@/lib/dealActivity";
 
 type Deal = {
   id: string;
@@ -29,76 +30,85 @@ type StaffUser = {
 };
 
 export default function ManagerDashboardPage() {
-  const { user } = useAuthContext();
-
+  const { user, loading } = useAuthContext();
   const [deals, setDeals] = useState<Deal[]>([]);
   const [staff, setStaff] = useState<StaffUser[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [busyDealId, setBusyDealId] = useState<string | null>(null);
 
-  // Load staff users
   useEffect(() => {
     if (!user) return;
 
-    const loadStaff = async () => {
-      const q = query(
-        collection(db, "users"),
-        where("companyId", "==", user.companyId),
-        where("role", "==", "staff")
-      );
-
-      const snap = await getDocs(q);
-      setStaff(
-        snap.docs.map((d) => ({
-          uid: d.data().uid,
-          email: d.data().email,
-        }))
-      );
-    };
-
-    loadStaff();
-  }, [user]);
-
-  // Load company deals
-  useEffect(() => {
-    if (!user) return;
-
-    const loadDeals = async () => {
-      const q = query(
+    const loadData = async () => {
+      // Load company deals
+      const dealsQuery = query(
         collection(db, "deals"),
         where("companyId", "==", user.companyId),
         orderBy("createdAt", "desc")
       );
 
-      const snap = await getDocs(q);
+      const dealsSnap = await getDocs(dealsQuery);
       setDeals(
-        snap.docs.map((d) => ({
+        dealsSnap.docs.map((d) => ({
           id: d.id,
-          ...d.data(),
-        })) as Deal[]
+          ...(d.data() as Omit<Deal, "id">),
+        }))
       );
 
-      setLoading(false);
+      // Load staff users
+      const staffQuery = query(
+        collection(db, "users"),
+        where("companyId", "==", user.companyId),
+        where("role", "==", "staff")
+      );
+
+      const staffSnap = await getDocs(staffQuery);
+      setStaff(
+        staffSnap.docs.map((u) => ({
+          uid: u.id,
+          email: u.data().email,
+        }))
+      );
     };
 
-    loadDeals();
+    loadData();
   }, [user]);
 
-  const assignDeal = async (dealId: string, staffUid: string) => {
-    const ref = doc(db, "deals", dealId);
-    if (staffUid) {
-  await updateDoc(ref, { assignedTo: staffUid });
-} else {
-  await updateDoc(ref, { assignedTo: null });
-}
+  const handleAssignmentChange = async (
+    deal: Deal,
+    newUid: string | null
+  ) => {
+    if (!user) return;
 
-    setDeals((prev) =>
-      prev.map((d) =>
-        d.id === dealId ? { ...d, assignedTo: staffUid } : d
-      )
-    );
+    try {
+      setBusyDealId(deal.id);
+
+      const dealRef = doc(db, "deals", deal.id);
+      const previousUid = deal.assignedTo ?? null;
+
+      await updateDoc(dealRef, {
+        assignedTo: newUid,
+      });
+
+      await logDealActivity(
+        deal.id,
+        user,
+        "assignment_change",
+        previousUid,
+        newUid
+      );
+
+      setDeals((prev) =>
+        prev.map((d) =>
+          d.id === deal.id ? { ...d, assignedTo: newUid ?? undefined } : d
+        )
+      );
+    } finally {
+      setBusyDealId(null);
+    }
   };
 
-  if (loading) return <p>Loading…</p>;
+  if (loading) return <p>Loading...</p>;
+  if (!user) return <p>Access denied</p>;
 
   return (
     <RequireRole allow={["manager"]}>
@@ -112,18 +122,20 @@ export default function ManagerDashboardPage() {
 
         <ul>
           {deals.map((deal) => (
-            <li key={deal.id} style={{ marginBottom: 16 }}>
+            <li key={deal.id} style={{ marginBottom: 20 }}>
               <strong>{deal.title}</strong>
-              <br />
-              Status: {deal.status}
-              <br />
+              <div>Status: {deal.status}</div>
 
               <label>
-                Assign to:&nbsp;
+                Assign to:{" "}
                 <select
-                  value={deal.assignedTo || ""}
+                  value={deal.assignedTo ?? ""}
+                  disabled={busyDealId === deal.id}
                   onChange={(e) =>
-                    assignDeal(deal.id, e.target.value)
+                    handleAssignmentChange(
+                      deal,
+                      e.target.value || null
+                    )
                   }
                 >
                   <option value="">Unassigned</option>
