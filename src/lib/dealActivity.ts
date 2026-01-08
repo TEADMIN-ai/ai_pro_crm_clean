@@ -1,21 +1,34 @@
 import { addDoc, collection, serverTimestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 
-type ActivityType = "assign" | "status" | "comment";
+type ActivityType = "status_change" | "assignment_change";
 
-export async function logDealActivity(
-  dealId: string,
-  activity: {
-    type: ActivityType;
-    message: string;
-    performedBy: string;
-    performedByEmail: string;
-  }
-) {
-  const ref = collection(db, "deals", dealId, "activity");
+export async function logDealActivity(params: {
+  dealId: string;
+  type: ActivityType;
+  message: string;
+  from?: string | null;
+  to?: string | null;
+  performedBy: string;
+  performedByEmail: string;
+}) {
+  const {
+    dealId,
+    type,
+    message,
+    from = null,
+    to = null,
+    performedBy,
+    performedByEmail,
+  } = params;
 
-  await addDoc(ref, {
-    ...activity,
+  await addDoc(collection(db, "deals", dealId, "activity"), {
+    type,
+    message,
+    from,
+    to,
+    performedBy,
+    performedByEmail,
     createdAt: serverTimestamp(),
   });
 }

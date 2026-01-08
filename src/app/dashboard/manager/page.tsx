@@ -4,117 +4,80 @@ import { useEffect, useState } from "react";
 import {
   collection,
   getDocs,
+  orderBy,
   query,
   where,
-  orderBy,
-  updateDoc,
-  doc,
 } from "firebase/firestore";
 
 import { db } from "@/lib/firebase";
-import { useAuthContext } from "@/context/AuthContext";
 import RequireRole from "@/components/auth/RequireRole";
 import LogoutButton from "@/components/auth/LogoutButton";
-import { logDealActivity } from "@/lib/dealActivity";
 
 type Deal = {
   id: string;
   title: string;
   status: string;
-  assignedTo?: string | null;
+  assignedTo: string | null;
+  createdAt?: any;
 };
 
-type UserOption = {
-  uid: string;
-  email: string;
+type DealActivity = {
+  id: string;
+  type: string;
+  from?: string | null;
+  to?: string | null;
+  by: string;
+  createdAt?: any;
 };
 
 export default function ManagerDashboardPage() {
-  const { user, loading } = useAuthContext();
-
   const [deals, setDeals] = useState<Deal[]>([]);
-  const [users, setUsers] = useState<UserOption[]>([]);
-  const [loadingDeals, setLoadingDeals] = useState(true);
+  const [loading, setLoading] = useState(true);
+  const [expandedDealId, setExpandedDealId] = useState<string | null>(null);
+  const [activity, setActivity] = useState<Record<string, DealActivity[]>>({});
 
-  // 🔹 Load company deals
+  // 🔹 Load manager deals
   useEffect(() => {
-    if (!user) return;
-
     const loadDeals = async () => {
       const q = query(
         collection(db, "deals"),
-        where("companyId", "==", user.companyId),
         orderBy("createdAt", "desc")
       );
-
       const snap = await getDocs(q);
       setDeals(
         snap.docs.map((d) => ({
           id: d.id,
-          ...(d.data() as Omit<Deal, "id">),
+          ...(d.data() as Deal),
         }))
       );
-
-      setLoadingDeals(false);
+      setLoading(false);
     };
 
     loadDeals();
-  }, [user]);
+  }, []);
 
-  // 🔹 Load company users (admin + manager + staff)
-  useEffect(() => {
-    if (!user) return;
+  // 🔹 Load activity for a deal (only when expanded)
+  const loadActivity = async (dealId: string) => {
+    if (activity[dealId]) return;
 
-    const loadUsers = async () => {
-      const q = query(
-        collection(db, "users"),
-        where("companyId", "==", user.companyId)
-      );
-
-      const snap = await getDocs(q);
-      setUsers(
-        snap.docs.map((d) => ({
-          uid: d.id,
-          email: d.data().email,
-        }))
-      );
-    };
-
-    loadUsers();
-  }, [user]);
-
-  // 🔹 Assignment handler + activity logging
-  const handleAssign = async (
-    dealId: string,
-    previousAssignedTo: string | null,
-    newAssignedTo: string | null
-  ) => {
-    if (!user) return;
-
-    await updateDoc(doc(db, "deals", dealId), {
-      assignedTo: newAssignedTo,
-    });
-
-    await logDealActivity({
-      dealId,
-      type: "assignment_change",
-      message: newAssignedTo ? "Deal assigned" : "Deal unassigned",
-      from: previousAssignedTo,
-      to: newAssignedTo,
-      performedBy: user.uid,
-      performedByEmail: user.email ?? "unknown",
-    });
-
-    // 🔹 Update local state (no reload)
-    setDeals((prev) =>
-      prev.map((d) =>
-        d.id === dealId ? { ...d, assignedTo: newAssignedTo } : d
-      )
+    const q = query(
+      collection(db, "deals", dealId, "activity"),
+      orderBy("createdAt", "desc")
     );
+
+    const snap = await getDocs(q);
+
+    setActivity((prev) => ({
+      ...prev,
+      [dealId]: snap.docs.map((d) => ({
+        id: d.id,
+        ...(d.data() as DealActivity),
+      })),
+    }));
   };
 
-  if (loading || loadingDeals) {
-    return <div>Loading...</div>;
+  if (loading) {
+    return <div style={{ padding: 32 }}>Loading manager dashboard…</div>;
   }
 
   return (
@@ -123,39 +86,80 @@ export default function ManagerDashboardPage() {
         <LogoutButton />
 
         <h1>Manager Dashboard</h1>
-        <p>Company pipeline overview</p>
 
-        {deals.length === 0 && <p>No deals found.</p>}
+        {deals.map((deal) => (
+          <div
+            key={deal.id}
+            style={{
+              border: "1px solid #ddd",
+              padding: 16,
+              marginBottom: 16,
+              borderRadius: 6,
+            }}
+          >
+            <strong>{deal.title}</strong>
+            <div>Status: {deal.status}</div>
+            <div>
+              Assigned to: {deal.assignedTo || "Unassigned"}
+            </div>
 
-        <ul>
-          {deals.map((deal) => (
-            <li key={deal.id} style={{ marginBottom: 16 }}>
-              <strong>{deal.title}</strong>
-              <div>Status: {deal.status}</div>
+            {/* 🔽 Toggle activity */}
+            <button
+              style={{ marginTop: 8 }}
+              onClick={() => {
+                const next =
+                  expandedDealId === deal.id ? null : deal.id;
+                setExpandedDealId(next);
+                if (next) loadActivity(deal.id);
+              }}
+            >
+              {expandedDealId === deal.id
+                ? "Hide activity"
+                : "View activity"}
+            </button>
 
-              <label>
-                Assign to:{" "}
-                <select
-                  value={deal.assignedTo ?? ""}
-                  onChange={(e) =>
-                    handleAssign(
-                      deal.id,
-                      deal.assignedTo ?? null,
-                      e.target.value || null
-                    )
-                  }
-                >
-                  <option value="">Unassigned</option>
-                  {users.map((u) => (
-                    <option key={u.uid} value={u.uid}>
-                      {u.email}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            </li>
-          ))}
-        </ul>
+            {/* 🔹 Activity timeline */}
+            {expandedDealId === deal.id && (
+              <div
+                style={{
+                  marginTop: 12,
+                  paddingLeft: 12,
+                  borderLeft: "3px solid #eee",
+                }}
+              >
+                {activity[deal.id]?.length ? (
+                  activity[deal.id].map((a) => (
+                    <div
+                      key={a.id}
+                      style={{
+                        fontSize: 14,
+                        marginBottom: 8,
+                        opacity: 0.9,
+                      }}
+                    >
+                      <div>
+                        <strong>{a.type}</strong>
+                      </div>
+                      {a.from !== undefined && (
+                        <div>
+                          {a.from || "Unassigned"} →{" "}
+                          {a.to || "Unassigned"}
+                        </div>
+                      )}
+                      <div style={{ fontSize: 12, opacity: 0.6 }}>
+                        by {a.by}
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div style={{ opacity: 0.6 }}>
+                    No activity recorded.
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        ))}
       </main>
     </RequireRole>
   );
