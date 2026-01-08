@@ -1,28 +1,15 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
-import {
-  collection,
-  getDocs,
-  query,
-  where,
-} from "firebase/firestore";
-
-import RequireRole from "@/components/auth/RequireRole";
-import { useAuthContext } from "@/context/AuthContext";
+import { collection, getDocs, query, where } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-
-type Deal = {
-  id: string;
-  title: string;
-  reference?: string;
-  clientName?: string;
-  status: string;
-};
+import RequireRole from "@/components/auth/RequireRole";
+import LogoutButton from "@/components/auth/LogoutButton";
+import { useAuthContext } from "@/context/AuthContext";
 
 export default function StaffDashboard() {
   const { user } = useAuthContext();
-  const [deals, setDeals] = useState<Deal[]>([]);
+  const [deals, setDeals] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -35,12 +22,7 @@ export default function StaffDashboard() {
       );
 
       const snap = await getDocs(q);
-      setDeals(
-        snap.docs.map((d) => ({
-          id: d.id,
-          ...(d.data() as Omit<Deal, "id">),
-        }))
-      );
+      setDeals(snap.docs.map(d => ({ id: d.id, ...d.data() })));
       setLoading(false);
     };
 
@@ -50,33 +32,19 @@ export default function StaffDashboard() {
   return (
     <RequireRole allow={["staff"]}>
       <main style={{ padding: 32 }}>
+        <LogoutButton />
         <h1>Staff Dashboard</h1>
 
-        {loading ? (
-          <p>Loading deals...</p>
-        ) : deals.length === 0 ? (
-          <p>No deals available.</p>
-        ) : (
-          <table border={1} cellPadding={8} style={{ width: "100%" }}>
-            <thead>
-              <tr>
-                <th>Title</th>
-                <th>Reference</th>
-                <th>Client</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {deals.map((deal) => (
-                <tr key={deal.id}>
-                  <td>{deal.title}</td>
-                  <td>{deal.reference || "-"}</td>
-                  <td>{deal.clientName || "-"}</td>
-                  <td>{deal.status}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        {loading && <p>Loading…</p>}
+
+        {!loading && deals.length === 0 && <p>No deals assigned.</p>}
+
+        {!loading && deals.length > 0 && (
+          <ul>
+            {deals.map(deal => (
+              <li key={deal.id}>{deal.title}</li>
+            ))}
+          </ul>
         )}
       </main>
     </RequireRole>

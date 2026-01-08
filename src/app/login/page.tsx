@@ -1,10 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { signInWithEmailAndPassword } from "firebase/auth";
 import { useRouter } from "next/navigation";
+import { signInWithEmailAndPassword } from "firebase/auth";
+import { doc, getDoc } from "firebase/firestore";
 
-import { auth } from "@/lib/firebase";
+import { auth, db } from "@/lib/firebase";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -20,9 +21,36 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      await signInWithEmailAndPassword(auth, email, password);
-      router.push("/dashboard");
+      // 1. Firebase Auth sign-in
+      const cred = await signInWithEmailAndPassword(
+        auth,
+        email,
+        password
+      );
+
+      const user = cred.user;
+
+      // 2. Fetch role from Firestore
+      const snap = await getDoc(doc(db, "users", user.uid));
+
+      if (!snap.exists()) {
+        throw new Error("User profile not found in Firestore");
+      }
+
+      const role = snap.data().role;
+
+      // 3. Role-based redirect
+      if (role === "admin") {
+        router.push("/dashboard/admin");
+      } else if (role === "manager") {
+        router.push("/dashboard/manager");
+      } else if (role === "staff") {
+        router.push("/dashboard/staff");
+      } else {
+        throw new Error("Unknown user role");
+      }
     } catch (err: any) {
+      console.error(err);
       setError(err.message || "Login failed");
     } finally {
       setLoading(false);
@@ -56,10 +84,18 @@ export default function LoginPage() {
           />
         </div>
 
-        {error && <p style={{ color: "red" }}>{error}</p>}
+        {error && (
+          <p style={{ color: "red", marginBottom: 12 }}>
+            {error}
+          </p>
+        )}
 
-        <button type="submit" disabled={loading}>
-          {loading ? "Signing in..." : "Login"}
+        <button
+          type="submit"
+          disabled={loading}
+          style={{ padding: "8px 16px" }}
+        >
+          {loading ? "Logging in..." : "Login"}
         </button>
       </form>
     </main>

@@ -3,7 +3,6 @@ import { initializeApp, getApps, getApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 
-// ✅ Client-side Firebase config ONLY
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY!,
   authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN!,
@@ -13,11 +12,8 @@ const firebaseConfig = {
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID!,
 };
 
-// ✅ Prevent re-initialization (Next.js safe)
 const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
 
-// ✅ EXPLICIT exports (this fixes 90% of your errors)
 export const auth = getAuth(app);
 export const db = getFirestore(app);
-
 export default app;
