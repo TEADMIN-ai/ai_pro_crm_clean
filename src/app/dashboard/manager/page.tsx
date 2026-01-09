@@ -11,85 +11,88 @@ import {
 import { db } from "@/lib/firebase";
 import RequireRole from "@/components/auth/RequireRole";
 import LogoutButton from "@/components/auth/LogoutButton";
+import { resolveSLAForDeal, SLA } from "@/lib/slaRules";
 
 type Deal = {
+  id: string;
   title: string;
   status: string;
   assignedTo: string | null;
   createdAt?: any;
+  sla?: SLA | null;
 };
 
-type DealWithId = Deal & { id: string };
-
-type DealActivity = {
+type Activity = {
+  id: string;
   type: string;
   from?: string | null;
   to?: string | null;
-  by: string;
+  actorUid?: string | null;
   createdAt?: any;
 };
 
-type DealActivityWithId = DealActivity & { id: string };
-
-type UserMap = Record<string, string>;
-
-const MAX_ACTIVE_DEALS = 3;
-
 export default function ManagerDashboardPage() {
-  const [deals, setDeals] = useState<DealWithId[]>([]);
-  const [users, setUsers] = useState<UserMap>({});
+  const [deals, setDeals] = useState<Deal[]>([]);
+  const [users, setUsers] = useState<Record<string, string>>({});
+  const [activity, setActivity] = useState<Record<string, Activity[]>>({});
+  const [expanded, setExpanded] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [expandedDealId, setExpandedDealId] = useState<string | null>(null);
-  const [activity, setActivity] = useState<Record<string, DealActivityWithId[]>>(
-    {}
-  );
 
-  /* ------------------ LOAD DATA ------------------ */
-
+  // Load users (UID → email)
   useEffect(() => {
-    const loadData = async () => {
-      const dealsSnap = await getDocs(
-        query(collection(db, "deals"), orderBy("createdAt", "desc"))
-      );
-
-      setDeals(
-        dealsSnap.docs.map((d) => ({
-          id: d.id,
-          ...(d.data() as Deal),
-        }))
-      );
-
-      const usersSnap = await getDocs(collection(db, "users"));
-      const map: UserMap = {};
-      usersSnap.forEach((u) => {
-        map[u.id] = u.data().email;
+    getDocs(collection(db, "users")).then((snap) => {
+      const map: Record<string, string> = {};
+      snap.docs.forEach((d) => {
+        map[d.id] = d.data().email;
       });
       setUsers(map);
+    });
+  }, []);
+
+  // Load deals
+  useEffect(() => {
+    const load = async () => {
+      const q = query(
+        collection(db, "deals"),
+        orderBy("createdAt", "desc")
+      );
+
+      const snap = await getDocs(q);
+
+      setDeals(
+        snap.docs.map((d) => {
+          const data = d.data() as Deal;
+
+          return {
+            ...data,
+            id: d.id, // ✅ ID LAST — FIXES ERROR
+            sla: resolveSLAForDeal(data.status, data.createdAt),
+          };
+        })
+      );
 
       setLoading(false);
     };
 
-    loadData();
+    load();
   }, []);
-
-  /* ------------------ LOAD ACTIVITY ------------------ */
 
   const loadActivity = async (dealId: string) => {
     if (activity[dealId]) return;
 
-    const snap = await getDocs(
-      query(
-        collection(db, "deals", dealId, "activity"),
-        orderBy("createdAt", "desc")
-      )
+    const q = query(
+      collection(db, "deals", dealId, "activity"),
+      orderBy("createdAt", "desc")
     );
+
+    const snap = await getDocs(q);
 
     setActivity((prev) => ({
       ...prev,
       [dealId]: snap.docs.map((d) => ({
-        id: d.id,
-        ...(d.data() as DealActivity),
-      })),
+        ...d.data(),
+        id: d.id, // ✅ SAFE
+      })) as Activity[],
     }));
   };
 
@@ -97,146 +100,89 @@ export default function ManagerDashboardPage() {
     return <div style={{ padding: 32 }}>Loading manager dashboard…</div>;
   }
 
-  /* ------------------ WORKLOAD MAP ------------------ */
-
-  const workload: Record<string, number> = {};
-  deals.forEach((deal) => {
-    if (!deal.assignedTo) return;
-    workload[deal.assignedTo] = (workload[deal.assignedTo] || 0) + 1;
-  });
-
-  /* ------------------ BADGE ------------------ */
-
-  const workloadBadge = (uid: string | null) => {
-    if (!uid) return { label: "Unassigned", color: "#999" };
-
-    const count = workload[uid] || 0;
-
-    if (count > MAX_ACTIVE_DEALS)
-      return { label: "Overloaded", color: "#c0392b" };
-
-    if (count === MAX_ACTIVE_DEALS)
-      return { label: "High load", color: "#e67e22" };
-
-    return { label: "Normal", color: "#27ae60" };
-  };
-
-  /* ------------------ AI-LITE SUGGESTION ------------------ */
-
-  const suggestReassignment = (currentUid: string | null) => {
-    if (!currentUid) return null;
-
-    const currentLoad = workload[currentUid] || 0;
-    if (currentLoad <= MAX_ACTIVE_DEALS) return null;
-
-    const candidates = Object.keys(users)
-      .filter((uid) => uid !== currentUid)
-      .map((uid) => ({
-        uid,
-        load: workload[uid] || 0,
-      }))
-      .sort((a, b) => a.load - b.load);
-
-    return candidates[0] || null;
-  };
-
-  /* ------------------ RENDER ------------------ */
-
   return (
-    <RequireRole allow={["manager", "admin"]}>
+    <RequireRole allow={["admin", "manager"]}>
       <main style={{ padding: 32 }}>
         <LogoutButton />
+
         <h1>Manager Dashboard</h1>
 
-        {deals.map((deal) => {
-          const badge = workloadBadge(deal.assignedTo);
-          const suggestion = suggestReassignment(deal.assignedTo);
+        {deals.map((deal) => (
+          <div
+            key={deal.id}
+            style={{
+              border: "1px solid #ddd",
+              padding: 16,
+              marginBottom: 16,
+              borderRadius: 6,
+            }}
+          >
+            <strong>{deal.title}</strong>
 
-          return (
-            <div
-              key={deal.id}
-              style={{
-                border: "1px solid #ddd",
-                padding: 16,
-                marginBottom: 16,
-                borderRadius: 6,
+            <div>Status: {deal.status}</div>
+
+            <div>
+              Assigned to:{" "}
+              {deal.assignedTo
+                ? users[deal.assignedTo] ?? deal.assignedTo
+                : "Unassigned"}
+            </div>
+
+            <div>
+              SLA:{" "}
+              <strong>
+                {deal.sla?.label ?? "No SLA"}
+              </strong>
+            </div>
+
+            <button
+              style={{ marginTop: 8 }}
+              onClick={() => {
+                const next = expanded === deal.id ? null : deal.id;
+                setExpanded(next);
+                if (next) loadActivity(deal.id);
               }}
             >
-              <strong>{deal.title}</strong>
-              <div>Status: {deal.status}</div>
-              <div>
-                Assigned to:{" "}
-                {deal.assignedTo
-                  ? users[deal.assignedTo] || deal.assignedTo
-                  : "Unassigned"}
-              </div>
+              {expanded === deal.id ? "Hide activity" : "View activity"}
+            </button>
 
+            {expanded === deal.id && (
               <div
                 style={{
-                  marginTop: 6,
-                  fontSize: 13,
-                  fontWeight: 600,
-                  color: badge.color,
+                  marginTop: 12,
+                  paddingLeft: 12,
+                  borderLeft: "3px solid #eee",
                 }}
               >
-                ● {badge.label}
-              </div>
+                {activity[deal.id]?.length ? (
+                  activity[deal.id].map((a) => (
+                    <div key={a.id} style={{ marginBottom: 8 }}>
+                      <strong>{a.type}</strong>
 
-              {suggestion && (
-                <div style={{ marginTop: 8, fontSize: 13, color: "#2980b9" }}>
-                  💡 Suggested reassignment:{" "}
-                  <strong>{users[suggestion.uid]}</strong> (
-                  {suggestion.load} active deals)
-                </div>
-              )}
-
-              <button
-                style={{ marginTop: 10 }}
-                onClick={() => {
-                  const next =
-                    expandedDealId === deal.id ? null : deal.id;
-                  setExpandedDealId(next);
-                  if (next) loadActivity(deal.id);
-                }}
-              >
-                {expandedDealId === deal.id
-                  ? "Hide activity"
-                  : "View activity"}
-              </button>
-
-              {expandedDealId === deal.id && (
-                <div
-                  style={{
-                    marginTop: 12,
-                    paddingLeft: 12,
-                    borderLeft: "3px solid #eee",
-                  }}
-                >
-                  {activity[deal.id]?.length ? (
-                    activity[deal.id].map((a) => (
-                      <div key={a.id} style={{ marginBottom: 8 }}>
-                        <strong>{a.type}</strong>
-                        {a.from !== undefined && (
-                          <div>
-                            {(a.from && users[a.from]) || "Unassigned"} →{" "}
-                            {(a.to && users[a.to]) || "Unassigned"}
-                          </div>
-                        )}
-                        <div style={{ fontSize: 12, opacity: 0.6 }}>
-                          by {users[a.by] || "System"}
+                      {a.from !== undefined && (
+                        <div>
+                          {(a.from && users[a.from]) || "Unassigned"} →{" "}
+                          {(a.to && users[a.to]) || "Unassigned"}
                         </div>
+                      )}
+
+                      <div style={{ fontSize: 12, opacity: 0.6 }}>
+                        by{" "}
+                        {a.actorUid
+                          ? users[a.actorUid] || "System"
+                          : "System"}
                       </div>
-                    ))
-                  ) : (
-                    <div style={{ opacity: 0.6 }}>
-                      No activity recorded.
                     </div>
-                  )}
-                </div>
-              )}
-            </div>
-          );
-        })}
+                  ))
+                ) : (
+                  <div style={{ opacity: 0.6 }}>
+                    No activity recorded.
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        ))}
       </main>
     </RequireRole>
   );
