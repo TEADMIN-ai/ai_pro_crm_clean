@@ -4,130 +4,86 @@ import { useEffect, useState } from "react";
 import {
   collection,
   getDocs,
+  orderBy,
   query,
   where,
-  updateDoc,
-  doc,
 } from "firebase/firestore";
 
 import { db } from "@/lib/firebase";
-import { useAuthContext } from "@/context/AuthContext";
 import RequireRole from "@/components/auth/RequireRole";
 import LogoutButton from "@/components/auth/LogoutButton";
-
-type DealStatus = "draft" | "submitted" | "awarded" | "lost";
+import { useAuthContext, type AuthUser } from "@/context/AuthContext";
 
 type Deal = {
   id: string;
   title: string;
-  status: DealStatus;
+  status: string;
   assignedTo: string;
+  createdAt?: any;
 };
 
-const DEAL_STATUSES: DealStatus[] = [
-  "draft",
-  "submitted",
-  "awarded",
-  "lost",
-];
+export default function StaffDashboardPage() {
+  const { user, loading } = useAuthContext();
+  const authedUser = user as AuthUser | null;
 
-export default function StaffDashboard() {
-  const { user } = useAuthContext();
   const [deals, setDeals] = useState<Deal[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [dataLoading, setDataLoading] = useState(true);
 
   useEffect(() => {
-    if (!user) return;
+    if (!authedUser) return;
 
     const loadDeals = async () => {
       const q = query(
         collection(db, "deals"),
-        where("assignedTo", "==", user.uid),
-        where("companyId", "==", user.companyId)
+        where("assignedTo", "==", authedUser.uid),
+        where("companyId", "==", authedUser.companyId),
+        orderBy("createdAt", "desc")
       );
 
       const snap = await getDocs(q);
 
       setDeals(
-        snap.docs.map((d) => ({
-          id: d.id,
-          ...(d.data() as Omit<Deal, "id">),
+        snap.docs.map((docSnap) => ({
+          id: docSnap.id,
+          ...(docSnap.data() as Omit<Deal, "id">),
         }))
       );
 
-      setLoading(false);
+      setDataLoading(false);
     };
 
     loadDeals();
-  }, [user]);
+  }, [authedUser]);
 
-  const updateStatus = async (dealId: string, newStatus: DealStatus) => {
-    setUpdatingId(dealId);
-
-    await updateDoc(doc(db, "deals", dealId), {
-      status: newStatus,
-    });
-
-    setDeals((prev) =>
-      prev.map((d) =>
-        d.id === dealId ? { ...d, status: newStatus } : d
-      )
-    );
-
-    setUpdatingId(null);
-  };
+  if (loading || dataLoading) {
+    return <div style={{ padding: 32 }}>Loading staff dashboard…</div>;
+  }
 
   return (
     <RequireRole allow={["staff"]}>
       <main style={{ padding: 32 }}>
         <LogoutButton />
 
-        <h1>Staff Dashboard</h1>
+        <h1>My Deals</h1>
 
-        <p>
-          <strong>User:</strong> {user?.email}
-          <br />
-          <strong>Role:</strong> {user?.role}
-          <br />
-          <strong>Company:</strong> {user?.companyId}
-        </p>
-
-        <hr />
-
-        <h2>My Deals</h2>
-
-        {loading && <p>Loading deals...</p>}
-
-        {!loading && deals.length === 0 && (
-          <p>No deals assigned to you.</p>
+        {deals.length === 0 && (
+          <p style={{ opacity: 0.6 }}>No deals assigned to you.</p>
         )}
 
-        <ul>
-          {deals.map((deal) => (
-            <li key={deal.id} style={{ marginBottom: 16 }}>
-              <strong>{deal.title}</strong>
-              <br />
-              Status:{" "}
-              <select
-                value={deal.status}
-                disabled={updatingId === deal.id}
-                onChange={(e) =>
-                  updateStatus(
-                    deal.id,
-                    e.target.value as DealStatus
-                  )
-                }
-              >
-                {DEAL_STATUSES.map((status) => (
-                  <option key={status} value={status}>
-                    {status}
-                  </option>
-                ))}
-              </select>
-            </li>
-          ))}
-        </ul>
+        {deals.map((deal) => (
+          <div
+            key={deal.id}
+            style={{
+              border: "1px solid #ddd",
+              padding: 16,
+              marginBottom: 16,
+              borderRadius: 6,
+            }}
+          >
+            <strong>{deal.title}</strong>
+            <div>Status: {deal.status}</div>
+          </div>
+        ))}
       </main>
     </RequireRole>
   );
