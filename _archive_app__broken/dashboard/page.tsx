@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 export const dynamic = "force-dynamic";
 
@@ -44,7 +44,7 @@ export default function DashboardPage() {
   }, []);
 
   if (!ready) {
-    return <div style={{ padding: 24 }}>Loading dashboard…</div>;
+    return <div style={{ padding: 24 }}>Loading dashboard�</div>;
   }
 
   return (

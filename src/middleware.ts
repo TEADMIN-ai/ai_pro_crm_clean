@@ -1,4 +1,4 @@
-﻿export function middleware() {
+export function middleware() {
   return;
 }
 

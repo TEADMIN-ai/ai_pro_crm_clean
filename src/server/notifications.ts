@@ -1,4 +1,4 @@
-﻿import { collection, getDocs, query, where, updateDoc, doc, addDoc, serverTimestamp } from "firebase/firestore";
+import { collection, getDocs, query, where, updateDoc, doc, addDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase/config";
 
 export async function notifyUser(data: {

@@ -1,4 +1,4 @@
-﻿export function validateContractor(data: any) {
+export function validateContractor(data: any) {
   const errors: string[] = [];
 
   if (!data.name) errors.push("Name is required.");

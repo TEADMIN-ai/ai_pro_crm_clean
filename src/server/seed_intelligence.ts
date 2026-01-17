@@ -1,4 +1,4 @@
-﻿// src/lib/seed_intelligence.ts
+// src/lib/seed_intelligence.ts
 import admin from "firebase-admin";
 import fs from "fs";
 import path from "path";
@@ -7,7 +7,7 @@ import path from "path";
 const serviceAccountPath = path.resolve(process.cwd(), "firebase-adminsdk.json");
 
 if (!fs.existsSync(serviceAccountPath)) {
-  console.error("âŒ Firebase credential file not found:", serviceAccountPath);
+  console.error("❌ Firebase credential file not found:", serviceAccountPath);
   process.exit(1);
 }
 
@@ -68,11 +68,11 @@ async function seed() {
   batch.set(competitorsRef, { list: data.competitors });
 
   await batch.commit();
-  console.log("ðŸ”¥ Live intelligence data seeded successfully!");
+  console.log("🔥 Live intelligence data seeded successfully!");
   process.exit(0);
 }
 
 seed().catch((err) => {
-  console.error("âŒ Seeding failed:", err);
+  console.error("❌ Seeding failed:", err);
   process.exit(1);
 });

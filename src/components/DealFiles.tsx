@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { useEffect, useState } from 'react';
 import { auth } from '@/lib/firebase/config';
@@ -44,7 +44,7 @@ export default function DealFiles({ dealId }: { dealId: string }) {
             <a href={f.fileUrl} target="_blank">
               {f.fileName}
             </a>{' '}
-            — {f.userEmail}
+            � {f.userEmail}
           </li>
         ))}
       </ul>

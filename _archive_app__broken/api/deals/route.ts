@@ -1,4 +1,4 @@
-﻿import { NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 
 const STATUS_MAP: Record<number, string> = {
   0: 'prospect',

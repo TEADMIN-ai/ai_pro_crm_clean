@@ -1,4 +1,4 @@
-﻿import { ref, uploadBytes, getDownloadURL, listAll } from "firebase/storage";
+import { ref, uploadBytes, getDownloadURL, listAll } from "firebase/storage";
 import { storage } from "./config";
 
 export async function uploadDealFile(data: {

@@ -1,4 +1,4 @@
-﻿export async function loginDolibarr() {
+export async function loginDolibarr() {
   const res = await fetch(
     `${process.env.NEXT_PUBLIC_DOLIBARR_API_URL}/login`,
     {

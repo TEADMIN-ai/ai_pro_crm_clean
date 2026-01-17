@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { signOut } from "firebase/auth";
 import { useRouter } from "next/navigation";

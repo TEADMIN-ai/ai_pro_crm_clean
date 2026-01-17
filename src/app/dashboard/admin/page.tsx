@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import RequireRole from "@/components/auth/RequireRole";
 import LogoutButton from "@/components/auth/LogoutButton";

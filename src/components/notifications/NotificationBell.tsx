@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { useEffect, useState } from 'react';
 import { auth } from '@/lib/firebase/config';
@@ -26,7 +26,7 @@ export default function NotificationBell() {
   return (
     <div style={{ position: 'relative' }}>
       <button onClick={() => setOpen(!open)}>
-        🔔 {unread > 0 && <strong>({unread})</strong>}
+        ?? {unread > 0 && <strong>({unread})</strong>}
       </button>
 
       {open && (

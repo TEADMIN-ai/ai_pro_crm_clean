@@ -1,4 +1,4 @@
-ï»¿'use client';
+'use client';
 
 import { useEffect, useState } from 'react';
 
@@ -11,16 +11,16 @@ export default function AnalyticsPage() {
       .then(setData);
   }, []);
 
-  if (!data) return <p>Loading analyticsâ€¦</p>;
+  if (!data) return <p>Loading analytics…</p>;
 
   return (
     <div style={{ padding: 24 }}>
       <h1>Pipeline Analytics</h1>
 
       <ul>
-        <li>?? Pipeline Value: â‚¬{data.pipelineValue}</li>
-        <li>?? Won Value: â‚¬{data.wonValue}</li>
-        <li>?? Lost Value: â‚¬{data.lostValue}</li>
+        <li>?? Pipeline Value: €{data.pipelineValue}</li>
+        <li>?? Won Value: €{data.wonValue}</li>
+        <li>?? Lost Value: €{data.lostValue}</li>
         <li>?? Win Rate: {data.winRate}%</li>
         <li>? Avg Deal Duration: {data.avgDealDuration} days</li>
       </ul>
