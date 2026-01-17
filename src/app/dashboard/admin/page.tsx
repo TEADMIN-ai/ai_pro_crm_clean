@@ -1,16 +1,9 @@
-"use client";
+import DashboardLayout from "@/components/layout/DashboardLayout";
 
-import RequireRole from "@/components/auth/RequireRole";
-import LogoutButton from "@/components/auth/LogoutButton";
-
-export default function AdminPage() {
+export default function AdminDashboardPage() {
   return (
-    <RequireRole allow={["admin"]}>
-      <main style={{ padding: 32 }}>
-        <LogoutButton />
-        <h1>Admin Dashboard</h1>
-        <p>You have admin access.</p>
-      </main>
-    </RequireRole>
+    <DashboardLayout title="Admin Dashboard">
+      <p>You have admin access.</p>
+    </DashboardLayout>
   );
 }
