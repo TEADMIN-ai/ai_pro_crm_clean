@@ -1,16 +1,25 @@
-import { Timestamp } from 'firebase/firestore';
+import { Timestamp } from "firebase/firestore";
 
+/**
+ * Deal lifecycle stages (canonical)
+ * Used by:
+ * - Firestore
+ * - KPI cards
+ * - Kanban
+ * - Styling
+ */
 export type DealStage =
-  | 'lead'
-  | 'tender'
-  | 'proposal'
-  | 'negotiation'
-  | 'won'
-  | 'lost'
-  | 'closed';
+  | "lead"
+  | "tender"
+  | "proposal"
+  | "negotiation"
+  | "won"
+  | "lost"
+  | "closed";
 
 export interface Deal {
   id: string;
+
   title: string;
   clientName: string;
   description?: string;
@@ -20,8 +29,9 @@ export interface Deal {
 
   stage: DealStage;
 
-  ownerId: string;
-  createdBy: string;
+  ownerId: string;       // assigned staff UID
+  createdBy: string;     // creator UID
+  companyId: string;
 
   isArchived: boolean;
 
