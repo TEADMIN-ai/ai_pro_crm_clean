@@ -3,28 +3,21 @@
 import { useEffect, useState } from "react";
 import { collection, getDocs, query, where } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { useAuthContext } from "@/context/AuthContext";
+import { useAuth } from "@/context/AuthContext";
+import KpiRow from "@/components/dashboard/KpiRow";
 
 type Deal = {
   id: string;
-  title: string;
   status: string;
 };
 
-export default function ManagerDashboard() {
-  const { user, loading } = useAuthContext();
+export default function ManagerDashboardPage() {
+  const { user, loading } = useAuth();
   const [deals, setDeals] = useState<Deal[]>([]);
-  const [dataLoading, setDataLoading] = useState(true);
+  const [loadingData, setLoadingData] = useState(true);
 
   useEffect(() => {
-    // ⛔ WAIT until auth is fully resolved
-    if (loading) return;
-
-    // ⛔ HARD STOP if not manager
-    if (!user || user.role !== "manager") {
-      setDataLoading(false);
-      return;
-    }
+    if (!user) return;
 
     const loadDeals = async () => {
       try {
@@ -34,49 +27,48 @@ export default function ManagerDashboard() {
         );
 
         const snap = await getDocs(q);
-        const results = snap.docs.map((d) => ({
+        const list: Deal[] = snap.docs.map((d) => ({
           id: d.id,
-          ...(d.data() as Omit<Deal, "id">),
+          ...(d.data() as Deal),
         }));
 
-        setDeals(results);
+        setDeals(list);
       } catch (err) {
-        console.error("Manager deals load failed:", err);
+        console.error("Failed to load manager deals", err);
       } finally {
-        setDataLoading(false);
+        setLoadingData(false);
       }
     };
 
     loadDeals();
-  }, [user, loading]);
+  }, [user]);
 
-  // 🔄 AUTH LOADING
-  if (loading) {
-    return <p>Loading manager dashboard…</p>;
+  if (loading || loadingData) {
+    return <div>Loading KPIs...</div>;
   }
 
-  // ⛔ ACCESS BLOCK
-  if (!user || user.role !== "manager") {
-    return <p>Access denied</p>;
-  }
+  const kpis = [
+    { label: "NEW", value: deals.filter((d) => d.status === "new").length },
+    {
+      label: "CONTACTED",
+      value: deals.filter((d) => d.status === "contacted").length,
+    },
+    {
+      label: "NEGOTIATION",
+      value: deals.filter((d) => d.status === "negotiation").length,
+    },
+    { label: "WON", value: deals.filter((d) => d.status === "won").length },
+    { label: "LOST", value: deals.filter((d) => d.status === "lost").length },
+  ];
 
-  // 🔄 DATA LOADING
-  if (dataLoading) {
-    return <p>Loading manager dashboard…</p>;
-  }
-
-  // ✅ SUCCESS
   return (
     <div>
-      <h1>Manager Dashboard</h1>
+      <h1 style={{ fontSize: 28, marginBottom: 8 }}>Manager Dashboard</h1>
+      <p style={{ opacity: 0.7, marginBottom: 32 }}>
+        Monitor your team, deals, SLAs, and revenue performance.
+      </p>
 
-      {deals.length === 0 && <p>No deals found.</p>}
-
-      {deals.map((deal) => (
-        <div key={deal.id} style={{ marginBottom: 12 }}>
-          <strong>{deal.title}</strong> — {deal.status}
-        </div>
-      ))}
+      <KpiRow kpis={kpis} />
     </div>
   );
 }
