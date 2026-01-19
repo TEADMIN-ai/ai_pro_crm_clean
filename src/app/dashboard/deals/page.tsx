@@ -1,149 +1,176 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   collection,
   getDocs,
+  orderBy,
   query,
   where,
+  updateDoc,
+  doc,
+  serverTimestamp,
 } from "firebase/firestore";
+
+import RequireRole from "@/components/auth/RequireRole";
+import LogoutButton from "@/components/auth/LogoutButton";
+import KanbanBoard from "@/components/deals/KanbanBoard";
+import { useAuthContext } from "@/context/AuthContext";
 import { db } from "@/lib/firebase";
-import DealCard from "@/components/deals/DealCard";
 
 type Deal = {
   id: string;
   title?: string;
   status?: string;
-  assignedTo?: string;
+  assignedTo?: string | null;
+  companyId?: string;
+  createdAt?: any;
+  updatedAt?: any;
   slaDueAt?: any;
 };
 
-const STATUSES = ["new", "contacted", "negotiation", "won", "lost"];
-
-/* ========= SLA SORTING ========= */
-function getSlaPriority(deal: Deal) {
-  if (!deal.slaDueAt) return 3;
-
-  const due =
-    typeof deal.slaDueAt.toDate === "function"
-      ? deal.slaDueAt.toDate()
-      : new Date(deal.slaDueAt);
-
-  const now = new Date();
-  const diffMinutes = Math.floor(
-    (due.getTime() - now.getTime()) / 60000
-  );
-
-  if (diffMinutes <= 0) return 0; // breached
-  if (diffMinutes <= 60) return 1; // urgent
-  return 2; // healthy
-}
-
-function sortBySlaUrgency(deals: Deal[]) {
-  return [...deals].sort(
-    (a, b) => getSlaPriority(a) - getSlaPriority(b)
-  );
-}
-/* ============================== */
+const STATUSES = ["new", "contacted", "negotiation", "won", "lost"] as const;
 
 export default function DealsPage() {
+  const { user, loading } = useAuthContext();
   const [deals, setDeals] = useState<Deal[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const canDrag = useMemo(() => {
+    if (!user) return false;
+    return user.role === "admin" || user.role === "manager" || user.role === "staff";
+  }, [user]);
+
+  const loadDeals = async () => {
+    if (!user) return;
+
+    setError(null);
+    try {
+      const dealsRef = collection(db, "deals");
+
+      // Admin/Manager: all company deals
+      // Staff: only assigned deals
+      const q =
+        user.role === "staff"
+          ? query(
+              dealsRef,
+              where("companyId", "==", user.companyId),
+              where("assignedTo", "==", user.uid),
+              orderBy("createdAt", "desc")
+            )
+          : query(
+              dealsRef,
+              where("companyId", "==", user.companyId),
+              orderBy("createdAt", "desc")
+            );
+
+      const snap = await getDocs(q);
+      setDeals(
+        snap.docs.map((d) => ({
+          id: d.id,
+          ...(d.data() as Omit<Deal, "id">),
+        }))
+      );
+    } catch (e: any) {
+      console.error(e);
+      setError(e?.message ?? "Failed to load deals");
+    }
+  };
 
   useEffect(() => {
-    async function loadDeals() {
-      const snap = await getDocs(collection(db, "deals"));
-      const rows: Deal[] = snap.docs.map((d) => ({
-        id: d.id,
-        ...(d.data() as any),
-      }));
-      setDeals(rows);
-      setLoading(false);
+    if (!loading && user) {
+      loadDeals();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, user?.uid]);
 
-    loadDeals();
-  }, []);
+  const moveDeal = async (dealId: string, nextStatus: string) => {
+    if (!user) return;
+    if (!STATUSES.includes(nextStatus as any)) return;
 
-  if (loading) {
-    return (
-      <div style={{ opacity: 0.6 }}>Loading deals…</div>
+    // Optimistic UI update
+    const prev = deals;
+    setDeals((ds) =>
+      ds.map((d) => (d.id === dealId ? { ...d, status: nextStatus } : d))
     );
-  }
+
+    setBusy(true);
+    setError(null);
+
+    try {
+      const ref = doc(db, "deals", dealId);
+      await updateDoc(ref, {
+        status: nextStatus,
+        updatedAt: serverTimestamp(),
+      });
+    } catch (e: any) {
+      console.error(e);
+      // Rollback if failed
+      setDeals(prev);
+      setError(e?.message ?? "Failed to update status");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (loading) return <div style={{ padding: 32 }}>Loading…</div>;
+  if (!user) return <div style={{ padding: 32 }}>Not signed in.</div>;
 
   return (
-    <div>
-      <h1 style={{ fontSize: 26, marginBottom: 24 }}>
-        Deals
-      </h1>
+    <RequireRole allow={["admin", "manager", "staff"]}>
+      <main style={{ padding: 24 }}>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            gap: 12,
+            marginBottom: 16,
+          }}
+        >
+          <div>
+            <h1 style={{ margin: 0 }}>Deals</h1>
+            <div style={{ opacity: 0.7, fontSize: 13 }}>
+              Drag cards between columns to update status.
+            </div>
+          </div>
 
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns:
-            "repeat(auto-fit, minmax(240px, 1fr))",
-          gap: 20,
-        }}
-      >
-        {STATUSES.map((status) => {
-          const columnDeals = sortBySlaUrgency(
-            deals.filter(
-              (d) =>
-                (d.status ?? "new").toLowerCase() ===
-                status
-            )
-          );
-
-          return (
-            <div
-              key={status}
+          <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+            <button
+              onClick={loadDeals}
+              disabled={busy}
               style={{
-                background:
-                  "rgba(255,255,255,0.03)",
-                borderRadius: 16,
-                padding: 16,
-                minHeight: 300,
+                padding: "8px 12px",
+                borderRadius: 10,
+                border: "1px solid rgba(255,255,255,0.10)",
+                background: "rgba(255,255,255,0.06)",
+                color: "white",
               }}
             >
-              <div
-                style={{
-                  fontWeight: 700,
-                  marginBottom: 12,
-                  textTransform: "uppercase",
-                  opacity: 0.85,
-                }}
-              >
-                {status}
-              </div>
+              {busy ? "Working…" : "Refresh"}
+            </button>
+            <LogoutButton />
+          </div>
+        </div>
 
-              <div
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: 12,
-                }}
-              >
-                {columnDeals.length === 0 && (
-                  <div
-                    style={{
-                      opacity: 0.4,
-                      fontSize: 13,
-                    }}
-                  >
-                    No deals
-                  </div>
-                )}
+        {error && (
+          <div
+            style={{
+              padding: 12,
+              borderRadius: 12,
+              border: "1px solid rgba(239,68,68,0.4)",
+              background: "rgba(239,68,68,0.12)",
+              marginBottom: 14,
+              whiteSpace: "pre-wrap",
+            }}
+          >
+            {error}
+          </div>
+        )}
 
-                {columnDeals.map((deal) => (
-                  <DealCard
-                    key={deal.id}
-                    deal={deal}
-                  />
-                ))}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </div>
+        <KanbanBoard deals={deals} onMove={moveDeal} canDrag={canDrag} />
+      </main>
+    </RequireRole>
   );
 }
