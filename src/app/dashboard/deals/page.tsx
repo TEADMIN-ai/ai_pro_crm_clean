@@ -1,176 +1,109 @@
-"use client";
+'use client';
 
-import { useEffect, useMemo, useState } from "react";
-import {
-  collection,
-  getDocs,
-  orderBy,
-  query,
-  where,
-  updateDoc,
-  doc,
-  serverTimestamp,
-} from "firebase/firestore";
+import { useEffect, useState } from 'react';
+import { collection, getDocs } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
+import HeroBanner from '@/components/hero/HeroBanner';
+import DealCard from '@/components/deals/DealCard';
+import { Deal } from '@/types/deal';
+import { DealStage } from '@/types/deal';
 
-import RequireRole from "@/components/auth/RequireRole";
-import LogoutButton from "@/components/auth/LogoutButton";
-import KanbanBoard from "@/components/deals/KanbanBoard";
-import { useAuthContext } from "@/context/AuthContext";
-import { db } from "@/lib/firebase";
-
-type Deal = {
-  id: string;
-  title?: string;
-  status?: string;
-  assignedTo?: string | null;
-  companyId?: string;
-  createdAt?: any;
-  updatedAt?: any;
-  slaDueAt?: any;
-};
-
-const STATUSES = ["new", "contacted", "negotiation", "won", "lost"] as const;
+const STAGES: DealStage[] = [
+  'lead',
+  'tender',
+  'proposal',
+  'negotiation',
+  'won',
+  'lost',
+  'closed',
+];
 
 export default function DealsPage() {
-  const { user, loading } = useAuthContext();
   const [deals, setDeals] = useState<Deal[]>([]);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const canDrag = useMemo(() => {
-    if (!user) return false;
-    return user.role === "admin" || user.role === "manager" || user.role === "staff";
-  }, [user]);
-
-  const loadDeals = async () => {
-    if (!user) return;
-
-    setError(null);
-    try {
-      const dealsRef = collection(db, "deals");
-
-      // Admin/Manager: all company deals
-      // Staff: only assigned deals
-      const q =
-        user.role === "staff"
-          ? query(
-              dealsRef,
-              where("companyId", "==", user.companyId),
-              where("assignedTo", "==", user.uid),
-              orderBy("createdAt", "desc")
-            )
-          : query(
-              dealsRef,
-              where("companyId", "==", user.companyId),
-              orderBy("createdAt", "desc")
-            );
-
-      const snap = await getDocs(q);
-      setDeals(
-        snap.docs.map((d) => ({
-          id: d.id,
-          ...(d.data() as Omit<Deal, "id">),
-        }))
-      );
-    } catch (e: any) {
-      console.error(e);
-      setError(e?.message ?? "Failed to load deals");
-    }
-  };
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!loading && user) {
-      loadDeals();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loading, user?.uid]);
+    const loadDeals = async () => {
+      const snap = await getDocs(collection(db, 'deals'));
+      setDeals(snap.docs.map((d) => ({ id: d.id, ...d.data() } as Deal)));
+      setLoading(false);
+    };
 
-  const moveDeal = async (dealId: string, nextStatus: string) => {
-    if (!user) return;
-    if (!STATUSES.includes(nextStatus as any)) return;
-
-    // Optimistic UI update
-    const prev = deals;
-    setDeals((ds) =>
-      ds.map((d) => (d.id === dealId ? { ...d, status: nextStatus } : d))
-    );
-
-    setBusy(true);
-    setError(null);
-
-    try {
-      const ref = doc(db, "deals", dealId);
-      await updateDoc(ref, {
-        status: nextStatus,
-        updatedAt: serverTimestamp(),
-      });
-    } catch (e: any) {
-      console.error(e);
-      // Rollback if failed
-      setDeals(prev);
-      setError(e?.message ?? "Failed to update status");
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  if (loading) return <div style={{ padding: 32 }}>Loading…</div>;
-  if (!user) return <div style={{ padding: 32 }}>Not signed in.</div>;
+    loadDeals();
+  }, []);
 
   return (
-    <RequireRole allow={["admin", "manager", "staff"]}>
-      <main style={{ padding: 24 }}>
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            gap: 12,
-            marginBottom: 16,
-          }}
-        >
-          <div>
-            <h1 style={{ margin: 0 }}>Deals</h1>
-            <div style={{ opacity: 0.7, fontSize: 13 }}>
-              Drag cards between columns to update status.
+    <div>
+      {/* HERO */}
+      <HeroBanner role="deals" />
+
+      {/* KPI ROW */}
+      <div style={kpiGrid}>
+        {STAGES.map((stage) => (
+          <KpiCard
+            key={stage}
+            label={stage.toUpperCase()}
+            value={deals.filter((d) => d.stage === stage).length}
+          />
+        ))}
+      </div>
+
+      {/* PIPELINE */}
+      {loading ? (
+        <p>Loading deals…</p>
+      ) : (
+        <div style={pipeline}>
+          {STAGES.map((stage) => (
+            <div key={stage} style={column}>
+              <h4>{stage}</h4>
+              {deals.filter((d) => d.stage === stage).length === 0 ? (
+                <p style={{ opacity: 0.5 }}>No deals</p>
+              ) : (
+                deals
+                  .filter((d) => d.stage === stage)
+                  .map((deal) => <DealCard key={deal.id} deal={deal} />)
+              )}
             </div>
-          </div>
-
-          <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-            <button
-              onClick={loadDeals}
-              disabled={busy}
-              style={{
-                padding: "8px 12px",
-                borderRadius: 10,
-                border: "1px solid rgba(255,255,255,0.10)",
-                background: "rgba(255,255,255,0.06)",
-                color: "white",
-              }}
-            >
-              {busy ? "Working…" : "Refresh"}
-            </button>
-            <LogoutButton />
-          </div>
+          ))}
         </div>
-
-        {error && (
-          <div
-            style={{
-              padding: 12,
-              borderRadius: 12,
-              border: "1px solid rgba(239,68,68,0.4)",
-              background: "rgba(239,68,68,0.12)",
-              marginBottom: 14,
-              whiteSpace: "pre-wrap",
-            }}
-          >
-            {error}
-          </div>
-        )}
-
-        <KanbanBoard deals={deals} onMove={moveDeal} canDrag={canDrag} />
-      </main>
-    </RequireRole>
+      )}
+    </div>
   );
 }
+
+/* ===== UI ===== */
+
+function KpiCard({ label, value }: { label: string; value: number }) {
+  return (
+    <div style={kpiCard}>
+      <div style={{ opacity: 0.7 }}>{label}</div>
+      <div style={{ fontSize: 26, fontWeight: 600 }}>{value}</div>
+    </div>
+  );
+}
+
+const kpiGrid: React.CSSProperties = {
+  display: 'grid',
+  gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
+  gap: 16,
+  marginTop: 24,
+};
+
+const kpiCard: React.CSSProperties = {
+  background: 'rgba(255,255,255,0.04)',
+  borderRadius: 16,
+  padding: 16,
+};
+
+const pipeline: React.CSSProperties = {
+  marginTop: 32,
+  display: 'grid',
+  gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+  gap: 24,
+};
+
+const column: React.CSSProperties = {
+  background: 'rgba(255,255,255,0.03)',
+  borderRadius: 16,
+  padding: 16,
+};

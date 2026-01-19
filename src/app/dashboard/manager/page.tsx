@@ -1,143 +1,117 @@
-"use client";
+'use client';
 
-import { useEffect, useState } from "react";
-import {
-  collection,
-  getDocs,
-  orderBy,
-  query,
-  where,
-} from "firebase/firestore";
-
-import { db } from "@/lib/firebase";
-import { useAuthContext } from "@/context/AuthContext";
-import RequireRole from "@/components/auth/RequireRole";
-import LogoutButton from "@/components/auth/LogoutButton";
-import HeroBanner from "@/components/layout/HeroBanner";
-
-/* ================= Types ================= */
-
-type Deal = {
-  id: string;
-  title: string;
-  status: string;
-  assignedTo?: string | null;
-  createdAt?: any;
-};
-
-/* ================= Page ================= */
+import { useEffect, useState } from 'react';
+import { collection, getDocs } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
+import HeroBanner from '@/components/hero/HeroBanner';
+import { getHeroImage } from '@/config/heroRules';
+import { Deal } from '@/types/deal';
 
 export default function ManagerDashboardPage() {
-  const { user, loading: authLoading } = useAuthContext();
   const [deals, setDeals] = useState<Deal[]>([]);
   const [loading, setLoading] = useState(true);
 
-  /* ---------- Load deals ---------- */
   useEffect(() => {
-    if (!user) return;
-
-    const loadDeals = async () => {
-      const q = query(
-        collection(db, "deals"),
-        where("companyId", "==", user.companyId),
-        orderBy("createdAt", "desc")
-      );
-
-      const snap = await getDocs(q);
-
-      setDeals(
-        snap.docs.map((d) => ({
-          id: d.id,
-          ...(d.data() as Omit<Deal, "id">),
-        }))
-      );
-
-      setLoading(false);
+    const fetchDeals = async () => {
+      try {
+        const snap = await getDocs(collection(db, 'deals'));
+        const data: Deal[] = snap.docs.map(doc => ({
+          id: doc.id,
+          ...(doc.data() as Omit<Deal, 'id'>),
+        }));
+        setDeals(data);
+      } catch (err) {
+        console.error('Failed to load deals', err);
+      } finally {
+        setLoading(false);
+      }
     };
 
-    loadDeals();
-  }, [user]);
+    fetchDeals();
+  }, []);
 
-  if (authLoading || loading) {
-    return <div style={{ padding: 32 }}>Loading manager dashboard…</div>;
-  }
+  // 🔐 SAFE computed values
+  const totalDeals = deals.length;
+  const unassignedDeals = deals.filter(d => !d.ownerId).length;
+  const isMonthEnd = new Date().getDate() >= 25;
+
+  // 🎯 DATA-DRIVEN HERO IMAGE
+  const heroImage = getHeroImage({
+    role: 'manager',
+    totalDeals,
+    unassignedDeals,
+    isMonthEnd,
+  });
 
   return (
-    <RequireRole allow={["manager", "admin"]}>
-      <main style={{ padding: 32 }}>
-        <LogoutButton />
+    <div style={{ padding: 24 }}>
+      {/* HERO */}
+      <HeroBanner
+        image={heroImage}
+        title="Manager Dashboard"
+        subtitle="Monitor deals, performance, and pipeline health"
+      />
 
-        {/* ===== HERO ===== */}
-        <HeroBanner
-          role="manager"
-          title="Manager Dashboard"
-          subtitle="Team performance, pipeline visibility, and activity oversight"
-        />
+      {/* KPI ROW */}
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+          gap: 16,
+          marginTop: 24,
+        }}
+      >
+        <KpiCard label="Total Deals" value={totalDeals} />
+        <KpiCard label="Unassigned" value={unassignedDeals} />
+        <KpiCard label="Won" value={deals.filter(d => d.stage === 'won').length} />
+        <KpiCard label="Lost" value={deals.filter(d => d.stage === 'lost').length} />
+      </div>
 
-        {/* ===== KPI CARDS ===== */}
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-            gap: 16,
-            marginBottom: 32,
-          }}
-        >
-          <KpiCard label="Total Deals" value={deals.length} />
-          <KpiCard
-            label="Unassigned"
-            value={deals.filter((d) => !d.assignedTo).length}
-          />
-          <KpiCard
-            label="Active"
-            value={deals.filter((d) => d.status !== "closed").length}
-          />
-        </div>
+      {/* RECENT DEALS */}
+      <div style={{ marginTop: 32 }}>
+        <h3 style={{ marginBottom: 12 }}>Recent Deals</h3>
 
-        {/* ===== DEAL LIST ===== */}
-        <h2 style={{ marginBottom: 12 }}>Deals</h2>
+        {loading && <div>Loading deals…</div>}
 
-        {deals.length === 0 && (
-          <div style={{ opacity: 0.7 }}>No deals found.</div>
+        {!loading && deals.length === 0 && (
+          <div>No deals found.</div>
         )}
 
-        {deals.map((deal) => (
-          <div
-            key={deal.id}
-            style={{
-              border: "1px solid #2a2f45",
-              background: "#121a2f",
-              padding: 16,
-              borderRadius: 12,
-              marginBottom: 12,
-            }}
-          >
-            <strong>{deal.title}</strong>
-            <div style={{ opacity: 0.8 }}>Status: {deal.status}</div>
-            <div style={{ opacity: 0.7 }}>
-              Assigned to: {deal.assignedTo || "Unassigned"}
+        {!loading &&
+          deals.slice(0, 5).map(deal => (
+            <div
+              key={deal.id}
+              style={{
+                padding: 16,
+                borderRadius: 12,
+                background: 'rgba(255,255,255,0.04)',
+                marginBottom: 10,
+              }}
+            >
+              <strong>{deal.title}</strong>
+              <div style={{ opacity: 0.7, fontSize: 13 }}>
+                Stage: {deal.stage ?? 'unknown'}
+              </div>
             </div>
-          </div>
-        ))}
-      </main>
-    </RequireRole>
+          ))}
+      </div>
+    </div>
   );
 }
 
-/* ================= Components ================= */
+/* ---------- KPI CARD ---------- */
 
 function KpiCard({ label, value }: { label: string; value: number }) {
   return (
     <div
       style={{
-        background: "#0f1629",
-        border: "1px solid #2a2f45",
+        padding: 16,
         borderRadius: 14,
-        padding: 20,
+        background: 'rgba(255,255,255,0.04)',
       }}
     >
-      <div style={{ opacity: 0.7, fontSize: 13 }}>{label}</div>
-      <div style={{ fontSize: 28, fontWeight: 700 }}>{value}</div>
+      <div style={{ fontSize: 13, opacity: 0.7 }}>{label}</div>
+      <div style={{ fontSize: 28, fontWeight: 600 }}>{value}</div>
     </div>
   );
 }
