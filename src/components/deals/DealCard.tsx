@@ -5,6 +5,7 @@ type Deal = {
   title?: string;
   status?: string;
   assignedTo?: string;
+  slaDueAt?: any; // Firestore Timestamp | Date | undefined
 };
 
 const STATUS_STYLES: Record<
@@ -38,8 +39,46 @@ const STATUS_STYLES: Record<
   },
 };
 
+function getSlaInfo(slaDueAt?: any) {
+  if (!slaDueAt) return null;
+
+  const due =
+    typeof slaDueAt.toDate === "function"
+      ? slaDueAt.toDate()
+      : new Date(slaDueAt);
+
+  const now = new Date();
+  const diffMs = due.getTime() - now.getTime();
+  const diffMinutes = Math.floor(diffMs / 60000);
+
+  if (diffMinutes <= 0) {
+    return {
+      label: "SLA Breached",
+      color: "#dc2626",
+      glow: "0 0 14px rgba(220,38,38,0.9)",
+      pulse: true,
+    };
+  }
+
+  if (diffMinutes <= 60) {
+    return {
+      label: `${diffMinutes} min left`,
+      color: "#f59e0b",
+      glow: "0 0 12px rgba(245,158,11,0.8)",
+      pulse: true,
+    };
+  }
+
+  const hours = Math.floor(diffMinutes / 60);
+  return {
+    label: `${hours}h left`,
+    color: "#16a34a",
+    glow: "0 0 10px rgba(22,163,74,0.7)",
+    pulse: false,
+  };
+}
+
 export default function DealCard({ deal }: { deal?: Deal }) {
-  // ✅ HARD GUARD — never crash the UI
   if (!deal) return null;
 
   const statusKey =
@@ -47,8 +86,10 @@ export default function DealCard({ deal }: { deal?: Deal }) {
       ? deal.status.toLowerCase()
       : "new";
 
-  const style =
+  const statusStyle =
     STATUS_STYLES[statusKey] ?? STATUS_STYLES["new"];
+
+  const sla = getSlaInfo(deal.slaDueAt);
 
   return (
     <div
@@ -62,7 +103,7 @@ export default function DealCard({ deal }: { deal?: Deal }) {
         gap: 12,
       }}
     >
-      {/* STATUS BADGE */}
+      {/* STATUS */}
       <div
         style={{
           alignSelf: "flex-start",
@@ -70,17 +111,12 @@ export default function DealCard({ deal }: { deal?: Deal }) {
           borderRadius: 999,
           fontSize: 11,
           fontWeight: 700,
-          letterSpacing: 0.6,
-          background: style.bg,
+          background: statusStyle.bg,
           color: "#fff",
-          boxShadow: style.glow,
-          animation:
-            statusKey === "new"
-              ? "pulse 2s infinite"
-              : "none",
+          boxShadow: statusStyle.glow,
         }}
       >
-        {style.label}
+        {statusStyle.label}
       </div>
 
       {/* TITLE */}
@@ -92,7 +128,7 @@ export default function DealCard({ deal }: { deal?: Deal }) {
       <div
         style={{
           fontSize: 13,
-          opacity: 0.7,
+          opacity: 0.75,
           display: "flex",
           gap: 6,
           alignItems: "center",
@@ -118,17 +154,35 @@ export default function DealCard({ deal }: { deal?: Deal }) {
         {deal.assignedTo ? "Assigned" : "Unassigned"}
       </div>
 
-      {/* PULSE ANIMATION */}
+      {/* SLA */}
+      {sla && (
+        <div
+          style={{
+            marginTop: 6,
+            padding: "6px 10px",
+            borderRadius: 8,
+            fontSize: 12,
+            fontWeight: 600,
+            color: "#fff",
+            background: sla.color,
+            boxShadow: sla.glow,
+            animation: sla.pulse ? "pulse 1.8s infinite" : "none",
+          }}
+        >
+          {sla.label}
+        </div>
+      )}
+
       <style jsx>{`
         @keyframes pulse {
           0% {
-            box-shadow: ${style.glow};
+            opacity: 1;
           }
           50% {
-            box-shadow: 0 0 20px rgba(255,255,255,0.6);
+            opacity: 0.6;
           }
           100% {
-            box-shadow: ${style.glow};
+            opacity: 1;
           }
         }
       `}</style>
