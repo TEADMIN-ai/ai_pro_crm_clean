@@ -1,105 +1,137 @@
 "use client";
 
-import React from "react";
-
-type DealCardProps = {
-  title: string;
-  status: string;
+type Deal = {
+  id?: string;
+  title?: string;
+  status?: string;
   assignedTo?: string;
-  sla?: string;
 };
 
-export default function DealCard({
-  title,
-  status,
-  assignedTo,
-  sla,
-}: DealCardProps) {
+const STATUS_STYLES: Record<
+  string,
+  { label: string; bg: string; glow: string }
+> = {
+  new: {
+    label: "NEW",
+    bg: "#2563eb",
+    glow: "0 0 12px rgba(37,99,235,0.8)",
+  },
+  contacted: {
+    label: "CONTACTED",
+    bg: "#06b6d4",
+    glow: "0 0 12px rgba(6,182,212,0.8)",
+  },
+  negotiation: {
+    label: "NEGOTIATION",
+    bg: "#f59e0b",
+    glow: "0 0 12px rgba(245,158,11,0.8)",
+  },
+  won: {
+    label: "WON",
+    bg: "#16a34a",
+    glow: "0 0 14px rgba(22,163,74,0.9)",
+  },
+  lost: {
+    label: "LOST",
+    bg: "#dc2626",
+    glow: "0 0 14px rgba(220,38,38,0.9)",
+  },
+};
+
+export default function DealCard({ deal }: { deal?: Deal }) {
+  // ✅ HARD GUARD — never crash the UI
+  if (!deal) return null;
+
+  const statusKey =
+    typeof deal.status === "string"
+      ? deal.status.toLowerCase()
+      : "new";
+
+  const style =
+    STATUS_STYLES[statusKey] ?? STATUS_STYLES["new"];
+
   return (
-    <div style={cardStyle}>
-      <div style={headerStyle}>
-        <span style={statusStyle(status)}>{status.toUpperCase()}</span>
-        {sla && <span style={slaStyle}>{sla}</span>}
+    <div
+      style={{
+        background: "rgba(255,255,255,0.04)",
+        borderRadius: 16,
+        padding: 16,
+        boxShadow: "0 10px 30px rgba(0,0,0,0.35)",
+        display: "flex",
+        flexDirection: "column",
+        gap: 12,
+      }}
+    >
+      {/* STATUS BADGE */}
+      <div
+        style={{
+          alignSelf: "flex-start",
+          padding: "4px 10px",
+          borderRadius: 999,
+          fontSize: 11,
+          fontWeight: 700,
+          letterSpacing: 0.6,
+          background: style.bg,
+          color: "#fff",
+          boxShadow: style.glow,
+          animation:
+            statusKey === "new"
+              ? "pulse 2s infinite"
+              : "none",
+        }}
+      >
+        {style.label}
       </div>
 
-      <div style={titleStyle}>{title}</div>
+      {/* TITLE */}
+      <div style={{ fontWeight: 600, fontSize: 15 }}>
+        {deal.title || "Untitled Deal"}
+      </div>
 
-      <div style={footerStyle}>
-        <div style={avatarStyle}>
-          {assignedTo ? assignedTo.slice(0, 2).toUpperCase() : "—"}
-        </div>
-        <span style={{ opacity: 0.7 }}>
-          {assignedTo ? "Assigned" : "Unassigned"}
+      {/* ASSIGNED */}
+      <div
+        style={{
+          fontSize: 13,
+          opacity: 0.7,
+          display: "flex",
+          gap: 6,
+          alignItems: "center",
+        }}
+      >
+        <span
+          style={{
+            width: 22,
+            height: 22,
+            borderRadius: "50%",
+            background: "rgba(255,255,255,0.15)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            fontSize: 11,
+            fontWeight: 600,
+          }}
+        >
+          {deal.assignedTo
+            ? deal.assignedTo.slice(0, 2).toUpperCase()
+            : "—"}
         </span>
+        {deal.assignedTo ? "Assigned" : "Unassigned"}
       </div>
+
+      {/* PULSE ANIMATION */}
+      <style jsx>{`
+        @keyframes pulse {
+          0% {
+            box-shadow: ${style.glow};
+          }
+          50% {
+            box-shadow: 0 0 20px rgba(255,255,255,0.6);
+          }
+          100% {
+            box-shadow: ${style.glow};
+          }
+        }
+      `}</style>
     </div>
   );
 }
-
-/* ===== Styles ===== */
-
-const cardStyle: React.CSSProperties = {
-  background: "rgba(255,255,255,0.04)",
-  borderRadius: 16,
-  padding: 16,
-  boxShadow: "0 10px 30px rgba(0,0,0,0.25)",
-  display: "flex",
-  flexDirection: "column",
-  gap: 12,
-};
-
-const headerStyle: React.CSSProperties = {
-  display: "flex",
-  justifyContent: "space-between",
-  alignItems: "center",
-};
-
-const titleStyle: React.CSSProperties = {
-  fontSize: 15,
-  fontWeight: 600,
-};
-
-const footerStyle: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  gap: 10,
-  marginTop: 6,
-};
-
-const avatarStyle: React.CSSProperties = {
-  width: 32,
-  height: 32,
-  borderRadius: "50%",
-  background: "rgba(255,255,255,0.12)",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  fontSize: 12,
-  fontWeight: 600,
-};
-
-const slaStyle: React.CSSProperties = {
-  fontSize: 11,
-  padding: "4px 8px",
-  borderRadius: 999,
-  background: "rgba(0,136,255,0.15)",
-};
-
-const statusStyle = (status: string): React.CSSProperties => {
-  const map: Record<string, string> = {
-    new: "#4da3ff",
-    contacted: "#f5c542",
-    negotiation: "#b084f5",
-    won: "#3bd671",
-    lost: "#ff6b6b",
-  };
-
-  return {
-    fontSize: 11,
-    padding: "4px 8px",
-    borderRadius: 999,
-    background: map[status] || "#888",
-    color: "#000",
-    fontWeight: 600,
-  };
-};
