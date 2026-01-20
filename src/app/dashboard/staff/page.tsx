@@ -4,17 +4,14 @@ import { useEffect, useState } from 'react';
 import { collection, getDocs, query, where } from 'firebase/firestore';
 
 import { db } from '@/lib/firebase';
-import { useAuth } from '@/hooks/useAuth';
-
-import HeroBanner from '@/components/hero/HeroBanner';
-import { getHeroImage } from '@/config/heroRules';
-
+import RequireRole from '@/components/auth/RequireRole';
+import LogoutButton from '@/components/auth/LogoutButton';
+import SalesBotPanel from '@/components/bot/SalesBotPanel';
+import { useAuthContext } from '@/context/AuthContext';
 import { Deal } from '@/types/deal';
-import { getStaffKpis } from '@/config/kpiDefinitions';
 
 export default function StaffDashboardPage() {
-  const { user } = useAuth();
-
+  const { user, loading: authLoading } = useAuthContext();
   const [deals, setDeals] = useState<Deal[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -46,93 +43,56 @@ export default function StaffDashboardPage() {
     fetchDeals();
   }, [user]);
 
-  /* =========================
-     KPI COMPUTATION (LOCKED)
-  ========================= */
-
-  const kpis = getStaffKpis(deals, user?.uid ?? '');
-
-  /* =========================
-     HERO IMAGE (DATA DRIVEN)
-  ========================= */
-
-  const heroImage = getHeroImage({
-    role: 'staff',
-    myDeals: kpis.myDeals,
-    openDeals: kpis.open,
-  });
+  if (authLoading || loading) {
+    return <div style={{ padding: 24 }}>Loading staff dashboard…</div>;
+  }
 
   return (
-    <div style={{ padding: 24 }}>
-      {/* HERO */}
-      <HeroBanner
-        image={heroImage}
-        title="Staff Dashboard"
-        subtitle="Your assigned deals and daily actions"
-      />
+    <RequireRole allow={['staff']}>
+      <main style={{ padding: 24 }}>
+        <LogoutButton />
 
-      {/* KPI ROW */}
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
-          gap: 16,
-          marginTop: 24,
-        }}
-      >
-        <KpiCard label="My Deals" value={kpis.myDeals} />
-        <KpiCard label="Open" value={kpis.open} />
-        <KpiCard label="Won" value={kpis.won} />
-        <KpiCard label="Lost" value={kpis.lost} />
-      </div>
+        <h1 style={{ marginBottom: 16 }}>Staff Dashboard</h1>
 
-      {/* DEAL LIST */}
-      <div style={{ marginTop: 32 }}>
-        <h3 style={{ marginBottom: 12 }}>My Deals</h3>
+        {/* MAIN LAYOUT */}
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: '2fr 1fr',
+            gap: 20,
+            alignItems: 'start',
+          }}
+        >
+          {/* LEFT — DEALS */}
+          <div>
+            <h3 style={{ marginBottom: 12 }}>My Assigned Deals</h3>
 
-        {loading && <div>Loading deals…</div>}
+            {deals.length === 0 && (
+              <div style={{ opacity: 0.7 }}>No deals assigned.</div>
+            )}
 
-        {!loading && deals.length === 0 && (
-          <div>No deals assigned to you.</div>
-        )}
-
-        {!loading &&
-          deals.map(deal => (
-            <div
-              key={deal.id}
-              style={{
-                padding: 16,
-                borderRadius: 12,
-                background: 'rgba(255,255,255,0.04)',
-                marginBottom: 10,
-              }}
-            >
-              <strong>{deal.title}</strong>
-              <div style={{ opacity: 0.7, fontSize: 13 }}>
-                Stage: {deal.stage}
+            {deals.map(deal => (
+              <div
+                key={deal.id}
+                style={{
+                  padding: 16,
+                  borderRadius: 14,
+                  background: 'rgba(255,255,255,0.04)',
+                  marginBottom: 12,
+                }}
+              >
+                <strong>{deal.title}</strong>
+                <div style={{ fontSize: 13, opacity: 0.7 }}>
+                  Stage: {deal.stage}
+                </div>
               </div>
-            </div>
-          ))}
-      </div>
-    </div>
-  );
-}
+            ))}
+          </div>
 
-/* =========================
-   KPI CARD
-========================= */
-
-function KpiCard({ label, value }: { label: string; value: number }) {
-  return (
-    <div
-      style={{
-        padding: 16,
-        borderRadius: 14,
-        background: 'rgba(255,255,255,0.04)',
-      }}
-    >
-      <div style={{ fontSize: 13, opacity: 0.7 }}>{label}</div>
-      <div style={{ fontSize: 28, fontWeight: 600 }}>{value}</div>
-    </div>
+          {/* RIGHT — SALES BOT */}
+          <SalesBotPanel />
+        </div>
+      </main>
+    </RequireRole>
   );
 }
