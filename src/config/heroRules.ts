@@ -1,5 +1,4 @@
-// src/config/heroRules.ts
-export type HeroContext = {
+type HeroContext = {
   role: 'manager' | 'staff' | 'deals';
   totalDeals?: number;
   unassignedDeals?: number;
@@ -7,25 +6,29 @@ export type HeroContext = {
 };
 
 export function getHeroImage(context: HeroContext): string {
-  const { role, totalDeals = 0, unassignedDeals = 0, isMonthEnd } = context;
+  const { role, totalDeals = 0, unassignedDeals = 0 } = context;
 
-  // Manager logic
+  // 🔒 MANAGER HERO LOGIC
   if (role === 'manager') {
-    if (isMonthEnd) return '/images/hero-manager-campaign.jpg';
-    if (unassignedDeals >= 5) return '/images/hero-manager-attention.jpg';
-    if (totalDeals === 0) return '/images/hero-manager-empty.jpg';
+    // If there are unassigned deals, highlight attention
+    if (unassignedDeals > 0) {
+      return '/images/hero-manager.jpg';
+    }
+
+    // Default manager hero
     return '/images/hero-manager.jpg';
   }
 
-  // Staff logic (future-ready)
+  // 🔒 STAFF HERO
   if (role === 'staff') {
     return '/images/hero-staff.jpg';
   }
 
-  // Deals logic
+  // 🔒 DEALS PIPELINE HERO
   if (role === 'deals') {
-    return '/images/hero-deals.jpg';
+    return '/images/deals-banner.png';
   }
 
+  // 🔒 FALLBACK (absolute safety)
   return '/images/hero-manager.jpg';
 }

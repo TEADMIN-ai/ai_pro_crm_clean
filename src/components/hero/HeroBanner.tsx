@@ -1,17 +1,17 @@
 'use client';
 
-import React from 'react';
+import Image from 'next/image';
 
 interface HeroBannerProps {
+  image?: string;
   title: string;
   subtitle?: string;
-  heroImage: string;
 }
 
 export default function HeroBanner({
+  image,
   title,
   subtitle,
-  heroImage,
 }: HeroBannerProps) {
   return (
     <div
@@ -19,50 +19,51 @@ export default function HeroBanner({
         position: 'relative',
         borderRadius: 20,
         overflow: 'hidden',
-        marginBottom: 32,
-        minHeight: 230,
-
-        /* MUCH LIGHTER, BRAND-BLUE OVERLAY */
-        backgroundImage: `
-          linear-gradient(
-            to right,
-            rgba(20, 60, 120, 0.45),
-            rgba(20, 60, 120, 0.28),
-            rgba(20, 60, 120, 0.12)
-          ),
-          url(${heroImage})
-        `,
-        backgroundSize: 'cover',
-        backgroundPosition: 'center',
-        boxShadow: '0 18px 40px rgba(0,0,0,0.22)',
+        marginBottom: 24,
+        minHeight: 160,
+        background:
+          'linear-gradient(135deg, rgba(59,130,246,0.18), rgba(30,64,175,0.18))',
+        boxShadow: '0 20px 40px rgba(0,0,0,0.25)',
       }}
     >
-      {/* Soft vignette instead of dark mask */}
+      {/* HERO IMAGE */}
+      {image && (
+        <Image
+          src={image}
+          alt="Dashboard hero"
+          fill
+          priority
+          style={{
+            objectFit: 'cover',
+            opacity: 0.35, // 🔑 KEY: visible but not overpowering
+          }}
+        />
+      )}
+
+      {/* LIGHT GRADIENT OVERLAY */}
       <div
         style={{
           position: 'absolute',
           inset: 0,
           background:
-            'radial-gradient(circle at 30% 50%, rgba(255,255,255,0.08), rgba(0,0,0,0.18))',
+            'linear-gradient(90deg, rgba(15,23,42,0.6), rgba(15,23,42,0.25), rgba(15,23,42,0.1))',
         }}
       />
 
-      {/* Content */}
+      {/* CONTENT */}
       <div
         style={{
           position: 'relative',
-          zIndex: 2,
-          padding: '42px 46px',
-          maxWidth: 920,
+          padding: 32,
+          zIndex: 1,
         }}
       >
         <h1
           style={{
-            margin: 0,
-            fontSize: 30,
+            fontSize: 26,
             fontWeight: 700,
-            letterSpacing: 0.4,
-            textShadow: '0 2px 6px rgba(0,0,0,0.35)',
+            marginBottom: 6,
+            color: '#f8fafc',
           }}
         >
           {title}
@@ -71,12 +72,10 @@ export default function HeroBanner({
         {subtitle && (
           <p
             style={{
-              marginTop: 10,
               fontSize: 14,
-              opacity: 0.92,
-              maxWidth: 580,
-              lineHeight: 1.6,
-              textShadow: '0 1px 4px rgba(0,0,0,0.35)',
+              opacity: 0.85,
+              color: '#e5e7eb',
+              maxWidth: 520,
             }}
           >
             {subtitle}
