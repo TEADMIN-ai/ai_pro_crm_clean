@@ -10,7 +10,7 @@
     "doctor": "node scripts/doctor.js",
     "clean": "rimraf .next",
     "typecheck": "tsc --noEmit",
-    "lint:strict": "next lint --max-warnings=0",
+    "lint:strict": "next lint",
     "build:strict": "npm run clean && npm run typecheck && npm run lint:strict && next build",
     "deploy:guard": "npm run build:strict"
   },
