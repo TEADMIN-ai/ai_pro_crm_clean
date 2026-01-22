@@ -1,13 +1,5 @@
-import { Timestamp } from "firebase/firestore";
+import type { Timestamp } from "firebase/firestore";
 
-/**
- * Deal lifecycle stages (canonical)
- * Used by:
- * - Firestore
- * - KPI cards
- * - Kanban
- * - Styling
- */
 export type DealStage =
   | "lead"
   | "tender"
@@ -20,21 +12,28 @@ export type DealStage =
 export interface Deal {
   id: string;
 
-  title: string;
-  clientName: string;
+  // Common fields (many are optional because early deals may not have them yet)
+  title?: string;
+  clientName?: string;
   description?: string;
 
+  // Money fields (optional)
   value?: number;
   currency?: string;
 
-  stage: DealStage;
+  // Pipeline stage
+  stage?: DealStage;
 
-  ownerId: string;       // assigned staff UID
-  createdBy: string;     // creator UID
-  companyId: string;
+  // Ownership / assignment
+  companyId?: string;
+  ownerId?: string | null; // (your rules use ownerId)
+  assignedTo?: string | null; // (some screens use assignedTo)
+  createdBy?: string;
 
-  isArchived: boolean;
+  // Lifecycle flags
+  isArchived?: boolean;
 
-  createdAt: Timestamp;
-  updatedAt: Timestamp;
+  // Timestamps (optional in early data)
+  createdAt?: Timestamp | any;
+  updatedAt?: Timestamp | any;
 }

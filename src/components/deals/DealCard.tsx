@@ -1,64 +1,39 @@
-"use client";
+﻿"use client";
 
-import React from "react";
-import { Deal } from "@/types/deal";
-import { STATUS_STYLES } from "@/config/dealStyles";
+import type { Deal } from "@/types/deal";
 
 type Props = {
-  deal: Deal;
-  onClick?: () => void;
+  deal: Partial<Deal>;
 };
 
-export default function DealCard({ deal, onClick }: Props) {
-  const stageStyle = STATUS_STYLES[deal.stage];
-
+export default function DealCard({ deal }: Props) {
   return (
     <div
-      onClick={onClick}
       style={{
-        borderRadius: 12,
         padding: 16,
-        background: "#0f172a", // dark slate
-        color: "#e5e7eb",
-        boxShadow: "0 10px 25px rgba(0,0,0,0.25)",
-        cursor: onClick ? "pointer" : "default",
-        transition: "transform 0.15s ease",
-      }}
-      onMouseEnter={(e) => {
-        (e.currentTarget as HTMLDivElement).style.transform =
-          "translateY(-2px)";
-      }}
-      onMouseLeave={(e) => {
-        (e.currentTarget as HTMLDivElement).style.transform = "translateY(0)";
+        borderRadius: 14,
+        background: "rgba(255,255,255,0.08)",
+        boxShadow: "0 6px 18px rgba(0,0,0,0.35)",
+        display: "flex",
+        flexDirection: "column",
+        gap: 6,
       }}
     >
-      {/* Header */}
-      <div style={{ display: "flex", justifyContent: "space-between" }}>
-        <h3 style={{ fontSize: 16, fontWeight: 600 }}>{deal.title}</h3>
+      <strong style={{ fontSize: 15 }}>
+        {deal.title ?? "Untitled Deal"}
+      </strong>
 
-        <span
-          style={{
-            ...stageStyle,
-            padding: "4px 10px",
-            borderRadius: 999,
-            fontSize: 12,
-            textTransform: "capitalize",
-            fontWeight: 500,
-          }}
-        >
-          {deal.stage}
-        </span>
+      <div style={{ fontSize: 13, opacity: 0.85 }}>
+        Client: {deal.clientName ?? "—"}
       </div>
 
-      {/* Client */}
-      <div style={{ marginTop: 6, fontSize: 13, opacity: 0.85 }}>
-        {deal.clientName}
+      <div style={{ fontSize: 13, opacity: 0.75 }}>
+        Stage: {deal.stage ?? "unknown"}
       </div>
 
-      {/* Value */}
-      {deal.value !== undefined && (
-        <div style={{ marginTop: 10, fontSize: 14, fontWeight: 500 }}>
-          {deal.currency ?? "ZAR"}{" "}
+      {typeof deal.value === "number" && (
+        <div style={{ fontSize: 14, fontWeight: 600 }}>
+          {(deal.currency ?? "ZAR") + " "}
           {deal.value.toLocaleString()}
         </div>
       )}

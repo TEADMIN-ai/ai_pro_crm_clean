@@ -1,0 +1,58 @@
+:root {
+  /* Background */
+  --bg-gradient: linear-gradient(
+    135deg,
+    #cfe8ff 0%,
+    #9fb7cc 35%,
+    #5f6f80 70%,
+    #1f2933 100%
+  );
+
+  /* Text */
+  --text-primary: #0b1220;        /* dark navy */
+  --text-secondary: #2b3645;
+  --text-muted: #3e4c5c;
+
+  /* KPI / accent */
+  --accent-orange: #ff8a1f;
+
+  /* Cards */
+  --card-bg: rgba(255, 255, 255, 0.28);
+  --card-border: rgba(255, 255, 255, 0.35);
+
+  /* Shadows */
+  --text-shadow: 0 1px 2px rgba(0,0,0,0.25);
+  --card-shadow: 0 10px 30px rgba(0,0,0,0.15);
+}
+
+body {
+  background: var(--bg-gradient);
+  color: var(--text-primary);
+}
+
+/* Headings */
+h1, h2, h3, h4 {
+  color: var(--text-primary);
+  text-shadow: var(--text-shadow);
+}
+
+/* KPI labels */
+.kpi-label {
+  color: var(--accent-orange);
+  font-weight: 600;
+}
+
+/* KPI values */
+.kpi-value {
+  color: var(--text-primary);
+  font-weight: 700;
+  text-shadow: var(--text-shadow);
+}
+
+/* Cards */
+.card {
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  box-shadow: var(--card-shadow);
+  border-radius: 16px;
+}

@@ -1,55 +1,49 @@
-'use client';
+"use client";
 
-import { useEffect, useState } from 'react';
-import { auth } from '@/lib/firebase/config';
-import { uploadDealFile, getDealFiles } from '@/lib/firebase/dealFiles';
+import { useState } from "react";
 
-export default function DealFiles({ dealId }: { dealId: string }) {
-  const [files, setFiles] = useState<any[]>([]);
-  const user = auth?.currentUser;
-  if (!user) return null;
+type Props = {
+  dealId: string;
+};
 
-  const load = async () => {
-    const data = await getDealFiles(dealId);
-    setFiles(data);
-  };
-
-  useEffect(() => {
-    load();
-  }, [dealId]);
-
-  const upload = async (e: any) => {
-    if (!user || !e.target.files?.[0]) return;
-
-    await uploadDealFile({
-      dealId,
-      file: e.target.files[0],
-
-
-    });
-
-    e.target.value = '';
-    load();
-  };
+export default function DealFiles({ dealId }: Props) {
+  const [files] = useState<string[]>([]);
 
   return (
-    <div style={{ marginTop: 10 }}>
-      <h4>Attachments</h4>
+    <div
+      style={{
+        marginTop: 16,
+        padding: 16,
+        borderRadius: 12,
+        background: "rgba(255,255,255,0.06)",
+      }}
+    >
+      <strong style={{ color: "#fff", display: "block", marginBottom: 8 }}>
+        Deal Documents
+      </strong>
 
-      <input type="file" onChange={upload} />
+      {/* Upload placeholder */}
+      <button
+        style={{
+          background: "#2563eb",
+          color: "#fff",
+          padding: "6px 14px",
+          borderRadius: 8,
+          fontWeight: 600,
+          boxShadow: "0 2px 8px rgba(0,0,0,.35)",
+          marginBottom: 12,
+        }}
+        disabled
+      >
+        Upload Document (coming soon)
+      </button>
 
-      <ul>
-        {files.map((f, i) => (
-          <li key={i}>
-            <a href={f.fileUrl} target="_blank">
-              {f.fileName}
-            </a>{' '}
-            — {f.userEmail}
-          </li>
-        ))}
-      </ul>
+      {/* File list */}
+      {files.length === 0 && (
+        <div style={{ fontSize: 13, opacity: 0.7 }}>
+          No documents uploaded yet.
+        </div>
+      )}
     </div>
   );
 }
-
-

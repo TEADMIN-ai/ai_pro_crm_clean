@@ -4,28 +4,30 @@ export default function GlobalError({
   error,
   reset,
 }: {
-  error: Error & { digest?: string };
+  error: Error;
   reset: () => void;
 }) {
   return (
     <div
       style={{
-        padding: 40,
-        maxWidth: 600,
-        margin: '0 auto',
-        textAlign: 'center',
+        height: '100vh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        flexDirection: 'column',
+        gap: 16,
+        background: '#0b1220',
+        color: '#fff',
       }}
     >
       <h2>Something went wrong</h2>
 
       <pre
         style={{
-          marginTop: 12,
-          padding: 12,
-          background: 'rgba(0,0,0,0.05)',
-          borderRadius: 8,
-          fontSize: 13,
+          opacity: 0.7,
+          maxWidth: 600,
           whiteSpace: 'pre-wrap',
+          textAlign: 'center',
         }}
       >
         {error.message}
@@ -34,10 +36,11 @@ export default function GlobalError({
       <button
         onClick={reset}
         style={{
-          marginTop: 20,
           padding: '10px 16px',
           borderRadius: 8,
           border: 'none',
+          background: '#2563eb',
+          color: '#fff',
           cursor: 'pointer',
         }}
       >

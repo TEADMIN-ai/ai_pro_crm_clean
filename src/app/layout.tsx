@@ -1,11 +1,7 @@
-import { AuthProvider } from "@/context/AuthContext";
-import type { ReactNode } from "react";
+import '@/styles/theme.css';
+import { AuthProvider } from '@/context/AuthContext';
 
-export default function RootLayout({
-  children,
-}: {
-  children: ReactNode;
-}) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
       <body>

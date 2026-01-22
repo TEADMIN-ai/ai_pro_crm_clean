@@ -1,32 +1,29 @@
-import { NextResponse } from "next/server";
-import { saveContractorToFirestore } from "@/lib/contractor/firestore";
+﻿import { NextResponse } from "next/server";
+import { collection, addDoc, serverTimestamp } from "firebase/firestore";
+import { db } from "@/lib/firebase";
 
 export async function POST(req: Request) {
   try {
-    const body = await req.json();
+    const data = await req.json();
 
-    // Generate ID if not supplied
-    const contractorId =
-      body.contractorId ||
-      body.id ||
-      crypto.randomUUID();
+    if (!data || !data.name) {
+      return NextResponse.json(
+        { error: "Missing contractor name" },
+        { status: 400 }
+      );
+    }
 
-    await saveContractorToFirestore(contractorId, body);
-
-    return NextResponse.json({
-      success: true,
-      contractorId,
+    await addDoc(collection(db, "contractors"), {
+      ...data,
+      createdAt: serverTimestamp(),
     });
-  } catch (err) {
-    console.error("CREATE CONTRACTOR ERROR:", err);
 
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error("Create contractor failed", error);
     return NextResponse.json(
-      {
-        success: false,
-        error: String(err),
-      },
+      { error: "Internal server error" },
       { status: 500 }
     );
   }
 }
-

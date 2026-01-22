@@ -1,46 +1,58 @@
-'use client';
+"use client";
 
-import { useEffect, useState } from 'react';
-import { auth } from '@/lib/firebase/config';
-import {
-  getUserNotifications,
-  markNotificationRead,
-} from '@/lib/notifications';
+import { useState } from "react";
 
 export default function NotificationBell() {
-  const [items, setItems] = useState<any[]>([]);
-  const user = auth?.currentUser;
-  if (!user) return null;
-
-  const load = async () => {
-    if (!user) return;
-    const data = await getUserNotifications(user.uid);
-    setItems(data);
-  };
-
-  useEffect(() => {
-    load();
-  }, [user]);
+  const [open, setOpen] = useState(false);
 
   return (
-    <div style={{ position: 'relative' }}>
-      ?? {items.filter(i => !i.read).length}
+    <div style={{ position: "relative" }}>
+      {/* Bell Button */}
+      <button
+        onClick={() => setOpen(!open)}
+        style={{
+          background: "transparent",
+          border: "none",
+          cursor: "pointer",
+          fontSize: 18,
+          color: "#fff",
+        }}
+        aria-label="Notifications"
+      >
+        🔔
+      </button>
 
-      <div style={{ position: 'absolute', background: '#fff', padding: 8 }}>
-        {items.map(i => (
-          <div key={i.id} style={{ fontSize: 12 }}>
-            <strong>{i.title}</strong>
-            <div>{i.message}</div>
-            {!i.read && (
-              <button onClick={() => markNotificationRead(i.id)}>
-                Mark read
-              </button>
-            )}
+      {/* Dropdown */}
+      {open && (
+        <div
+          style={{
+            position: "absolute",
+            right: 0,
+            top: "120%",
+            width: 260,
+            background: "rgba(15, 23, 42, 0.95)",
+            borderRadius: 12,
+            padding: 12,
+            boxShadow: "0 10px 30px rgba(0,0,0,.35)",
+            zIndex: 200,
+          }}
+        >
+          <strong style={{ color: "#fff", fontSize: 14 }}>
+            Notifications
+          </strong>
+
+          <div
+            style={{
+              marginTop: 10,
+              fontSize: 13,
+              opacity: 0.75,
+              color: "#e5e7eb",
+            }}
+          >
+            No notifications yet.
           </div>
-        ))}
-      </div>
+        </div>
+      )}
     </div>
   );
 }
-
-

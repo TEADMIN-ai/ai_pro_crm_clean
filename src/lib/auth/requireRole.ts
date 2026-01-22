@@ -1,10 +1,7 @@
-import { getUserRole } from '@/lib/firebase/getUserRole';
+﻿import { getUserRole } from "@/lib/firebase/getUserRole";
 
-export async function requireRole(
-  uid: string | null,
-  allowed: Array<'admin' | 'user'>
-): Promise<boolean> {
-  if (!uid) return false;
+export async function requireRole(uid: string, allow: Array<"admin" | "manager" | "staff">) {
   const role = await getUserRole(uid);
-  return allowed.includes(role as any);
+  if (!role) return false;
+  return allow.includes(role);
 }

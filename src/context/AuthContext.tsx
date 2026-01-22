@@ -1,9 +1,7 @@
 "use client";
 
-import { createContext, useContext, useEffect, useMemo, useState } from "react";
-import type { ReactNode } from "react";
-
-import { onAuthStateChanged, type User as FirebaseUser } from "firebase/auth";
+import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { onAuthStateChanged, signOut, type User as FirebaseUser } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
 
 import { auth, db } from "@/lib/firebase";
@@ -15,71 +13,67 @@ export type AuthUser = {
   companyId: string;
 };
 
-export type AuthContextType = {
+type AuthContextType = {
   user: AuthUser | null;
   loading: boolean;
+  logout: () => Promise<void>;
 };
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+const AuthContext = createContext<AuthContextType>({
+  user: null,
+  loading: true,
+  logout: async () => {},
+});
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
 
+  const logout = async () => {
+    await signOut(auth);
+  };
+
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, async (fbUser: FirebaseUser | null) => {
-      try {
-        if (!fbUser) {
-          setUser(null);
-          setLoading(false);
-          return;
-        }
-
-        const ref = doc(db, "users", fbUser.uid);
-        const snap = await getDoc(ref);
-
-        if (!snap.exists()) {
-          // If user logged in but no Firestore profile exists
-          setUser({
-            uid: fbUser.uid,
-            email: fbUser.email,
-            role: "staff",
-            companyId: "default",
-          });
-          setLoading(false);
-          return;
-        }
-
-        const data = snap.data() as any;
-
-        setUser({
-          uid: fbUser.uid,
-          email: fbUser.email,
-          role: (data.role ?? "staff") as AuthUser["role"],
-          companyId: (data.companyId ?? "default") as string,
-        });
-
-        setLoading(false);
-      } catch (e) {
-        console.error("AuthProvider error:", e);
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser: FirebaseUser | null) => {
+      if (!firebaseUser) {
         setUser(null);
         setLoading(false);
+        return;
       }
+
+      const userRef = doc(db, "users", firebaseUser.uid);
+      const snap = await getDoc(userRef);
+
+      if (!snap.exists()) {
+        setUser(null);
+        setLoading(false);
+        return;
+      }
+
+      const data = snap.data() as any;
+
+      setUser({
+        uid: firebaseUser.uid,
+        email: firebaseUser.email,
+        role: data.role,
+        companyId: data.companyId,
+      });
+
+      setLoading(false);
     });
 
-    return () => unsub();
+    return () => unsubscribe();
   }, []);
 
-  const value = useMemo(() => ({ user, loading }), [user, loading]);
-
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  return <AuthContext.Provider value={{ user, loading, logout }}>{children}</AuthContext.Provider>;
 }
 
-export function useAuthContext(): AuthContextType {
-  const ctx = useContext(AuthContext);
-  if (!ctx) throw new Error("useAuthContext must be used within <AuthProvider />");
-  return ctx;
+// Canonical hook
+export function useAuthContext() {
+  return useContext(AuthContext);
 }
 
-// ✅ Backwards-compatible alias so older imports don't break or revert types
-export const useAuth = useAuthContext;
+// Back-compat (some files still import useAuth)
+export function useAuth() {
+  return useContext(AuthContext);
+}

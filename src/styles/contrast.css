@@ -1,0 +1,11 @@
+
+/* KPI LABEL FIX */
+.kpi-card h3,
+.kpi-card h4,
+.kpi-card .label,
+.kpi-label {
+  color: #ff9f1c !important;
+  font-weight: 600;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.45);
+}
+
