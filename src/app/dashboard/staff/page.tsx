@@ -1,155 +1,98 @@
-'use client';
+"use client";
 
-import '@/styles/contrast.css';
+import { useEffect, useState } from "react";
+import type { Deal } from "@/types/deal";
 
 export default function StaffDashboardPage() {
-  return (
-    <div
-      style={{
-        minHeight: '100vh',
-        padding: 32,
-        background:
-          'radial-gradient(circle at top left, #cfe6ff 0%, #a7c7e7 25%, #5a6f88 55%, #0a1220 100%)',
-      }}
-    >
-      {/* HEADER */}
-      <h1 className="text-contrast" style={{ fontSize: 34, marginBottom: 6 }}>
-        Staff Dashboard
-      </h1>
+  const [deals, setDeals] = useState<Deal[]>([]);
+  const loading = false;
 
-      <p className="text-contrast-soft" style={{ marginBottom: 28 }}>
-        Your assigned deals and daily actions
-      </p>
+  const assignedDeals = deals.length;
+
+  return (
+    <div style={pageStyle}>
+      <h1 style={titleStyle}>Staff Dashboard</h1>
+      <p style={subtitleStyle}>Your assigned deals and daily actions</p>
 
       {/* KPI ROW */}
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
-          gap: 16,
-          marginBottom: 28,
-        }}
-      >
-        <KpiCard label="My Deals" value={0} />
+      <div style={kpiGrid}>
+        <KpiCard label="My Deals" value={assignedDeals} />
         <KpiCard label="Open" value={0} />
         <KpiCard label="Won" value={0} />
         <KpiCard label="Lost" value={0} />
       </div>
 
-      {/* ASSIGNED DEALS */}
-      <div
-        style={{
-          padding: 20,
-          borderRadius: 18,
-          background: 'rgba(255,255,255,0.18)',
-          backdropFilter: 'blur(14px)',
-          marginBottom: 28,
-        }}
-      >
-        <h3 className="section-title" style={{ marginBottom: 6 }}>
-          My Assigned Deals
-        </h3>
-        <p className="text-contrast-soft">No deals assigned to you.</p>
-      </div>
-
-      {/* DOCUMENTS */}
-      <div
-        style={{
-          padding: 20,
-          borderRadius: 18,
-          background: 'rgba(255,255,255,0.18)',
-          backdropFilter: 'blur(14px)',
-          marginBottom: 28,
-        }}
-      >
-        <h3 className="section-title" style={{ marginBottom: 6 }}>
-          Client Documents
-        </h3>
-        <p className="text-contrast-soft" style={{ marginBottom: 12 }}>
-          Upload required client documents for finance approval.
-        </p>
-
-        <button
-          style={{
-            padding: '10px 16px',
-            borderRadius: 10,
-            border: 'none',
-            background: '#2563eb',
-            color: '#fff',
-            fontWeight: 600,
-            cursor: 'pointer',
-            boxShadow: '0 6px 16px rgba(0,0,0,0.35)',
-          }}
-        >
-          Upload Documents
-        </button>
-      </div>
-
-      {/* SALES ASSISTANT */}
-      <div
-        style={{
-          maxWidth: 360,
-          padding: 20,
-          borderRadius: 18,
-          background: 'rgba(255,255,255,0.18)',
-          backdropFilter: 'blur(16px)',
-          boxShadow: '0 12px 30px rgba(0,0,0,0.35)',
-        }}
-      >
-        <h3 className="section-title">Sales Assistant</h3>
-        <p className="text-contrast-soft" style={{ marginBottom: 12 }}>
-          Ask how to respond to customers, handle objections, or follow up.
-        </p>
-
-        <input
-          placeholder="Ask how to respond to a customer..."
-          style={{
-            width: '100%',
-            padding: 10,
-            borderRadius: 8,
-            border: 'none',
-            marginBottom: 10,
-          }}
-        />
-
-        <button
-          style={{
-            width: '100%',
-            padding: 10,
-            borderRadius: 10,
-            border: 'none',
-            background: '#2563eb',
-            color: '#fff',
-            fontWeight: 600,
-            cursor: 'pointer',
-            boxShadow: '0 6px 16px rgba(0,0,0,0.35)',
-          }}
-        >
-          Send
-        </button>
+      {/* CONTENT */}
+      <div style={cardStyle}>
+        {loading && <p style={muted}>Loading your deals…</p>}
+        {!loading && assignedDeals === 0 && (
+          <p style={muted}>
+            No deals assigned yet — activity will appear here once deals are
+            allocated to you.
+          </p>
+        )}
       </div>
     </div>
   );
 }
 
-/* ---------- KPI CARD ---------- */
+/* ---------- Shared Styles ---------- */
 
 function KpiCard({ label, value }: { label: string; value: number }) {
   return (
-    <div
-      style={{
-        padding: 18,
-        borderRadius: 16,
-        background: 'rgba(255,255,255,0.22)',
-        backdropFilter: 'blur(14px)',
-      }}
-    >
-      <div className="text-contrast-soft" style={{ fontSize: 14 }}>
-        {label}
-      </div>
-      <div className="kpi-value" style={{ fontSize: 30 }}>
-        {value}
-      </div>
+    <div style={kpiCard}>
+      <span style={kpiLabel}>{label}</span>
+      <span style={kpiValue}>{value}</span>
     </div>
   );
 }
+
+const pageStyle = {
+  padding: 32,
+};
+
+const titleStyle = {
+  fontSize: 34,
+  fontWeight: 700,
+};
+
+const subtitleStyle = {
+  opacity: 0.75,
+  marginBottom: 24,
+};
+
+const kpiGrid = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+  gap: 20,
+  marginBottom: 28,
+};
+
+const cardStyle = {
+  padding: 24,
+  borderRadius: 20,
+  background: "rgba(255,255,255,0.06)",
+  backdropFilter: "blur(12px)",
+};
+
+const kpiCard = {
+  padding: 20,
+  borderRadius: 18,
+  background: "rgba(255,255,255,0.06)",
+  backdropFilter: "blur(12px)",
+};
+
+const kpiLabel = {
+  fontSize: 13,
+  opacity: 0.75,
+};
+
+const kpiValue = {
+  fontSize: 28,
+  fontWeight: 700,
+  color: "#38bdf8",
+};
+
+const muted = {
+  opacity: 0.65,
+};
