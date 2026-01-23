@@ -1,12 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { signInWithEmailAndPassword } from "firebase/auth";
-import { auth } from "@/lib/firebase/config";
-import { useRouter } from "next/navigation";
+import { useAuth } from "@/context/AuthContext";
 
 export default function LoginForm() {
-  const router = useRouter();
+  const { login } = useAuth();
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -14,14 +13,13 @@ export default function LoginForm() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
     setError(null);
+    setLoading(true);
 
     try {
-      await signInWithEmailAndPassword(auth, email, password);
-      router.push("/dashboard");
+      await login(email, password);
     } catch (err: any) {
-      setError(err.message || "Login failed");
+      setError(err?.message || "Login failed");
     } finally {
       setLoading(false);
     }
@@ -30,8 +28,6 @@ export default function LoginForm() {
   return (
     <form onSubmit={handleSubmit}>
       <input
-        id="email"
-        name="email"
         type="email"
         placeholder="Email"
         value={email}
@@ -40,21 +36,18 @@ export default function LoginForm() {
       />
 
       <input
-        id="password"
-        name="password"
         type="password"
         placeholder="Password"
         value={password}
         onChange={(e) => setPassword(e.target.value)}
         required
-        autoComplete="current-password"
       />
+
+      {error && <div style={{ color: "red" }}>{error}</div>}
 
       <button type="submit" disabled={loading}>
         {loading ? "Signing in…" : "Login"}
       </button>
-
-      {error && <p style={{ color: "red" }}>{error}</p>}
     </form>
   );
 }

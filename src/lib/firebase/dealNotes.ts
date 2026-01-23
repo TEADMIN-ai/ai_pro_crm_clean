@@ -1,4 +1,4 @@
-﻿import { collection, addDoc, getDocs, orderBy, query, serverTimestamp } from "firebase/firestore";
+import { collection, addDoc, getDocs, orderBy, query, serverTimestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 
 export type DealNote = {

@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 
 export default function LoginPage() {
-  const { signIn } = useAuth(); // ✅ correct API
+  const { login } = useAuth();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -17,7 +17,7 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      await signIn(email, password);
+      await login(email, password);
     } catch (err: any) {
       setError(err?.message || "Login failed");
     } finally {
@@ -32,22 +32,60 @@ export default function LoginPage() {
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        background: "#0b1220",
+
+        /* ✅ NO shorthand/longhand conflict */
+        background: `
+          linear-gradient(
+            rgba(5, 15, 35, 0.35),
+            rgba(5, 15, 35, 0.55)
+          ),
+          url("/login/hero.jpg")
+        `,
+        backgroundRepeat: "no-repeat",
+        backgroundPosition: "center",
+        backgroundSize: "cover",
       }}
     >
+      {/* Motivational quote */}
+      <div
+        style={{
+          position: "absolute",
+          inset: 0,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          pointerEvents: "none",
+          opacity: 0.18,
+          fontSize: 56,
+          fontWeight: 800,
+          letterSpacing: 2,
+          color: "#ffffff",
+          textAlign: "center",
+          padding: "0 40px",
+          textTransform: "uppercase",
+        }}
+      >
+        SUCCESS COMES WHEN YOU REFUSE TO GIVE UP
+      </div>
+
+      {/* Login card */}
       <form
         onSubmit={handleSubmit}
         style={{
-          width: 380,
-          padding: 32,
-          borderRadius: 16,
-          background: "rgba(255,255,255,0.05)",
-          boxShadow: "0 20px 60px rgba(0,0,0,0.6)",
-          color: "#fff",
+          position: "relative",
+          zIndex: 1,
+          width: 420,
+          padding: 36,
+          borderRadius: 18,
+          background: "rgba(255,255,255,0.92)",
+          boxShadow: "0 30px 80px rgba(0,0,0,0.45)",
+          backdropFilter: "blur(6px)",
         }}
       >
-        <h1 style={{ fontSize: 28, marginBottom: 8 }}>Login</h1>
-        <p style={{ opacity: 0.7, marginBottom: 24 }}>
+        <h1 style={{ fontSize: 28, fontWeight: 700, marginBottom: 6 }}>
+          Torque Empire
+        </h1>
+        <p style={{ opacity: 0.7, marginBottom: 26 }}>
           Intelligence That Drives Revenue
         </p>
 
@@ -59,11 +97,11 @@ export default function LoginPage() {
           required
           style={{
             width: "100%",
-            padding: "12px 14px",
+            padding: "14px 16px",
             marginBottom: 14,
-            borderRadius: 8,
-            border: "none",
-            outline: "none",
+            borderRadius: 10,
+            border: "1px solid #cbd5e1",
+            fontSize: 15,
           }}
         />
 
@@ -75,16 +113,18 @@ export default function LoginPage() {
           required
           style={{
             width: "100%",
-            padding: "12px 14px",
-            marginBottom: 16,
-            borderRadius: 8,
-            border: "none",
-            outline: "none",
+            padding: "14px 16px",
+            marginBottom: 18,
+            borderRadius: 10,
+            border: "1px solid #cbd5e1",
+            fontSize: 15,
           }}
         />
 
         {error && (
-          <div style={{ color: "#f87171", marginBottom: 12 }}>{error}</div>
+          <div style={{ color: "#dc2626", marginBottom: 12 }}>
+            {error}
+          </div>
         )}
 
         <button
@@ -92,14 +132,15 @@ export default function LoginPage() {
           disabled={loading}
           style={{
             width: "100%",
-            padding: "12px",
-            borderRadius: 10,
+            padding: "14px",
+            borderRadius: 12,
             border: "none",
             background: "#2563eb",
             color: "#fff",
             fontWeight: 600,
+            fontSize: 16,
             cursor: "pointer",
-            boxShadow: "0 10px 25px rgba(37,99,235,0.5)",
+            boxShadow: "0 12px 30px rgba(37,99,235,0.5)",
             opacity: loading ? 0.7 : 1,
           }}
         >

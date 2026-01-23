@@ -1,4 +1,4 @@
-﻿import { doc, getDoc } from "firebase/firestore";
+import { doc, getDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 
 export async function getUserRole(uid: string): Promise<"admin" | "manager" | "staff" | null> {

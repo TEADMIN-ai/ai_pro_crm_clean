@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import type { Deal } from "@/types/deal";
 
@@ -24,7 +24,7 @@ export default function DealCard({ deal }: Props) {
       </strong>
 
       <div style={{ fontSize: 13, opacity: 0.85 }}>
-        Client: {deal.clientName ?? "—"}
+        Client: {deal.clientName ?? "�"}
       </div>
 
       <div style={{ fontSize: 13, opacity: 0.75 }}>

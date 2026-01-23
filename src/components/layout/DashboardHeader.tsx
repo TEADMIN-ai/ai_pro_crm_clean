@@ -1,9 +1,9 @@
 "use client";
 
-import { useAuthContext } from "@/context/AuthContext";
+import { useAuth } from "@/context/AuthContext";
 
 export default function DashboardHeader() {
-  const { user } = useAuthContext();
+  const { user } = useAuth();
 
   return (
     <header

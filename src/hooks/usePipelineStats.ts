@@ -1,4 +1,4 @@
-﻿import type { Deal } from "@/types/deal";
+import type { Deal } from "@/types/deal";
 
 export function usePipelineStats(deals: Deal[]) {
   const stats: Record<string, number> = {};

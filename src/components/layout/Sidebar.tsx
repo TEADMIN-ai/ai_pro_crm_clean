@@ -2,72 +2,85 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useAuthContext } from "@/context/AuthContext";
+import { useAuth } from "@/context/AuthContext";
+
+const linkStyle = (active: boolean): React.CSSProperties => ({
+  display: "block",
+  padding: "10px 12px",
+  borderRadius: 10,
+  color: active ? "#ffffff" : "rgba(255,255,255,0.82)",
+  background: active ? "rgba(37,99,235,0.30)" : "transparent",
+  textDecoration: "none",
+  fontWeight: 600,
+});
 
 export default function Sidebar() {
   const pathname = usePathname();
-  const { role } = useAuthContext();
+  const { user } = useAuth();
 
-  const linkStyle = (path: string) => ({
-    padding: "10px 14px",
-    borderRadius: 10,
-    marginBottom: 6,
-    textDecoration: "none",
-    color: "#e5e7eb",
-    background:
-      pathname === path ? "rgba(59,130,246,0.15)" : "transparent",
-    fontWeight: pathname === path ? 600 : 400,
-    display: "block",
-  });
+  // Firebase User does not include role, so read it safely.
+  const role = (user as any)?.role as "admin" | "manager" | "staff" | undefined;
 
   return (
     <aside
       style={{
         width: 240,
         padding: 16,
-        background: "rgba(15,23,42,0.8)",
-        backdropFilter: "blur(12px)",
         borderRight: "1px solid rgba(255,255,255,0.08)",
-        minHeight: "100vh",
+        background: "rgba(15, 23, 42, 0.35)",
+        backdropFilter: "blur(10px)",
       }}
     >
-      <nav>
-        <Link href="/dashboard" style={linkStyle("/dashboard")}>
+      <div style={{ color: "#fff", fontWeight: 800, marginBottom: 14 }}>
+        Torque Empire
+      </div>
+
+      <nav style={{ display: "grid", gap: 8 }}>
+        <Link href="/dashboard" style={linkStyle(pathname === "/dashboard")}>
           Dashboard
         </Link>
 
-        <Link href="/dashboard/deals" style={linkStyle("/dashboard/deals")}>
+        <Link
+          href="/dashboard/deals"
+          style={linkStyle(pathname?.startsWith("/dashboard/deals") ?? false)}
+        >
           Deals
         </Link>
 
-        {/* ADMIN ONLY */}
-        {role === "admin" && (
+        {/* Only show these if role is known */}
+        {role === "staff" && (
           <Link
-            href="/dashboard/admin"
-            style={linkStyle("/dashboard/admin")}
+            href="/dashboard/staff"
+            style={linkStyle(pathname?.startsWith("/dashboard/staff") ?? false)}
           >
-            Admin
+            Staff
           </Link>
         )}
 
-        {/* ADMIN + MANAGER */}
-        {(role === "admin" || role === "manager") && (
+        {(role === "manager" || role === "admin") && (
           <Link
             href="/dashboard/manager"
-            style={linkStyle("/dashboard/manager")}
+            style={linkStyle(pathname?.startsWith("/dashboard/manager") ?? false)}
           >
             Manager
           </Link>
         )}
 
-        {/* STAFF */}
-        {role === "staff" && (
-          <Link
-            href="/dashboard/staff"
-            style={linkStyle("/dashboard/staff")}
-          >
-            Staff
-          </Link>
+        {role === "admin" && (
+          <>
+            <Link
+              href="/dashboard/admin"
+              style={linkStyle(pathname?.startsWith("/dashboard/admin") ?? false)}
+            >
+              Admin
+            </Link>
+            <Link
+              href="/dashboard/users"
+              style={linkStyle(pathname?.startsWith("/dashboard/users") ?? false)}
+            >
+              Users
+            </Link>
+          </>
         )}
       </nav>
     </aside>
