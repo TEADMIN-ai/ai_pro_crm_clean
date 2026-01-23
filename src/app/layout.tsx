@@ -1,5 +1,6 @@
 import '@/styles/theme.css';
 import { AuthProvider } from '@/context/AuthContext';
+import "@/styles/visual-tokens.css";
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (

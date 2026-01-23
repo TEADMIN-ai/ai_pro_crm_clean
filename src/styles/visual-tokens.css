@@ -1,0 +1,84 @@
+/* ================================
+   PHASE 2 — VISUAL TOKENS (SAFE)
+   ================================ */
+
+:root {
+  /* Backgrounds */
+  --bg-gradient: linear-gradient(
+    120deg,
+    #cfe7ff 0%,
+    #8fb6d8 35%,
+    #475569 100%
+  );
+
+  --surface-card: rgba(15, 23, 42, 0.55);
+  --surface-card-soft: rgba(15, 23, 42, 0.35);
+
+  /* Text */
+  --text-primary: #0f172a;
+  --text-secondary: #334155;
+  --text-invert: #ffffff;
+
+  /* Accent */
+  --accent-blue: #38bdf8;
+  --accent-blue-strong: #0ea5e9;
+
+  /* Shadows / Glow */
+  --text-glow: 0 1px 2px rgba(0, 0, 0, 0.35);
+  --card-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+}
+
+/* ===== Base page ===== */
+.visual-page {
+  min-height: 100vh;
+  background: var(--bg-gradient);
+  color: var(--text-primary);
+}
+
+/* ===== Headings ===== */
+.visual-h1 {
+  color: var(--text-invert);
+  text-shadow: var(--text-glow);
+}
+
+.visual-h2 {
+  color: var(--text-invert);
+  opacity: 0.95;
+  text-shadow: var(--text-glow);
+}
+
+.visual-subtitle {
+  color: #e5e7eb;
+  opacity: 0.85;
+  text-shadow: var(--text-glow);
+}
+
+/* ===== Cards ===== */
+.visual-card {
+  background: var(--surface-card);
+  border-radius: 16px;
+  box-shadow: var(--card-shadow);
+}
+
+.visual-card-soft {
+  background: var(--surface-card-soft);
+  border-radius: 16px;
+}
+
+/* ===== KPI Numbers ===== */
+.visual-kpi {
+  font-size: 32px;
+  font-weight: 700;
+  color: var(--accent-blue);
+  text-shadow: 0 0 10px rgba(56, 189, 248, 0.4);
+}
+
+/* ===== Buttons ===== */
+.visual-button {
+  background: var(--accent-blue-strong);
+  color: white;
+  border-radius: 10px;
+  padding: 8px 16px;
+  font-weight: 600;
+  box-shadow: 0 4px 12px rgba(14, 165, 233, 0.45);
+}

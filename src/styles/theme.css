@@ -1,58 +1,78 @@
+/* ===============================
+   GLOBAL THEME VARIABLES
+   =============================== */
+
 :root {
-  /* Background */
-  --bg-gradient: linear-gradient(
-    135deg,
-    #cfe8ff 0%,
-    #9fb7cc 35%,
-    #5f6f80 70%,
-    #1f2933 100%
-  );
-
   /* Text */
-  --text-primary: #0b1220;        /* dark navy */
-  --text-secondary: #2b3645;
-  --text-muted: #3e4c5c;
+  --text-primary: #0f172a;      /* slate-900 */
+  --text-secondary: #334155;    /* slate-700 */
+  --text-muted: #475569;        /* slate-600 */
 
-  /* KPI / accent */
-  --accent-orange: #ff8a1f;
+  /* Accent */
+  --accent-blue: #2563eb;
+  --accent-orange: #f97316;
 
   /* Cards */
-  --card-bg: rgba(255, 255, 255, 0.28);
-  --card-border: rgba(255, 255, 255, 0.35);
+  --card-bg: rgba(255, 255, 255, 0.78);
+  --card-border: rgba(255, 255, 255, 0.25);
+  --card-shadow: 0 10px 30px rgba(15, 23, 42, 0.25);
 
-  /* Shadows */
-  --text-shadow: 0 1px 2px rgba(0,0,0,0.25);
-  --card-shadow: 0 10px 30px rgba(0,0,0,0.15);
+  /* Glass blur */
+  --glass-blur: blur(12px);
 }
 
-body {
-  background: var(--bg-gradient);
+/* ===============================
+   GLOBAL TEXT FIXES
+   =============================== */
+
+.dashboard-title {
   color: var(--text-primary);
+  text-shadow: 0 2px 8px rgba(15, 23, 42, 0.25);
 }
 
-/* Headings */
-h1, h2, h3, h4 {
-  color: var(--text-primary);
-  text-shadow: var(--text-shadow);
+.dashboard-subtitle {
+  color: var(--text-secondary);
 }
 
-/* KPI labels */
 .kpi-label {
-  color: var(--accent-orange);
+  color: var(--text-muted);
   font-weight: 600;
 }
 
-/* KPI values */
 .kpi-value {
   color: var(--text-primary);
   font-weight: 700;
-  text-shadow: var(--text-shadow);
+  text-shadow: 0 1px 6px rgba(15, 23, 42, 0.35);
 }
 
-/* Cards */
-.card {
+/* ===============================
+   CARD STYLE (REUSABLE)
+   =============================== */
+
+.glass-card {
   background: var(--card-bg);
-  border: 1px solid var(--card-border);
-  box-shadow: var(--card-shadow);
+  backdrop-filter: var(--glass-blur);
   border-radius: 16px;
+  box-shadow: var(--card-shadow);
+  border: 1px solid var(--card-border);
+}
+
+/* ===============================
+   HEADER FIX
+   =============================== */
+
+.app-header {
+  background: rgba(15, 23, 42, 0.85);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.35);
+}
+
+.logout-btn {
+  background: var(--accent-blue);
+  color: white;
+  font-weight: 600;
+  padding: 6px 14px;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+  cursor: pointer;
 }
