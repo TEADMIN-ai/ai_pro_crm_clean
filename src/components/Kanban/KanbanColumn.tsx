@@ -1,33 +1,24 @@
 "use client";
 
-import { useDroppable } from "@dnd-kit/core";
-import KanbanCard, { Deal } from "./KanbanCard";
+import type { ReactNode } from "react";
 
 type Props = {
-  id: string;
   title: string;
-  deals: Deal[];
+  children: ReactNode;
 };
 
-export default function KanbanColumn({ id, title, deals }: Props) {
-  const { setNodeRef } = useDroppable({ id });
-
+export default function KanbanColumn({ title, children }: Props) {
   return (
     <div
-      ref={setNodeRef}
       style={{
-        background: "rgba(255,255,255,0.04)",
-        border: "1px solid rgba(255,255,255,0.15)",
-        borderRadius: 12,
+        minWidth: 260,
         padding: 12,
-        minHeight: 300,
+        borderRadius: 12,
+        background: "rgba(255,255,255,0.06)",
       }}
     >
-      <h3 style={{ marginBottom: 12 }}>{title}</h3>
-
-      {deals.map((deal) => (
-        <KanbanCard key={deal.id} deal={deal} />
-      ))}
+      <h4 style={{ marginBottom: 12 }}>{title}</h4>
+      <div>{children}</div>
     </div>
   );
 }

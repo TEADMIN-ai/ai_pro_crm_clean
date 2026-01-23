@@ -1,7 +1,19 @@
-﻿node_modules
-.next
-.env.local
-.env
-.vercel
+# Node / Next
+node_modules/
+.next/
+out/
 
+# Env / secrets
+.env*
 firebase-adminsdk.json
+
+# Platform
+.vercel/
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+
+# TS
+tsconfig.tsbuildinfo

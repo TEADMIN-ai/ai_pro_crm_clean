@@ -1,39 +1,20 @@
 "use client";
 
-import { useDraggable } from "@dnd-kit/core";
+import type { Deal } from "@/types/deal";
 
-export type Deal = {
-  id: string;
-  title: string;
-  status: string;
-};
-
-type Props = {
-  deal: Deal;
-};
-
-export default function KanbanCard({ deal }: Props) {
-  const { attributes, listeners, setNodeRef, transform } =
-    useDraggable({ id: deal.id });
-
+export default function KanbanCard({ deal }: { deal: Deal }) {
   return (
     <div
-      ref={setNodeRef}
-      {...listeners}
-      {...attributes}
       style={{
-        transform: transform
-          ? `translate(${transform.x}px, ${transform.y}px)`
-          : undefined,
-        background: "rgba(0,0,0,0.35)",
-        border: "1px solid rgba(255,255,255,0.2)",
-        borderRadius: 10,
         padding: 12,
-        marginBottom: 8,
-        cursor: "grab",
+        borderRadius: 10,
+        background: "rgba(255,255,255,0.06)",
       }}
     >
       <strong>{deal.title}</strong>
+      <div style={{ fontSize: 12, opacity: 0.7 }}>
+        Stage: {deal.stage}
+      </div>
     </div>
   );
 }
