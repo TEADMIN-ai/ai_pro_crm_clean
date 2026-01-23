@@ -1,73 +1,61 @@
-﻿"use client";
+"use client";
 
-import { useEffect, useState } from "react";
-import { addDealNote, getDealNotes, type DealNote } from "@/lib/firebase/dealNotes";
-import { useAuthContext } from "@/context/AuthContext";
+import { useState } from "react";
+import { useAuth } from "@/context/AuthContext";
 
-export default function DealNotes({ dealId }: { dealId: string }) {
-  const { user } = useAuthContext();
-  const [notes, setNotes] = useState<DealNote[]>([]);
-  const [text, setText] = useState("");
-  const [loading, setLoading] = useState(false);
+type Props = {
+  dealId: string;
+};
 
-  const refresh = async () => {
-    const data = await getDealNotes(dealId);
-    setNotes(data);
-  };
+export default function DealNotes({ dealId }: Props) {
+  const { user } = useAuth();
+  const [note, setNote] = useState("");
 
-  useEffect(() => {
-    refresh();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dealId]);
+  const companyId = (user as any)?.companyId;
 
-  const onAdd = async () => {
-    if (!user) return;
-    const t = text.trim();
-    if (!t) return;
-
-    setLoading(true);
-    try {
-      await addDealNote({
-        dealId,
-        text: t,
-        createdBy: user.uid,
-        companyId: user.companyId,
-      });
-      setText("");
-      await refresh();
-    } finally {
-      setLoading(false);
-    }
-  };
+  if (!user || !companyId) return null;
 
   return (
-    <div style={{ padding: 12, borderRadius: 12, background: "rgba(255,255,255,0.06)" }}>
-      <div style={{ fontWeight: 700, marginBottom: 8 }}>Notes</div>
+    <div
+      style={{
+        padding: 16,
+        borderRadius: 12,
+        background: "rgba(255,255,255,0.05)",
+        marginTop: 16,
+      }}
+    >
+      <h4 style={{ marginBottom: 8 }}>Notes</h4>
 
-      <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
-        <input
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          placeholder="Add a note..."
-          style={{ flex: 1, padding: 10, borderRadius: 10, border: "1px solid rgba(255,255,255,0.2)", background: "rgba(0,0,0,0.15)", color: "#fff" }}
-        />
-        <button onClick={onAdd} disabled={loading} style={{ padding: "10px 14px", borderRadius: 10 }}>
-          {loading ? "Saving…" : "Add"}
-        </button>
-      </div>
+      <textarea
+        value={note}
+        onChange={(e) => setNote(e.target.value)}
+        placeholder="Add a note…"
+        style={{
+          width: "100%",
+          minHeight: 80,
+          borderRadius: 8,
+          padding: 10,
+          border: "none",
+          outline: "none",
+          marginBottom: 8,
+        }}
+      />
 
-      {notes.length === 0 ? (
-        <div style={{ opacity: 0.7 }}>No notes yet.</div>
-      ) : (
-        <div style={{ display: "grid", gap: 8 }}>
-          {notes.map((n) => (
-            <div key={n.id} style={{ padding: 10, borderRadius: 10, background: "rgba(0,0,0,0.12)" }}>
-              <div style={{ opacity: 0.9 }}>{n.text}</div>
-              <div style={{ opacity: 0.6, fontSize: 12, marginTop: 6 }}>by {n.createdBy}</div>
-            </div>
-          ))}
-        </div>
-      )}
+      <button
+        type="button"
+        disabled
+        style={{
+          background: "#2563eb",
+          color: "#fff",
+          borderRadius: 8,
+          padding: "6px 12px",
+          fontWeight: 600,
+          border: "none",
+          opacity: 0.6,
+        }}
+      >
+        Notes enabled in Phase 3
+      </button>
     </div>
   );
 }

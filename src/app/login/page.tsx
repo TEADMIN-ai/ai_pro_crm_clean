@@ -1,103 +1,111 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { signInWithEmailAndPassword } from "firebase/auth";
-import { doc, getDoc } from "firebase/firestore";
-
-import { auth, db } from "@/lib/firebase";
+import { useAuth } from "@/context/AuthContext";
 
 export default function LoginPage() {
-  const router = useRouter();
+  const { signIn } = useAuth(); // ✅ correct API
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleLogin = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setLoading(true);
 
     try {
-      // 1. Firebase Auth sign-in
-      const cred = await signInWithEmailAndPassword(
-        auth,
-        email,
-        password
-      );
-
-      const user = cred.user;
-
-      // 2. Fetch role from Firestore
-      const snap = await getDoc(doc(db, "users", user.uid));
-
-      if (!snap.exists()) {
-        throw new Error("User profile not found in Firestore");
-      }
-
-      const role = snap.data().role;
-
-      // 3. Role-based redirect
-      if (role === "admin") {
-        router.push("/dashboard/admin");
-      } else if (role === "manager") {
-        router.push("/dashboard/manager");
-      } else if (role === "staff") {
-        router.push("/dashboard/staff");
-      } else {
-        throw new Error("Unknown user role");
-      }
+      await signIn(email, password);
     } catch (err: any) {
-      console.error(err);
-      setError(err.message || "Login failed");
+      setError(err?.message || "Login failed");
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <main style={{ padding: 32, maxWidth: 400 }}>
-      <h1>Login</h1>
+    <div
+      style={{
+        minHeight: "100vh",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        background: "#0b1220",
+      }}
+    >
+      <form
+        onSubmit={handleSubmit}
+        style={{
+          width: 380,
+          padding: 32,
+          borderRadius: 16,
+          background: "rgba(255,255,255,0.05)",
+          boxShadow: "0 20px 60px rgba(0,0,0,0.6)",
+          color: "#fff",
+        }}
+      >
+        <h1 style={{ fontSize: 28, marginBottom: 8 }}>Login</h1>
+        <p style={{ opacity: 0.7, marginBottom: 24 }}>
+          Intelligence That Drives Revenue
+        </p>
 
-      <form onSubmit={handleLogin}>
-        <div style={{ marginBottom: 12 }}>
-          <input
-            type="email"
-            placeholder="Email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-            style={{ width: "100%", padding: 8 }}
-          />
-        </div>
+        <input
+          type="email"
+          placeholder="Email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          required
+          style={{
+            width: "100%",
+            padding: "12px 14px",
+            marginBottom: 14,
+            borderRadius: 8,
+            border: "none",
+            outline: "none",
+          }}
+        />
 
-        <div style={{ marginBottom: 12 }}>
-          <input
-            type="password"
-            placeholder="Password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-            style={{ width: "100%", padding: 8 }}
-          />
-        </div>
+        <input
+          type="password"
+          placeholder="Password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          required
+          style={{
+            width: "100%",
+            padding: "12px 14px",
+            marginBottom: 16,
+            borderRadius: 8,
+            border: "none",
+            outline: "none",
+          }}
+        />
 
         {error && (
-          <p style={{ color: "red", marginBottom: 12 }}>
-            {error}
-          </p>
+          <div style={{ color: "#f87171", marginBottom: 12 }}>{error}</div>
         )}
 
         <button
           type="submit"
           disabled={loading}
-          style={{ padding: "8px 16px" }}
+          style={{
+            width: "100%",
+            padding: "12px",
+            borderRadius: 10,
+            border: "none",
+            background: "#2563eb",
+            color: "#fff",
+            fontWeight: 600,
+            cursor: "pointer",
+            boxShadow: "0 10px 25px rgba(37,99,235,0.5)",
+            opacity: loading ? 0.7 : 1,
+          }}
         >
-          {loading ? "Logging in..." : "Login"}
+          {loading ? "Signing in…" : "Login"}
         </button>
       </form>
-    </main>
+    </div>
   );
 }

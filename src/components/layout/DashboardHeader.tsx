@@ -1,32 +1,28 @@
 "use client";
 
-import LogoutButton from "@/components/auth/LogoutButton";
 import { useAuthContext } from "@/context/AuthContext";
 
 export default function DashboardHeader() {
   const { user } = useAuthContext();
 
-  if (!user) return null;
-
   return (
     <header
       style={{
+        padding: "16px 24px",
         display: "flex",
         justifyContent: "space-between",
         alignItems: "center",
-        padding: "16px 24px",
-        borderBottom: "1px solid #e5e5e5",
-        marginBottom: 24,
+        background: "rgba(15,23,42,0.85)",
+        backdropFilter: "blur(10px)",
       }}
     >
-      <div>
-        <strong>{user.email}</strong>
-        <div style={{ fontSize: 12, opacity: 0.7 }}>
-          Role: {user.role}
-        </div>
-      </div>
+      <strong style={{ color: "#fff" }}>Torque Empire</strong>
 
-      <LogoutButton />
+      {user && (
+        <span style={{ opacity: 0.75, fontSize: 14 }}>
+          {user.email}
+        </span>
+      )}
     </header>
   );
 }

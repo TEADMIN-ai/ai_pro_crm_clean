@@ -1,98 +1,80 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import type { Deal } from "@/types/deal";
+import DashboardLayout from "@/components/layout/DashboardLayout";
 
 export default function StaffDashboardPage() {
-  const [deals, setDeals] = useState<Deal[]>([]);
-  const loading = false;
-
-  const assignedDeals = deals.length;
-
   return (
-    <div style={pageStyle}>
-      <h1 style={titleStyle}>Staff Dashboard</h1>
-      <p style={subtitleStyle}>Your assigned deals and daily actions</p>
+    <DashboardLayout>
+      <div style={{ padding: "24px" }}>
+        <h1
+          style={{
+            fontSize: 32,
+            fontWeight: 700,
+            color: "#ffffff",
+            textShadow: "0 2px 6px rgba(0,0,0,0.35)",
+          }}
+        >
+          Staff Dashboard
+        </h1>
 
-      {/* KPI ROW */}
-      <div style={kpiGrid}>
-        <KpiCard label="My Deals" value={assignedDeals} />
-        <KpiCard label="Open" value={0} />
-        <KpiCard label="Won" value={0} />
-        <KpiCard label="Lost" value={0} />
-      </div>
+        <p style={{ marginTop: 8, opacity: 0.8 }}>
+          Your assigned deals and daily actions
+        </p>
 
-      {/* CONTENT */}
-      <div style={cardStyle}>
-        {loading && <p style={muted}>Loading your deals…</p>}
-        {!loading && assignedDeals === 0 && (
-          <p style={muted}>
-            No deals assigned yet — activity will appear here once deals are
-            allocated to you.
+        {/* KPI ROW */}
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+            gap: 16,
+            marginTop: 24,
+          }}
+        >
+          <KpiCard label="My Deals" value={0} />
+          <KpiCard label="Open" value={0} />
+          <KpiCard label="Won" value={0} />
+          <KpiCard label="Lost" value={0} />
+        </div>
+
+        {/* EMPTY STATE */}
+        <div
+          style={{
+            marginTop: 32,
+            padding: 20,
+            borderRadius: 16,
+            background: "rgba(255,255,255,0.06)",
+          }}
+        >
+          <p style={{ opacity: 0.75 }}>
+            No deals assigned yet — activity will appear here once deals are allocated to you.
           </p>
-        )}
+        </div>
       </div>
-    </div>
+    </DashboardLayout>
   );
 }
-
-/* ---------- Shared Styles ---------- */
 
 function KpiCard({ label, value }: { label: string; value: number }) {
   return (
-    <div style={kpiCard}>
-      <span style={kpiLabel}>{label}</span>
-      <span style={kpiValue}>{value}</span>
+    <div
+      style={{
+        padding: 18,
+        borderRadius: 16,
+        background: "rgba(255,255,255,0.07)",
+        boxShadow: "0 8px 24px rgba(0,0,0,0.25)",
+      }}
+    >
+      <div style={{ fontSize: 13, opacity: 0.75 }}>{label}</div>
+      <div
+        style={{
+          fontSize: 30,
+          fontWeight: 700,
+          marginTop: 4,
+          color: "#38bdf8",
+        }}
+      >
+        {value}
+      </div>
     </div>
   );
 }
-
-const pageStyle = {
-  padding: 32,
-};
-
-const titleStyle = {
-  fontSize: 34,
-  fontWeight: 700,
-};
-
-const subtitleStyle = {
-  opacity: 0.75,
-  marginBottom: 24,
-};
-
-const kpiGrid = {
-  display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
-  gap: 20,
-  marginBottom: 28,
-};
-
-const cardStyle = {
-  padding: 24,
-  borderRadius: 20,
-  background: "rgba(255,255,255,0.06)",
-  backdropFilter: "blur(12px)",
-};
-
-const kpiCard = {
-  padding: 20,
-  borderRadius: 18,
-  background: "rgba(255,255,255,0.06)",
-  backdropFilter: "blur(12px)",
-};
-
-const kpiLabel = {
-  fontSize: 13,
-  opacity: 0.75,
-};
-
-const kpiValue = {
-  fontSize: 28,
-  fontWeight: 700,
-  color: "#38bdf8",
-};
-
-const muted = {
-  opacity: 0.65,
-};

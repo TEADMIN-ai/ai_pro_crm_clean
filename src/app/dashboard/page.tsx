@@ -1,58 +1,32 @@
 "use client";
 
-import { useEffect } from "react";
-import { useRouter } from "next/navigation";
-import { doc, getDoc } from "firebase/firestore";
-import { db } from "@/lib/firebase";
-import { useAuthContext } from "@/context/AuthContext";
+import DashboardLayout from "@/components/layout/DashboardLayout";
 
-type UserDoc = {
-  role: "admin" | "manager" | "staff";
-};
+export default function DashboardHomePage() {
+  return (
+    <DashboardLayout>
+      <div style={{ padding: "24px" }}>
+        <h1
+          style={{
+            fontSize: 32,
+            fontWeight: 700,
+            color: "#ffffff",
+            textShadow: "0 2px 6px rgba(0,0,0,0.35)",
+          }}
+        >
+          Dashboard
+        </h1>
 
-export default function DashboardPage() {
-  const { user, loading } = useAuthContext();
-  const router = useRouter();
-
-  useEffect(() => {
-    if (loading) return;
-
-    if (!user) {
-      router.replace("/login");
-      return;
-    }
-
-    const redirectByRole = async () => {
-      const ref = doc(db, "users", user.uid);
-      const snap = await getDoc(ref);
-
-      if (!snap.exists()) {
-        router.replace("/login");
-        return;
-      }
-
-      const data = snap.data() as UserDoc;
-
-      if (data.role === "admin") {
-        router.replace("/dashboard/admin");
-        return;
-      }
-
-      if (data.role === "manager") {
-        router.replace("/dashboard/manager");
-        return;
-      }
-
-      if (data.role === "staff") {
-        router.replace("/dashboard/staff");
-        return;
-      }
-
-      router.replace("/login");
-    };
-
-    redirectByRole();
-  }, [user, loading, router]);
-
-  return <div style={{ padding: 32 }}>Redirecting…</div>;
+        <p
+          style={{
+            marginTop: 8,
+            opacity: 0.8,
+            color: "#e5e7eb",
+          }}
+        >
+          Select a section from the menu to continue.
+        </p>
+      </div>
+    </DashboardLayout>
+  );
 }

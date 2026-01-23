@@ -1,58 +1,16 @@
 "use client";
 
-import { useEffect } from "react";
-import { useRouter } from "next/navigation";
-import { doc, getDoc } from "firebase/firestore";
-import { db } from "@/lib/firebase";
-import { useAuthContext } from "@/context/AuthContext";
+import DashboardLayout from "@/components/layout/DashboardLayout";
 
-type UserDoc = {
-  role: "admin" | "manager" | "staff";
-};
-
-export default function DashboardPage() {
-  const { user, loading } = useAuthContext();
-  const router = useRouter();
-
-  useEffect(() => {
-    if (loading) return;
-
-    if (!user) {
-      router.replace("/login");
-      return;
-    }
-
-    const resolveRedirect = async () => {
-      const ref = doc(db, "users", user.uid);
-      const snap = await getDoc(ref);
-
-      if (!snap.exists()) {
-        router.replace("/login");
-        return;
-      }
-
-      const data = snap.data() as UserDoc;
-
-      if (data.role === "admin") {
-        router.replace("/dashboard/admin");
-        return;
-      }
-
-      if (data.role === "manager") {
-        router.replace("/dashboard/manager");
-        return;
-      }
-
-      if (data.role === "staff") {
-        router.replace("/dashboard/staff");
-        return;
-      }
-
-      router.replace("/login");
-    };
-
-    resolveRedirect();
-  }, [user, loading, router]);
-
-  return <div style={{ padding: 32 }}>Redirecting…</div>;
+export default function DealDetailPage() {
+  return (
+    <DashboardLayout>
+      <div style={{ padding: "24px" }}>
+        <h1 style={{ fontSize: 28, fontWeight: 700 }}>Deal Details</h1>
+        <p style={{ opacity: 0.8, marginTop: 6 }}>
+          Deal details and activity will appear here.
+        </p>
+      </div>
+    </DashboardLayout>
+  );
 }

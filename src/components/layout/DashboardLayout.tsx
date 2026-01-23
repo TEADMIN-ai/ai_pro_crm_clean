@@ -1,13 +1,35 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { ReactNode } from "react";
 import Header from "@/components/Header";
 
-export default function DashboardLayout({ children }: { children: ReactNode }) {
+type Props = {
+  children: ReactNode;
+};
+
+export default function DashboardLayout({ children }: Props) {
   return (
-    <div>
+    <div
+      style={{
+        minHeight: "100vh",
+        width: "100%",
+        background:
+          "linear-gradient(135deg, #cfe8ff 0%, #6b7c8f 45%, #0b1220 100%)",
+      }}
+    >
+      {/* GLOBAL HEADER — LOGOUT LIVES HERE */}
       <Header />
-      <div style={{ padding: 16 }}>{children}</div>
+
+      {/* PAGE CONTENT */}
+      <main
+        style={{
+          padding: "32px",
+          maxWidth: 1400,
+          margin: "0 auto",
+        }}
+      >
+        {children}
+      </main>
     </div>
   );
 }

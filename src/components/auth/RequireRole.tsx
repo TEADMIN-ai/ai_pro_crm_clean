@@ -3,21 +3,18 @@
 import { ReactNode } from "react";
 import { useAuthContext } from "@/context/AuthContext";
 
-type Role = "admin" | "manager" | "staff";
-
-export default function RequireRole({
-  allow,
-  children,
-}: {
-  allow: Role[];
+type Props = {
+  allow: string[];
   children: ReactNode;
-}) {
-  const { user, loading } = useAuthContext();
+};
+
+export default function RequireRole({ allow, children }: Props) {
+  const { role, loading } = useAuthContext();
 
   if (loading) return null;
 
-  if (!user || !allow.includes(user.role)) {
-    return <p>Access denied</p>;
+  if (!role || !allow.includes(role)) {
+    return null;
   }
 
   return <>{children}</>;
