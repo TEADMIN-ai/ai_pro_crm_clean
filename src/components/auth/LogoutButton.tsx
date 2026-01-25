@@ -1,31 +1,27 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { signOut } from "firebase/auth";
-import { auth } from "@/lib/firebase";
+import { useAuth } from "@/context/AuthContext";
 
 export default function LogoutButton() {
+  const { logout } = useAuth();
   const router = useRouter();
 
   const handleLogout = async () => {
-    try {
-      await signOut(auth);
-      router.replace("/login");
-    } catch (err) {
-      console.error("Logout failed:", err);
-    }
+    await logout();
+    router.replace("/login");
   };
 
   return (
     <button
       onClick={handleLogout}
       style={{
-        padding: "8px 14px",
+        padding: "6px 14px",
         borderRadius: 8,
-        border: "1px solid rgba(255,255,255,0.3)",
-        background: "linear-gradient(135deg,#38bdf8,#2563eb)",
-        color: "#fff",
+        background: "#38bdf8",
+        color: "#0f172a",
         fontWeight: 600,
+        border: "none",
         cursor: "pointer",
       }}
     >

@@ -1,5 +1,5 @@
 import { collection, getDocs, query, where, updateDoc, doc, addDoc, serverTimestamp } from "firebase/firestore";
-import { db } from "@/lib/firebase/config";
+import { db } from "@/lib/firebase";
 
 export async function notifyUser(data: {
   userId: string;

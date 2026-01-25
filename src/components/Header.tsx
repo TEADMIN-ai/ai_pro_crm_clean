@@ -2,7 +2,6 @@
 import { useAuth } from "@/context/AuthContext";
 
 export default function Header() {
-  const { logout } = useAuth();
 
   return (
     <header className="app-header" style={{
@@ -17,10 +16,7 @@ export default function Header() {
       <strong style={{ color: "#fff" }}>Torque Empire</strong>
 
       <button
-        className="logout-btn"
-        onClick={logout}
       >
-        Logout
       </button>
     </header>
   );

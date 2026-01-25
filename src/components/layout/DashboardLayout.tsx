@@ -1,35 +1,29 @@
 "use client";
 
 import { ReactNode } from "react";
-import Header from "@/components/Header";
+import { useAuth } from "@/context/AuthContext";
+import Sidebar from "@/components/layout/Sidebar";
+import DashboardHeader from "@/components/layout/DashboardHeader";
 
-type Props = {
+export default function DashboardLayout({
+  children,
+}: {
   children: ReactNode;
-};
+}) {
+  const { role, loading } = useAuth();
 
-export default function DashboardLayout({ children }: Props) {
+  if (loading || !role) {
+    return <div style={{ padding: 40 }}>Loading dashboard...</div>;
+  }
+
   return (
-    <div
-      style={{
-        minHeight: "100vh",
-        width: "100%",
-        background:
-          "linear-gradient(135deg, #cfe8ff 0%, #6b7c8f 45%, #0b1220 100%)",
-      }}
-    >
-      {/* GLOBAL HEADER — LOGOUT LIVES HERE */}
-      <Header />
+    <div style={{ display: "flex", minHeight: "100vh" }}>
+      <Sidebar role={role} />
 
-      {/* PAGE CONTENT */}
-      <main
-        style={{
-          padding: "32px",
-          maxWidth: 1400,
-          margin: "0 auto",
-        }}
-      >
+      <div style={{ flex: 1 }}>
+        <DashboardHeader />
         {children}
-      </main>
+      </div>
     </div>
   );
 }

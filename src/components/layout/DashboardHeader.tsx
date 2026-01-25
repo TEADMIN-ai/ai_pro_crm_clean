@@ -1,10 +1,8 @@
 "use client";
 
-import { useAuth } from "@/context/AuthContext";
+import LogoutButton from "@/components/auth/LogoutButton";
 
 export default function DashboardHeader() {
-  const { user } = useAuth();
-
   return (
     <header
       style={{
@@ -18,11 +16,7 @@ export default function DashboardHeader() {
     >
       <strong style={{ color: "#fff" }}>Torque Empire</strong>
 
-      {user && (
-        <span style={{ opacity: 0.75, fontSize: 14 }}>
-          {user.email}
-        </span>
-      )}
+      <LogoutButton />
     </header>
   );
 }
