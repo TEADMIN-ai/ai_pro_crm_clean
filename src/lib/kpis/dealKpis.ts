@@ -1,114 +1,24 @@
-import { Deal, DealStage } from "@/types/deal";
+import type { DealStage } from "@/types/deal";
 
 /**
- * Safely normalise deal stage
- * Prevents crashes from undefined / legacy values
+ * KPI counters by deal stage
+ * Used for pipeline + dashboard summaries
  */
-export function getSafeStage(stage?: string): DealStage {
-  const validStages: DealStage[] = [
-    "lead",
-    "tender",
-    "proposal",
-    "negotiation",
-    "won",
-    "lost",
-    "closed",
-  ];
-
-  return validStages.includes(stage as DealStage)
-    ? (stage as DealStage)
-    : "lead";
-}
+export const DEAL_STAGE_KPIS: Record<DealStage, number> = {
+  lead: 0,
+  tender: 0,
+  proposal: 0,
+  negotiation: 0,
+  won: 0,
+  lost: 0,
+};
 
 /**
- * Filter active (non-archived, non-closed) deals
+ * Helper to safely increment a stage counter
  */
-export function getActiveDeals(deals: Deal[]): Deal[] {
-  return deals.filter(
-    (deal) =>
-      !deal.isArchived &&
-      getSafeStage(deal.stage) !== "closed"
-  );
-}
-
-/**
- * Count deals by stage
- */
-export function countByStage(
-  deals: Deal[],
+export function incrementDealStage(
+  kpis: Record<DealStage, number>,
   stage: DealStage
-): number {
-  return deals.filter(
-    (deal) =>
-      getSafeStage(deal.stage) === stage &&
-      !deal.isArchived
-  ).length;
-}
-
-/**
- * Calculate average deal value
- */
-export function calculateAverageDealValue(
-  deals: Deal[]
-): number {
-  const validDeals = deals.filter(
-    (deal) =>
-      typeof deal.value === "number" &&
-      deal.value > 0 &&
-      !deal.isArchived
-  );
-
-  if (validDeals.length === 0) return 0;
-
-  const total = validDeals.reduce(
-    (sum, deal) => sum + (deal.value ?? 0),
-    0
-  );
-
-  return Math.round(total / validDeals.length);
-}
-
-/**
- * Manager KPIs (global)
- */
-export function calculateManagerKpis(deals: Deal[]) {
-  const activeDeals = getActiveDeals(deals);
-
-  return {
-    totalDeals: activeDeals.length,
-    newDeals: countByStage(activeDeals, "lead"),
-    negotiationDeals: countByStage(activeDeals, "negotiation"),
-    wonDeals: countByStage(deals, "won"),
-    lostDeals: countByStage(deals, "lost"),
-    avgDealValue: calculateAverageDealValue(activeDeals),
-    unassignedDeals: activeDeals.filter(
-      (d) => !d.ownerId
-    ).length,
-  };
-}
-
-/**
- * Staff KPIs (per user)
- */
-export function calculateStaffKpis(
-  deals: Deal[],
-  userId: string
 ) {
-  const myDeals = deals.filter(
-    (deal) =>
-      deal.ownerId === userId &&
-      !deal.isArchived
-  );
-
-  return {
-    myDeals: myDeals.length,
-    myOpenDeals: myDeals.filter(
-      (d) =>
-        !["won", "lost", "closed"].includes(
-          getSafeStage(d.stage)
-        )
-    ).length,
-    myWonDeals: countByStage(myDeals, "won"),
-    myLostDeals: countByStage(myDeals, "lost"),
-  };
+  kpis[stage] += 1;
 }
