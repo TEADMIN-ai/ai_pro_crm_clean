@@ -1,37 +1,23 @@
-import { Deal } from '@/types/deal';
+import type { Deal } from "@/types/deal";
 
 export const KPI_DEFINITIONS = [
   {
-    key: 'totalDeals',
-    label: 'Total Deals',
-    roles: ['manager'],
-    compute: (deals: Deal[]) => deals.length,
+    label: "Total Deals",
+    value: (deals: Deal[]) => deals.length,
   },
   {
-    key: 'unassigned',
-    label: 'Unassigned',
-    roles: ['manager'],
-    compute: (deals: Deal[]) =>
-      deals.filter(d => !d.ownerId).length,
+    label: "Unassigned Deals",
+    value: (deals: Deal[]) =>
+      deals.filter(
+        (d) => !d.assignedTo || String(d.assignedTo).trim() === ""
+      ).length,
   },
   {
-    key: 'myDeals',
-    label: 'My Deals',
-    roles: ['staff'],
-    compute: (deals: Deal[]) => deals.length,
+    label: "Won Deals",
+    value: (deals: Deal[]) => deals.filter((d) => d.stage === "won").length,
   },
   {
-    key: 'won',
-    label: 'Won',
-    roles: ['manager', 'staff'],
-    compute: (deals: Deal[]) =>
-      deals.filter(d => d.stage === 'won').length,
-  },
-  {
-    key: 'lost',
-    label: 'Lost',
-    roles: ['manager', 'staff'],
-    compute: (deals: Deal[]) =>
-      deals.filter(d => d.stage === 'lost').length,
+    label: "Lost Deals",
+    value: (deals: Deal[]) => deals.filter((d) => d.stage === "lost").length,
   },
 ];

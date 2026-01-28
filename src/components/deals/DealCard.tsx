@@ -3,7 +3,7 @@
 import type { Deal } from "@/types/deal";
 
 type Props = {
-  deal: Partial<Deal>;
+  deal: Deal;
 };
 
 export default function DealCard({ deal }: Props) {
@@ -13,30 +13,23 @@ export default function DealCard({ deal }: Props) {
         padding: 16,
         borderRadius: 14,
         background: "rgba(255,255,255,0.08)",
-        boxShadow: "0 6px 18px rgba(0,0,0,0.35)",
-        display: "flex",
-        flexDirection: "column",
-        gap: 6,
+        border: "1px solid rgba(255,255,255,0.12)",
+        boxShadow: "0 12px 30px rgba(0,0,0,0.18)",
+        marginBottom: 12,
       }}
     >
-      <strong style={{ fontSize: 15 }}>
-        {deal.title ?? "Untitled Deal"}
-      </strong>
+      <strong>{deal.title}</strong>
 
-      <div style={{ fontSize: 13, opacity: 0.85 }}>
-        Client: {deal.clientName ?? "—"}
+      <div
+        style={{
+          marginTop: 6,
+          fontSize: 13,
+          opacity: 0.85,
+        }}
+      >
+        Stage: {deal.stage ?? "lead"} â€¢ Value: ZAR{" "}
+        {(deal.value ?? 0).toLocaleString("en-ZA")}
       </div>
-
-      <div style={{ fontSize: 13, opacity: 0.75 }}>
-        Stage: {deal.stage ?? "unknown"}
-      </div>
-
-      {typeof deal.value === "number" && (
-        <div style={{ fontSize: 14, fontWeight: 600 }}>
-          {(deal.currency ?? "ZAR") + " "}
-          {deal.value.toLocaleString()}
-        </div>
-      )}
     </div>
   );
 }

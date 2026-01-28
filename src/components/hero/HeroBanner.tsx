@@ -14,25 +14,28 @@ export default function HeroBanner({
   return (
     <div
       style={{
+        position: "relative",
+        width: "100%",
+        minHeight: 260,
+        padding: "48px 32px",
+        borderRadius: 18,
         marginBottom: 32,
-        padding: 32,
-        borderRadius: 24,
         backgroundImage: `linear-gradient(
-          rgba(15, 23, 42, 0.78),
-          rgba(15, 23, 42, 0.78)
+          rgba(0,0,0,0.55),
+          rgba(0,0,0,0.55)
         ), url(${image})`,
         backgroundSize: "cover",
         backgroundPosition: "center",
-        color: "#ffffff",
         boxShadow: "0 30px 80px rgba(0,0,0,0.45)",
       }}
     >
       <h1
         style={{
-          fontSize: 34,
-          fontWeight: 800,
-          marginBottom: 8,
-          letterSpacing: "-0.02em",
+          fontSize: 36,
+          fontWeight: 700,
+          marginBottom: 10,
+          color: "#ffffff",
+          textShadow: "0 6px 20px rgba(0,0,0,0.7)",
         }}
       >
         {title}
@@ -44,6 +47,8 @@ export default function HeroBanner({
             fontSize: 16,
             opacity: 0.9,
             maxWidth: 640,
+            color: "#e5e7eb",
+            textShadow: "0 4px 16px rgba(0,0,0,0.6)",
           }}
         >
           {subtitle}

@@ -1,61 +1,39 @@
 "use client";
 
-import { doc, updateDoc } from "firebase/firestore";
-import { db } from "@/lib/firebase";
-
-const STATUSES = [
-  "new",
-  "contacted",
-  "negotiation",
-  "won",
-  "lost",
-] as const;
+import type { Deal, DealStage } from "@/types/deal";
+import { isTenderLocked } from "@/lib/tender/isTenderLocked";
 
 type Props = {
-  dealId: string;
-  currentStatus: string;
-  disabled?: boolean;
+  deal: Deal;
+  onChangeAction: (stage: DealStage) => void;
 };
 
 export default function DealStatusUpdater({
-  dealId,
-  currentStatus,
-  disabled,
+  deal,
+  onChangeAction,
 }: Props) {
-  async function handleChange(
-    e: React.ChangeEvent<HTMLSelectElement>
-  ) {
-    const nextStatus = e.target.value;
-    await updateDoc(doc(db, "deals", dealId), {
-      status: nextStatus,
-      updatedAt: new Date(),
-    });
-  }
+  const locked = isTenderLocked(deal);
 
   return (
     <select
-      value={currentStatus}
-      onChange={handleChange}
-      disabled={disabled}
+      value={deal.stage}
+      disabled={locked}
+      onChange={(e) =>
+        onChangeAction(e.target.value as DealStage)
+      }
       style={{
-        marginTop: 8,
         padding: "6px 10px",
         borderRadius: 8,
-        background: "rgba(255,255,255,0.06)",
-        color: "#fff",
-        border: "1px solid rgba(255,255,255,0.15)",
-        cursor: disabled ? "not-allowed" : "pointer",
+        opacity: locked ? 0.5 : 1,
+        cursor: locked ? "not-allowed" : "pointer",
       }}
     >
-      {STATUSES.map((status) => (
-        <option
-          key={status}
-          value={status}
-          style={{ color: "#000" }}
-        >
-          {status.toUpperCase()}
-        </option>
-      ))}
+      <option value="lead">Lead</option>
+      <option value="tender">Tender</option>
+      <option value="proposal">Proposal</option>
+      <option value="negotiation">Negotiation</option>
+      <option value="won">Won</option>
+      <option value="lost">Lost</option>
     </select>
   );
 }

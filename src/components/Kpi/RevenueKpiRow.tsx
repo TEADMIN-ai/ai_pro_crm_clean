@@ -2,21 +2,13 @@
 
 import type { RevenueKpis } from "@/lib/kpis/revenueKpis";
 
+function moneyZAR(value: number) {
+  return `R ${Math.round(value).toLocaleString("en-ZA")}`;
+}
+
 type Props = {
   kpis: RevenueKpis;
 };
-
-function money(n: number) {
-  try {
-    return new Intl.NumberFormat("en-ZA", {
-      style: "currency",
-      currency: "ZAR",
-      maximumFractionDigits: 0,
-    }).format(n);
-  } catch {
-    return `R ${n}`;
-  }
-}
 
 export default function RevenueKpiRow({ kpis }: Props) {
   return (
@@ -24,13 +16,13 @@ export default function RevenueKpiRow({ kpis }: Props) {
       style={{
         display: "grid",
         gridTemplateColumns: "repeat(3, 1fr)",
-        gap: 16,
-        marginTop: 24,
+        gap: 20,
+        marginBottom: 28,
       }}
     >
       <div>
         <strong>Total Revenue</strong>
-        <div>{money(kpis.totalRevenue)}</div>
+        <div>{moneyZAR(kpis.totalRevenue)}</div>
       </div>
 
       <div>
@@ -40,7 +32,7 @@ export default function RevenueKpiRow({ kpis }: Props) {
 
       <div>
         <strong>Avg Deal Size</strong>
-        <div>{money(kpis.averageDealSize)}</div>
+        <div>{moneyZAR(kpis.avgDealSize)}</div>
       </div>
     </div>
   );

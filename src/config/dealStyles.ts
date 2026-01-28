@@ -1,38 +1,25 @@
+// src/config/dealStyles.ts
+
 import type { CSSProperties } from "react";
 import type { DealStage } from "@/types/deal";
 
-/**
- * Canonical visual styles per deal stage
- * ⚠️ MUST stay in sync with DealStage union
- */
-export const DEAL_STAGE_STYLES: Record<DealStage, CSSProperties> = {
+export const dealStageStyles: Record<DealStage, CSSProperties> = {
   lead: {
-    background: "#1e40af",
-    color: "#ffffff",
+    background: "#e0f2fe",
   },
-
   tender: {
-    background: "#0369a1",
-    color: "#ffffff",
+    background: "#ede9fe",
   },
-
   proposal: {
-    background: "#4338ca",
-    color: "#ffffff",
+    background: "#dcfce7",
   },
-
   negotiation: {
-    background: "#7c3aed",
-    color: "#ffffff",
+    background: "#fef9c3",
   },
-
   won: {
-    background: "#15803d",
-    color: "#ffffff",
+    background: "#bbf7d0",
   },
-
   lost: {
-    background: "#b91c1c",
-    color: "#ffffff",
+    background: "#fee2e2",
   },
 };

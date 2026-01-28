@@ -1,3 +1,5 @@
+// src/types/deal.ts
+
 export type DealStage =
   | "lead"
   | "tender"
@@ -5,29 +7,26 @@ export type DealStage =
   | "negotiation"
   | "won"
   | "lost";
-export type Deal = {
-  id: string;
 
-  // Business
+export interface Deal {
+  id: string;
   title: string;
-  companyName?: string;
+  stage: DealStage;
+  value: number;
+  currency?: "ZAR";
+
+  companyId?: string;
+  assignedTo?: string | null;
   clientName?: string;
 
-  // Revenue
-  value: number;              // ALWAYS number (0 if unknown)
-  currency: "ZAR" | "USD";    // extend later if needed
+  isTenderLocked?: boolean; // 🔒 SINGLE SOURCE OF TRUTH
 
-  // Pipeline
-  stage: DealStage;
-  probability?: number;       // 0–100 (optional but powerful)
-  expectedCloseDate?: string; // ISO string
+  createdAt?: Date | any;
+  updatedAt?: Date | any;
 
-  // Ownership
-  ownerId?: string;           // staff / manager UID
-  createdBy: string;          // UID
-  companyId: string;
-
-  // System
-  createdAt: string;          // ISO
-  updatedAt: string;          // ISO
-};
+  documents?: {
+    id: string;
+    name: string;
+    uploadedAt?: Date | any;
+  }[];
+}

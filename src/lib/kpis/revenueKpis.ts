@@ -1,36 +1,27 @@
-// src/lib/kpis/revenueKpis.ts
-
 import type { Deal } from "@/types/deal";
-
-/**
- * Canonical revenue KPI shape
- * This file is the single source of truth for revenue metrics
- */
 
 export type RevenueKpis = {
   totalRevenue: number;
   wonDeals: number;
-  averageDealSize: number;
+  avgDealSize: number;
 };
 
-/**
- * Compute revenue KPIs from deals
- * SAFE: no UI, no React, pure calculation
- */
 export function computeRevenueKpis(deals: Deal[]): RevenueKpis {
-  const wonDeals = deals.filter((d) => d.stage === "won");
+  const wonDealsList = deals.filter(d => d.stage === "won");
 
-  const totalRevenue = wonDeals.reduce(
-    (sum, deal) => sum + (deal.value ?? 0),
+  const totalRevenue = wonDealsList.reduce(
+    (sum, d) => sum + (d.value ?? 0),
     0
   );
 
-  const averageDealSize =
-    wonDeals.length > 0 ? totalRevenue / wonDeals.length : 0;
+  const avgDealSize =
+    wonDealsList.length > 0
+      ? totalRevenue / wonDealsList.length
+      : 0;
 
   return {
     totalRevenue,
-    wonDeals: wonDeals.length,
-    averageDealSize,
+    wonDeals: wonDealsList.length,
+    avgDealSize,
   };
 }

@@ -1,22 +1,37 @@
 "use client";
 
-import LogoutButton from "@/components/auth/LogoutButton";
+import { useRouter } from "next/navigation";
+import { useAuth } from "@/context/AuthContext";
 
 export default function DashboardHeader() {
+  const router = useRouter();
+  const { logout } = useAuth();
+
+  const handleLogout = async () => {
+    try {
+      await logout();
+      router.replace("/login");
+    } catch (err) {
+      console.error("Logout failed", err);
+    }
+  };
+
   return (
-    <header
+    <button
+      onClick={handleLogout}
       style={{
-        padding: "16px 24px",
-        display: "flex",
-        justifyContent: "space-between",
-        alignItems: "center",
-        background: "rgba(15,23,42,0.85)",
-        backdropFilter: "blur(10px)",
+        background: "linear-gradient(135deg, #2563eb, #1e40af)",
+        color: "#ffffff",
+        border: "none",
+        borderRadius: 10,
+        padding: "10px 18px",
+        fontSize: 14,
+        fontWeight: 600,
+        cursor: "pointer",
+        boxShadow: "0 10px 30px rgba(0,0,0,0.25)",
       }}
     >
-      <strong style={{ color: "#fff" }}>Torque Empire</strong>
-
-      <LogoutButton />
-    </header>
+      Logout
+    </button>
   );
 }

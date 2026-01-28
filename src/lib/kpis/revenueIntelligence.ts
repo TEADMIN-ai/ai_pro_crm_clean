@@ -52,7 +52,6 @@ function toDate(value: unknown): Date | null {
 
   if (value instanceof Date) return value;
 
-  // Firestore Timestamp
   if (typeof value === "object" && "toDate" in (value as any)) {
     try {
       return (value as Timestamp).toDate();
@@ -116,7 +115,6 @@ export function computeRevenueIntelligence(
 
     if (stage === "won") {
       wonCount += 1;
-
       const dealDate =
         toDate(deal.updatedAt) ?? toDate(deal.createdAt);
 

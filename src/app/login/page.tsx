@@ -1,26 +1,54 @@
 "use client";
 
-import { useEffect } from "react";
-import { useRouter } from "next/navigation";
-import { useAuth } from "@/context/AuthContext";
 import LoginForm from "@/components/auth/LoginForm";
 
 export default function LoginPage() {
-  const router = useRouter();
-  const { user, role, loading } = useAuth();
+  return (
+    <div style={{ position: "relative", minHeight: "100vh", overflow: "hidden" }}>
+      
+      {/* 🎥 Background Video */}
+      <video
+        autoPlay
+        muted
+        loop
+        playsInline
+        poster="/login/logo.png"
+        style={{
+          position: "absolute",
+          inset: 0,
+          width: "100%",
+          height: "100%",
+          objectFit: "cover",
+          zIndex: 0,
+        }}
+      >
+        <source src="/login/hero.mp4" type="video/mp4" />
+      </video>
 
-  // ✅ Redirect ONLY after auth is resolved
-  useEffect(() => {
-    if (!loading && user && role) {
-      router.replace(`/dashboard/${role}`);
-    }
-  }, [user, role, loading, router]);
+      {/* 🌓 Dark overlay for readability */}
+      <div
+        style={{
+          position: "absolute",
+          inset: 0,
+          background:
+            "radial-gradient(circle at top, rgba(15,23,42,0.75), rgba(2,6,23,0.95))",
+          zIndex: 1,
+        }}
+      />
 
-  // ✅ Allow login page to render while loading or logged out
-  if (loading || !user) {
-    return <LoginForm />;
-  }
-
-  // Fallback (should never visually hit)
-  return null;
+      {/* 🔐 Login Card */}
+      <div
+        style={{
+          position: "relative",
+          zIndex: 2,
+          minHeight: "100vh",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        <LoginForm />
+      </div>
+    </div>
+  );
 }
