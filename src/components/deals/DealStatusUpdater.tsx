@@ -1,12 +1,21 @@
 "use client";
 
-import type { Deal, DealStage } from "@/types/deal";
 import { isTenderLocked } from "@/lib/tender/isTenderLocked";
+import type { Deal, DealStage } from "@/types/deal";
 
 type Props = {
   deal: Deal;
-  onChangeAction: (stage: DealStage) => void;
+  onChangeAction?: (stage: DealStage) => void;
 };
+
+const STAGES: DealStage[] = [
+  "lead",
+  "tender",
+  "proposal",
+  "negotiation",
+  "won",
+  "lost",
+];
 
 export default function DealStatusUpdater({
   deal,
@@ -14,26 +23,42 @@ export default function DealStatusUpdater({
 }: Props) {
   const locked = isTenderLocked(deal);
 
+  if (locked) {
+    return (
+      <div
+        style={{
+          padding: "8px 12px",
+          borderRadius: 10,
+          background: "rgba(239,68,68,0.12)",
+          color: "#ef4444",
+          fontWeight: 600,
+          fontSize: 13,
+        }}
+      >
+        Tender locked — status immutable
+      </div>
+    );
+  }
+
   return (
     <select
       value={deal.stage}
-      disabled={locked}
       onChange={(e) =>
-        onChangeAction(e.target.value as DealStage)
+        onChangeAction?.(e.target.value as DealStage)
       }
       style={{
-        padding: "6px 10px",
+        padding: "8px 10px",
         borderRadius: 8,
-        opacity: locked ? 0.5 : 1,
-        cursor: locked ? "not-allowed" : "pointer",
+        background: "rgba(255,255,255,0.1)",
+        color: "#fff",
+        border: "1px solid rgba(255,255,255,0.2)",
       }}
     >
-      <option value="lead">Lead</option>
-      <option value="tender">Tender</option>
-      <option value="proposal">Proposal</option>
-      <option value="negotiation">Negotiation</option>
-      <option value="won">Won</option>
-      <option value="lost">Lost</option>
+      {STAGES.map((s) => (
+        <option key={s} value={s}>
+          {s}
+        </option>
+      ))}
     </select>
   );
 }

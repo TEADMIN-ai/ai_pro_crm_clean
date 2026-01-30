@@ -3,6 +3,7 @@
 export type DealStage =
   | "lead"
   | "tender"
+  | "submitted"
   | "proposal"
   | "negotiation"
   | "won"
@@ -19,7 +20,8 @@ export interface Deal {
   assignedTo?: string | null;
   clientName?: string;
 
-  isTenderLocked?: boolean; // 🔒 SINGLE SOURCE OF TRUTH
+  // 🔒 Single source of truth for lock (derived or stored)
+  isTenderLocked?: boolean;
 
   createdAt?: Date | any;
   updatedAt?: Date | any;
