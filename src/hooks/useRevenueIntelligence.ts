@@ -1,24 +1,16 @@
-"use client";
+import { useState, useEffect } from "react";
+import { Deal } from "@/types/deal";
+import { computeRevenueIntelligence } from "@/lib/kpis/revenueIntelligence";
 
-import { useMemo } from "react";
-import type { Deal } from "@/types/deal";
-import {
-  computeRevenueIntelligence,
-  type RevenueIntelligence,
-} from "@/lib/kpis/revenueIntelligence";
+export function useRevenueIntelligence(deals: Deal[]) {
+  const [stats, setStats] = useState({
+    total: 0,
+    weighted: 0,
+  });
 
-/**
- * Revenue Intelligence Hook
- *
- * - Single source of truth for revenue analytics
- * - Fully memoized
- * - Safe against empty / undefined deal arrays
- */
-export function useRevenueIntelligence(
-  deals: Deal[] | undefined
-): RevenueIntelligence {
-  return useMemo(
-    () => computeRevenueIntelligence(Array.isArray(deals) ? deals : []),
-    [deals]
-  );
+  useEffect(() => {
+    setStats(computeRevenueIntelligence(deals));
+  }, [deals]);
+
+  return stats;
 }

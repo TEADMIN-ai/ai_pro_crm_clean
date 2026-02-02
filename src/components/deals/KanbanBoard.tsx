@@ -1,31 +1,14 @@
-"use client";
+import { DealStage } from "@/types/deal";
 
-import type { Deal, DealStage } from "@/types/deal";
-import DealCard from "./DealCard";
-
-const STAGES: DealStage[] = [
+// Update the Kanban board stages
+const dealStages: DealStage[] = [
   "lead",
-  "tender",
+  "tender",  // Added tender stage
+  "submitted", // Added submitted stage
   "proposal",
   "negotiation",
   "won",
   "lost",
 ];
 
-export default function KanbanBoard({ deals }: { deals: Deal[] }) {
-  return (
-    <div style={{ display: "flex", gap: 16, overflowX: "auto" }}>
-      {STAGES.map((stage) => (
-        <div key={stage} style={{ minWidth: 280 }}>
-          <h4 style={{ marginBottom: 12 }}>{stage.toUpperCase()}</h4>
-
-          {deals
-            .filter((d) => d.stage === stage)
-            .map((deal) => (
-              <DealCard key={deal.id} deal={deal} />
-            ))}
-        </div>
-      ))}
-    </div>
-  );
-}
+// Now you can safely use dealStages for rendering or filtering deals

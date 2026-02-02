@@ -1,31 +1,43 @@
-import type { Deal } from "@/types/deal";
+import { Deal } from "@/types/deal";
 
 /**
- * SAFE STUB — server-side data loader
- * This will later be replaced with Firestore logic
+ * TEMP SAFE STUB
+ * Replace with Firestore later (F7)
  */
 export async function getDealsForUser(): Promise<Deal[]> {
   return [
     {
       id: "deal-1",
-      title: "Removal of Hazardous Waste 32x month Contract",
+      title: "Sample Deal 1",
       stage: "won",
-      value: 250000,
+      value: 10000,
       currency: "ZAR",
+      isTenderLocked: true,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      documents: [],
     },
     {
       id: "deal-2",
-      title: "Purchase Order",
-      stage: "won",
-      value: 1165646,
+      title: "Sample Deal 2",
+      stage: "tender",
+      value: 20000,
       currency: "ZAR",
+      isTenderLocked: false,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      documents: [],
     },
     {
       id: "deal-3",
-      title: "Vehicle Finance Application",
-      stage: "lead",
-      value: 0,
+      title: "Sample Deal 3",
+      stage: "submitted",
+      value: 15000,
       currency: "ZAR",
+      isTenderLocked: true,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      documents: [],
     },
   ];
 }

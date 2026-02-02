@@ -1,59 +1,63 @@
 "use client";
 
-import type { Deal } from "@/types/deal";
-import { isTenderLocked } from "@/lib/tender/isTenderLocked";
-import TenderSubmitButton from "./TenderSubmitButton";
+import { Deal } from "@/types/deal";
 import DealStatusUpdater from "./DealStatusUpdater";
+import TenderActions from "@/components/tender/TenderActions";
+import TenderAuditTimeline from "@/components/tender/TenderAuditTimeline";
+import { TenderAuditEvent } from "@/types/tenderAudit";
 
 type Props = {
   deal: Deal;
+
+  /** callbacks handled ONLY in client */
+  onChangeAction: (deal: Deal) => void;
+  onSubmitAction: (deal: Deal) => void;
+
+  /** read-only data */
+  auditEvents?: TenderAuditEvent[];
 };
 
-export default function DealCard({ deal }: Props) {
-  const locked = isTenderLocked(deal);
-
+export default function DealCard({
+  deal,
+  onChangeAction,
+  onSubmitAction,
+  auditEvents = [],
+}: Props) {
   return (
-    <div
-      style={{
-        padding: 18,
-        borderRadius: 16,
-        background: locked
-          ? "rgba(255,255,255,0.04)"
-          : "rgba(255,255,255,0.08)",
-        border: locked
-          ? "1px solid rgba(239,68,68,0.35)"
-          : "1px solid rgba(255,255,255,0.12)",
-        boxShadow: "0 20px 50px rgba(0,0,0,0.35)",
-        opacity: locked ? 0.85 : 1,
-      }}
-    >
-      <div style={{ marginBottom: 10 }}>
-        <strong>{deal.title}</strong>
+    <div className="rounded-xl bg-white/70 p-5 shadow-sm mb-6">
+      {/* Header */}
+      <div className="flex justify-between items-start mb-2">
+        <h3 className="text-lg font-semibold">{deal.title}</h3>
+
+        {deal.isTenderLocked && (
+          <span className="text-xs px-2 py-1 bg-gray-200 rounded flex items-center gap-1">
+            🔒 Locked
+          </span>
+        )}
       </div>
 
-      <div style={{ fontSize: 13, opacity: 0.85 }}>
-        Client: {deal.clientName ?? "—"}
+      {/* Meta */}
+      <p className="text-sm text-gray-600 mb-4">
+        Stage: {deal.stage} • Value: ZAR {deal.value}
+      </p>
+
+      {/* Stage selector */}
+      <DealStatusUpdater
+        deal={deal}
+        onChangeAction={onChangeAction}
+      />
+
+      {/* Tender actions */}
+      <div className="mt-4">
+        <TenderActions
+          deal={deal}
+          onSubmitAction={onSubmitAction}
+        />
       </div>
 
-      <div style={{ marginTop: 8 }}>
-        <DealStatusUpdater deal={deal} />
-      </div>
-
-      {!locked && (
-        <TenderSubmitButton deal={deal} />
-      )}
-
-      {locked && (
-        <div
-          style={{
-            marginTop: 12,
-            fontSize: 12,
-            color: "#ef4444",
-            fontWeight: 600,
-          }}
-        >
-          🔒 Deal locked — tender submitted
-        </div>
+      {/* Audit timeline (read-only) */}
+      {auditEvents.length > 0 && (
+        <TenderAuditTimeline events={auditEvents} />
       )}
     </div>
   );

@@ -1,82 +1,37 @@
-// src/components/tender/TenderActions.tsx
-
 "use client";
 
 import type { Deal } from "@/types/deal";
-import type { TenderReadiness } from "@/hooks/useTenderReadiness";
+import { computeTenderReadiness } from "@/lib/tender/computeTenderReadiness";
 
 type Props = {
   deal: Deal;
-  readiness: TenderReadiness;
+  onSubmitAction: (deal: Deal) => void;
 };
 
-export default function TenderActions({ deal, readiness }: Props) {
-  function exportTenderPack() {
-    const payload = {
-      deal: {
-        id: deal.id,
-        title: deal.title,
-        stage: deal.stage,
-        value: deal.value,
-        currency: deal.currency ?? "ZAR",
-        clientName: deal.clientName ?? null,
-      },
-      readiness: {
-        status: readiness.status,
-        coveragePercent: readiness.coveragePercent,
-        matchedCount: readiness.matchedCount,
-        totalRequired: readiness.totalRequired,
-      },
-      documents: readiness.matches.map((m) => ({
-        requirementId: m.requirement.id,
-        requirementLabel: m.requirement.label,
-        required: m.requirement.required,
-        matchType: m.matchType,
-        matchedDocument: m.matchedDoc
-          ? {
-              id: m.matchedDoc.id,
-              name: m.matchedDoc.name,
-            }
-          : null,
-      })),
-      exportedAt: new Date().toISOString(),
-    };
+export default function TenderActions({ deal, onSubmitAction }: Props) {
+  const readiness = computeTenderReadiness(deal); // ✅ ONE ARG ONLY
 
-    const blob = new Blob([JSON.stringify(payload, null, 2)], {
-      type: "application/json",
-    });
-
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `tender-pack-${deal.id}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
+  if (!readiness.isReady) {
+    return (
+      <div className="mt-3">
+        <button
+          disabled
+          className="rounded-lg bg-gray-300 px-4 py-2 text-gray-600 cursor-not-allowed"
+          title="Complete all requirements before submitting"
+        >
+          Submit Tender ({readiness.completionPercent}%)
+        </button>
+      </div>
+    );
   }
 
   return (
-    <div
-      style={{
-        marginTop: 24,
-        display: "flex",
-        gap: 12,
-        flexWrap: "wrap",
-      }}
-    >
+    <div className="mt-3">
       <button
-        onClick={exportTenderPack}
-        style={{
-          padding: "10px 16px",
-          borderRadius: 10,
-          background: "#2563eb",
-          color: "#fff",
-          border: "none",
-          fontWeight: 600,
-          cursor: "pointer",
-          boxShadow: "0 10px 25px rgba(37,99,235,0.45)",
-        }}
+        onClick={() => onSubmitAction(deal)}
+        className="rounded-lg bg-blue-600 px-4 py-2 text-white hover:bg-blue-700"
       >
-        Export Tender Pack
+        Submit Tender
       </button>
     </div>
   );

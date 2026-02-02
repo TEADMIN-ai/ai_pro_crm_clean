@@ -1,17 +1,18 @@
-import { collection, getDocs, query, where } from "firebase/firestore";
+// src/lib/firestore/deals.ts
+
 import { db } from "@/lib/firebase";
-import type { Deal } from "@/types/deal";
+import { doc, updateDoc, serverTimestamp } from "firebase/firestore";
+import type { DealStage } from "@/types/deal";
+import { normalizeDealStage } from "@/lib/deals/normalizeDealStage";
 
-export async function getDealsByCompany(companyId: string): Promise<Deal[]> {
-  const q = query(
-    collection(db, "deals"),
-    where("companyId", "==", companyId)
-  );
+export async function updateDealStage(
+  dealId: string,
+  nextStage: DealStage | string
+) {
+  const stage = normalizeDealStage(nextStage);
 
-  const snap = await getDocs(q);
-
-  return snap.docs.map((doc) => ({
-    id: doc.id,
-    ...(doc.data() as Omit<Deal, "id">),
-  }));
+  await updateDoc(doc(db, "deals", dealId), {
+    stage,
+    updatedAt: serverTimestamp(),
+  });
 }

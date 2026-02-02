@@ -1,24 +1,24 @@
-import type { DealStage } from "@/types/deal";
+import { DealStage, Deal } from "@/types/deal";
 
-/**
- * KPI counters by deal stage
- * Used for pipeline + dashboard summaries
- */
-export const DEAL_STAGE_KPIS: Record<DealStage, number> = {
-  lead: 0,
-  tender: 0,
-  proposal: 0,
-  negotiation: 0,
-  won: 0,
+export const STAGE_WEIGHTS: Record<DealStage, number> = {
+  lead: 0.1,
+  tender: 0.3,  // Added tender
+  submitted: 0.5,  // Added submitted
+  proposal: 0.6,
+  negotiation: 0.7,
+  won: 1.0,
   lost: 0,
 };
 
-/**
- * Helper to safely increment a stage counter
- */
-export function incrementDealStage(
-  kpis: Record<DealStage, number>,
-  stage: DealStage
-) {
-  kpis[stage] += 1;
+export function computeRevenueIntelligence(deals: Deal[]) {
+  let total = 0;
+  let weighted = 0;
+
+  for (const deal of deals) {
+    const value = deal.value ?? 0;
+    total += value;
+    weighted += value * STAGE_WEIGHTS[deal.stage];  // Use the deal stage weight
+  }
+
+  return { total, weighted };
 }

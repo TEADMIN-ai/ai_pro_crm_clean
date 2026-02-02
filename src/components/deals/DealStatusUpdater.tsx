@@ -1,11 +1,11 @@
 "use client";
 
-import { isTenderLocked } from "@/lib/tender/isTenderLocked";
 import type { Deal, DealStage } from "@/types/deal";
+import { isTenderLocked } from "@/lib/tender/isTenderLocked";
 
 type Props = {
   deal: Deal;
-  onChangeAction?: (stage: DealStage) => void;
+  onChangeAction: (updatedDeal: Deal) => void;
 };
 
 const STAGES: DealStage[] = [
@@ -15,50 +15,54 @@ const STAGES: DealStage[] = [
   "negotiation",
   "won",
   "lost",
+  "submitted",
 ];
 
-export default function DealStatusUpdater({
-  deal,
-  onChangeAction,
-}: Props) {
+export default function DealStatusUpdater({ deal, onChangeAction }: Props) {
   const locked = isTenderLocked(deal);
 
-  if (locked) {
-    return (
-      <div
-        style={{
-          padding: "8px 12px",
-          borderRadius: 10,
-          background: "rgba(239,68,68,0.12)",
-          color: "#ef4444",
-          fontWeight: 600,
-          fontSize: 13,
-        }}
-      >
-        Tender locked — status immutable
-      </div>
-    );
+  function onChange(e: React.ChangeEvent<HTMLSelectElement>) {
+    const nextStage = e.target.value as DealStage;
+
+    // If locked, ignore changes
+    if (locked) return;
+
+    onChangeAction({ ...deal, stage: nextStage });
   }
 
   return (
-    <select
-      value={deal.stage}
-      onChange={(e) =>
-        onChangeAction?.(e.target.value as DealStage)
-      }
-      style={{
-        padding: "8px 10px",
-        borderRadius: 8,
-        background: "rgba(255,255,255,0.1)",
-        color: "#fff",
-        border: "1px solid rgba(255,255,255,0.2)",
-      }}
-    >
-      {STAGES.map((s) => (
-        <option key={s} value={s}>
-          {s}
-        </option>
-      ))}
-    </select>
+    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+      <select
+        value={deal.stage}
+        onChange={onChange}
+        disabled={locked}
+        style={{
+          padding: "8px 10px",
+          borderRadius: 8,
+          border: "1px solid rgba(0,0,0,0.18)",
+          opacity: locked ? 0.6 : 1,
+          cursor: locked ? "not-allowed" : "pointer",
+        }}
+      >
+        {STAGES.map((s) => (
+          <option key={s} value={s}>
+            {s.charAt(0).toUpperCase() + s.slice(1)}
+          </option>
+        ))}
+      </select>
+
+      {locked && (
+        <span
+          style={{
+            fontSize: 12,
+            padding: "4px 8px",
+            borderRadius: 999,
+            background: "rgba(15, 23, 42, 0.10)",
+          }}
+        >
+          🔒 Locked
+        </span>
+      )}
+    </div>
   );
 }
