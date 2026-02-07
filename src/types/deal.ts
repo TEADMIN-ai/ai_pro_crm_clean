@@ -36,6 +36,15 @@ export type DealDocument = {
   uploadedAt?: Date | any;
 };
 
+/**
+ * 🔥 NEW: Pricing workflow status
+ */
+export type PricingStatus =
+  | "not_started"
+  | "ai_generated"
+  | "manager_approved"
+  | "contractor_signed_off";
+
 export interface Deal {
   id: string;
   title: string;
@@ -62,4 +71,13 @@ export interface Deal {
 
   // ✅ Audit trail
   auditTrail?: DealAuditEvent[];
+
+  /**
+   * 🔥 NEW: Pricing workflow fields
+   */
+  pricingStatus?: PricingStatus;
+  pricingApprovedBy?: string;
+  pricingApprovedAt?: Date | any;
+  contractorSignedOffBy?: string;
+  contractorSignedOffAt?: Date | any;
 }

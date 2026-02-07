@@ -1,12 +1,13 @@
-import { initializeApp, getApps, getApp, FirebaseApp } from "firebase/app";
-import { getAuth, Auth } from "firebase/auth";
-import { getFirestore, Firestore } from "firebase/firestore";
-import { getStorage, FirebaseStorage } from "firebase/storage";
+// src/lib/firebase.ts
+
+import { initializeApp, getApps, getApp, type FirebaseApp } from "firebase/app";
+import { getAuth, type Auth } from "firebase/auth";
+import { getFirestore, type Firestore } from "firebase/firestore";
+import { getStorage, type FirebaseStorage } from "firebase/storage";
 
 /**
- * 🔒 SINGLE SOURCE OF TRUTH
- * This file is the ONLY place Firebase is initialized.
- * Every other file MUST import from here.
+ * Central Firebase configuration.
+ * Every other file in the project MUST import from here.
  */
 
 const firebaseConfig = {
@@ -18,14 +19,14 @@ const firebaseConfig = {
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID!,
 };
 
-// --- App ---
+// Initialize Firebase only once
 const app: FirebaseApp =
   getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 
-// --- Services ---
+// Services
 const auth: Auth = getAuth(app);
 const db: Firestore = getFirestore(app);
 const storage: FirebaseStorage = getStorage(app);
 
-// --- Exports ---
+// Export everything from one place
 export { app, auth, db, storage };
