@@ -1,29 +1,22 @@
-"use server";
+import { doc, updateDoc, serverTimestamp } from "firebase/firestore";
+import { db } from "@/firebase/config";
+import type { DealStage } from "@/types/deal";
 
-import { Deal, DealStage } from "@/types/deal";
-
-/**
- * SAFE server action
- * Replace console.log with Firestore update later
- */
 export async function updateDealStage(
   dealId: string,
-  stage: DealStage
-): Promise<Deal> {
-  // 🔒 Persistence stub (safe)
-  console.log("Persisting deal stage:", { dealId, stage });
+  nextStage: DealStage
+) {
+  if (!dealId) {
+    throw new Error("Missing dealId");
+  }
 
-  // TODO (F3/F4):
-  // await updateDoc(doc(db, "deals", dealId), { stage });
-
-  // Return updated deal shape (mock-safe)
-  return {
-    id: dealId,
-    title: "Updated Deal",
-    stage,
-    value: 0,
-    currency: "ZAR",
-    isTenderLocked: stage === "submitted",
-    documents: [],
-  };
+  try {
+    await updateDoc(doc(db, "deals", dealId), {
+      stage: nextStage,
+      stageUpdatedAt: serverTimestamp(),
+    });
+  } catch (error) {
+    console.error("Failed to update deal stage:", error);
+    throw error;
+  }
 }

@@ -7,9 +7,10 @@ import { updateDeal } from "@/lib/deals/updateDeal";
 export async function submitTender(deal: Deal, actor?: DealAuditActor): Promise<void> {
   const readiness = computeTenderReadiness(deal);
 
-  if (!readiness.isReady) {
-    throw new Error("Tender is not ready for submission.");
-  }
+if (!readiness.isReady) {
+  console.log("READINESS DEBUG:", readiness);
+  throw new Error("Tender is not ready for submission.");
+}
 
   await updateDeal(
     deal.id,

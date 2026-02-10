@@ -1,11 +1,9 @@
-// src/app/dashboard/deals/DealsClient.tsx
-
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
 import type { Deal, DealAuditActor, DealStage } from "@/types/deal";
 import DealCard from "@/components/deals/DealCard";
-import { updateDeal } from "@/lib/deals/updateDeal";
+import { updateDealStage } from "@/lib/deals/updateDealStage";
 import { submitTender } from "@/lib/deals/submitTender";
 import { approvePricingByManager } from "@/lib/firestore/deals";
 import { getDealsForUser } from "@/lib/deals/getDealsForUser";
@@ -16,19 +14,16 @@ export default function DealsClient() {
   const { user } = useAuth();
 
   const actor: DealAuditActor | undefined = useMemo(() => {
-    if (!user) return undefined;
+    if (!user?.uid) return undefined;
 
     return {
-      uid: String((user as any).uid ?? ""),
-      email: (user as any).email ?? null,
+      uid: user.uid,
+      email: user.email ?? null,
       name: (user as any).displayName ?? null,
     };
   }, [user]);
 
-  // ✅ Load deals AFTER auth is ready (client-side only)
   useEffect(() => {
-    if (!user) return;
-
     async function loadDeals() {
       try {
         const result = await getDealsForUser();
@@ -39,26 +34,19 @@ export default function DealsClient() {
     }
 
     loadDeals();
-  }, [user]);
+  }, []);
 
   async function handleDealChange(updatedDeal: Deal) {
     setDeals((prev) =>
       prev.map((d) => (d.id === updatedDeal.id ? updatedDeal : d))
     );
 
-    await updateDeal(
-      updatedDeal.id,
-      { stage: updatedDeal.stage },
-      updatedDeal,
-      {
-        actor,
-        auditType: "stage_changed",
-        auditMeta: { stage: updatedDeal.stage },
-      }
-    );
+    await updateDealStage(updatedDeal.id, updatedDeal.stage);
   }
 
   async function handleTenderSubmit(deal: Deal) {
+    if (!actor) return;
+
     await submitTender(deal, actor);
 
     setDeals((prev) =>
@@ -67,9 +55,6 @@ export default function DealsClient() {
           ? {
               ...d,
               stage: "submitted" as DealStage,
-              isTenderLocked: true,
-              tenderSubmittedAt: new Date(),
-              tenderSubmittedBy: actor,
             }
           : d
       )
@@ -88,15 +73,10 @@ export default function DealsClient() {
       setDeals((prev) =>
         prev.map((d) =>
           d.id === deal.id
-            ? {
-                ...d,
-                pricingStatus: "manager_approved",
-              }
+            ? { ...d, pricingStatus: "manager_approved" }
             : d
         )
       );
-
-      alert("Pricing approved successfully.");
     } catch (error: any) {
       alert(error.message);
     }

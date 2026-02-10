@@ -7,40 +7,31 @@ export type TenderReadinessResult = {
   missingFields: string[];
 };
 
-export function computeTenderReadiness(deal: Deal): TenderReadinessResult {
+export function computeTenderReadiness(deal: any) {
   const missingDocuments: string[] = [];
   const missingFields: string[] = [];
 
-  // --- Required documents ---
-  const requiredDocs = ["company-registration", "tax-clearance"];
-
-  const uploadedDocs =
-    deal.documents?.map((d) => d.name.toLowerCase()) ?? [];
-
-  for (const req of requiredDocs) {
-    if (!uploadedDocs.some((d) => d.includes(req))) {
-      missingDocuments.push(req);
-    }
+  // must be manager approved
+  if (deal.pricingStatus !== "manager_approved") {
+    missingFields.push("pricingStatus");
   }
 
-  // --- Required fields ---
-  if (!deal.clientName) missingFields.push("Client name");
-  if (!deal.value || deal.value <= 0) missingFields.push("Deal value");
+  // must be assigned
+  if (!deal.assignedTo) {
+    missingFields.push("assignedTo");
+  }
 
-  const totalRequirements =
-    requiredDocs.length + 2; // 2 required fields
-  const completed =
-    totalRequirements -
-    (missingDocuments.length + missingFields.length);
+  // must be in correct stage
+  if (deal.stage !== "manager_review") {
+    missingFields.push("stage");
+  }
 
-  const completionPercent = Math.round(
-    (completed / totalRequirements) * 100
-  );
+  const isReady = missingFields.length === 0;
 
   return {
-    isReady: missingDocuments.length === 0 && missingFields.length === 0,
-    completionPercent,
-    missingDocuments,
+    isReady,
+    completionPercent: isReady ? 100 : Math.max(0, 100 - missingFields.length * 20),
+    missingDocuments, // you can add document logic later
     missingFields,
   };
 }

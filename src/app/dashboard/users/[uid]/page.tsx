@@ -1,12 +1,11 @@
-export default function UserProfilePage({
+import UserProfileClient from "./UserProfileClient";
+
+export default async function UserProfilePage({
   params,
 }: {
-  params: { uid: string };
+  params: Promise<{ uid: string }>;
 }) {
-  return (
-    <div style={{ padding: 40 }}>
-      <h1>User Profile</h1>
-      <p>User ID: {params.uid}</p>
-    </div>
-  );
+  const { uid } = await params;
+
+  return <UserProfileClient uid={uid} />;
 }
