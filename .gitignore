@@ -6,6 +6,7 @@ out/
 # Env / secrets
 .env*
 firebase-adminsdk.json
+secrets/
 
 # Platform
 .vercel/
