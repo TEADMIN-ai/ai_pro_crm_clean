@@ -1,11 +1,10 @@
 // src/types/deal.ts
 
 export type DealStage =
-  | "lead"
-  | "tender"
+  | "draft"
+  | "pricing"
+  | "manager_review"
   | "submitted"
-  | "proposal"
-  | "negotiation"
   | "won"
   | "lost";
 

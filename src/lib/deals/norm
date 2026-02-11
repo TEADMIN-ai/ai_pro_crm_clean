@@ -1,5 +1,4 @@
 import type { DealStage } from "../../types/deal";
-
 export function normalizeDealStage(input: string): DealStage {
   switch (input) {
     case "draft":
@@ -21,6 +20,7 @@ export function normalizeDealStage(input: string): DealStage {
       return "lost";
 
     default:
+      // Fallback safely to draft if unknown
       return "draft";
   }
 }

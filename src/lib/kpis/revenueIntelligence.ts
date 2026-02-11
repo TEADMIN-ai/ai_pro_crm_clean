@@ -1,17 +1,20 @@
-// src/lib/kpis/revenueIntelligence.ts
+import type { Deal, DealStage } from "../../types/deal";
 
-import { DealStage, Deal } from "@/types/deal";
-
+/**
+ * Revenue weighting model for Tender lifecycle.
+ */
 export const STAGE_WEIGHTS: Record<DealStage, number> = {
-  lead: 0.1,
-  tender: 0.3, // Added tender
-  submitted: 0.5, // Added submitted
-  proposal: 0.6,
-  negotiation: 0.7,
-  won: 1.0,
+  draft: 0.1,
+  pricing: 0.3,
+  manager_review: 0.5,
+  submitted: 0.7,
+  won: 1,
   lost: 0,
 };
 
+/**
+ * Compute revenue intelligence aligned with existing component expectations.
+ */
 export function computeRevenueIntelligence(deals: Deal[]) {
   let total = 0;
   let weighted = 0;
@@ -19,8 +22,13 @@ export function computeRevenueIntelligence(deals: Deal[]) {
   for (const deal of deals) {
     const value = deal.value ?? 0;
     total += value;
-    weighted += value * STAGE_WEIGHTS[deal.stage];
+
+    const weight = STAGE_WEIGHTS[deal.stage] ?? 0;
+    weighted += value * weight;
   }
 
-  return { total, weighted };
+  return {
+    total,
+    weighted,
+  };
 }
