@@ -1,40 +1,46 @@
 import type { Deal } from "@/types/deal";
-import { computeDealRisk } from "@/lib/risk/computeDealRisk";
 
 export function computeRevenueHealthScore(deals: Deal[]): number {
-  if (!deals || deals.length === 0) return 0;
+  if (!deals.length) return 0;
 
-  const totalValue = deals.reduce((sum, d) => sum + (d.value || 0), 0);
-
-  if (totalValue === 0) return 0;
-
-  const pricingApprovedDeals = deals.filter(
-    (d) => d.pricingStatus === "manager_approved"
+  const totalPipeline = deals.reduce(
+    (sum, d) => sum + (d.value ?? 0),
+    0
   );
 
+  const weightedRevenue = deals.reduce((sum, d) => {
+    const value = d.value ?? 0;
+
+    const stageWeight: Record<string, number> = {
+      draft: 0.1,
+      pricing: 0.25,
+      manager_review: 0.5,
+      submitted: 0.75,
+      won: 1,
+      lost: 0,
+    };
+
+    const weight = stageWeight[d.stage ?? "draft"] ?? 0;
+    return sum + value * weight;
+  }, 0);
+
+  // Ready-to-submit logic (based on approval state, not fake stage)
   const readyToSubmitDeals = deals.filter(
-    (d) => d.stage === "ready_for_submission"
+    (d) =>
+      d.pricingStatus === "manager_approved" &&
+      d.stage !== "submitted"
   );
 
-  const pricingRatio = pricingApprovedDeals.length / deals.length;
-  const readinessRatio = readyToSubmitDeals.length / deals.length;
+  const approvalRatio =
+    readyToSubmitDeals.length / deals.length;
 
-  // Risk adjustment
-  const riskScores = deals.map((d) => computeDealRisk(d).score);
-  const avgRisk =
-    riskScores.reduce((a, b) => a + b, 0) / riskScores.length;
+  const pipelineStrength =
+    totalPipeline > 0
+      ? weightedRevenue / totalPipeline
+      : 0;
 
-  // Convert risk into penalty (higher risk = lower health)
-  const riskPenalty = avgRisk / 100;
+  const healthScore =
+    pipelineStrength * 70 + approvalRatio * 30;
 
-  // Weighted formula
-  const rawScore =
-    pricingRatio * 40 +
-    readinessRatio * 40 +
-    (1 - riskPenalty) * 20;
-
-  // Normalize to 0–100
-  const normalizedScore = Math.max(0, Math.min(100, rawScore));
-
-  return Number(normalizedScore.toFixed(1));
+  return Math.max(0, Math.min(100, healthScore * 100));
 }

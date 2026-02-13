@@ -1,30 +1,23 @@
-// src/lib/utils/admin/getAdminMetrics.ts
-
 import type { Deal } from "@/types/deal";
-import { computeDealRisk } from "@/lib/intelligence/computeDealRisk";
+import { computeDealRisk } from "@/lib/risk/computeDealRisk";
 
 export interface AdminMetrics {
   totalDeals: number;
   totalPipelineValue: number;
   weightedRevenue: number;
-  lockedDeals: number;
-  unassignedDeals: number;
 
-  highValueUnassigned: number;
-  stuckInManagerReview: number;
-  readyToSubmit: number;
+  // Risk counts
+  criticalRiskCount: number;
+  highRiskCount: number;
+  mediumRiskCount: number;
+  lowRiskCount: number;
+
+  // Operational counts
+  readyToSubmitCount: number;
+  managerReviewStuckCount: number;
+
+  // Performance
   submissionConversion: number;
-
-  stageCounts: Record<string, number>;
-
-  staleDeals: number;
-
-  // Intelligence Layer
-  criticalRiskDeals: number;
-  highRiskDeals: number;
-  mediumRiskDeals: number;
-  portfolioRiskScore: number; // 0–100
-  revenueHealthScore: number; // 0–100
 }
 
 const STAGE_WEIGHT: Record<string, number> = {
@@ -41,20 +34,14 @@ export function computeAdminMetrics(deals: Deal[]): AdminMetrics {
 
   let totalPipelineValue = 0;
   let weightedRevenue = 0;
-  let lockedDeals = 0;
-  let unassignedDeals = 0;
-  let highValueUnassigned = 0;
-  let stuckInManagerReview = 0;
-  let readyToSubmit = 0;
+  let readyToSubmitCount = 0;
+  let managerReviewStuckCount = 0;
 
   const stageCounts: Record<string, number> = {};
-  const dealRisks = deals.map(computeDealRisk);
-
-  let staleDeals = 0;
 
   deals.forEach((deal) => {
     const value = deal.value ?? 0;
-    const stage = deal.stage ?? "undefined";
+    const stage = deal.stage ?? "unknown";
 
     totalPipelineValue += value;
 
@@ -63,40 +50,38 @@ export function computeAdminMetrics(deals: Deal[]): AdminMetrics {
 
     stageCounts[stage] = (stageCounts[stage] ?? 0) + 1;
 
-    if (deal.isTenderLocked) lockedDeals++;
-    if (!deal.assignedTo) unassignedDeals++;
+    if (stage === "manager_review") {
+      managerReviewStuckCount++;
+    }
 
-    if (!deal.assignedTo && value > 200000) highValueUnassigned++;
-    if (stage === "manager_review") stuckInManagerReview++;
-    if (deal.pricingStatus === "manager_approved" && stage !== "submitted")
-      readyToSubmit++;
+    if (
+      deal.pricingStatus === "manager_approved" &&
+      stage !== "submitted"
+    ) {
+      readyToSubmitCount++;
+    }
   });
 
-  // Risk aggregation
-  const criticalRiskDeals = dealRisks.filter(
-    (r) => r.riskLevel === "critical"
+  // ---- Risk Aggregation ----
+  const dealRisks = deals.map((deal) => computeDealRisk(deal));
+
+  const criticalRiskCount = dealRisks.filter(
+    (r) => r.level === "critical"
   ).length;
 
-  const highRiskDeals = dealRisks.filter(
-    (r) => r.riskLevel === "high"
+  const highRiskCount = dealRisks.filter(
+    (r) => r.level === "high"
   ).length;
 
-  const mediumRiskDeals = dealRisks.filter(
-    (r) => r.riskLevel === "medium"
+  const mediumRiskCount = dealRisks.filter(
+    (r) => r.level === "medium"
   ).length;
 
-  const averageRiskScore =
-    dealRisks.reduce((sum, r) => sum + r.riskScore, 0) /
-    (dealRisks.length || 1);
+  const lowRiskCount = dealRisks.filter(
+    (r) => r.level === "low"
+  ).length;
 
-  const portfolioRiskScore = Math.round(averageRiskScore);
-
-  // Revenue Health Score (inverse of risk impact)
-  const revenueHealthScore = Math.max(
-    0,
-    100 - portfolioRiskScore
-  );
-
+  // ---- Conversion ----
   const wonCount = stageCounts["won"] ?? 0;
   const submittedCount = stageCounts["submitted"] ?? 0;
 
@@ -109,22 +94,15 @@ export function computeAdminMetrics(deals: Deal[]): AdminMetrics {
     totalDeals,
     totalPipelineValue,
     weightedRevenue,
-    lockedDeals,
-    unassignedDeals,
 
-    highValueUnassigned,
-    stuckInManagerReview,
-    readyToSubmit,
+    criticalRiskCount,
+    highRiskCount,
+    mediumRiskCount,
+    lowRiskCount,
+
+    readyToSubmitCount,
+    managerReviewStuckCount,
+
     submissionConversion,
-
-    stageCounts,
-
-    staleDeals,
-
-    criticalRiskDeals,
-    highRiskDeals,
-    mediumRiskDeals,
-    portfolioRiskScore,
-    revenueHealthScore,
   };
 }
