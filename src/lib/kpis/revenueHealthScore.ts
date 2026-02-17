@@ -44,3 +44,4 @@ export function computeRevenueHealthScore(deals: Deal[]): number {
 
   return Math.max(0, Math.min(100, healthScore * 100));
 }
+

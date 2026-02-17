@@ -18,3 +18,4 @@ export async function seedIntelligence(): Promise<void> {
     { merge: true }
   );
 }
+

@@ -1,8 +1,23 @@
+// src/app/dashboard/admin/page.tsx
+
 import { initializeApp, cert, getApps } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
+
+import type { Deal } from "@/types/deal";
+
 import { computeAdminMetrics } from "@/lib/intelligence/admin/computeAdminMetrics";
 import { computeRevenueHealthScore } from "@/lib/kpis/revenueHealthScore";
-import { computeDealRisk } from "@/lib/risk/computeDealRisk";import type { Deal } from "@/types/deal";
+import { computeDealRisk } from "@/lib/risk/computeDealRisk";
+
+import { computeCapitalEfficiency } from "@/lib/executive/computeCapitalEfficiency";
+import { computeExecutionVelocity } from "@/lib/executive/computeExecutionVelocity";
+import { computePipelineQuality } from "@/lib/executive/computePipelineQuality";
+import { computePortfolioExposure } from "@/lib/executive/computePortfolioExposure";
+import { computeRevenueMomentum } from "@/lib/executive/computeRevenueMomentum";
+
+/* =========================
+   FIREBASE ADMIN INIT
+========================= */
 
 function initFirebaseAdmin() {
   if (getApps().length > 0) return;
@@ -23,6 +38,10 @@ function initFirebaseAdmin() {
     }),
   });
 }
+
+/* =========================
+   UI CARD COMPONENT
+========================= */
 
 function Card({
   title,
@@ -52,15 +71,20 @@ function Card({
   );
 }
 
+/* =========================
+   ADMIN DASHBOARD PAGE
+========================= */
+
 export default async function AdminDashboardPage() {
   initFirebaseAdmin();
-  const db = getFirestore();
 
+  const db = getFirestore();
   const snapshot = await db.collection("deals").get();
   const deals = snapshot.docs.map((doc) => doc.data()) as Deal[];
 
-  const metrics = computeAdminMetrics(deals);
+  /* ---------- Core Metrics ---------- */
 
+  const metrics = computeAdminMetrics(deals);
   const revenueHealth = computeRevenueHealthScore(deals);
 
   const riskScores = deals.map((d) => computeDealRisk(d));
@@ -69,8 +93,17 @@ export default async function AdminDashboardPage() {
       ? riskScores.reduce((a, b) => a + b.score, 0) / riskScores.length
       : 0;
 
-  const conversionRate =
-    metrics?.submissionConversion ?? 0;
+  const conversionRate = metrics?.submissionConversion ?? 0;
+
+  /* ---------- Executive Signals ---------- */
+
+  const capitalEfficiency = computeCapitalEfficiency(deals);
+  const executionVelocity = computeExecutionVelocity(deals);
+  const pipelineQuality = computePipelineQuality(deals);
+  const portfolioExposure = computePortfolioExposure(deals);
+  const revenueMomentum = computeRevenueMomentum(deals);
+
+  /* ---------- Color Logic ---------- */
 
   const revenueHealthColor =
     revenueHealth >= 80
@@ -92,7 +125,45 @@ export default async function AdminDashboardPage() {
         Admin Control Tower
       </h1>
 
-      {/* ROW 1 — FINANCIAL PULSE */}
+      {/* ================= EXECUTIVE SIGNALS ================= */}
+
+      <div style={{ display: "flex", gap: 20, marginBottom: 30 }}>
+        <Card
+          title="Revenue Momentum"
+          value={`${revenueMomentum.percentage.toFixed(1)}%`}
+          color={
+            revenueMomentum.trend === "up"
+              ? "#10b981"
+              : revenueMomentum.trend === "down"
+              ? "#ef4444"
+              : "#f59e0b"
+          }
+        />
+        <Card
+          title="Pipeline Quality"
+          value={`${pipelineQuality.score}/100`}
+          color={
+            pipelineQuality.score >= 75
+              ? "#10b981"
+              : pipelineQuality.score >= 60
+              ? "#f59e0b"
+              : "#ef4444"
+          }
+        />
+        <Card
+          title="Capital Efficiency"
+          value={capitalEfficiency.toFixed(2)}
+          color={capitalEfficiency >= 0.8 ? "#10b981" : "#f97316"}
+        />
+        <Card
+          title="Portfolio Exposure"
+          value={`${portfolioExposure}/100`}
+          color={portfolioExposure <= 40 ? "#10b981" : "#ef4444"}
+        />
+      </div>
+
+      {/* ================= FINANCIAL PULSE ================= */}
+
       <div style={{ display: "flex", gap: 20, marginBottom: 30 }}>
         <Card
           title="Total Pipeline"
@@ -109,7 +180,8 @@ export default async function AdminDashboardPage() {
         />
       </div>
 
-      {/* ROW 2 — RISK PANEL */}
+      {/* ================= RISK PANEL ================= */}
+
       <div style={{ display: "flex", gap: 20, marginBottom: 30 }}>
         <Card
           title="Portfolio Risk Score"
@@ -126,7 +198,8 @@ export default async function AdminDashboardPage() {
         />
       </div>
 
-      {/* ROW 3 — OPERATIONS */}
+      {/* ================= OPERATIONS ================= */}
+
       <div style={{ display: "flex", gap: 20 }}>
         <Card
           title="Ready To Submit"
@@ -144,3 +217,4 @@ export default async function AdminDashboardPage() {
     </div>
   );
 }
+

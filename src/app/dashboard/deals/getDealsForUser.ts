@@ -8,3 +8,4 @@ import { Deal } from "@/types/deal";
 export async function getDealsForUser(): Promise<Deal[]> {
   return [];
 }
+

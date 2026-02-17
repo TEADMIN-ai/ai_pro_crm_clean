@@ -67,3 +67,4 @@ export function resolveSLAForDeal(
       return null; // lost, awarded, etc.
   }
 }
+

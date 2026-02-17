@@ -32,3 +32,4 @@ export async function logDealActivity(params: {
     createdAt: serverTimestamp(),
   });
 }
+

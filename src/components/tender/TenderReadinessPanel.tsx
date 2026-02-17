@@ -43,3 +43,4 @@ export default function TenderReadinessPanel({ deal }: Props) {
     </div>
   );
 }
+

@@ -20,3 +20,4 @@ export function computeDealSignals(deal: Deal) {
     hasAllDocuments: missingDocuments.length === 0,
   };
 }
+

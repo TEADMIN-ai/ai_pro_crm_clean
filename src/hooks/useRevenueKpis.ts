@@ -7,3 +7,4 @@ import { computeRevenueKpis } from "@/lib/kpis/revenueKpis";
 export function useRevenueKpis(deals: Deal[]) {
   return useMemo(() => computeRevenueKpis(deals), [deals]);
 }
+

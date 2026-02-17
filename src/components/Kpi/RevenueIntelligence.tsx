@@ -35,3 +35,4 @@ export default function RevenueIntelligencePanel({ deals }: Props) {
 function moneyZAR(value: number): string {
   return `R ${value.toLocaleString()}`;
 }
+

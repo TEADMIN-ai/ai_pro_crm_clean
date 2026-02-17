@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { ReactNode } from "react";
 import { useAuth } from "@/context/AuthContext";
@@ -13,8 +13,7 @@ export default function DashboardLayout({
 }) {
   const { loading, role } = useAuth();
 
-  // ⏳ Wait until auth + role are fully resolved
-  if (loading || !role) {
+  if (loading) {
     return (
       <div
         style={{
@@ -31,7 +30,10 @@ export default function DashboardLayout({
     );
   }
 
-  // ✅ Role is guaranteed non-null here
+  if (!role) {
+    return <div style={{ padding: 20 }}>Role not loaded</div>;
+  }
+
   const userRole: UserRole = role;
 
   return (
@@ -43,12 +45,9 @@ export default function DashboardLayout({
           "linear-gradient(135deg, #dbeafe 0%, #93c5fd 50%, #64748b 100%)",
       }}
     >
-      {/* ✅ SIDEBAR */}
       <Sidebar role={userRole} />
 
-      {/* MAIN CONTENT */}
       <div style={{ flex: 1 }}>
-        {/* HEADER (LOGOUT BUTTON) */}
         <div
           style={{
             padding: "20px 24px",
@@ -59,7 +58,6 @@ export default function DashboardLayout({
           <DashboardHeader />
         </div>
 
-        {/* PAGE CONTENT */}
         <main style={{ padding: "0 24px 40px" }}>{children}</main>
       </div>
     </div>

@@ -14,3 +14,4 @@ export function useRevenueIntelligence(deals: Deal[]) {
 
   return stats;
 }
+

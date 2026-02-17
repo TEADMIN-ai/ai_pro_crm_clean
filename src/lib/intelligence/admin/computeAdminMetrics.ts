@@ -1,3 +1,5 @@
+// src/lib/intelligence/admin/computeAdminMetrics.ts
+
 import type { Deal } from "@/types/deal";
 import { computeDealRisk } from "@/lib/risk/computeDealRisk";
 
@@ -34,14 +36,16 @@ export function computeAdminMetrics(deals: Deal[]): AdminMetrics {
 
   let totalPipelineValue = 0;
   let weightedRevenue = 0;
+
   let readyToSubmitCount = 0;
   let managerReviewStuckCount = 0;
 
   const stageCounts: Record<string, number> = {};
 
+  // ---- Deal Loop ----
   deals.forEach((deal) => {
     const value = deal.value ?? 0;
-    const stage = deal.stage ?? "unknown";
+    const stage = deal.stage ?? "draft";
 
     totalPipelineValue += value;
 
@@ -50,15 +54,15 @@ export function computeAdminMetrics(deals: Deal[]): AdminMetrics {
 
     stageCounts[stage] = (stageCounts[stage] ?? 0) + 1;
 
-    if (stage === "manager_review") {
-      managerReviewStuckCount++;
-    }
-
     if (
       deal.pricingStatus === "manager_approved" &&
       stage !== "submitted"
     ) {
       readyToSubmitCount++;
+    }
+
+    if (stage === "manager_review") {
+      managerReviewStuckCount++;
     }
   });
 
@@ -81,7 +85,7 @@ export function computeAdminMetrics(deals: Deal[]): AdminMetrics {
     (r) => r.level === "low"
   ).length;
 
-  // ---- Conversion ----
+  // ---- Conversion Rate ----
   const wonCount = stageCounts["won"] ?? 0;
   const submittedCount = stageCounts["submitted"] ?? 0;
 
@@ -106,3 +110,4 @@ export function computeAdminMetrics(deals: Deal[]): AdminMetrics {
     submissionConversion,
   };
 }
+

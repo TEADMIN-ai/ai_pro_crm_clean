@@ -17,3 +17,4 @@ export const DEAL_STATUS_LABELS: Record<DealStatus, string> = {
   awarded: "Awarded",
   lost: "Lost",
 };
+

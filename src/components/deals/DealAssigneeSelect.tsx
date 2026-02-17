@@ -63,3 +63,4 @@ export default function DealAssigneeSelect({ dealId, assignedTo }: Props) {
     </select>
   );
 }
+

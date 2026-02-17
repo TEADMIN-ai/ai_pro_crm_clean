@@ -49,3 +49,4 @@ export default function DealStageCharts({ deals }: { deals: Deal[] }) {
     </ResponsiveContainer>
   );
 }
+

@@ -15,3 +15,4 @@ export default function Card({ children }: { children: ReactNode }) {
     </div>
   );
 }
+

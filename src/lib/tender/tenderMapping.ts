@@ -75,3 +75,4 @@ export function mapTenderRequirements(
         : (requirements.length - missingCount) / requirements.length,
   };
 }
+

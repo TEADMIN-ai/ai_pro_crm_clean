@@ -12,3 +12,4 @@ export function usePipelineStats(deals: Deal[]) {
 
   return stats;
 }
+

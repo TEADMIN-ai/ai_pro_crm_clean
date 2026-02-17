@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { collection, getDocs } from "firebase/firestore";
-import { db } from "@/firebase/config";
+import { db } from "@\/lib\/firebase";
 import Link from "next/link";
 import type { AppUser } from "@/types/user";
 
@@ -57,3 +57,4 @@ export default function UsersPage() {
     </div>
   );
 }
+

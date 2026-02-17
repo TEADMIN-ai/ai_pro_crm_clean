@@ -17,3 +17,4 @@ export function getAdmin() {
     db: getFirestore(),
   };
 }
+

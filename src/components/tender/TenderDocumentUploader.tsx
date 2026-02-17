@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useState } from "react";
 import type { Deal, DealDocument } from "@/types/deal";
@@ -41,8 +41,9 @@ export default function TenderDocumentUploader({
         onChange={handleFileChange}
       />
 
-      {uploading && <small>Uploading…</small>}
+      {uploading && <small>Uploading�</small>}
       {docs.length > 0 && <small>{docs.length} document(s)</small>}
     </div>
   );
 }
+

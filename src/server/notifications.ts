@@ -31,3 +31,4 @@ export async function markNotificationRead(id: string) {
     read: true,
   });
 }
+

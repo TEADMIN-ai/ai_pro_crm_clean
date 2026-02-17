@@ -12,3 +12,4 @@ export function getDashboardPath(role: UserRole) {
       return "/login";
   }
 }
+

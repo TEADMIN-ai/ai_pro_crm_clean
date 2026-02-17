@@ -14,3 +14,4 @@ export function useTenderReadiness(deal: Deal): TenderReadinessResult {
     return computeTenderReadiness(deal);
   }, [deal]);
 }
+

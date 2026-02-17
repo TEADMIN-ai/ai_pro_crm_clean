@@ -1,4 +1,4 @@
-﻿import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { v4 as uuid } from "uuid";
 import type { DealDocument } from "@/types/deal";
 
@@ -23,3 +23,4 @@ export async function uploadTenderDocument(
     uploadedAt: new Date(),
   };
 }
+

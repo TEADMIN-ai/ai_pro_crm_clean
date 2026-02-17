@@ -34,3 +34,4 @@ export function getHeroImage(context: HeroContext): string {
   // 🔒 ABSOLUTE FALLBACK
   return "/images/hero-manager.jpg";
 }
+

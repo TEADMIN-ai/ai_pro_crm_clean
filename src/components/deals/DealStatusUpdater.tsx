@@ -1,57 +1,34 @@
 "use client";
 
-import type { Deal, DealStage } from "@/types/deal";
+import { useState } from "react";
 
 type Props = {
-  deal: Deal;
-  onStageChangeAction: (dealId: string, stage: DealStage) => void;
+  currentStage: string;
+  allowedStages: string[];
 };
 
-const STAGES: DealStage[] = [
-  "draft",
-  "pricing",
-  "manager_review",
-  "submitted",
-  "won",
-  "lost",
-];
-
 export default function DealStatusUpdater({
-  deal,
-  onStageChangeAction,
+  currentStage,
+  allowedStages,
 }: Props) {
-  function handleChange(event: React.ChangeEvent<HTMLSelectElement>) {
-    const newStage = event.target.value as DealStage;
-    onStageChangeAction(deal.id, newStage);
-  }
+  const [stage, setStage] = useState(currentStage);
 
   return (
-    <div style={{ marginTop: 8 }}>
-      <label
-        style={{
-          fontSize: 12,
-          fontWeight: 600,
-          marginRight: 8,
-        }}
-      >
-        Update Stage:
-      </label>
+    <div style={{ marginTop: 10 }}>
+      <label style={{ fontWeight: 600 }}>Update Stage:</label>
 
       <select
-        value={deal.stage}
-        onChange={handleChange}
-        style={{
-          padding: "6px 8px",
-          borderRadius: 4,
-          border: "1px solid #ccc",
-        }}
+        value={stage}
+        onChange={(e) => setStage(e.target.value)}
+        style={{ marginLeft: 10 }}
       >
-        {STAGES.map((stage) => (
-          <option key={stage} value={stage}>
-            {stage}
+        {allowedStages.map((s) => (
+          <option key={s} value={s}>
+            {s}
           </option>
         ))}
       </select>
     </div>
   );
 }
+

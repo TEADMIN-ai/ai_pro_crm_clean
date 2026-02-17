@@ -21,3 +21,4 @@ export const KPI_DEFINITIONS = [
     value: (deals: Deal[]) => deals.filter((d) => d.stage === "lost").length,
   },
 ];
+

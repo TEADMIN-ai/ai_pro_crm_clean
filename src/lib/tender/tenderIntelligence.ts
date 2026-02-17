@@ -16,3 +16,4 @@ export type TenderInput = {
   requirements: TenderRequirement[];
   uploadedDocuments: TenderDocument[];
 };
+

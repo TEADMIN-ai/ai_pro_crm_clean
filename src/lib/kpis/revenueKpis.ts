@@ -25,3 +25,4 @@ export function computeRevenueKpis(deals: Deal[]): RevenueKpis {
     avgDealSize,
   };
 }
+

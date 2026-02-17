@@ -1,8 +1,13 @@
-import { initializeApp, getApps, getApp } from "firebase/app";
+// src/lib/firebase/index.ts
+import { initializeApp, getApp, getApps } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 
+/**
+ * Client SDK (browser) Firebase singleton.
+ * Use ONLY in client components or client-side libraries.
+ */
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY!,
   authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN!,
@@ -16,6 +21,11 @@ const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
 
 export const auth = getAuth(app);
 export const db = getFirestore(app);
-export const storage = getStorage(app);
 
-export default app;
+/**
+ * IMPORTANT:
+ * If you see: storage/no-default-bucket
+ * it means NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET is missing or wrong.
+ * Usually it must be: <project-id>.appspot.com
+ */
+export const storage = getStorage(app);

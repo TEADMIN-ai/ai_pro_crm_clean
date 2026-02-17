@@ -3,3 +3,4 @@ export type TenderReadinessResult = {
   completionPercent: number;
   missingDocuments: string[];
 };
+

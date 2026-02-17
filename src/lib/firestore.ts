@@ -34,3 +34,4 @@ export function countDealsByStage(
 ): number {
   return deals.filter((d) => d.stage === stage).length;
 }
+

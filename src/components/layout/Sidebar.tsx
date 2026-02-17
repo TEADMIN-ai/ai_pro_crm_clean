@@ -1,39 +1,25 @@
-"use client";
-
-import Link from "next/link";
 import type { UserRole } from "@/types/auth";
 
 type SidebarProps = {
-  role: UserRole;
+  role?: UserRole;
 };
 
 export default function Sidebar({ role }: SidebarProps) {
   return (
-    <aside style={{ width: 220, padding: 16, background: "#0f172a", color: "#fff" }}>
-      {role === "admin" && (
-        <>
-          <h4>Admin Links</h4>
-          <Link href="/dashboard/admin">Admin Dashboard</Link><br />
-          <Link href="/dashboard/users">Users</Link><br />
-          <Link href="/dashboard/deals">Deals</Link>
-        </>
-      )}
+    <div
+      style={{
+        width: 220,
+        padding: 20,
+        background: "#0f172a",
+        color: "white",
+      }}
+    >
+      <h3 style={{ marginBottom: 16 }}>Navigation</h3>
 
-      {role === "manager" && (
-        <>
-          <h4>Manager Links</h4>
-          <Link href="/dashboard/manager">Manager Dashboard</Link><br />
-          <Link href="/dashboard/deals">Deals</Link>
-        </>
-      )}
-
-      {role === "staff" && (
-        <>
-          <h4>Staff Links</h4>
-          <Link href="/dashboard/staff">Staff Dashboard</Link><br />
-          <Link href="/dashboard/deals">My Deals</Link>
-        </>
-      )}
-    </aside>
+      {/* You can still use role conditionally later */}
+      <div style={{ opacity: 0.7, fontSize: 14 }}>
+        {role ? `Role: ${role}` : "Role not loaded"}
+      </div>
+    </div>
   );
 }

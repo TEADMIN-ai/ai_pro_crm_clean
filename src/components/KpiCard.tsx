@@ -31,3 +31,4 @@ export default function KpiCard({ label, value }: Props) {
     </div>
   );
 }
+

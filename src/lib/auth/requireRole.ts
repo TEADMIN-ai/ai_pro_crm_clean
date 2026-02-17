@@ -5,3 +5,4 @@ export async function requireRole(uid: string, allow: Array<"admin" | "manager" 
   if (!role) return false;
   return allow.includes(role);
 }
+

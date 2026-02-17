@@ -16,3 +16,4 @@ export function isTenderLocked(deal: Deal): boolean {
 
   return false;
 }
+

@@ -59,3 +59,4 @@ export default function DealNotes({ dealId }: Props) {
     </div>
   );
 }
+

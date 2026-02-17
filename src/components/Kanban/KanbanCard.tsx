@@ -18,3 +18,4 @@ export default function KanbanCard({ deal }: { deal: Deal }) {
     </div>
   );
 }
+

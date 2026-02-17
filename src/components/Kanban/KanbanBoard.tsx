@@ -132,3 +132,4 @@ export default function KanbanBoard({ deals, canEdit }: Props) {
     </div>
   );
 }
+

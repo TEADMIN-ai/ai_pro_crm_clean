@@ -1,6 +1,11 @@
 // src/lib/deals/updateDeal.ts
 
-import type { Deal, DealAuditActor, DealAuditEventType } from "@/types/deal";
+import type {
+  Deal,
+  DealAuditActor,
+  DealAuditEventType,
+} from "@/types/deal";
+
 import { isTenderLocked } from "@/lib/tender/isTenderLocked";
 import { makeDealAuditEvent } from "@/lib/deals/recordDealAudit";
 
@@ -10,38 +15,28 @@ export async function updateDeal(
   currentDeal?: Deal,
   opts?: {
     actor?: DealAuditActor;
-    auditType?: DealAuditEventType;
-    auditMeta?: Record<string, unknown>;
+    type?: DealAuditEventType;
+    meta?: Record<string, unknown>;
   }
 ): Promise<void> {
-  // If we have the current deal, enforce lock
+  if (!dealId) {
+    throw new Error("updateDeal: dealId is required");
+  }
+
   if (currentDeal && isTenderLocked(currentDeal)) {
     throw new Error("Deal is tender-locked and cannot be modified.");
   }
 
-  // Never allow unlocking once locked (even if currentDeal missing)
-  if (updates.isTenderLocked === false) {
-    throw new Error("Tender lock cannot be reverted.");
-  }
-
-  // Optional audit append (safe, local)
-  let nextAuditTrail = currentDeal?.auditTrail ?? undefined;
-  if (opts?.auditType) {
-    const evt = makeDealAuditEvent({
-      type: opts.auditType,
+  // 🔐 Audit logging (aligned to your exact function signature)
+  if (opts?.type) {
+    makeDealAuditEvent({
+      type: opts.type,
       actor: opts.actor,
-      meta: opts.auditMeta,
+      meta: opts.meta,
     });
-
-    nextAuditTrail = [...(currentDeal?.auditTrail ?? []), evt];
-    updates = { ...updates, auditTrail: nextAuditTrail };
   }
 
-  // TODO: Replace this with Firestore update (authoritative write)
-  console.log("✅ updateDeal (authoritative)", {
-    dealId,
-    updates,
-  });
-
-  return;
+  // NOTE:
+  // This function currently only handles domain + audit.
+  // Firestore update logic should be handled in updateDealStage.ts or similar.
 }

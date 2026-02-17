@@ -22,3 +22,4 @@ export default function KanbanColumn({ title, children }: Props) {
     </div>
   );
 }
+

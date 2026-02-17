@@ -45,3 +45,4 @@ export default function PipelineChart({ deals }: Props) {
     </div>
   );
 }
+

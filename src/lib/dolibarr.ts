@@ -12,3 +12,4 @@ export async function loginDolibarr() {
 
   return res.json();
 }
+

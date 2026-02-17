@@ -19,3 +19,4 @@ export type TenderExportModel = {
 
   documents?: TenderExportDocument[];
 };
+

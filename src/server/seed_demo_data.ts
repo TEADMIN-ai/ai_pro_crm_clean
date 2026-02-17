@@ -3,3 +3,4 @@ import { db } from "@/lib/firebase";
 export async function seedDemoData() {
   void db;
 }
+

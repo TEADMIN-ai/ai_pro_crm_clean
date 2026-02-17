@@ -42,3 +42,4 @@ export default function KpiRow({ items = [] }: Props) {
     </div>
   );
 }
+

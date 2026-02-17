@@ -58,3 +58,4 @@ export async function submitTenderDeal(params: {
     updatedAt: serverTimestamp(),
   });
 }
+

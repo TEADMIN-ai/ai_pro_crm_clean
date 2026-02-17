@@ -34,3 +34,4 @@ export function useHeroCampaign(role: 'manager' | 'staff' | 'deals') {
     );
   }, [role]);
 }
+

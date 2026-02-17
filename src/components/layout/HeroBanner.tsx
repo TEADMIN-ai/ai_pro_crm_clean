@@ -57,3 +57,4 @@ const subtitleStyle: React.CSSProperties = {
   marginTop: 8,
   opacity: 0.85,
 };
+

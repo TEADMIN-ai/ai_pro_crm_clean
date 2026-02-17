@@ -30,3 +30,4 @@ export function computeDealRisk(deal: Deal) {
     level,
   };
 }
+

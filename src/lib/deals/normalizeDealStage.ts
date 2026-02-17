@@ -1,9 +1,21 @@
-import type { DealStage } from "../../types/deal";
+// src/lib/deals/normalizeDealStage.ts
 
-export function normalizeDealStage(input: string): DealStage {
-  switch (input) {
-    case "draft":
-      return "draft";
+import type { DealStage } from "@/types/deal";
+
+/**
+ * Normalize or coerce an input string into a valid deal stage.
+ * Falls back to "lead" for anything unrecognized.
+ */
+export function normalizeDealStage(input: unknown): DealStage {
+  if (typeof input !== "string") {
+    return "lead";
+  }
+
+  const value = input.trim().toLowerCase();
+
+  switch (value) {
+    case "lead":
+      return "lead";
 
     case "pricing":
       return "pricing";
@@ -20,7 +32,12 @@ export function normalizeDealStage(input: string): DealStage {
     case "lost":
       return "lost";
 
+    case "closed":
+      return "closed";
+
     default:
-      return "draft";
+      // any unknown stage is treated as "lead" by default
+      return "lead";
   }
 }
+

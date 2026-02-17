@@ -10,3 +10,4 @@ export function useKPIs(deals: Deal[]) {
     }));
   }, [deals]);
 }
+

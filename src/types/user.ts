@@ -7,3 +7,4 @@ export interface AppUser {
   companyId: string;
   createdAt: any; // Firestore Timestamp
 }
+

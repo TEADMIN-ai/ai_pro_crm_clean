@@ -36,3 +36,4 @@ export default function TenderActions({ deal, onSubmitAction }: Props) {
     </div>
   );
 }
+

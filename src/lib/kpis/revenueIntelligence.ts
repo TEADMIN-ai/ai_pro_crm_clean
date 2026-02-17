@@ -32,3 +32,4 @@ export function computeRevenueIntelligence(deals: Deal[]) {
     weighted,
   };
 }
+

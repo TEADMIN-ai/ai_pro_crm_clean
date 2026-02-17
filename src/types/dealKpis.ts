@@ -10,3 +10,4 @@ export type DealKpiDefinition = {
   key: DealKpiKey;
   label: string;
 };
+

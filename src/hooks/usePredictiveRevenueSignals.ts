@@ -25,3 +25,4 @@ export function usePredictiveRevenueSignals(
     return computePredictiveRevenueSignals(deals);
   }, [deals]);
 }
+

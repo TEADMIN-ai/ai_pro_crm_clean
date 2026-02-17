@@ -1,82 +1,99 @@
 // src/types/deal.ts
+// Canonical Deal Domain Model
+// PURE TYPE FILE — no imports
+
+/* ---------------------------------- */
+/* Deal Stage Workflow                */
+/* ---------------------------------- */
 
 export type DealStage =
-  | "draft"
+  | "lead"
   | "pricing"
   | "manager_review"
   | "submitted"
   | "won"
-  | "lost";
+  | "lost"
+  | "closed";
 
-export type DealAuditActor = {
+/* ---------------------------------- */
+/* Audit System Types                 */
+/* ---------------------------------- */
+
+export interface DealAuditActor {
   uid: string;
-  email?: string | null;
-  name?: string | null;
-};
+  name?: string;
+  role?: string;
+}
 
 export type DealAuditEventType =
+  | "created"
+  | "updated"
   | "stage_changed"
+  | "pricing_approved"
   | "tender_submitted"
-  | "document_uploaded";
+  | "closed"
+  | "lost";
 
-export type DealAuditEvent = {
-  id: string; // unique event id
+export interface DealAuditEvent {
+  id: string;
   type: DealAuditEventType;
-  at: Date | any; // Date now, Firestore Timestamp later
+  timestamp: Date;
   actor?: DealAuditActor;
   meta?: Record<string, unknown>;
-};
+}
 
-export type DealDocument = {
+/* ---------------------------------- */
+/* Deal Documents                     */
+/* ---------------------------------- */
+
+export interface DealDocument {
   id: string;
   name: string;
-  url: string;
-  storagePath: string;
-  uploadedAt?: Date | any;
-};
+  storagePath?: string;
+  url?: string;
+  uploadedAt?: Date;
+  uploadedBy?: string;
+}
 
-/**
- * 🔥 NEW: Pricing workflow status
- */
-export type PricingStatus =
-  | "not_started"
-  | "ai_generated"
-  | "manager_approved"
-  | "contractor_signed_off";
+/* ---------------------------------- */
+/* Core Deal Model                    */
+/* ---------------------------------- */
 
 export interface Deal {
   id: string;
+
+  // Core Identity
   title: string;
+  companyId: string;
+
+  // Workflow
   stage: DealStage;
-  value: number;
-  currency?: "ZAR";
-
-  companyId?: string;
+  pricingStatus?: string;
   assignedTo?: string | null;
-  clientName?: string;
 
-  createdAt?: Date | any;
-  updatedAt?: Date | any;
+  // Financial
+  value?: number;
+  currency?: string;
 
-  // ✅ Tender lock = single source of truth
+  // Tender System
   isTenderLocked?: boolean;
+  tenderSubmittedAt?: Date;
+  tenderSubmittedBy?: string;
 
-  // ✅ Submission stamping
-  tenderSubmittedAt?: Date | any;
-  tenderSubmittedBy?: DealAuditActor;
+  // Approval
+  pricingApprovedAt?: Date;
 
-  // ✅ Docs attached to deal
-  documents?: DealDocument[];
+  // Close Tracking
+  closedAt?: Date;
 
-  // ✅ Audit trail
+  // Metadata
+  createdAt?: Date;
+  updatedAt?: Date;
+
+  // Audit
   auditTrail?: DealAuditEvent[];
 
-  /**
-   * 🔥 NEW: Pricing workflow fields
-   */
-  pricingStatus?: PricingStatus;
-  pricingApprovedBy?: string;
-  pricingApprovedAt?: Date | any;
-  contractorSignedOffBy?: string;
-  contractorSignedOffAt?: Date | any;
+  // Documents
+  documents?: DealDocument[];
 }
+

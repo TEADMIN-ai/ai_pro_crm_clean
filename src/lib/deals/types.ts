@@ -11,3 +11,4 @@ export type Deal = {
   value?: number;
   createdAt?: any;
 };
+

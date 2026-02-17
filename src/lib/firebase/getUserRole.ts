@@ -9,3 +9,4 @@ export async function getUserRole(uid: string): Promise<"admin" | "manager" | "s
   if (role === "admin" || role === "manager" || role === "staff") return role;
   return null;
 }
+
