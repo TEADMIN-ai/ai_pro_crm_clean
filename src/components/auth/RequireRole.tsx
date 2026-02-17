@@ -4,7 +4,7 @@ import { ReactNode, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 
-type Role = "admin" | "manager" | "staff";
+type Role = "admin" | "manager" | "staff" | "contractor";
 
 export default function RequireRole({
   allow,

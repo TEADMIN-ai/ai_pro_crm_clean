@@ -13,12 +13,12 @@ export default function DashboardLayout({
   const { role, loading } = useAuth();
 
   if (loading || !role) {
-    return <div style={{ padding: 40 }}>Loading dashboard...</div>;
+      return <div style={{ padding: 40 }}>Loading dashboard...</div>;
   }
 
   return (
     <div style={{ display: "flex", minHeight: "100vh" }}>
-      <Sidebar role={role} />
+      <Sidebar />
 
       <div style={{ flex: 1 }}>
         <DashboardHeader />

@@ -1,25 +1,59 @@
-import type { UserRole } from "@/types/auth";
+"use client";
 
-type SidebarProps = {
-  role?: UserRole;
-};
+import Link from "next/link";
+import { useAuth } from "@/context/AuthContext";
 
-export default function Sidebar({ role }: SidebarProps) {
+export default function Sidebar() {
+  const { role } = useAuth();
+
   return (
-    <div
+    <aside
       style={{
-        width: 220,
-        padding: 20,
-        background: "#0f172a",
+        width: 240,
+        background: "#0b1a33",
         color: "white",
+        padding: "24px 16px",
+        minHeight: "100vh",
+        display: "flex",
+        flexDirection: "column",
+        gap: 16,
       }}
     >
-      <h3 style={{ marginBottom: 16 }}>Navigation</h3>
+      <h2 style={{ marginBottom: 8 }}>Navigation</h2>
 
-      {/* You can still use role conditionally later */}
-      <div style={{ opacity: 0.7, fontSize: 14 }}>
-        {role ? `Role: ${role}` : "Role not loaded"}
+      <div style={{ fontSize: 14, opacity: 0.8 }}>
+        Role: {role ?? "guest"}
       </div>
-    </div>
+
+      <nav style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        <Link
+          href="/dashboard"
+          style={{ color: "white", textDecoration: "none" }}
+        >
+          Dashboard
+        </Link>
+
+        <Link
+          href="/dashboard/deals"
+          style={{ color: "white", textDecoration: "none" }}
+        >
+          Deals
+        </Link>
+
+        {/* Admin-only example link */}
+        {role === "admin" && (
+          <Link
+            href="/dashboard/deals/new"
+            style={{ color: "white", textDecoration: "none" }}
+          >
+            Create Deal
+          </Link>
+        )}
+      </nav>
+
+      <div style={{ marginTop: "auto", fontSize: 12, opacity: 0.6 }}>
+        Torque Empire CRM
+      </div>
+    </aside>
   );
 }

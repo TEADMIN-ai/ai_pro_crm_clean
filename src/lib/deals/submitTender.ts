@@ -18,13 +18,13 @@ if (!readiness.isReady) {
       stage: "submitted",
       isTenderLocked: true,
       tenderSubmittedAt: new Date(),
-      tenderSubmittedBy: actor,
+      tenderSubmittedBy: actor?.uid,
     },
     deal,
     {
       actor,
-      auditType: "tender_submitted",
-      auditMeta: {
+      type: "tender_submitted",
+      meta: {
         completionPercent: readiness.completionPercent,
         missingDocuments: readiness.missingDocuments,
         missingFields: readiness.missingFields,

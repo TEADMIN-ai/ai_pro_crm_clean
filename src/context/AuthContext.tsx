@@ -1,47 +1,63 @@
 "use client";
 
-import { createContext, useContext, useEffect, useMemo, useState } from "react";
-import { onAuthStateChanged, signOut, type User } from "firebase/auth";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  ReactNode,
+} from "react";
+import { onAuthStateChanged, signOut, User } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 
-export type UserRole = "admin" | "manager" | "staff";
+export type UserRole = "admin" | "staff" | "contractor";
+export type AuthUser = User & { role: UserRole | null };
 
 type AuthContextType = {
-  user: User | null;
-  loading: boolean;
+  user: AuthUser | null;
   role: UserRole | null;
+  loading: boolean;
   logout: () => Promise<void>;
 };
 
-const AuthContext = createContext<AuthContextType>({
-  user: null,
-  loading: true,
-  role: null,
-  logout: async () => {},
-});
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
+export function AuthProvider({ children }: { children: ReactNode }) {
+  const [user, setUser] = useState<AuthUser | null>(null);
   const [role, setRole] = useState<UserRole | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!auth) {
-      setLoading(false);
-      return;
-    }
-
-    const unsubscribe = onAuthStateChanged(auth, async (nextUser) => {
-      setUser(nextUser);
-
-      if (nextUser) {
-        // 🔹 TEMP DEFAULT ROLE
-        // Replace later with Firestore lookup
-        setRole("admin");
-      } else {
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      if (!firebaseUser) {
+        setUser(null);
         setRole(null);
+        setLoading(false);
+        return;
       }
 
+      let resolvedRole: UserRole | null = null;
+
+      try {
+        const tokenResult = await firebaseUser.getIdTokenResult();
+
+        const claimRole = tokenResult.claims.role;
+
+        if (
+          claimRole === "admin" ||
+          claimRole === "staff" ||
+          claimRole === "contractor"
+        ) {
+          resolvedRole = claimRole;
+        }
+      } catch (error) {
+        console.error("Error reading role claim:", error);
+      }
+
+      const authUser = firebaseUser as AuthUser;
+      authUser.role = resolvedRole;
+      setUser(authUser);
+      setRole(resolvedRole);
       setLoading(false);
     });
 
@@ -49,18 +65,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const logout = async () => {
-    if (!auth) return;
     await signOut(auth);
+    setUser(null);
+    setRole(null);
   };
 
-  const value = useMemo(
-    () => ({ user, loading, role, logout }),
-    [user, loading, role]
+  return (
+    <AuthContext.Provider value={{ user, role, loading, logout }}>
+      {children}
+    </AuthContext.Provider>
   );
-
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth() {
-  return useContext(AuthContext);
+  const context = useContext(AuthContext);
+
+  if (!context) {
+    throw new Error("useAuth must be used inside AuthProvider");
+  }
+
+  return context;
 }

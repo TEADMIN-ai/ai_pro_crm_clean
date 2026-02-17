@@ -1,13 +1,8 @@
-// src/lib/firebase/index.ts
-import { initializeApp, getApp, getApps } from "firebase/app";
+import { getApps, initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 
-/**
- * Client SDK (browser) Firebase singleton.
- * Use ONLY in client components or client-side libraries.
- */
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY!,
   authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN!,
@@ -17,15 +12,20 @@ const firebaseConfig = {
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID!,
 };
 
-const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
+export const firebaseConfigMissing =
+  !firebaseConfig.apiKey ||
+  !firebaseConfig.authDomain ||
+  !firebaseConfig.projectId ||
+  !firebaseConfig.storageBucket ||
+  !firebaseConfig.messagingSenderId ||
+  !firebaseConfig.appId;
+
+const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
 
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 
-/**
- * IMPORTANT:
- * If you see: storage/no-default-bucket
- * it means NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET is missing or wrong.
- * Usually it must be: <project-id>.appspot.com
- */
-export const storage = getStorage(app);
+// IMPORTANT: storageBucket must be the raw bucket name (no gs:// in env)
+export const storage = getStorage(app, `gs://${firebaseConfig.storageBucket}`);
+
+export { app, firebaseConfig };

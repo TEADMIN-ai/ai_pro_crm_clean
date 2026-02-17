@@ -20,19 +20,16 @@ export default function DashboardHeader() {
     <button
       onClick={handleLogout}
       style={{
-        background: "linear-gradient(135deg, #2563eb, #1e40af)",
-        color: "#ffffff",
-        border: "none",
+        padding: "10px 16px",
         borderRadius: 10,
-        padding: "10px 18px",
-        fontSize: 14,
-        fontWeight: 600,
+        background: "#2563eb",
+        color: "white",
+        border: "none",
         cursor: "pointer",
-        boxShadow: "0 10px 30px rgba(0,0,0,0.25)",
+        fontWeight: 700,
       }}
     >
       Logout
     </button>
   );
 }
-
