@@ -2,8 +2,6 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useAuth } from "@/context/AuthContext";
-import { db, storage } from "@/lib/firebase";
 import {
   collection,
   deleteDoc,
@@ -11,191 +9,234 @@ import {
   onSnapshot,
   orderBy,
   query,
+  serverTimestamp,
+  updateDoc,
 } from "firebase/firestore";
 import { deleteObject, ref } from "firebase/storage";
+import { useAuth } from "@/context/AuthContext";
+import { db, storage } from "@/lib/firebase/index";
+import { canDelete, canReview, canUpload } from "@/lib/auth/roleUtils";
+import type { DocumentRecord } from "@/lib/firebase/storage/uploadDealDocuments";
 
-type DocumentItem = {
-  id: string;
-  name: string;
-  downloadURL: string;
-  storagePath: string;
-  uploadedAt?: { seconds: number };
+type DealDocument = Omit<DocumentRecord, "uploadedAt" | "updatedAt" | "expiryDate" | "reviewedAt"> & {
+  uploadedAt?: { toDate?: () => Date };
+  updatedAt?: { toDate?: () => Date };
+  expiryDate?: { toDate?: () => Date };
+  reviewedAt?: { toDate?: () => Date };
 };
 
-export default function DealDetailsClient({
-  dealId,
-}: {
-  dealId: string;
-}) {
-  const { role, loading } = useAuth();
+export default function DealDetailsClient({ dealId }: { dealId: string }) {
+  const { user, role, loading } = useAuth();
   const router = useRouter();
 
-  const [documents, setDocuments] = useState<DocumentItem[]>([]);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [documents, setDocuments] = useState<DealDocument[]>([]);
+  const [isLoadingDocs, setIsLoadingDocs] = useState(true);
+  const [busyDocumentId, setBusyDocumentId] = useState<string | null>(null);
 
-  // 🔒 Guard
   useEffect(() => {
-    if (!loading && !role) {
+    if (!loading && !user) {
       router.replace("/login");
     }
-  }, [loading, role, router]);
+  }, [loading, user, router]);
 
-  // 📡 Realtime listener
   useEffect(() => {
     if (!dealId) return;
 
-    const q = query(
-      collection(db, "deals", dealId, "documents"),
-      orderBy("uploadedAt", "desc")
+    const q = query(collection(db, "deals", dealId, "documents"), orderBy("uploadedAt", "desc"));
+    const unsubscribe = onSnapshot(
+      q,
+      (snapshot) => {
+        const docs = snapshot.docs.map((snapshotDoc) => {
+          const data = snapshotDoc.data() as Omit<DealDocument, "id">;
+          return {
+            id: snapshotDoc.id,
+            ...data,
+          };
+        });
+
+        setDocuments(docs);
+        setIsLoadingDocs(false);
+      },
+      (error) => {
+        console.error("Failed to subscribe documents:", error);
+        setIsLoadingDocs(false);
+      }
     );
-
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const docs: DocumentItem[] = snapshot.docs.map((docSnap) => ({
-        id: docSnap.id,
-        ...(docSnap.data() as Omit<DocumentItem, "id">),
-      }));
-
-      setDocuments(docs);
-    });
 
     return () => unsubscribe();
   }, [dealId]);
 
-  // 🗑 Delete handler
-  const handleDelete = async (documentItem: DocumentItem) => {
-    if (role !== "admin") return;
+  const handleStatusUpdate = async (documentId: string, newStatus: "approved" | "rejected") => {
+    if (!user || !canReview(role)) return;
 
-    const confirmed = confirm(
-      `Are you sure you want to delete "${documentItem.name}"?`
-    );
-
-    if (!confirmed) return;
-
+    setBusyDocumentId(documentId);
     try {
-      setDeletingId(documentItem.id);
-
-      // Delete from Storage
-      const storageRef = ref(storage, documentItem.storagePath);
-      await deleteObject(storageRef);
-
-      // Delete from Firestore
-      await deleteDoc(
-        doc(db, "deals", dealId, "documents", documentItem.id)
-      );
+      await updateDoc(doc(db, "deals", dealId, "documents", documentId), {
+        status: newStatus,
+        reviewedByUid: user.uid,
+        reviewedByRole: role,
+        reviewedAt: serverTimestamp(),
+        rejectionReason: newStatus === "rejected" ? "Rejected by reviewer" : "",
+        updatedAt: serverTimestamp(),
+      });
     } catch (error) {
-      console.error("Delete failed:", error);
-      alert("Failed to delete document.");
+      console.error("Status update failed:", error);
     } finally {
-      setDeletingId(null);
+      setBusyDocumentId(null);
     }
   };
 
-  if (loading) {
-    return (
-      <div style={{ padding: 40 }}>
-        <h2>Loading deal details…</h2>
-      </div>
-    );
+  const handleDelete = async (docItem: DealDocument) => {
+    if (!user || !canDelete(role, docItem.uploadedByUid, user.uid)) return;
+
+    setBusyDocumentId(docItem.id);
+    try {
+      if (docItem.storagePath) {
+        await deleteObject(ref(storage, docItem.storagePath));
+      }
+
+      await deleteDoc(doc(db, "deals", dealId, "documents", docItem.id));
+    } catch (error) {
+      console.error("Delete failed:", error);
+    } finally {
+      setBusyDocumentId(null);
+    }
+  };
+
+  if (loading || isLoadingDocs) {
+    return <div style={{ padding: 40 }}>Loading documents...</div>;
   }
+
+  if (!user) return null;
 
   return (
     <div style={{ padding: 40 }}>
-      <h1 style={{ marginBottom: 10 }}>Deal Details</h1>
+      <h1>Deal Documents</h1>
       <p style={{ opacity: 0.6 }}>Deal ID: {dealId}</p>
 
-      <div style={{ marginTop: 20 }}>
-        <button
-          onClick={() =>
-            router.push(`/dashboard/deals/${dealId}/upload`)
-          }
-          style={{
-            background: "#2563eb",
-            color: "white",
-            border: "none",
-            padding: "10px 16px",
-            borderRadius: 6,
-            cursor: "pointer",
-          }}
-        >
-          Upload Document
-        </button>
-      </div>
-
-      <h2 style={{ marginTop: 40 }}>Documents</h2>
-
-      {documents.length === 0 && (
-        <p style={{ opacity: 0.6 }}>No documents uploaded yet.</p>
-      )}
-
-      <div style={{ marginTop: 20 }}>
-        {documents.map((docItem) => (
-          <div
-            key={docItem.id}
+      {canUpload(role) && (
+        <div style={{ marginBottom: 20 }}>
+          <button
+            onClick={() => router.push(`/dashboard/deals/${dealId}/upload`)}
             style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              background: "white",
-              padding: "14px 18px",
+              padding: "10px 16px",
+              background: "#2563eb",
+              color: "white",
+              border: "none",
               borderRadius: 8,
-              marginBottom: 12,
-              boxShadow: "0 2px 6px rgba(0,0,0,0.08)",
+              cursor: "pointer",
+              fontWeight: 600,
             }}
           >
-            <div>
-              <strong>{docItem.name}</strong>
-              <div style={{ fontSize: 12, opacity: 0.6 }}>
-                Uploaded:{" "}
-                {docItem.uploadedAt
-                  ? new Date(
-                      docItem.uploadedAt.seconds * 1000
-                    ).toLocaleString()
-                  : "—"}
-              </div>
-            </div>
+            Upload PDF
+          </button>
+        </div>
+      )}
 
-            <div>
-              <button
-                onClick={() =>
-                  window.open(docItem.downloadURL, "_blank")
-                }
-                style={{
-                  background: "#16a34a",
-                  color: "white",
-                  border: "none",
-                  padding: "6px 12px",
-                  borderRadius: 6,
-                  cursor: "pointer",
-                }}
-              >
-                View
-              </button>
+      {documents.length === 0 ? (
+        <p>No documents uploaded yet.</p>
+      ) : (
+        <table
+          style={{
+            width: "100%",
+            borderCollapse: "collapse",
+            marginTop: 20,
+          }}
+        >
+          <thead>
+            <tr style={{ textAlign: "left" }}>
+              <th>Name</th>
+              <th>Status</th>
+              <th>Uploaded</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {documents.map((docItem) => {
+              const canDeleteThisDoc = canDelete(role, docItem.uploadedByUid, user.uid);
+              const isBusy = busyDocumentId === docItem.id;
 
-              {role === "admin" && (
-                <button
-                  onClick={() => handleDelete(docItem)}
-                  disabled={deletingId === docItem.id}
-                  style={{
-                    background: "#dc2626",
-                    color: "white",
-                    border: "none",
-                    padding: "6px 12px",
-                    borderRadius: 6,
-                    cursor: "pointer",
-                    marginLeft: 8,
-                    opacity:
-                      deletingId === docItem.id ? 0.6 : 1,
-                  }}
-                >
-                  {deletingId === docItem.id
-                    ? "Deleting…"
-                    : "Delete"}
-                </button>
-              )}
-            </div>
-          </div>
-        ))}
-      </div>
+              return (
+                <tr key={docItem.id}>
+                  <td>{docItem.name}</td>
+                  <td>{docItem.status ?? "pending"}</td>
+                  <td>{docItem.uploadedAt?.toDate?.() ? docItem.uploadedAt.toDate().toLocaleString() : "-"}</td>
+                  <td>
+                    <button
+                      onClick={() => window.open(docItem.downloadURL, "_blank", "noopener,noreferrer")}
+                      style={{
+                        marginRight: 8,
+                        padding: "6px 12px",
+                        borderRadius: 6,
+                        border: "none",
+                        cursor: "pointer",
+                      }}
+                    >
+                      View
+                    </button>
+
+                    {canReview(role) && (
+                      <>
+                        <button
+                          onClick={() => handleStatusUpdate(docItem.id, "approved")}
+                          disabled={isBusy}
+                          style={{
+                            marginRight: 8,
+                            background: "#16a34a",
+                            color: "white",
+                            border: "none",
+                            padding: "6px 12px",
+                            borderRadius: 6,
+                            cursor: "pointer",
+                            opacity: isBusy ? 0.65 : 1,
+                          }}
+                        >
+                          Approve
+                        </button>
+
+                        <button
+                          onClick={() => handleStatusUpdate(docItem.id, "rejected")}
+                          disabled={isBusy}
+                          style={{
+                            marginRight: 8,
+                            background: "#f97316",
+                            color: "white",
+                            border: "none",
+                            padding: "6px 12px",
+                            borderRadius: 6,
+                            cursor: "pointer",
+                            opacity: isBusy ? 0.65 : 1,
+                          }}
+                        >
+                          Reject
+                        </button>
+                      </>
+                    )}
+
+                    {canDeleteThisDoc && (
+                      <button
+                        onClick={() => handleDelete(docItem)}
+                        disabled={isBusy}
+                        style={{
+                          background: "#dc2626",
+                          color: "white",
+                          border: "none",
+                          padding: "6px 12px",
+                          borderRadius: 6,
+                          cursor: "pointer",
+                          opacity: isBusy ? 0.65 : 1,
+                        }}
+                      >
+                        Delete
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      )}
     </div>
   );
 }

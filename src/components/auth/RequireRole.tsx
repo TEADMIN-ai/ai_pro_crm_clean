@@ -3,18 +3,20 @@
 import { ReactNode, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
+import type { UserRole } from "@/lib/auth/roleUtils";
 
-type Role = "admin" | "manager" | "staff" | "contractor";
+type NonGuestRole = Exclude<UserRole, "guest">;
 
 export default function RequireRole({
   allow,
   children,
 }: {
-  allow: Role[];
+  allow: NonGuestRole[];
   children: ReactNode;
 }) {
   const { user, role, loading } = useAuth();
   const router = useRouter();
+  const hasAccess = role !== "guest" && allow.includes(role);
 
   useEffect(() => {
     if (loading) return;
@@ -24,12 +26,12 @@ export default function RequireRole({
       return;
     }
 
-    if (!role || !allow.includes(role)) {
+    if (!hasAccess) {
       router.replace("/dashboard");
     }
-  }, [user, role, loading, allow, router]);
+  }, [user, role, loading, allow, router, hasAccess]);
 
-  if (loading || !user || !role || !allow.includes(role)) {
+  if (loading || !user || !hasAccess) {
     return null;
   }
 

@@ -2,6 +2,7 @@
 
 import { ChangeEvent, useState } from "react";
 import { uploadDealDocuments } from "@/lib/firebase/storage/uploadDealDocuments";
+import { useAuth } from "@/context/AuthContext";
 
 export default function DealDocumentUpload({
   dealId,
@@ -10,6 +11,7 @@ export default function DealDocumentUpload({
   dealId: string;
   userId: string;
 }) {
+  const { role } = useAuth();
   const [uploading, setUploading] = useState(false);
 
   async function handleFileSelect(e: ChangeEvent<HTMLInputElement>) {
@@ -19,7 +21,7 @@ export default function DealDocumentUpload({
     try {
       setUploading(true);
 
-      await uploadDealDocuments(dealId, file, userId);
+      await uploadDealDocuments(dealId, file, userId, role);
 
       alert("Upload successful!");
     } catch (err: any) {

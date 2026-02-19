@@ -2,58 +2,53 @@
 
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
+import { canUpload } from "@/lib/auth/roleUtils";
 
 export default function Sidebar() {
-  const { role } = useAuth();
+  const { role, loading } = useAuth();
+
+  if (loading) {
+    return null;
+  }
 
   return (
     <aside
       style={{
-        width: 240,
-        background: "#0b1a33",
-        color: "white",
-        padding: "24px 16px",
+        width: 220,
         minHeight: "100vh",
+        background: "#0f1c2e",
+        color: "white",
+        padding: "20px 15px",
         display: "flex",
         flexDirection: "column",
-        gap: 16,
+        gap: 12,
       }}
     >
-      <h2 style={{ marginBottom: 8 }}>Navigation</h2>
+      <h2 style={{ marginBottom: 10 }}>Navigation</h2>
 
-      <div style={{ fontSize: 14, opacity: 0.8 }}>
-        Role: {role ?? "guest"}
+      <div style={{ fontSize: 14, opacity: 0.7 }}>
+        Role: {role}
       </div>
 
-      <nav style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-        <Link
-          href="/dashboard"
-          style={{ color: "white", textDecoration: "none" }}
-        >
-          Dashboard
+      <Link href="/dashboard" style={linkStyle}>
+        Dashboard
+      </Link>
+
+      <Link href="/dashboard/deals" style={linkStyle}>
+        Deals
+      </Link>
+
+      {canUpload(role) && (
+        <Link href="/dashboard/upload" style={linkStyle}>
+          Upload PDF
         </Link>
-
-        <Link
-          href="/dashboard/deals"
-          style={{ color: "white", textDecoration: "none" }}
-        >
-          Deals
-        </Link>
-
-        {/* Admin-only example link */}
-        {role === "admin" && (
-          <Link
-            href="/dashboard/deals/new"
-            style={{ color: "white", textDecoration: "none" }}
-          >
-            Create Deal
-          </Link>
-        )}
-      </nav>
-
-      <div style={{ marginTop: "auto", fontSize: 12, opacity: 0.6 }}>
-        Torque Empire CRM
-      </div>
+      )}
     </aside>
   );
 }
+
+const linkStyle = {
+  color: "white",
+  textDecoration: "none",
+  padding: "6px 0",
+};

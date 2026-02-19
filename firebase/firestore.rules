@@ -1,8 +1,86 @@
-﻿rules_version = "2";
+rules_version = "2";
 
 service cloud.firestore {
   match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null;
+    }
 
+    function role() {
+      return isSignedIn() && request.auth.token.role is string
+        ? request.auth.token.role
+        : "guest";
+    }
+
+    function isAdminOrManager() {
+      return role() in ["admin", "manager"];
+    }
+
+    function isDealEditor() {
+      return role() in ["admin", "manager", "staff"];
+    }
+
+    function canCreateDocument() {
+      return role() in ["admin", "manager", "staff", "contractor"];
+    }
+
+    function isOwner(resourceData) {
+      return isSignedIn() && resourceData.uploadedByUid == request.auth.uid;
+    }
+
+    function onlyAllowedOwnerFieldsChanged() {
+      let changed = request.resource.data.diff(resource.data).changedKeys();
+      return changed.hasOnly(["name", "documentType", "expiryDate", "updatedAt"]);
+    }
+
+    function ownerDidNotChangeReviewFields() {
+      return request.resource.data.status == resource.data.status
+        && request.resource.data.reviewedByUid == resource.data.reviewedByUid
+        && request.resource.data.reviewedByRole == resource.data.reviewedByRole
+        && request.resource.data.reviewedAt == resource.data.reviewedAt
+        && request.resource.data.rejectionReason == resource.data.rejectionReason;
+    }
+
+    function validCreateDoc() {
+      return request.resource.data.dealId is string
+        && request.resource.data.name is string
+        && request.resource.data.contentType is string
+        && request.resource.data.size is int
+        && request.resource.data.storagePath is string
+        && request.resource.data.downloadURL is string
+        && request.resource.data.uploadedByUid is string
+        && request.resource.data.uploadedByRole in ["admin", "manager", "staff", "contractor"]
+        && request.resource.data.status in ["pending", "approved", "rejected"];
+    }
+
+    match /deals/{dealId} {
+      allow read: if isSignedIn();
+      allow create, update, delete: if isSignedIn() && isDealEditor();
+
+      match /documents/{docId} {
+        allow read: if isSignedIn();
+
+        allow create: if isSignedIn()
+          && canCreateDocument()
+          && request.resource.data.uploadedByUid == request.auth.uid
+          && validCreateDoc();
+
+        allow delete: if isSignedIn()
+          && (isAdminOrManager() || isOwner(resource.data));
+
+        allow update: if isSignedIn()
+          && (
+            isAdminOrManager()
+            || (
+              isOwner(resource.data)
+              && onlyAllowedOwnerFieldsChanged()
+              && ownerDidNotChangeReviewFields()
+            )
+          );
+      }
+    }
+
+    // Existing collections retained as-is.
     match /contractors/{docId} {
       allow read, write: if true;
     }

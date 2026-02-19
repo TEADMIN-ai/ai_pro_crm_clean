@@ -2,6 +2,8 @@
 
 import type { Deal, DealStage } from "@/types/deal";
 import { computeTenderReadiness } from "@/lib/tender/computeTenderReadiness";
+import { useAuth } from "@/context/AuthContext";
+import { canSubmitDeal } from "@/lib/auth/roleUtils";
 
 type Props = {
   deal: Deal;
@@ -16,9 +18,11 @@ export default function DealCard({
   onSubmitAction,
   onManagerApproveAction,
 }: Props) {
+  const { role } = useAuth();
   const readiness = computeTenderReadiness(deal);
 
   const canSubmit =
+    canSubmitDeal(role) &&
     deal.stage === "manager_review" &&
     deal.pricingStatus === "manager_approved" &&
     !deal.isTenderLocked &&

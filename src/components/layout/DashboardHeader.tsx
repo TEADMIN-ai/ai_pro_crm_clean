@@ -12,24 +12,27 @@ export default function DashboardHeader() {
       await logout();
       router.replace("/login");
     } catch (err) {
-      console.error("Logout failed", err);
+      console.error("Logout failed:", err);
+      alert("Logout failed. Check console.");
     }
   };
 
   return (
-    <button
-      onClick={handleLogout}
-      style={{
-        padding: "10px 16px",
-        borderRadius: 10,
-        background: "#2563eb",
-        color: "white",
-        border: "none",
-        cursor: "pointer",
-        fontWeight: 700,
-      }}
-    >
-      Logout
-    </button>
+    <div style={{ display: "flex", justifyContent: "flex-end" }}>
+      <button
+        onClick={handleLogout}
+        style={{
+          padding: "10px 16px",
+          borderRadius: 10,
+          background: "#2563eb",
+          color: "white",
+          border: "none",
+          cursor: "pointer",
+          fontWeight: 700,
+        }}
+      >
+        Logout
+      </button>
+    </div>
   );
 }

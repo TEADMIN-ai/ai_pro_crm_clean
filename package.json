@@ -10,7 +10,8 @@
     "typecheck": "tsc --noEmit",
     "lint": "next lint",
     "build:strict": "npm run clean && npm run typecheck && npm run lint && next build",
-    "deploy:guard": "npm run build:strict"
+    "deploy:guard": "npm run build:strict",
+    "set:admin": "ts-node scripts/bootstrapAdminRole.ts"
   },
   "dependencies": {
     "firebase": "^10.12.0",
@@ -31,6 +32,7 @@
     "eslint": "^9.39.2",
     "eslint-config-next": "^16.1.3",
     "rimraf": "^5.0.10",
+    "tsx": "^4.21.0",
     "typescript": "^5.4.0"
   }
 }
