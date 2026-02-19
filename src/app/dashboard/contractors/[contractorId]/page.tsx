@@ -1,194 +1,187 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
-import type { CSSProperties } from "react";
-import { doc, getDoc } from "firebase/firestore";
-import { db } from "@/lib/firebase";
-import { useAuth } from "@/context/AuthContext";
-import {
-  canUploadContractorDocs,
-  canViewContractorProfile,
-} from "@/lib/auth/roleUtils";
-import { getContractor } from "@/lib/contractors/getContractor";
-import { getContractorDocuments } from "@/lib/contractors/getContractorDocuments";
+import { useEffect, useMemo, useState } from "react";
+import { useParams } from "next/navigation";
 import ContractorDocumentUploader from "@/components/contractors/ContractorDocumentUploader";
-import type { Contractor } from "@/types/contractor";
+import { getContractorDocuments } from "@/lib/contractors/getContractorDocuments";
 import type { ContractorDocument } from "@/types/document";
 
-export default function ContractorProfilePage() {
-  const router = useRouter();
-  const params = useParams<{ contractorId: string }>();
-  const contractorId = useMemo(() => {
-    const raw = params?.contractorId;
-    return Array.isArray(raw) ? raw[0] : raw;
-  }, [params]);
+type DocumentDisplay = {
+  id: string;
+  name: string;
+  status: ContractorDocument["status"];
+  docType: ContractorDocument["docType"];
+  expiresAt: Date | null;
+  downloadURL: string;
+};
 
-  const { user, role, loading } = useAuth();
+function normalizeDocumentName(doc: ContractorDocument): string {
+  const normalizedSource = doc as ContractorDocument & {
+    fileName?: unknown;
+    originalName?: unknown;
+    filename?: unknown;
+  };
 
-  const [contractor, setContractor] = useState<Contractor | null>(null);
-  const [documents, setDocuments] = useState<ContractorDocument[]>([]);
-  const [showUploader, setShowUploader] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const candidates = [
+    normalizedSource.fileName,
+    normalizedSource.originalName,
+    normalizedSource.filename,
+    doc.docType,
+  ];
 
-  const loadDocuments = useCallback(async () => {
-    if (!contractorId) return;
-    const docs = await getContractorDocuments(contractorId);
-    setDocuments(docs);
-  }, [contractorId]);
-
-  useEffect(() => {
-    if (loading) return;
-    if (!user) {
-      router.replace("/login");
-      return;
+  for (const candidate of candidates) {
+    if (typeof candidate === "string" && candidate.trim().length > 0) {
+      return candidate.trim();
     }
-    if (!canViewContractorProfile(role)) {
-      router.replace("/dashboard");
-      return;
-    }
-    if (!contractorId) {
-      setError("Missing contractor ID");
-      setIsLoading(false);
-      return;
-    }
-
-    let cancelled = false;
-
-    (async () => {
-      try {
-        if (role === "contractor") {
-          const userDoc = await getDoc(doc(db, "users", user.uid));
-          const ownContractorId = (userDoc.data() as { contractorId?: unknown } | undefined)
-            ?.contractorId;
-
-          if (typeof ownContractorId !== "string" || ownContractorId !== contractorId) {
-            router.replace("/dashboard");
-            return;
-          }
-        }
-
-        const [contractorRecord] = await Promise.all([
-          getContractor(contractorId),
-          loadDocuments(),
-        ]);
-
-        if (!cancelled) {
-          setContractor(contractorRecord);
-        }
-      } catch (profileError) {
-        if (!cancelled) {
-          const message =
-            profileError instanceof Error ? profileError.message : "Failed to load contractor profile";
-          setError(message);
-        }
-      } finally {
-        if (!cancelled) {
-          setIsLoading(false);
-        }
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [loading, user, role, contractorId, router, loadDocuments]);
-
-  if (loading || isLoading) {
-    return <div style={{ padding: 40 }}>Loading contractor profile...</div>;
   }
 
-  if (!user || !canViewContractorProfile(role) || !contractor) {
-    return (
-      <div style={{ padding: 40 }}>
-        {error ? <p style={{ color: "#dc2626" }}>{error}</p> : null}
-      </div>
-    );
+  return "Unknown document";
+}
+
+function normalizeExpiresAt(expiresAt: ContractorDocument["expiresAt"]): Date | null {
+  if (typeof expiresAt !== "number" || !Number.isFinite(expiresAt)) {
+    return null;
+  }
+
+  const parsed = new Date(expiresAt);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function toDisplayDocument(doc: ContractorDocument, index: number): DocumentDisplay {
+  const normalizedId =
+    typeof doc.id === "string" && doc.id.trim().length > 0
+      ? doc.id
+      : `document-${index + 1}`;
+
+  return {
+    id: normalizedId,
+    name: normalizeDocumentName(doc),
+    status: doc.status,
+    docType: doc.docType,
+    expiresAt: normalizeExpiresAt(doc.expiresAt),
+    downloadURL: doc.downloadURL,
+  };
+}
+
+export default function ContractorPage() {
+  const params = useParams();
+
+  const contractorId =
+    typeof params?.contractorId === "string"
+      ? params.contractorId
+      : null;
+
+  const [documents, setDocuments] = useState<ContractorDocument[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function load(): Promise<void> {
+      if (contractorId === null) {
+        if (isMounted) {
+          setError("Invalid contractor ID");
+          setLoading(false);
+        }
+        return;
+      }
+
+      setError(null);
+      setLoading(true);
+
+      try {
+        const docs = await getContractorDocuments(contractorId);
+
+        if (isMounted) {
+          setDocuments(Array.isArray(docs) ? docs : []);
+        }
+      } catch (loadError: unknown) {
+        if (!isMounted) {
+          return;
+        }
+
+        const message =
+          loadError instanceof Error
+            ? loadError.message
+            : "Failed to load documents";
+
+        setError(message);
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
+    }
+
+    void load();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [contractorId]);
+
+  const displayDocuments = useMemo(
+    () => documents.map((doc, index) => toDisplayDocument(doc, index)),
+    [documents]
+  );
+
+  if (contractorId === null) {
+    return <div style={{ color: "#dc2626" }}>Invalid contractor ID.</div>;
+  }
+
+  if (loading) {
+    return <div>Loading contractor...</div>;
+  }
+
+  if (error) {
+    return <div style={{ color: "#dc2626" }}>{error}</div>;
   }
 
   return (
-    <div style={{ padding: 40 }}>
-      <h1>{contractor.companyName}</h1>
-      <p style={{ marginBottom: 4 }}><strong>Contact Person:</strong> {contractor.contactPerson}</p>
-      <p style={{ marginBottom: 4 }}><strong>Email:</strong> {contractor.email}</p>
-      <p style={{ marginBottom: 4 }}><strong>Phone:</strong> {contractor.phone}</p>
-      <p style={{ marginBottom: 16 }}><strong>Status:</strong> {contractor.status}</p>
+    <div>
+      <h1>Contractor Profile</h1>
 
-      {canUploadContractorDocs(role) && (
-        <button
-          onClick={() => setShowUploader((value) => !value)}
-          style={{
-            padding: "10px 16px",
-            border: "none",
-            borderRadius: 6,
-            background: "#2563eb",
-            color: "white",
-            cursor: "pointer",
-          }}
-        >
-          {showUploader ? "Close Upload" : "Upload Document"}
-        </button>
+      <ContractorDocumentUploader
+        contractorId={contractorId}
+        onUploaded={async () => {
+          try {
+            const docs = await getContractorDocuments(contractorId);
+            setDocuments(Array.isArray(docs) ? docs : []);
+            setError(null);
+          } catch (refreshError: unknown) {
+            const message =
+              refreshError instanceof Error
+                ? refreshError.message
+                : "Failed to refresh documents";
+            setError(message);
+          }
+        }}
+      />
+
+      <h2>Documents</h2>
+
+      {displayDocuments.length === 0 && (
+        <div>No contractor documents uploaded yet.</div>
       )}
 
-      {showUploader && canUploadContractorDocs(role) && (
-        <ContractorDocumentUploader
-          contractorId={contractor.id}
-          onUploaded={loadDocuments}
-        />
-      )}
-
-      <h2 style={{ marginTop: 24 }}>Documents</h2>
-      {documents.length === 0 ? (
-        <p>No contractor documents uploaded yet.</p>
-      ) : (
-        <table
-          style={{
-            width: "100%",
-            borderCollapse: "collapse",
-            marginTop: 12,
-          }}
-        >
-          <thead>
-            <tr style={{ textAlign: "left" }}>
-              <th style={cellStyle}>Name</th>
-              <th style={cellStyle}>Status</th>
-              <th style={cellStyle}>Uploaded At</th>
-              <th style={cellStyle}>Action</th>
-            </tr>
-          </thead>
-          <tbody>
-            {documents.map((item) => (
-              <tr key={item.id}>
-                <td style={cellStyle}>{item.name}</td>
-                <td style={cellStyle}>{item.status}</td>
-                <td style={cellStyle}>
-                  {item.uploadedAt ? new Date(item.uploadedAt).toLocaleString() : "-"}
-                </td>
-                <td style={cellStyle}>
-                  <button
-                    onClick={() => window.open(item.downloadURL, "_blank", "noopener,noreferrer")}
-                    style={{
-                      padding: "6px 12px",
-                      borderRadius: 6,
-                      border: "1px solid #d1d5db",
-                      background: "white",
-                      cursor: "pointer",
-                    }}
-                  >
-                    View
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
+      {displayDocuments.map((doc) => (
+        <div key={doc.id} style={{ marginBottom: 8 }}>
+          <div>{doc.name}</div>
+          <div style={{ color: "#6b7280", fontSize: 13 }}>
+            Status: {doc.status}
+            {doc.docType ? ` • Type: ${doc.docType}` : ""}
+            {doc.expiresAt
+              ? ` • Expires: ${doc.expiresAt.toLocaleDateString()}`
+              : " • Expires: Not set"}
+          </div>
+          {doc.downloadURL ? (
+            <a href={doc.downloadURL} target="_blank" rel="noreferrer">
+              Open document
+            </a>
+          ) : null}
+        </div>
+      ))}
     </div>
   );
 }
-
-const cellStyle: CSSProperties = {
-  borderBottom: "1px solid #e5e7eb",
-  padding: "10px 6px",
-};

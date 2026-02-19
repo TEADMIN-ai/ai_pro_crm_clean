@@ -1,207 +1,253 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAuth, type DecodedIdToken } from "firebase-admin/auth";
-import { initFirebaseAdmin } from "@/lib/firebase/admin";
-import { canUploadContractorDocs, type UserRole } from "@/lib/auth/roleUtils";
-import type { ContractorDocument } from "@/types/document";
-import { getFirestore } from "firebase-admin/firestore";
+import { getAuth } from "firebase-admin/auth";
+import { FieldValue, getFirestore } from "firebase-admin/firestore";
+import { adminDb, initFirebaseAdmin } from "@/lib/firebase/admin";
 import { extractDocumentData, extractExpiryFromDocumentText } from "@/lib/ai/extractDocumentData";
 import { classifyDocument } from "@/lib/ai/classifyDocument";
+import type { ContractorDocument } from "@/types/document";
 
-type RouteContext = {
-  params: Promise<{ contractorId: string }>;
-};
+export const runtime = "nodejs";
 
-type AuthContext = {
-  uid: string;
-  role: UserRole;
-  contractorId: string | null;
-};
-
-function normalizeUserRole(role: unknown): UserRole {
-  if (
-    role === "admin" ||
-    role === "manager" ||
-    role === "staff" ||
-    role === "contractor"
-  ) {
-    return role;
-  }
-  return "guest";
+function jsonError(message: string, status: number) {
+  return NextResponse.json({ error: message }, { status });
 }
 
-async function authenticate(req: NextRequest): Promise<AuthContext | NextResponse> {
-  const authHeader = req.headers.get("authorization");
-  if (!authHeader?.startsWith("Bearer ")) {
-    return NextResponse.json({ error: "Missing token" }, { status: 401 });
+function normalizeTimestamp(value: unknown): number {
+  if (typeof value === "number") {
+    return value;
   }
 
-  const idToken = authHeader.split("Bearer ")[1];
-  initFirebaseAdmin();
-
-  let decodedToken: DecodedIdToken;
-  try {
-    const adminAuth = getAuth();
-    decodedToken = await adminAuth.verifyIdToken(idToken);
-  } catch {
-    return NextResponse.json({ error: "Invalid token" }, { status: 401 });
+  if (
+    typeof value === "object" &&
+    value !== null &&
+    "toMillis" in value &&
+    typeof (value as { toMillis: unknown }).toMillis === "function"
+  ) {
+    return (value as { toMillis: () => number }).toMillis();
   }
 
-  const db = getFirestore();
-  const userDoc = await db.collection("users").doc(decodedToken.uid).get();
-
-  if (!userDoc.exists) {
-    return NextResponse.json({ error: "User document not found" }, { status: 404 });
+  if (
+    typeof value === "object" &&
+    value !== null &&
+    "seconds" in value &&
+    typeof (value as { seconds: unknown }).seconds === "number"
+  ) {
+    return (value as { seconds: number }).seconds * 1000;
   }
 
-  const userData = userDoc.data() as { role?: unknown; contractorId?: unknown };
-  const role = normalizeUserRole(userData.role ?? decodedToken.role);
-  const contractorId =
-    typeof userData.contractorId === "string" ? userData.contractorId : null;
+  return Date.now();
+}
+
+function toDocument(
+  id: string,
+  contractorId: string,
+  data: Record<string, unknown>
+): ContractorDocument {
+  const uploadedAtRaw = data.uploadedAt ?? data.createdAt;
+  const uploadedAt = normalizeTimestamp(uploadedAtRaw);
+
+  const expiresAtRaw = data.expiresAt;
+  const expiresAt = expiresAtRaw == null ? null : normalizeTimestamp(expiresAtRaw);
+
+  const statusRaw = data.status;
+  const status: ContractorDocument["status"] =
+    statusRaw === "expired" || statusRaw === "replaced" ? statusRaw : "active";
 
   return {
-    uid: decodedToken.uid,
-    role,
+    id,
     contractorId,
+    name: typeof data.name === "string" ? data.name : "",
+    storagePath: typeof data.storagePath === "string" ? data.storagePath : "",
+    downloadURL: typeof data.downloadURL === "string" ? data.downloadURL : "",
+    uploadedBy: typeof data.uploadedBy === "string" ? data.uploadedBy : "",
+    uploadedAt,
+    status,
+    expiresAt,
+    docType: typeof data.docType === "string" ? data.docType : null,
   };
 }
 
-export async function POST(req: NextRequest, context: RouteContext) {
-  try {
-    // 1) Authenticate Firebase user.
-    const auth = await authenticate(req);
-    if (auth instanceof NextResponse) return auth;
+async function authenticate(request: NextRequest): Promise<{ uid: string }> {
+  const authHeader = request.headers.get("authorization");
 
-    // 2) Verify role permissions.
-    if (!canUploadContractorDocs(auth.role)) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    }
-
-    const { contractorId } = await context.params;
-    if (!contractorId) {
-      return NextResponse.json({ error: "Missing contractorId" }, { status: 400 });
-    }
-
-    if (auth.role === "contractor" && auth.contractorId !== contractorId) {
-      return NextResponse.json(
-        { error: "Contractor can only upload documents for own contractor profile" },
-        { status: 403 }
-      );
-    }
-
-    const body = await req.json();
-    const name = typeof body?.name === "string" ? body.name.trim() : "";
-    const storagePath = typeof body?.storagePath === "string" ? body.storagePath.trim() : "";
-    const downloadURL = typeof body?.downloadURL === "string" ? body.downloadURL.trim() : "";
-
-    if (!name || !storagePath || !downloadURL) {
-      return NextResponse.json(
-        { error: "Missing required fields: name, storagePath, downloadURL" },
-        { status: 400 }
-      );
-    }
-
-    const db = getFirestore();
-    const documentsRef = db.collection("contractors").doc(contractorId).collection("documents");
-    const docRef = documentsRef.doc();
-
-    // 3) Save metadata document first, before any AI processing.
-    const document: ContractorDocument = {
-      id: docRef.id,
-      contractorId,
-      name,
-      storagePath,
-      downloadURL,
-      uploadedBy: auth.uid,
-      uploadedAt: Date.now(),
-      status: "active",
-      expiresAt: null,
-      docType: null,
-    };
-
-    await docRef.set(document);
-
-    let docType: string | null = null;
-    let expiresAt: number | null = null;
-
-    try {
-      // 4) Extract text/mime from stored document.
-      const extracted = await extractDocumentData({ storagePath, filename: name });
-      // 5) Classify document type from text with filename fallback.
-      const classification = await classifyDocument({
-        text: extracted.text,
-        fileName: name,
-      });
-      // 6) Extract expiry from document text.
-      expiresAt = await extractExpiryFromDocumentText({
-        text: extracted.text,
-        fileName: name,
-        docType: classification.docType,
-      });
-      docType = classification.docType;
-    } catch (aiError) {
-      console.error("AI document processing failed", {
-        contractorId,
-        documentId: docRef.id,
-        storagePath,
-        aiError,
-      });
-    }
-
-    // 7) Update Firestore with docType/expiresAt/status.
-    const aiUpdate: Pick<ContractorDocument, "docType" | "expiresAt" | "status"> = {
-      docType,
-      expiresAt,
-      status: typeof expiresAt === "number" && expiresAt < Date.now() ? "expired" : "active",
-    };
-
-    await docRef.update(aiUpdate);
-
-    const finalSnapshot = await docRef.get();
-    const finalDocument = finalSnapshot.data() as ContractorDocument | undefined;
-    if (!finalDocument) {
-      throw new Error("Document write failed");
-    }
-
-    return NextResponse.json({ success: true, document: finalDocument }, { status: 201 });
-  } catch (error) {
-    console.error("Contractor document upload failed:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  if (!authHeader?.startsWith("Bearer ")) {
+    throw new Error("Missing token");
   }
+
+  const token = authHeader.slice("Bearer ".length).trim();
+  if (!token) {
+    throw new Error("Missing token");
+  }
+
+  initFirebaseAdmin();
+  const decoded = await getAuth().verifyIdToken(token);
+  return { uid: decoded.uid };
 }
 
-export async function GET(req: NextRequest, context: RouteContext) {
+export async function GET(
+  request: NextRequest,
+  context: { params: { contractorId: string } }
+) {
   try {
-    const auth = await authenticate(req);
-    if (auth instanceof NextResponse) return auth;
+    const contractorId = context?.params?.contractorId;
 
-    if (!canUploadContractorDocs(auth.role)) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    }
-
-    const { contractorId } = await context.params;
     if (!contractorId) {
-      return NextResponse.json({ error: "Missing contractorId" }, { status: 400 });
+      return jsonError("Missing contractorId", 400);
     }
 
-    if (auth.role === "contractor" && auth.contractorId !== contractorId) {
-      return NextResponse.json(
-        { error: "Contractor can only access documents for own contractor profile" },
-        { status: 403 }
-      );
-    }
+    await authenticate(request);
 
-    const db = getFirestore();
+    const db = adminDb();
     const snapshot = await db
       .collection("contractors")
       .doc(contractorId)
       .collection("documents")
-      .orderBy("uploadedAt", "desc")
+      .orderBy("createdAt", "desc")
       .get();
 
-    const documents = snapshot.docs.map((doc) => doc.data() as ContractorDocument);
+    const documents: ContractorDocument[] = snapshot.docs.map((snapshotDoc) =>
+      toDocument(snapshotDoc.id, contractorId, snapshotDoc.data() as Record<string, unknown>)
+    );
+
     return NextResponse.json({ documents }, { status: 200 });
   } catch (error) {
-    console.error("Contractor document fetch failed:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    console.error("Document route failure:", error);
+
+    return NextResponse.json(
+      {
+        error: "Document processing failed",
+        message: error instanceof Error
+          ? error.message
+          : "Unknown error"
+      },
+      { status: 500 }
+    );
+  }
+}
+
+export async function POST(
+  request: NextRequest,
+  context: { params: { contractorId: string } }
+) {
+  try {
+    const contractorId = context?.params?.contractorId;
+
+    if (!contractorId) {
+      return jsonError("Missing contractorId", 400);
+    }
+
+    const { uid } = await authenticate(request);
+
+    let body: unknown;
+    try {
+      body = await request.json();
+    } catch {
+      return jsonError("Invalid JSON body", 400);
+    }
+
+    if (typeof body !== "object" || body === null) {
+      return jsonError("Invalid JSON body", 400);
+    }
+
+    const { name, storagePath, downloadURL } = body as {
+      name?: unknown;
+      storagePath?: unknown;
+      downloadURL?: unknown;
+    };
+
+    if (
+      typeof name !== "string" ||
+      typeof storagePath !== "string" ||
+      typeof downloadURL !== "string" ||
+      !name.trim() ||
+      !storagePath.trim() ||
+      !downloadURL.trim()
+    ) {
+      return jsonError("Missing required fields", 400);
+    }
+
+    const db = getFirestore();
+    const docRef = db
+      .collection("contractors")
+      .doc(contractorId)
+      .collection("documents")
+      .doc();
+
+    const now = Date.now();
+    const trimmedName = name.trim();
+    const trimmedStoragePath = storagePath.trim();
+    const trimmedDownloadUrl = downloadURL.trim();
+
+    await docRef.set({
+      contractorId,
+      name: trimmedName,
+      storagePath: trimmedStoragePath,
+      downloadURL: trimmedDownloadUrl,
+      uploadedBy: uid,
+      uploadedAt: now,
+      status: "active",
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    let extractedText = "";
+    let expiresAt: number | null = null;
+    let docType: string | null = null;
+
+    try {
+      const extracted = await extractDocumentData({
+        storagePath: trimmedStoragePath,
+        filename: trimmedName,
+      });
+
+      extractedText = extracted.text || "";
+
+      const classification = await classifyDocument({
+        text: extractedText,
+        fileName: trimmedName,
+      });
+
+      docType = classification?.docType ?? null;
+
+      expiresAt = await extractExpiryFromDocumentText({
+        text: extractedText,
+        fileName: trimmedName,
+        docType,
+      });
+    } catch (aiError) {
+      console.error("AI failed safely:", aiError);
+    }
+
+    const status = expiresAt && expiresAt < Date.now() ? "expired" : "active";
+
+    await docRef.update({
+      text: extractedText,
+      docType,
+      expiresAt,
+      status,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+
+    const savedDocSnapshot = await docRef.get();
+    const savedDocData = savedDocSnapshot.data() as Record<string, unknown> | undefined;
+
+    if (!savedDocData) {
+      return jsonError("Internal server error", 500);
+    }
+
+    const document = toDocument(docRef.id, contractorId, savedDocData);
+    return NextResponse.json({ document }, { status: 201 });
+  } catch (error) {
+    console.error("Document route failure:", error);
+
+    return NextResponse.json(
+      {
+        error: "Document processing failed",
+        message: error instanceof Error
+          ? error.message
+          : "Unknown error"
+      },
+      { status: 500 }
+    );
   }
 }

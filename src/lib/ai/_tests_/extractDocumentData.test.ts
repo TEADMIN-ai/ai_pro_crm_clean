@@ -21,8 +21,7 @@ describe("extractExpiryFromDocumentText", () => {
     });
 
     expect(result).toBeTruthy();
-    expect(result).toBeInstanceOf(Date);
-    expect(result?.getFullYear()).toBe(2027);
+    expect(new Date(result!).getFullYear()).toBe(2027);
   });
 
   test("detects expiry date in alternative format", async () => {
@@ -31,7 +30,7 @@ describe("extractExpiryFromDocumentText", () => {
     });
 
     expect(result).toBeTruthy();
-    expect(result?.getFullYear()).toBe(2026);
+    expect(new Date(result!).getFullYear()).toBe(2026);
   });
 
   test("returns null when no expiry exists", async () => {

@@ -41,11 +41,16 @@ export async function uploadContractorDocument(
       signal: controller.signal,
     });
 
-    const payload = (await res.json()) as UploadResponse;
-
     if (!res.ok) {
-      throw new Error(payload.error || "Upload failed");
+      throw new Error(`HTTP ${res.status}`);
     }
+
+    const contentType = res.headers.get("content-type");
+    if (!contentType?.includes("application/json")) {
+      throw new Error("API returned non-JSON response");
+    }
+
+    const payload = (await res.json()) as UploadResponse;
 
     if (!payload.document) {
       throw new Error("Upload failed");

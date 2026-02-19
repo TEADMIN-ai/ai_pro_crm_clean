@@ -17,18 +17,38 @@ export async function getContractorDocuments(
 
   const token = await user.getIdToken(true);
 
-  const res = await fetch(`/api/contractors/${contractorId}/documents`, {
-    method: "GET",
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-  });
-
-  const payload = (await res.json()) as DocumentsResponse;
+  const res = await fetch(
+    `/api/contractors/${contractorId}/documents`,
+    {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: "application/json",
+      },
+    }
+  );
 
   if (!res.ok) {
-    throw new Error(payload.error || "Failed to fetch contractor documents");
+    const text = await res.text();
+    throw new Error(
+      `API Error ${res.status}: ${text.substring(0,200)}`
+    );
   }
 
-  return payload.documents ?? [];
+  const contentType = res.headers.get("content-type") ?? "";
+
+  if (!contentType.includes("application/json")) {
+    const text = await res.text();
+    throw new Error(
+      `Non-JSON API response: ${text.substring(0,200)}`
+    );
+  }
+
+  const payload = await res.json() as DocumentsResponse;
+
+  if (!payload || !Array.isArray(payload.documents)) {
+    throw new Error("Malformed contractor documents response");
+  }
+
+  return payload.documents;
 }

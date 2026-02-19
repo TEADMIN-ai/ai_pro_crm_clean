@@ -1,7 +1,63 @@
+/**
+ * AI Document Extraction Pipeline
+ * --------------------------------
+ *
+ * PURPOSE:
+ * Extract structured compliance data from contractor documents stored in Firebase Storage.
+ *
+ * This module performs:
+ *
+ * 1. Secure download from Firebase Storage (Admin SDK)
+ * 2. Text extraction:
+ *    - Direct UTF-8 decode for text-based files
+ *    - OpenAI OCR for binary files (PDF, JPG, PNG, etc.)
+ *
+ * 3. Expiry detection using:
+ *    - Regex fallback (fast, deterministic)
+ *    - OpenAI structured extraction (more accurate)
+ *
+ * OUTPUT:
+ * Returns ExtractedDocumentData object containing:
+ *   - text: extracted document text
+ *   - expiresAt: timestamp in milliseconds (number | null)
+ *   - mimeType: optional detected mime type
+ *
+ * DESIGN PRINCIPLES:
+ *
+ * FAIL-SAFE:
+ *   OpenAI failures NEVER break document upload pipeline.
+ *
+ * TYPE-SAFE:
+ *   Expiry is always returned as timestamp number, never Date object.
+ *
+ * STORAGE-SAFE:
+ *   Original file always remains source of truth.
+ *
+ * PRODUCTION-SAFE:
+ *   Missing OPENAI_API_KEY does not cause system failure.
+ *
+ * ARCHITECTURE ROLE:
+ *   Firebase Storage  extractDocumentData  classifyDocument  Firestore metadata update
+ *
+ */
 import OpenAI from "openai";
 import { cert, getApps, initializeApp } from "firebase-admin/app";
 import { getStorage } from "firebase-admin/storage";
 
+/**
+ * ExtractedDocumentData
+ *
+ * Represents normalized AI extraction result.
+ *
+ * expiresAt MUST be number timestamp (ms since epoch), not Date.
+ * This ensures compatibility with:
+ *
+ * - Firestore numeric indexing
+ * - expiration comparisons
+ * - client rendering
+ * - JSON serialization
+ *
+ */
 export type ExtractedDocumentData = {
   text: string;
   mimeType?: string;
@@ -234,6 +290,24 @@ async function extractExpiryWithOpenAI(args: {
   }
 }
 
+/**
+ * extractDocumentData
+ *
+ * Downloads document from Firebase Storage and extracts readable text.
+ *
+ * FLOW:
+ * 1. Download file buffer
+ * 2. Attempt UTF-8 decode
+ * 3. If decode fails  use OpenAI OCR fallback
+ *
+ * RETURNS:
+ * ExtractedDocumentData
+ *
+ * SAFETY:
+ * Never throws due to AI failure.
+ * Always returns safe fallback result.
+ *
+ */
 export async function extractDocumentData(args: {
   storagePath: string;
   filename?: string;
@@ -313,6 +387,25 @@ export async function extractDocumentData(args: {
   }
 }
 
+/**
+ * extractExpiryFromDocumentText
+ *
+ * Extracts expiry date from document text.
+ *
+ * STRATEGY:
+ *
+ * 1. Fast regex detection (primary method)
+ * 2. OpenAI structured extraction (fallback)
+ *
+ * RETURNS:
+ *
+ * number timestamp (ms) or null
+ *
+ * NEVER RETURNS Date object.
+ *
+ * This ensures Firestore and client compatibility.
+ *
+ */
 export async function extractExpiryFromDocumentText(args: {
   text: string;
   fileName?: string;
