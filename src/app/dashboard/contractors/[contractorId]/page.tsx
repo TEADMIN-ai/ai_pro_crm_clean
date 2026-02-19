@@ -2,65 +2,102 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
+
 import ContractorDocumentUploader from "@/components/contractors/ContractorDocumentUploader";
+
+import { getContractor } from "@/lib/contractors/getContractor";
 import { getContractorDocuments } from "@/lib/contractors/getContractorDocuments";
+
+import type { Contractor } from "@/types/contractor";
 import type { ContractorDocument } from "@/types/document";
 
-type DocumentDisplay = {
+type NormalizedDocumentDisplay = {
   id: string;
   name: string;
-  status: ContractorDocument["status"];
-  docType: ContractorDocument["docType"];
+  type: string;
+  status: string;
   expiresAt: Date | null;
-  downloadURL: string;
 };
 
-function normalizeDocumentName(doc: ContractorDocument): string {
-  const normalizedSource = doc as ContractorDocument & {
-    fileName?: unknown;
-    originalName?: unknown;
-    filename?: unknown;
-  };
-
-  const candidates = [
-    normalizedSource.fileName,
-    normalizedSource.originalName,
-    normalizedSource.filename,
-    doc.docType,
-  ];
-
-  for (const candidate of candidates) {
-    if (typeof candidate === "string" && candidate.trim().length > 0) {
-      return candidate.trim();
-    }
-  }
-
-  return "Unknown document";
-}
-
-function normalizeExpiresAt(expiresAt: ContractorDocument["expiresAt"]): Date | null {
-  if (typeof expiresAt !== "number" || !Number.isFinite(expiresAt)) {
+function readNonEmptyString(
+  record: Record<string, unknown>,
+  key: string
+): string | null {
+  const value = record[key];
+  if (typeof value !== "string") {
     return null;
   }
 
-  const parsed = new Date(expiresAt);
-  return Number.isNaN(parsed.getTime()) ? null : parsed;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
 }
 
-function toDisplayDocument(doc: ContractorDocument, index: number): DocumentDisplay {
-  const normalizedId =
-    typeof doc.id === "string" && doc.id.trim().length > 0
-      ? doc.id
-      : `document-${index + 1}`;
+function toDateOrNull(value: unknown): Date | null {
+  if (value == null) {
+    return null;
+  }
+
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? null : value;
+  }
+
+  if (typeof value === "number" || typeof value === "string") {
+    const candidate = new Date(value);
+    return Number.isNaN(candidate.getTime()) ? null : candidate;
+  }
+
+  if (typeof value === "object" && value !== null && "toDate" in value) {
+    const maybeToDate = (value as { toDate?: unknown }).toDate;
+    if (typeof maybeToDate === "function") {
+      const result = maybeToDate.call(value);
+      if (result instanceof Date && !Number.isNaN(result.getTime())) {
+        return result;
+      }
+    }
+  }
+
+  return null;
+}
+
+function normalizeDocument(doc: ContractorDocument): NormalizedDocumentDisplay {
+  const raw = doc as unknown as Record<string, unknown>;
+  const typeLabel = readNonEmptyString(raw, "docType") ?? "-";
+  const statusLabel = readNonEmptyString(raw, "status") ?? "-";
+  const expiresAt = toDateOrNull(raw.expiresAt);
 
   return {
-    id: normalizedId,
+    id: doc.id,
     name: normalizeDocumentName(doc),
-    status: doc.status,
-    docType: doc.docType,
-    expiresAt: normalizeExpiresAt(doc.expiresAt),
-    downloadURL: doc.downloadURL,
+    type: typeLabel,
+    status: statusLabel,
+    expiresAt,
   };
+}
+
+function formatExpiryDate(value: Date | null): string {
+  return value ? value.toLocaleDateString() : "-";
+}
+
+function normalizeDocumentName(doc: ContractorDocument): string {
+  const raw = doc as any;
+
+  if (typeof raw.fileName === "string" && raw.fileName.trim().length > 0) {
+    return raw.fileName;
+  }
+
+  if (typeof raw.originalName === "string" && raw.originalName.trim().length > 0) {
+    return raw.originalName;
+  }
+
+  if (typeof raw.filename === "string" && raw.filename.trim().length > 0) {
+    return raw.filename;
+  }
+
+  if (typeof raw.docType === "string" && raw.docType.trim().length > 0) {
+    return raw.docType;
+  }
+
+  return "Unknown document";
 }
 
 export default function ContractorPage() {
@@ -71,117 +108,142 @@ export default function ContractorPage() {
       ? params.contractorId
       : null;
 
+  const [contractor, setContractor] = useState<Contractor | null>(null);
   const [documents, setDocuments] = useState<ContractorDocument[]>([]);
-  const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    let isMounted = true;
+    if (!contractorId) {
+      setLoading(false);
+      return;
+    }
+    const resolvedContractorId = contractorId;
 
     async function load(): Promise<void> {
-      if (contractorId === null) {
-        if (isMounted) {
-          setError("Invalid contractor ID");
-          setLoading(false);
-        }
-        return;
-      }
-
-      setError(null);
-      setLoading(true);
-
       try {
-        const docs = await getContractorDocuments(contractorId);
+        setLoading(true);
+        setError(null);
 
-        if (isMounted) {
-          setDocuments(Array.isArray(docs) ? docs : []);
-        }
-      } catch (loadError: unknown) {
-        if (!isMounted) {
-          return;
-        }
+        const contractorData = await getContractor(resolvedContractorId);
+        const documentData = await getContractorDocuments(resolvedContractorId);
 
-        const message =
-          loadError instanceof Error
-            ? loadError.message
-            : "Failed to load documents";
-
-        setError(message);
+        setContractor(contractorData);
+        setDocuments(documentData);
+      } catch (err: unknown) {
+        console.error(err);
+        setError(err instanceof Error ? err.message : "Failed to load contractor");
       } finally {
-        if (isMounted) {
-          setLoading(false);
-        }
+        setLoading(false);
       }
     }
 
     void load();
-
-    return () => {
-      isMounted = false;
-    };
   }, [contractorId]);
 
-  const displayDocuments = useMemo(
-    () => documents.map((doc, index) => toDisplayDocument(doc, index)),
+  const normalizedDocuments = useMemo(
+    () => documents.map((doc) => normalizeDocument(doc)),
     [documents]
   );
 
-  if (contractorId === null) {
-    return <div style={{ color: "#dc2626" }}>Invalid contractor ID.</div>;
+  if (!contractorId) {
+    return (
+      <div style={{ padding: 20, color: "red" }}>
+        Missing contractorId
+      </div>
+    );
   }
 
   if (loading) {
-    return <div>Loading contractor...</div>;
+    return <div style={{ padding: 20 }}>Loading contractor...</div>;
   }
 
   if (error) {
-    return <div style={{ color: "#dc2626" }}>{error}</div>;
+    return (
+      <div style={{ padding: 20, color: "red" }}>
+        {error}
+      </div>
+    );
+  }
+
+  if (!contractor) {
+    return <div style={{ padding: 20 }}>Contractor not found</div>;
   }
 
   return (
-    <div>
-      <h1>Contractor Profile</h1>
+    <div style={{ padding: 20 }}>
+      <h1>
+        {contractor.companyName || "Contractor"}
+      </h1>
 
-      <ContractorDocumentUploader
-        contractorId={contractorId}
-        onUploaded={async () => {
-          try {
-            const docs = await getContractorDocuments(contractorId);
-            setDocuments(Array.isArray(docs) ? docs : []);
-            setError(null);
-          } catch (refreshError: unknown) {
-            const message =
-              refreshError instanceof Error
-                ? refreshError.message
-                : "Failed to refresh documents";
-            setError(message);
-          }
-        }}
-      />
+      <div style={{ marginTop: 10 }}>
+        <strong>Email:</strong> {contractor.email ?? "-"}
+      </div>
 
-      <h2>Documents</h2>
+      <div>
+        <strong>Status:</strong> {contractor.status ?? "-"}
+      </div>
 
-      {displayDocuments.length === 0 && (
-        <div>No contractor documents uploaded yet.</div>
-      )}
+      <div style={{ marginTop: 20 }}>
+        <ContractorDocumentUploader
+          contractorId={contractorId}
+          onUploaded={async () => {
+            const updatedDocs = await getContractorDocuments(contractorId);
+            setDocuments(updatedDocs);
+          }}
+        />
+      </div>
 
-      {displayDocuments.map((doc) => (
-        <div key={doc.id} style={{ marginBottom: 8 }}>
-          <div>{doc.name}</div>
-          <div style={{ color: "#6b7280", fontSize: 13 }}>
-            Status: {doc.status}
-            {doc.docType ? ` • Type: ${doc.docType}` : ""}
-            {doc.expiresAt
-              ? ` • Expires: ${doc.expiresAt.toLocaleDateString()}`
-              : " • Expires: Not set"}
+      <div style={{ marginTop: 30 }}>
+        <h2>Documents</h2>
+
+        {normalizedDocuments.length === 0 && (
+          <div>
+            No contractor documents uploaded yet.
           </div>
-          {doc.downloadURL ? (
-            <a href={doc.downloadURL} target="_blank" rel="noreferrer">
-              Open document
-            </a>
-          ) : null}
-        </div>
-      ))}
+        )}
+
+        {normalizedDocuments.length > 0 && (
+          <table
+            style={{
+              width: "100%",
+              marginTop: 10,
+              borderCollapse: "collapse"
+            }}
+          >
+            <thead>
+              <tr>
+                <th align="left">Name</th>
+                <th align="left">Type</th>
+                <th align="left">Status</th>
+                <th align="left">Expiry</th>
+              </tr>
+            </thead>
+
+            <tbody>
+              {normalizedDocuments.map((doc) => (
+                <tr key={doc.id}>
+                  <td>
+                    {doc.name}
+                  </td>
+
+                  <td>
+                    {doc.type}
+                  </td>
+
+                  <td>
+                    {doc.status}
+                  </td>
+
+                  <td>
+                    {formatExpiryDate(doc.expiresAt)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
     </div>
   );
 }
