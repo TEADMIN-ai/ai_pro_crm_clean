@@ -28,6 +28,18 @@ export function canSubmitDeal(role?: UserRole): boolean {
   return role === "admin" || role === "manager" || role === "staff";
 }
 
+export function canUploadContractorDocs(role: UserRole) {
+  return ["admin", "manager", "staff", "contractor"].includes(role);
+}
+
+export function canViewContractorList(role?: UserRole): boolean {
+  return role === "admin" || role === "manager" || role === "staff";
+}
+
+export function canViewContractorProfile(role?: UserRole): boolean {
+  return role === "admin" || role === "manager" || role === "staff" || role === "contractor";
+}
+
 // Compatibility aliases used by existing callers.
 export const canApprove = canReview;
 export const canReject = canReview;

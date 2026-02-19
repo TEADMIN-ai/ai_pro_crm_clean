@@ -1,0 +1,58 @@
+import { auth } from "@/lib/firebase";
+import type { ContractorDocument } from "@/types/document";
+
+type UploadResponse = {
+  document?: ContractorDocument;
+  error?: string;
+};
+
+export async function uploadContractorDocument(
+  contractorId: string,
+  name: string,
+  storagePath: string,
+  downloadURL: string
+): Promise<ContractorDocument> {
+  if (!contractorId.trim() || !name.trim() || !storagePath.trim() || !downloadURL.trim()) {
+    throw new Error("Missing required upload arguments");
+  }
+
+  const user = auth.currentUser;
+
+  if (!user) {
+    throw new Error("User not authenticated");
+  }
+
+  const token = await user.getIdToken(true);
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 45000);
+
+  try {
+    const res = await fetch(`/api/contractors/${contractorId}/documents`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        name: name.trim(),
+        storagePath: storagePath.trim(),
+        downloadURL: downloadURL.trim(),
+      }),
+      signal: controller.signal,
+    });
+
+    const payload = (await res.json()) as UploadResponse;
+
+    if (!res.ok) {
+      throw new Error(payload.error || "Upload failed");
+    }
+
+    if (!payload.document) {
+      throw new Error("Upload failed");
+    }
+
+    return payload.document;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
