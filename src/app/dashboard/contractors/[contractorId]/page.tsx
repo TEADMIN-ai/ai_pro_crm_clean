@@ -1,3 +1,75 @@
+/**
+ * Contractor Dashboard Page
+ * =========================
+ *
+ * SYSTEM PURPOSE
+ * --------------
+ *
+ * This page is the primary compliance and document management interface
+ * for a single contractor within Torque Empire AI Pro CRM.
+ *
+ *
+ * WHAT THIS PAGE DOES
+ * -------------------
+ *
+ * Resolves contractorId safely from Next.js dynamic route
+ *
+ * Fetches contractor metadata from Firestore
+ *
+ * Fetches contractor document list
+ *
+ * Displays contractor compliance information
+ *
+ * Allows document uploads via ContractorDocumentUploader
+ *
+ * Refreshes document state after uploads
+ *
+ *
+ * DATA FLOW
+ * ---------
+ *
+ * Route param  contractorId
+ *
+ * contractorId
+ *
+ *    getContractor()
+ *    getContractorDocuments()
+ *
+ * Upload
+ *
+ *    ContractorDocumentUploader
+ *    API route
+ *    Firestore update
+ *    reload document list
+ *
+ *
+ * SAFETY GUARANTEES
+ * -----------------
+ *
+ * contractorId is runtime validated before use
+ *
+ * No nullable values passed into API calls
+ *
+ * All document rendering uses normalization helpers
+ *
+ * Handles loading, error, empty, and success states safely
+ *
+ *
+ * NEXT.JS 16 COMPATIBILITY
+ * ------------------------
+ *
+ * Uses useParams() safely to avoid Promise param errors.
+ *
+ *
+ * THIS FILE IS CRITICAL TO
+ *
+ * contractor compliance tracking
+ *
+ * document ingestion visibility
+ *
+ * AI classification display
+ *
+ */
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
@@ -78,6 +150,21 @@ function formatExpiryDate(value: Date | null): string {
   return value ? value.toLocaleDateString() : "-";
 }
 
+/**
+ * normalizeDocumentName
+ *
+ * Safely resolves a display name for contractor documents.
+ *
+ * Fallback order:
+ *
+ * fileName
+ * originalName
+ * filename
+ * docType
+ * "Unknown document"
+ *
+ * Prevents UI failures caused by incomplete Firestore metadata.
+ */
 function normalizeDocumentName(doc: ContractorDocument): string {
   const raw = doc as any;
 
@@ -113,6 +200,14 @@ export default function ContractorPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  /**
+   * Contractor Data Loader
+   *
+   * Fetches contractor metadata and document list
+   * once contractorId becomes available.
+   *
+   * Ensures dashboard reflects current Firestore state.
+   */
   useEffect(() => {
     if (!contractorId) {
       setLoading(false);
@@ -185,6 +280,17 @@ export default function ContractorPage() {
       </div>
 
       <div style={{ marginTop: 20 }}>
+        {/**
+          * ContractorDocumentUploader Integration
+          *
+          * Allows uploading new contractor compliance documents.
+          *
+          * After upload completes:
+          *
+          * document list is refreshed from Firestore
+          *
+          * UI remains synchronized with storage state
+          */}
         <ContractorDocumentUploader
           contractorId={contractorId}
           onUploaded={async () => {

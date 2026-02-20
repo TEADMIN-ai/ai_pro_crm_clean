@@ -12,58 +12,62 @@ function jsonError(message: string, status: number) {
   return NextResponse.json({ error: message }, { status });
 }
 
-function normalizeTimestamp(value: unknown): number {
-  if (typeof value === "number") {
-    return value;
-  }
-
-  if (
-    typeof value === "object" &&
-    value !== null &&
-    "toMillis" in value &&
-    typeof (value as { toMillis: unknown }).toMillis === "function"
-  ) {
-    return (value as { toMillis: () => number }).toMillis();
-  }
-
-  if (
-    typeof value === "object" &&
-    value !== null &&
-    "seconds" in value &&
-    typeof (value as { seconds: unknown }).seconds === "number"
-  ) {
-    return (value as { seconds: number }).seconds * 1000;
-  }
-
-  return Date.now();
-}
-
-function toDocument(
+function normalizeDocument(
   id: string,
-  contractorId: string,
-  data: Record<string, unknown>
+  data: any
 ): ContractorDocument {
-  const uploadedAtRaw = data.uploadedAt ?? data.createdAt;
-  const uploadedAt = normalizeTimestamp(uploadedAtRaw);
-
-  const expiresAtRaw = data.expiresAt;
-  const expiresAt = expiresAtRaw == null ? null : normalizeTimestamp(expiresAtRaw);
-
-  const statusRaw = data.status;
-  const status: ContractorDocument["status"] =
-    statusRaw === "expired" || statusRaw === "replaced" ? statusRaw : "active";
-
   return {
     id,
-    contractorId,
-    name: typeof data.name === "string" ? data.name : "",
-    storagePath: typeof data.storagePath === "string" ? data.storagePath : "",
-    downloadURL: typeof data.downloadURL === "string" ? data.downloadURL : "",
-    uploadedBy: typeof data.uploadedBy === "string" ? data.uploadedBy : "",
-    uploadedAt,
-    status,
-    expiresAt,
-    docType: typeof data.docType === "string" ? data.docType : null,
+
+    contractorId:
+      typeof data.contractorId === "string"
+        ? data.contractorId
+        : "",
+
+    fileName:
+      typeof data.fileName === "string"
+        ? data.fileName
+        : undefined,
+
+    originalName:
+      typeof data.originalName === "string"
+        ? data.originalName
+        : undefined,
+
+    filename:
+      typeof data.filename === "string"
+        ? data.filename
+        : undefined,
+
+    docType:
+      typeof data.docType === "string"
+        ? data.docType
+        : undefined,
+
+    status:
+      typeof data.status === "string"
+        ? data.status
+        : undefined,
+
+    expiresAt:
+      typeof data.expiresAt === "number"
+        ? data.expiresAt
+        : undefined,
+
+    createdAt:
+      typeof data.createdAt === "number"
+        ? data.createdAt
+        : Date.now(),
+
+    storagePath:
+      typeof data.storagePath === "string"
+        ? data.storagePath
+        : undefined,
+
+    downloadURL:
+      typeof data.downloadURL === "string"
+        ? data.downloadURL
+        : undefined,
   };
 }
 
@@ -106,10 +110,12 @@ export async function GET(
       .get();
 
     const documents: ContractorDocument[] = snapshot.docs.map((snapshotDoc) =>
-      toDocument(snapshotDoc.id, contractorId, snapshotDoc.data() as Record<string, unknown>)
+      normalizeDocument(snapshotDoc.id, snapshotDoc.data())
     );
 
-    return NextResponse.json({ documents }, { status: 200 });
+    return NextResponse.json({
+      documents
+    });
   } catch (error) {
     console.error("Document route failure:", error);
 
@@ -235,7 +241,7 @@ export async function POST(
       return jsonError("Internal server error", 500);
     }
 
-    const document = toDocument(docRef.id, contractorId, savedDocData);
+    const document = normalizeDocument(docRef.id, savedDocData);
     return NextResponse.json({ document }, { status: 201 });
   } catch (error) {
     console.error("Document route failure:", error);
