@@ -21,6 +21,36 @@ function normalizeDocument(
   id: string,
   data: any
 ): ContractorDocument {
+  const fileName =
+    typeof data?.fileName === "string" && data.fileName.trim().length > 0
+      ? data.fileName
+      : typeof data?.originalName === "string" && data.originalName.trim().length > 0
+      ? data.originalName
+      : typeof data?.filename === "string" && data.filename.trim().length > 0
+      ? data.filename
+      : typeof data?.docType === "string" && data.docType.trim().length > 0
+      ? data.docType
+      : "Recovered document";
+
+  const originalName =
+    typeof data?.originalName === "string" && data.originalName.trim().length > 0
+      ? data.originalName
+      : fileName;
+
+  const docType =
+    typeof data?.docType === "string" && data.docType.trim().length > 0
+      ? data.docType
+      : "general";
+
+  const status =
+    typeof data?.status === "string" && data.status.trim().length > 0
+      ? data.status
+      : "active";
+
+  const createdAt =
+    typeof data?.createdAt === "number" && Number.isFinite(data.createdAt)
+      ? data.createdAt
+      : Date.now();
 
   return {
 
@@ -29,42 +59,35 @@ function normalizeDocument(
     contractorId:
       typeof data.contractorId === "string"
         ? data.contractorId
-        : null,
+        : "",
 
-    fileName:
-      typeof data.fileName === "string"
-        ? data.fileName
-        : null,
-
-    originalName:
-      typeof data.originalName === "string"
-        ? data.originalName
-        : null,
+    fileName,
+    originalName,
 
     filename:
       typeof data.filename === "string"
         ? data.filename
-        : null,
+        : undefined,
 
-    docType:
-      typeof data.docType === "string"
-        ? data.docType
-        : null,
+    docType,
 
-    status:
-      typeof data.status === "string"
-        ? data.status
-        : null,
+    status,
 
     expiresAt:
       typeof data.expiresAt === "number"
         ? data.expiresAt
-        : null,
+        : typeof data.expiryDate === "number"
+          ? data.expiryDate
+          : undefined,
 
-    createdAt:
-      typeof data.createdAt === "number"
-        ? data.createdAt
-        : null,
+    expiryDate:
+      typeof data.expiryDate === "number"
+        ? data.expiryDate
+        : typeof data.expiresAt === "number"
+          ? data.expiresAt
+          : undefined,
+
+    createdAt,
 
   };
 
@@ -134,8 +157,20 @@ export async function POST(
       return jsonError("Missing contractorId", 400);
     }
 
-    const body =
+    const data =
       await request.json();
+
+    const payload = {
+      contractorId,
+      fileName: data?.fileName,
+      originalName: data?.originalName,
+      filename: data?.filename,
+      docType: data?.docType,
+      status: data?.status,
+      createdAt: data?.createdAt,
+    };
+
+    const normalized = normalizeDocument("", payload);
 
     const docRef =
       await adminDb
@@ -143,23 +178,12 @@ export async function POST(
         .doc(contractorId)
         .collection("documents")
         .add({
-
           contractorId,
-
-          fileName:
-            typeof body.fileName === "string"
-              ? body.fileName
-              : null,
-
-          docType:
-            typeof body.docType === "string"
-              ? body.docType
-              : null,
-
-          status: "active",
-
-          createdAt: Date.now(),
-
+          fileName: normalized.fileName,
+          originalName: normalized.originalName,
+          docType: normalized.docType,
+          status: normalized.status,
+          createdAt: normalized.createdAt,
         });
 
     const savedDoc =

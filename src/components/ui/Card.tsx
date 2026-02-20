@@ -1,18 +1,33 @@
-import { ReactNode } from "react";
+import type { ReactNode } from "react";
 
-export default function Card({ children }: { children: ReactNode }) {
+type CardProps = {
+  children: ReactNode;
+  className?: string;
+};
+
+export default function Card({ children, className }: CardProps) {
+  return <section className={`enterprise-card ${className ?? ""}`.trim()}>{children}</section>;
+}
+
+type IdentityCardHeaderProps = {
+  title: string;
+  subtitle?: string;
+  children?: ReactNode;
+};
+
+export function IdentityCardHeader({
+  title,
+  subtitle,
+  children,
+}: IdentityCardHeaderProps) {
   return (
-    <div
-      style={{
-        background: "rgba(15, 23, 42, 0.92)",
-        borderRadius: 16,
-        padding: 20,
-        boxShadow: "0 10px 30px rgba(0,0,0,0.35)",
-        color: "#e5e7eb",
-      }}
-    >
-      {children}
-    </div>
+    <header className="identity-card-header">
+      <div>
+        <h1 className="identity-title">{title}</h1>
+        {subtitle ? <p className="identity-subtitle">{subtitle}</p> : null}
+      </div>
+      {children ? <div className="identity-actions">{children}</div> : null}
+    </header>
   );
 }
 

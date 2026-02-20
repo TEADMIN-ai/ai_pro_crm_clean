@@ -63,6 +63,7 @@ export interface ContractorDocument {
    * Expiry timestamp (Unix milliseconds)
    */
   expiresAt?: number;
+  expiryDate?: number;
 
   /**
    * Creation timestamp

@@ -14,10 +14,9 @@ import { computeExecutionVelocity } from "@/lib/executive/computeExecutionVeloci
 import { computePipelineQuality } from "@/lib/executive/computePipelineQuality";
 import { computePortfolioExposure } from "@/lib/executive/computePortfolioExposure";
 import { computeRevenueMomentum } from "@/lib/executive/computeRevenueMomentum";
-
-/* =========================
-   FIREBASE ADMIN INIT
-========================= */
+import Card, { IdentityCardHeader } from "@/components/ui/Card";
+import Badge from "@/components/ui/Badge";
+import Table from "@/components/ui/Table";
 
 function initFirebaseAdmin() {
   if (getApps().length > 0) return;
@@ -39,41 +38,11 @@ function initFirebaseAdmin() {
   });
 }
 
-/* =========================
-   UI CARD COMPONENT
-========================= */
-
-function Card({
-  title,
-  value,
-  color,
-}: {
-  title: string;
-  value: string | number;
-  color?: string;
-}) {
-  return (
-    <div
-      style={{
-        background: "#111827",
-        padding: "20px",
-        borderRadius: "10px",
-        color: "white",
-        minWidth: "220px",
-        flex: 1,
-      }}
-    >
-      <p style={{ opacity: 0.7, fontSize: 14 }}>{title}</p>
-      <h2 style={{ fontSize: 28, marginTop: 8, color: color || "white" }}>
-        {value}
-      </h2>
-    </div>
-  );
+function toneForScore(score: number): "success" | "warning" | "danger" {
+  if (score >= 80) return "success";
+  if (score >= 60) return "warning";
+  return "danger";
 }
-
-/* =========================
-   ADMIN DASHBOARD PAGE
-========================= */
 
 export default async function AdminDashboardPage() {
   initFirebaseAdmin();
@@ -81,8 +50,6 @@ export default async function AdminDashboardPage() {
   const db = getFirestore();
   const snapshot = await db.collection("deals").get();
   const deals = snapshot.docs.map((doc) => doc.data()) as Deal[];
-
-  /* ---------- Core Metrics ---------- */
 
   const metrics = computeAdminMetrics(deals);
   const revenueHealth = computeRevenueHealthScore(deals);
@@ -95,126 +62,106 @@ export default async function AdminDashboardPage() {
 
   const conversionRate = metrics?.submissionConversion ?? 0;
 
-  /* ---------- Executive Signals ---------- */
-
   const capitalEfficiency = computeCapitalEfficiency(deals);
   const executionVelocity = computeExecutionVelocity(deals);
   const pipelineQuality = computePipelineQuality(deals);
   const portfolioExposure = computePortfolioExposure(deals);
   const revenueMomentum = computeRevenueMomentum(deals);
 
-  /* ---------- Color Logic ---------- */
-
-  const revenueHealthColor =
-    revenueHealth >= 80
-      ? "#10b981"
-      : revenueHealth >= 60
-      ? "#f59e0b"
-      : "#ef4444";
-
-  const riskColor =
-    avgRisk <= 30
-      ? "#10b981"
-      : avgRisk <= 60
-      ? "#f97316"
-      : "#ef4444";
-
   return (
-    <div style={{ padding: "40px", background: "#0f172a", minHeight: "100vh" }}>
-      <h1 style={{ color: "white", marginBottom: 30 }}>
-        Admin Control Tower
-      </h1>
+    <div className="enterprise-page enterprise-grid">
+      <Card>
+        <IdentityCardHeader
+          title="Admin Control Tower"
+          subtitle="Enterprise portfolio and compliance signals"
+        >
+          <Badge tone={toneForScore(revenueHealth)}>Revenue Health {revenueHealth.toFixed(1)}%</Badge>
+          <Badge tone={toneForScore(100 - avgRisk)}>Risk {avgRisk.toFixed(1)}</Badge>
+          <Badge tone="info">Deals {deals.length}</Badge>
+        </IdentityCardHeader>
+      </Card>
 
-      {/* ================= EXECUTIVE SIGNALS ================= */}
+      <Card>
+        <h2>Compliance Score Summary</h2>
+        <div className="compliance-summary">
+          <div className="compliance-summary-item">
+            <p className="enterprise-metric-label">Ready To Submit</p>
+            <p className="enterprise-metric-value">{metrics.readyToSubmitCount || 0}</p>
+          </div>
+          <div className="compliance-summary-item">
+            <p className="enterprise-metric-label">Manager Review Stuck</p>
+            <p className="enterprise-metric-value">{metrics.managerReviewStuckCount || 0}</p>
+          </div>
+          <div className="compliance-summary-item">
+            <p className="enterprise-metric-label">Submission Conversion</p>
+            <p className="enterprise-metric-value">{conversionRate.toFixed(1)}%</p>
+          </div>
+          <div className="compliance-summary-item">
+            <p className="enterprise-metric-label">Execution Velocity</p>
+            <p className="enterprise-metric-value">{executionVelocity.toFixed(1)}</p>
+          </div>
+        </div>
+      </Card>
 
-      <div style={{ display: "flex", gap: 20, marginBottom: 30 }}>
-        <Card
-          title="Revenue Momentum"
-          value={`${revenueMomentum.percentage.toFixed(1)}%`}
-          color={
-            revenueMomentum.trend === "up"
-              ? "#10b981"
-              : revenueMomentum.trend === "down"
-              ? "#ef4444"
-              : "#f59e0b"
-          }
-        />
-        <Card
-          title="Pipeline Quality"
-          value={`${pipelineQuality.score}/100`}
-          color={
-            pipelineQuality.score >= 75
-              ? "#10b981"
-              : pipelineQuality.score >= 60
-              ? "#f59e0b"
-              : "#ef4444"
-          }
-        />
-        <Card
-          title="Capital Efficiency"
-          value={capitalEfficiency.toFixed(2)}
-          color={capitalEfficiency >= 0.8 ? "#10b981" : "#f97316"}
-        />
-        <Card
-          title="Portfolio Exposure"
-          value={`${portfolioExposure}/100`}
-          color={portfolioExposure <= 40 ? "#10b981" : "#ef4444"}
-        />
+      <div className="enterprise-grid-metrics">
+        <Card>
+          <p className="enterprise-metric-label">Revenue Momentum</p>
+          <h2 className="enterprise-metric-value">{revenueMomentum.percentage.toFixed(1)}%</h2>
+          <Badge tone={revenueMomentum.trend === "up" ? "success" : revenueMomentum.trend === "down" ? "danger" : "warning"}>
+            {revenueMomentum.trend}
+          </Badge>
+        </Card>
+        <Card>
+          <p className="enterprise-metric-label">Pipeline Quality</p>
+          <h2 className="enterprise-metric-value">{pipelineQuality.score}/100</h2>
+          <Badge tone={toneForScore(pipelineQuality.score)}>Quality Band</Badge>
+        </Card>
+        <Card>
+          <p className="enterprise-metric-label">Capital Efficiency</p>
+          <h2 className="enterprise-metric-value">{capitalEfficiency.toFixed(2)}</h2>
+          <Badge tone={capitalEfficiency >= 0.8 ? "success" : "warning"}>Efficiency</Badge>
+        </Card>
+        <Card>
+          <p className="enterprise-metric-label">Portfolio Exposure</p>
+          <h2 className="enterprise-metric-value">{portfolioExposure}/100</h2>
+          <Badge tone={portfolioExposure <= 40 ? "success" : "danger"}>Risk Exposure</Badge>
+        </Card>
       </div>
 
-      {/* ================= FINANCIAL PULSE ================= */}
-
-      <div style={{ display: "flex", gap: 20, marginBottom: 30 }}>
-        <Card
-          title="Total Pipeline"
-          value={`R ${metrics.totalPipelineValue?.toLocaleString() || 0}`}
-        />
-        <Card
-          title="Weighted Revenue"
-          value={`R ${metrics.weightedRevenue?.toLocaleString() || 0}`}
-        />
-        <Card
-          title="Revenue Health Score"
-          value={`${revenueHealth.toFixed(1)}%`}
-          color={revenueHealthColor}
-        />
-      </div>
-
-      {/* ================= RISK PANEL ================= */}
-
-      <div style={{ display: "flex", gap: 20, marginBottom: 30 }}>
-        <Card
-          title="Portfolio Risk Score"
-          value={`${avgRisk.toFixed(1)}`}
-          color={riskColor}
-        />
-        <Card
-          title="Critical Risk Deals"
-          value={metrics.criticalRiskCount || 0}
-        />
-        <Card
-          title="High Risk Deals"
-          value={metrics.highRiskCount || 0}
-        />
-      </div>
-
-      {/* ================= OPERATIONS ================= */}
-
-      <div style={{ display: "flex", gap: 20 }}>
-        <Card
-          title="Ready To Submit"
-          value={metrics.readyToSubmitCount || 0}
-        />
-        <Card
-          title="Stuck In Manager Review"
-          value={metrics.managerReviewStuckCount || 0}
-        />
-        <Card
-          title="Submission Conversion"
-          value={`${conversionRate.toFixed(1)}%`}
-        />
-      </div>
+      <Card>
+        <h2>Premium Portfolio Table</h2>
+        <Table>
+          <thead>
+            <tr>
+              <th>Metric</th>
+              <th>Value</th>
+              <th>Risk Indicator</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Total Pipeline</td>
+              <td>R {metrics.totalPipelineValue?.toLocaleString() || 0}</td>
+              <td><Badge tone="info">Financial</Badge></td>
+            </tr>
+            <tr>
+              <td>Weighted Revenue</td>
+              <td>R {metrics.weightedRevenue?.toLocaleString() || 0}</td>
+              <td><Badge tone="info">Forecast</Badge></td>
+            </tr>
+            <tr>
+              <td>Critical Risk Deals</td>
+              <td>{metrics.criticalRiskCount || 0}</td>
+              <td><Badge tone="danger">Critical</Badge></td>
+            </tr>
+            <tr>
+              <td>High Risk Deals</td>
+              <td>{metrics.highRiskCount || 0}</td>
+              <td><Badge tone="warning">High</Badge></td>
+            </tr>
+          </tbody>
+        </Table>
+      </Card>
     </div>
   );
 }
-

@@ -1,130 +1,128 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
-import { uploadContractorDocument } from "@/lib/contractors/uploadContractorDocument";
+import { useState } from "react";
+import Card from "@/components/ui/Card";
+import Badge from "@/components/ui/Badge";
+
+type Props = {
+  contractorId: string;
+
+  /** Action called after successful upload */
+  onUploadedAction?: () => void | Promise<void>;
+};
 
 export default function ContractorDocumentUploader({
   contractorId,
-  onUploaded,
-}: {
-  contractorId: string;
-  onUploaded: () => Promise<void> | void;
-}) {
+  onUploadedAction,
+}: Props) {
+
   const [file, setFile] = useState<File | null>(null);
   const [fileName, setFileName] = useState("");
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
-  const canSubmit = useMemo(() => {
-    return !!file && fileName.trim().length > 0;
-  }, [file, fileName]);
+  function detectDocType(name: string): string {
+    const extension = name.toLowerCase().split(".").pop() ?? "";
 
-  async function handleUpload() {
-    if (!file) {
-      setError("Please select a file");
-      return;
+    if (extension === "pdf") return "certificate";
+    if (extension === "csv" || extension === "xls" || extension === "xlsx") return "tax";
+    if (extension === "jpg" || extension === "jpeg" || extension === "png" || extension === "webp") {
+      return "identity";
     }
+    if (extension === "doc" || extension === "docx") return "general";
 
-    if (!canSubmit) {
-      setError("All fields are required");
-      return;
-    }
+    return "general";
+  }
 
-    setLoading(true);
-    setError(null);
+  async function upload() {
+
+    if (!file) return;
 
     try {
-      const normalizedName = fileName.trim();
-      const uploadFile =
-        normalizedName === file.name
-          ? file
-          : new File([file], normalizedName, {
-              type: file.type,
-              lastModified: file.lastModified,
-            });
 
-      const storage = getStorage();
-      const storageRef = ref(
-        storage,
-        `contractors/${contractorId}/documents/${normalizedName}`
+      setLoading(true);
+
+      const res = await fetch(
+        `/api/contractors/${contractorId}/documents`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+
+            fileName: file.name,
+            originalName: file.name,
+            docType: detectDocType(file.name),
+            status: "active",
+
+          }),
+        }
       );
 
-      await uploadBytes(storageRef, uploadFile);
-      const storagePath = storageRef.fullPath;
-      const downloadURL = await getDownloadURL(storageRef);
+      if (!res.ok) {
 
-      await uploadContractorDocument(
-        contractorId,
-        normalizedName,
-        storagePath,
-        downloadURL
-      );
+        const text = await res.text();
+        throw new Error(text);
+
+      }
 
       setFile(null);
       setFileName("");
-      await onUploaded();
-    } catch (uploadError) {
-      const message =
-        uploadError instanceof Error ? uploadError.message : "Upload failed";
-      setError(message);
-    } finally {
+
+      if (onUploadedAction) {
+
+        await onUploadedAction();
+
+      }
+
+    }
+    catch (err) {
+
+      console.error(err);
+
+    }
+    finally {
+
       setLoading(false);
+
     }
   }
 
   return (
-    <div
-      style={{
-        marginTop: 16,
-        border: "1px solid #e5e7eb",
-        borderRadius: 8,
-        padding: 16,
-        background: "#f8fafc",
-      }}
-    >
-      <h3 style={{ marginTop: 0 }}>Upload contractor document</h3>
+    <Card>
+      <div className="enterprise-grid">
+        <div>
+          <Badge tone="info">Client Upload Flow</Badge>
+        </div>
+      <input
+        type="file"
+        onChange={(e) => {
 
-      <div style={{ display: "grid", gap: 10, maxWidth: 520 }}>
-        <input
-          type="file"
-          onChange={(event) => {
-            const selected = event.target.files?.[0] ?? null;
-            setFile(selected);
-            setFileName(selected?.name ?? "");
-          }}
-        />
+          const selected = e.target.files?.[0] ?? null;
 
+          setFile(selected);
+
+          if (selected) {
+            setFileName(selected.name);
+          }
+
+        }}
+      />
+      <div>
         <input
-          type="text"
-          placeholder="File name"
           value={fileName}
-          onChange={(event) => setFileName(event.target.value)}
+          readOnly
+          placeholder="File name"
+          style={{ width: "100%", maxWidth: 420, padding: 8, borderRadius: 8, border: "1px solid #c9d8ef" }}
         />
       </div>
-
-      {error && (
-        <p style={{ color: "#dc2626", marginTop: 10, marginBottom: 0 }}>
-          {error}
-        </p>
-      )}
-
       <button
-        onClick={handleUpload}
-        disabled={loading || !canSubmit}
-        style={{
-          marginTop: 12,
-          padding: "10px 14px",
-          border: "none",
-          borderRadius: 6,
-          background: "#2563eb",
-          color: "white",
-          cursor: loading || !canSubmit ? "not-allowed" : "pointer",
-          opacity: loading || !canSubmit ? 0.7 : 1,
-        }}
+        onClick={upload}
+        disabled={loading || !file}
       >
         {loading ? "Uploading..." : "Upload"}
       </button>
-    </div>
+      </div>
+    </Card>
   );
 }

@@ -10,262 +10,164 @@ import { getContractorDocuments } from "@/lib/contractors/getContractorDocuments
 
 import type { Contractor } from "@/types/contractor";
 import type { ContractorDocument } from "@/types/document";
+import { calculateCompliance } from "@/lib/compliance/calculateCompliance";
+import Card, { IdentityCardHeader } from "@/components/ui/Card";
+import Badge from "@/components/ui/Badge";
+import Table from "@/components/ui/Table";
 
-/**
- * Normalize document name safely
- */
-function normalizeDocumentName(doc: ContractorDocument): string {
+type RiskLabel = "Valid" | "Expiring Soon" | "Expired";
 
-  if (doc.fileName) return doc.fileName;
-  if (doc.originalName) return doc.originalName;
-  if (doc.filename) return doc.filename;
-  if (doc.docType) return doc.docType;
+function getDocumentRisk(doc: ContractorDocument): RiskLabel {
+  const expiresAt = doc.expiresAt ?? doc.expiryDate ?? null;
+  if (!expiresAt) return "Valid";
 
-  return "Unknown document";
+  const now = Date.now();
+  const warningDate = now + (30 * 24 * 60 * 60 * 1000);
 
+  if (expiresAt < now) return "Expired";
+  if (expiresAt <= warningDate) return "Expiring Soon";
+  return "Valid";
+}
+
+function toneForRisk(risk: RiskLabel): "success" | "warning" | "danger" {
+  if (risk === "Expired") return "danger";
+  if (risk === "Expiring Soon") return "warning";
+  return "success";
 }
 
 export default function ContractorPage() {
-
   const params = useParams();
+  const contractorId = typeof params?.contractorId === "string" ? params.contractorId : null;
 
-  /**
-   * Resolve contractorId safely
-   */
-  const contractorId =
-    typeof params?.contractorId === "string"
-      ? params.contractorId
-      : null;
+  const [contractor, setContractor] = useState<Contractor | null>(null);
+  const [documents, setDocuments] = useState<ContractorDocument[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  /**
-   * State
-   */
-  const [contractor, setContractor] =
-    useState<Contractor | null>(null);
+  const compliance = calculateCompliance(documents);
 
-  const [documents, setDocuments] =
-    useState<ContractorDocument[]>([]);
-
-  const [loading, setLoading] =
-    useState(true);
-
-  const [error, setError] =
-    useState<string | null>(null);
-
-  /**
-   * Load contractor and documents
-   */
   useEffect(() => {
-
-    if (!contractorId) {
-      return;
-    }
-
-    // HARD TYPE NARROWING
-    const id: string = contractorId;
+    if (!contractorId) return;
+    const id = contractorId;
 
     async function load() {
-
       try {
-
         setLoading(true);
         setError(null);
 
-        const contractorData =
-          await getContractor(id);
-
-        const documentData =
-          await getContractorDocuments(id);
+        const contractorData = await getContractor(id);
+        const documentData = await getContractorDocuments(id);
 
         setContractor(contractorData);
         setDocuments(documentData);
-
-      }
-      catch (err: any) {
-
+      } catch (err: any) {
         console.error(err);
-
-        setError(
-          err?.message ??
-          "Failed to load contractor"
-        );
-
-      }
-      finally {
-
+        setError(err?.message ?? "Failed to load contractor");
+      } finally {
         setLoading(false);
-
       }
-
     }
 
     load();
-
   }, [contractorId]);
 
-  /**
-   * Missing contractorId
-   */
-  if (!contractorId) {
+  if (!contractorId) return <div className="enterprise-page">Missing contractorId</div>;
+  if (loading) return <div className="enterprise-page">Loading contractor...</div>;
+  if (error) return <div className="enterprise-page">{error}</div>;
+  if (!contractor) return <div className="enterprise-page">Contractor not found</div>;
+  const resolvedContractorId = contractorId;
 
-    return (
-      <div style={{ padding: 20, color: "red" }}>
-        Missing contractorId
-      </div>
-    );
+  const contractorDisplayName =
+    contractor.companyName ?? contractor.contactPerson ?? contractor.name ?? contractor.email ?? "Contractor";
 
-  }
+  const complianceTone =
+    compliance.compliancePercentage >= 90
+      ? "success"
+      : compliance.compliancePercentage >= 70
+      ? "warning"
+      : "danger";
 
-  /**
-   * Loading state
-   */
-  if (loading) {
+  const statusTone =
+    compliance.expired > 0 ? "danger" : compliance.expiringSoon > 0 ? "warning" : "success";
 
-    return (
-      <div style={{ padding: 20 }}>
-        Loading contractor...
-      </div>
-    );
-
-  }
-
-  /**
-   * Error state
-   */
-  if (error) {
-
-    return (
-      <div style={{ padding: 20, color: "red" }}>
-        {error}
-      </div>
-    );
-
-  }
-
-  /**
-   * Contractor not found
-   */
-  if (!contractor) {
-
-    return (
-      <div style={{ padding: 20, color: "red" }}>
-        Contractor not found
-      </div>
-    );
-
-  }
-
-  /**
-   * Render
-   */
   return (
+    <div className="enterprise-page enterprise-grid">
+      <Card>
+        <IdentityCardHeader title={contractorDisplayName} subtitle={contractor.email ?? "-"}>
+          <Badge tone={statusTone}>Status {compliance.status}</Badge>
+          <Badge tone={complianceTone}>Compliance {compliance.compliancePercentage}%</Badge>
+        </IdentityCardHeader>
+      </Card>
 
-    <div style={{ padding: 20 }}>
+      <Card>
+        <h2>Compliance Score Summary</h2>
+        <div className="compliance-summary">
+          <div className="compliance-summary-item">
+            <p className="enterprise-metric-label">Valid</p>
+            <p className="enterprise-metric-value">{compliance.valid}</p>
+          </div>
+          <div className="compliance-summary-item">
+            <p className="enterprise-metric-label">Expiring</p>
+            <p className="enterprise-metric-value">{compliance.expiring}</p>
+          </div>
+          <div className="compliance-summary-item">
+            <p className="enterprise-metric-label">Expired</p>
+            <p className="enterprise-metric-value">{compliance.expired}</p>
+          </div>
+          <div className="compliance-summary-item">
+            <p className="enterprise-metric-label">Compliance Percentage</p>
+            <p className="enterprise-metric-value">{compliance.compliancePercentage}%</p>
+          </div>
+        </div>
+      </Card>
 
-      <h1>
-        {contractor.companyName ??
-         contractor.contactPerson ??
-         contractor.email ??
-         "Contractor"}
-      </h1>
-
-      <div style={{ marginTop: 10 }}>
-        <strong>Email:</strong>{" "}
-        {contractor.email ?? "-"}
-      </div>
-
-      <div>
-        <strong>Status:</strong>{" "}
-        {contractor.status ?? "-"}
-      </div>
-
-      <div style={{ marginTop: 20 }}>
-
+      <Card>
+        <h2>Upload Compliance Document</h2>
+        <p>Add supporting documents to keep this contractor compliant.</p>
         <ContractorDocumentUploader
-          contractorId={contractorId}
-          onUploaded={async () => {
-
-            const updated =
-              await getContractorDocuments(contractorId);
-
+          contractorId={resolvedContractorId}
+          onUploadedAction={async () => {
+            const updated = await getContractorDocuments(resolvedContractorId);
             setDocuments(updated);
-
           }}
         />
+      </Card>
 
-      </div>
-
-      <div style={{ marginTop: 30 }}>
-
-        <h2>Documents</h2>
-
-        {documents.length === 0 && (
+      <Card>
+        <h2>Premium Compliance Table</h2>
+        {documents.length === 0 ? (
           <div>No contractor documents uploaded yet.</div>
-        )}
-
-        {documents.length > 0 && (
-
-          <table
-            style={{
-              width: "100%",
-              marginTop: 10,
-              borderCollapse: "collapse"
-            }}
-          >
-
+        ) : (
+          <Table>
             <thead>
-
               <tr>
-
-                <th align="left">Name</th>
-                <th align="left">Type</th>
-                <th align="left">Status</th>
-                <th align="left">Expiry</th>
-
+                <th>Document Name</th>
+                <th>Document Type</th>
+                <th>Status Badge</th>
+                <th>Expiry Date</th>
+                <th>Risk Indicator</th>
               </tr>
-
             </thead>
-
             <tbody>
+              {documents.map((doc) => {
+                const risk = getDocumentRisk(doc);
+                const expiresAt = doc.expiresAt ?? doc.expiryDate ?? null;
+                const documentName = doc.fileName || doc.originalName || "Recovered document";
 
-              {documents.map((doc) => (
-
-                <tr key={doc.id}>
-
-                  <td>
-                    {normalizeDocumentName(doc)}
-                  </td>
-
-                  <td>
-                    {doc.docType ?? "-"}
-                  </td>
-
-                  <td>
-                    {doc.status ?? "-"}
-                  </td>
-
-                  <td>
-
-                    {doc.expiresAt
-                      ? new Date(doc.expiresAt).toLocaleDateString()
-                      : "-"}
-
-                  </td>
-
-                </tr>
-
-              ))}
-
+                return (
+                  <tr key={doc.id}>
+                    <td>{documentName}</td>
+                    <td>{doc.docType ?? "general"}</td>
+                    <td><Badge tone={toneForRisk(risk)}>{doc.status ?? "active"}</Badge></td>
+                    <td>{expiresAt ? new Date(expiresAt).toLocaleDateString() : "-"}</td>
+                    <td><Badge tone={toneForRisk(risk)}>{risk}</Badge></td>
+                  </tr>
+                );
+              })}
             </tbody>
-
-          </table>
-
+          </Table>
         )}
-
-      </div>
-
+      </Card>
     </div>
-
   );
-
 }
