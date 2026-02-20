@@ -3,14 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { getContractors } from "@/lib/contractors/getContractors";
-
-type Contractor = {
-  id: string;
-  companyName: string;
-  name?: string;
-  email?: string;
-  status?: string;
-};
+import type { Contractor } from "@/types/contractor";
 
 export default function ContractorsPage() {
   const [contractors, setContractors] = useState<Contractor[]>([]);

@@ -1,15 +1,11 @@
-export type ContractorStatus =
-  | "active"
-  | "pending"
-  | "suspended"
-
 export interface Contractor {
-  id: string
-  companyName: string
-  contactPerson: string
-  email: string
-  phone: string
-  status: ContractorStatus
-  createdAt: number
-  createdBy: string
+  id: string;
+  name?: string | null;
+  companyName?: string | null;
+  contactPerson?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  status?: string | null;
+  createdAt?: number | null;
+  createdBy?: string | null;
 }

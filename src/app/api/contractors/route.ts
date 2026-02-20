@@ -16,6 +16,28 @@ type ServiceAccount = {
   privateKey: string;
 };
 
+function hasKey<K extends string>(value: object, key: K): value is Record<K, unknown> {
+  return key in value;
+}
+
+function getString(data: unknown, key: string): string | null {
+  if (typeof data !== "object" || data === null || !hasKey(data, key)) {
+    return null;
+  }
+
+  const value = data[key];
+  return typeof value === "string" ? value : null;
+}
+
+function getNumber(data: unknown, key: string): number | null {
+  if (typeof data !== "object" || data === null || !hasKey(data, key)) {
+    return null;
+  }
+
+  const value = data[key];
+  return typeof value === "number" ? value : null;
+}
+
 function loadServiceAccount(): ServiceAccount {
   const serviceAccountPath = path.join(process.cwd(), "secrets", "service-account.json");
   const raw = fs.readFileSync(serviceAccountPath, "utf8");
@@ -45,44 +67,17 @@ function initAdmin(): void {
   });
 }
 
-function normalizeCreatedAt(value: unknown): number {
-  if (typeof value === "number") return value;
-  if (value instanceof Date) return value.getTime();
-
-  if (
-    typeof value === "object" &&
-    value !== null &&
-    "toMillis" in value &&
-    typeof (value as { toMillis: unknown }).toMillis === "function"
-  ) {
-    return ((value as { toMillis: () => number }).toMillis)();
-  }
-
-  if (
-    typeof value === "object" &&
-    value !== null &&
-    "seconds" in value &&
-    typeof (value as { seconds: unknown }).seconds === "number"
-  ) {
-    return (value as { seconds: number }).seconds * 1000;
-  }
-
-  return 0;
-}
-
-function toContractor(id: string, data: Record<string, unknown>): Contractor {
+function normalizeContractor(id: string, data: unknown): Contractor {
   return {
     id,
-    companyName: typeof data.companyName === "string" ? data.companyName : "",
-    contactPerson: typeof data.contactPerson === "string" ? data.contactPerson : "",
-    email: typeof data.email === "string" ? data.email : "",
-    phone: typeof data.phone === "string" ? data.phone : "",
-    status:
-      data.status === "active" || data.status === "pending" || data.status === "suspended"
-        ? data.status
-        : "pending",
-    createdAt: normalizeCreatedAt(data.createdAt),
-    createdBy: typeof data.createdBy === "string" ? data.createdBy : "",
+    name: getString(data, "name"),
+    companyName: getString(data, "companyName"),
+    contactPerson: getString(data, "contactPerson"),
+    email: getString(data, "email"),
+    phone: getString(data, "phone"),
+    status: getString(data, "status"),
+    createdAt: getNumber(data, "createdAt"),
+    createdBy: getString(data, "createdBy"),
   };
 }
 
@@ -113,7 +108,7 @@ export async function GET(req: NextRequest) {
       .get();
 
     const contractors: Contractor[] = snapshot.docs.map((doc) =>
-      toContractor(doc.id, doc.data() as Record<string, unknown>)
+      normalizeContractor(doc.id, doc.data())
     );
 
     return NextResponse.json({ contractors }, { status: 200 });
