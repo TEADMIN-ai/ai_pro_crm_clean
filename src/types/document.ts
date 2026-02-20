@@ -1,32 +1,77 @@
 /**
  * ContractorDocument
+ * ==================
  *
- * This represents ALL possible document fields coming from:
+ * Canonical normalized document model used across:
  *
- * - Firestore
- * - Upload API
- * - Legacy records
- * - Future normalized records
+ * API routes
+ * Firestore normalization
+ * Frontend dashboard
+ * AI processing pipeline
  *
- * This prevents recurring TypeScript breakage.
+ * Firestore may contain null values.
+ * This model normalizes null → undefined.
+ *
+ * expiresAt is stored as Unix timestamp (number).
  */
 
 export interface ContractorDocument {
+
+  /**
+   * Firestore document ID
+   */
   id: string;
 
-  // canonical storage fields
-  fileName?: string;
-  originalName?: string;
-  filename?: string;
-  name?: string;
+  /**
+   * Contractor owner
+   */
+  contractorId: string;
 
-  docType?: string | null;
+  /**
+   * Firebase Storage path
+   */
+  storagePath?: string;
+
+  /**
+   * Public download URL
+   */
+  downloadURL?: string;
+
+  /**
+   * Original uploaded filename
+   */
+  fileName?: string;
+
+  /**
+   * Alternate filename formats (legacy compatibility)
+   */
+  originalName?: string;
+
+  filename?: string;
+
+  /**
+   * AI classified document type
+   */
+  docType?: string;
+
+  /**
+   * Compliance status
+   */
   status?: string;
 
-  expiresAt?: number | null;
+  /**
+   * Expiry timestamp (Unix milliseconds)
+   */
+  expiresAt?: number;
 
+  /**
+   * Creation timestamp
+   */
   createdAt?: number;
+
+  /**
+   * Last updated timestamp
+   */
   updatedAt?: number;
 
-  [key: string]: any;
 }
