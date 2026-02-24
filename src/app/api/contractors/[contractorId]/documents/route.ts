@@ -59,6 +59,16 @@ function normalizeDocument(
       typeof data.filename === "string"
         ? data.filename
         : undefined,
+    storagePath:
+      typeof data.storagePath === "string"
+        ? data.storagePath
+        : undefined,
+    downloadURL:
+      typeof data.downloadURL === "string"
+        ? data.downloadURL
+        : typeof data.url === "string"
+          ? data.url
+          : undefined,
 
     docType,
 
@@ -178,8 +188,13 @@ export async function POST(
       fileName: data?.fileName,
       originalName: data?.originalName,
       filename: data?.filename,
+      storagePath: data?.storagePath,
+      downloadURL: data?.downloadURL,
+      url: data?.url,
       docType: data?.docType,
       status: data?.status,
+      expiresAt: data?.expiresAt,
+      expiryDate: data?.expiryDate,
       createdAt: data?.createdAt,
     };
 
@@ -194,8 +209,14 @@ export async function POST(
           contractorId,
           fileName: normalized.fileName,
           originalName: normalized.originalName,
+          filename: normalized.filename,
+          storagePath: normalized.storagePath,
+          downloadURL: normalized.downloadURL,
+          url: normalized.downloadURL,
           docType: normalized.docType,
           status: normalized.status,
+          expiresAt: normalized.expiresAt,
+          expiryDate: normalized.expiryDate,
           createdAt: normalized.createdAt,
         });
 

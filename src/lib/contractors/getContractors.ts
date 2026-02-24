@@ -1,4 +1,5 @@
 import { auth } from "@/lib/firebase";
+import { API_ROUTES } from "@/lib/routes";
 import type { Contractor } from "@/types/contractor";
 
 function hasKey<K extends string>(value: object, key: K): value is Record<K, unknown> {
@@ -46,7 +47,7 @@ export async function getContractors(): Promise<Contractor[]> {
 
   const token = await user.getIdToken(true);
 
-  const res = await fetch("/api/contractors", {
+  const res = await fetch(API_ROUTES.CONTRACTORS, {
     method: "GET",
     headers: {
       Authorization: `Bearer ${token}`,

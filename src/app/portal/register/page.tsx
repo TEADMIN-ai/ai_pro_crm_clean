@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useState } from "react";
+import { API_ROUTES } from "@/lib/routes";
 
 type RegisterResponse = {
   success: boolean;
@@ -22,7 +23,7 @@ export default function PortalRegisterPage() {
     setIsError(false);
 
     try {
-      const response = await fetch("/api/portal/register", {
+      const response = await fetch(API_ROUTES.PORTAL_REGISTER, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ companyName, email }),

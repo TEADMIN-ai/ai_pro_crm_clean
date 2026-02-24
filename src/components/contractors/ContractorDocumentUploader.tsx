@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Card from "@/components/ui/Card";
 import Badge from "@/components/ui/Badge";
+import { API_ROUTES } from "@/lib/routes";
 
 type Props = {
   contractorId: string;
@@ -48,7 +49,7 @@ export default function ContractorDocumentUploader({
           : undefined;
 
       const res = await fetch(
-        `/api/contractors/${contractorId}/documents`,
+        API_ROUTES.CONTRACTOR_DOCUMENTS(contractorId),
         {
           method: "POST",
           headers: {

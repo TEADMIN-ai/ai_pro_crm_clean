@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from "react";
+import { API_ROUTES } from "@/lib/routes";
 
 interface Props {
   tenderId: string;
@@ -11,7 +12,7 @@ export default function TenderSummaryView({ tenderId }: Props) {
 
   useEffect(() => {
     async function load() {
-      const res = await fetch(`/api/ai/tender-summary?tenderId=${tenderId}`, {
+      const res = await fetch(API_ROUTES.AI_TENDER_SUMMARY(tenderId), {
         method: "POST",
       });
 

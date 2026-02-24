@@ -15,6 +15,8 @@ import Card, { IdentityCardHeader } from "@/components/ui/Card";
 import Badge from "@/components/ui/Badge";
 import Table from "@/components/ui/Table";
 import { useAuth } from "@/context/AuthContext";
+import { API_ROUTES } from "@/lib/routes";
+import { resolveDocumentFileName } from "@/lib/documents/normalizeDocumentName";
 
 type RiskLabel = "Valid" | "Expiring Soon" | "Expired";
 
@@ -158,7 +160,7 @@ export default function ContractorPage() {
               {documents.map((doc) => {
                 const risk = getDocumentRisk(doc);
                 const expiresAt = doc.expiresAt ?? doc.expiryDate ?? null;
-                const documentName = doc.fileName || doc.originalName || "Recovered document";
+                const documentName = resolveDocumentFileName(doc as unknown as Record<string, unknown>);
                 const unresolvedName = documentName === "Recovered document";
 
                 return (
@@ -192,7 +194,7 @@ export default function ContractorPage() {
                             try {
                               setRenamingDocumentId(doc.id);
                               const token = await user.getIdToken(true);
-                              const response = await fetch(`/api/contractors/${contractorId}/documents`, {
+                              const response = await fetch(API_ROUTES.CONTRACTOR_DOCUMENTS(contractorId), {
                                 method: "PATCH",
                                 headers: {
                                   "Content-Type": "application/json",

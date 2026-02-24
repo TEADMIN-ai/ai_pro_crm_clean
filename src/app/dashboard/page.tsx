@@ -4,10 +4,15 @@ import Link from "next/link";
 import Card, { IdentityCardHeader } from "@/components/ui/Card";
 import Badge from "@/components/ui/Badge";
 import { useAuth } from "@/context/AuthContext";
+import ComplianceScoreCard from "@/components/intelligence/ComplianceScoreCard";
+import DocumentStatusGraph from "@/components/intelligence/DocumentStatusGraph";
+import DealValueGraph from "@/components/intelligence/DealValueGraph";
+import AIInsightPanel from "@/components/intelligence/AIInsightPanel";
 
 export default function DashboardHome() {
   const { role } = useAuth();
   const showUsersModule = role === "admin";
+  const visibleModuleCount = showUsersModule ? 3 : 2;
 
   return (
     <div className="enterprise-page enterprise-grid">
@@ -40,6 +45,24 @@ export default function DashboardHome() {
           </Card>
         )}
       </div>
+      <Card>
+        <IdentityCardHeader
+          title="Operations Intelligence"
+          subtitle="AI-powered compliance and deal performance signals"
+        >
+          <Badge tone="info">Executive View</Badge>
+        </IdentityCardHeader>
+      </Card>
+      <ComplianceScoreCard
+        role={role}
+        visibleModuleCount={visibleModuleCount}
+      />
+      <DocumentStatusGraph
+        role={role}
+        visibleModuleCount={visibleModuleCount}
+      />
+      <DealValueGraph visibleModuleCount={visibleModuleCount} />
+      <AIInsightPanel role={role} visibleModuleCount={visibleModuleCount} />
     </div>
   );
 }

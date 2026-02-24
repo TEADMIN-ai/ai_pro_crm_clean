@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { auth } from "@/lib/firebase";
 import type { Contractor } from "@/types/contractor";
+import { API_ROUTES } from "@/lib/routes";
 
 function contractorLabel(contractor: Contractor): string {
   return (
@@ -34,7 +35,7 @@ export default function NewDealPage() {
           ? { Authorization: `Bearer ${token}` }
           : {};
 
-        const res = await fetch("/api/contractors", { headers });
+        const res = await fetch(API_ROUTES.CONTRACTORS, { headers });
 
         if (!res.ok) {
           throw new Error("Failed to fetch contractors");
@@ -71,7 +72,7 @@ export default function NewDealPage() {
       const parsedValue = Number(value);
       const safeValue = Number.isFinite(parsedValue) ? parsedValue : 0;
 
-      const res = await fetch("/api/deals", {
+      const res = await fetch(API_ROUTES.DEALS, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -144,4 +145,5 @@ export default function NewDealPage() {
     </div>
   );
 }
+
 

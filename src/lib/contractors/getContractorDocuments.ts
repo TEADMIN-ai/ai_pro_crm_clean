@@ -1,4 +1,5 @@
 import { auth } from "@/lib/firebase";
+import { API_ROUTES } from "@/lib/routes";
 import type { ContractorDocument } from "@/types/document";
 
 type DocumentsResponse = {
@@ -18,7 +19,7 @@ export async function getContractorDocuments(
   const token = await user.getIdToken(true);
 
   const res = await fetch(
-    `/api/contractors/${contractorId}/documents`,
+    API_ROUTES.CONTRACTOR_DOCUMENTS(contractorId),
     {
       method: "GET",
       headers: {

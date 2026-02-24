@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
 import { canCreateDeal } from "@/lib/auth/roleUtils";
 import Table from "@/components/ui/Table";
+import { API_ROUTES } from "@/lib/routes";
 
 type DealListItem = {
   id: string;
@@ -28,7 +29,7 @@ export default function DealsPage() {
         setLoading(true);
         setError(null);
 
-        const res = await fetch("/api/deals", {
+        const res = await fetch(API_ROUTES.DEALS, {
           method: "GET",
           headers: { Accept: "application/json" },
         });
@@ -109,3 +110,4 @@ export default function DealsPage() {
     </div>
   );
 }
+

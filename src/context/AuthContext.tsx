@@ -6,6 +6,7 @@ import { createContext, useContext, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { auth, db } from "@/lib/firebase";
 import type { UserRole } from "@/lib/auth/roleUtils";
+import { API_ROUTES } from "@/lib/routes";
 
 interface AuthContextType {
   user: FirebaseUser | null;
@@ -64,7 +65,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       try {
         const token = await firebaseUser.getIdToken();
 
-        await fetch("/api/sync-role", {
+        await fetch(API_ROUTES.SYNC_ROLE, {
           method: "POST",
           headers: {
             Authorization: `Bearer ${token}`,
@@ -109,3 +110,4 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 }
 
 export const useAuth = () => useContext(AuthContext);
+
