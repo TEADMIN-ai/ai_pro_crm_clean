@@ -18,6 +18,7 @@ export default function ContractorDocumentUploader({
 
   const [file, setFile] = useState<File | null>(null);
   const [fileName, setFileName] = useState("");
+  const [expiryDate, setExpiryDate] = useState("");
   const [loading, setLoading] = useState(false);
 
   function detectDocType(name: string): string {
@@ -41,6 +42,11 @@ export default function ContractorDocumentUploader({
 
       setLoading(true);
 
+      const expiryDateValue =
+        expiryDate.trim().length > 0
+          ? new Date(expiryDate).getTime()
+          : undefined;
+
       const res = await fetch(
         `/api/contractors/${contractorId}/documents`,
         {
@@ -54,6 +60,10 @@ export default function ContractorDocumentUploader({
             originalName: file.name,
             docType: detectDocType(file.name),
             status: "active",
+            expiryDate:
+              typeof expiryDateValue === "number" && Number.isFinite(expiryDateValue)
+                ? expiryDateValue
+                : undefined,
 
           }),
         }
@@ -68,6 +78,7 @@ export default function ContractorDocumentUploader({
 
       setFile(null);
       setFileName("");
+      setExpiryDate("");
 
       if (onUploadedAction) {
 
@@ -114,6 +125,16 @@ export default function ContractorDocumentUploader({
           readOnly
           placeholder="File name"
           style={{ width: "100%", maxWidth: 420, padding: 8, borderRadius: 8, border: "1px solid #c9d8ef" }}
+        />
+      </div>
+      <div>
+        <label htmlFor="document-expiry-date">Expiry Date (optional)</label>
+        <input
+          id="document-expiry-date"
+          type="date"
+          value={expiryDate}
+          onChange={(event) => setExpiryDate(event.target.value)}
+          style={{ width: "100%", maxWidth: 240, padding: 8, borderRadius: 8, border: "1px solid #c9d8ef" }}
         />
       </div>
       <button

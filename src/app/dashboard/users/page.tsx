@@ -8,8 +8,10 @@ import type { AppUser } from "@/types/user";
 import Card, { IdentityCardHeader } from "@/components/ui/Card";
 import Badge from "@/components/ui/Badge";
 import Table from "@/components/ui/Table";
+import { useAuth } from "@/context/AuthContext";
 
 export default function UsersPage() {
+  const { role, loading: authLoading } = useAuth();
   const [users, setUsers] = useState<AppUser[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -29,8 +31,12 @@ export default function UsersPage() {
     fetchUsers();
   }, []);
 
-  if (loading) {
+  if (authLoading || loading) {
     return <div className="enterprise-page">Loading users...</div>;
+  }
+
+  if (role !== "admin") {
+    return <div className="enterprise-page">Access denied</div>;
   }
 
   const adminCount = users.filter((user) => user.role === "admin").length;

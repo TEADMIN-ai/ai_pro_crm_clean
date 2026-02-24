@@ -65,6 +65,9 @@ export interface Deal {
   // Core Identity
   title: string;
   companyId: string;
+  contractorId?: string;
+  contractorName?: string;
+  status?: "draft" | "submitted" | "awarded";
 
   // Workflow
   stage: DealStage;
@@ -87,7 +90,7 @@ export interface Deal {
   closedAt?: Date;
 
   // Metadata
-  createdAt?: Date;
+  createdAt?: Date | number;
   updatedAt?: Date;
 
   // Audit

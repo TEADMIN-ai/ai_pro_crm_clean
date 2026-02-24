@@ -55,21 +55,5 @@
     "tsx": "^4.21.0",
 
     "typescript": "^5.4.0"
-  },
-
-  "jest": {
-    "preset": "ts-jest",
-    "testEnvironment": "node",
-    "roots": [
-      "<rootDir>/src"
-    ],
-    "moduleNameMapper": {
-      "^@/(.*)$": "<rootDir>/src/$1"
-    },
-    "testMatch": [
-      "**/__tests__/**/*.test.ts",
-      "**/?(*.)+(spec|test).ts"
-    ],
-    "collectCoverage": false
   }
 }

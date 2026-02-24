@@ -2,16 +2,19 @@ import fs from "node:fs";
 import path from "node:path";
 import { cert, getApps, initializeApp } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
+import {
+  detectDocTypeFromFileName,
+  getString,
+  normalizeCreatedAt,
+  resolveDocumentFileName,
+  RECOVERED_DOCUMENT_PLACEHOLDER,
+} from "../src/lib/documents/normalizeDocumentName";
 
 type ServiceAccount = {
   projectId: string;
   clientEmail: string;
   privateKey: string;
 };
-
-function getString(value: unknown): string | null {
-  return typeof value === "string" && value.trim().length > 0 ? value : null;
-}
 
 function loadServiceAccountFromEnv(): ServiceAccount | null {
   const projectId = process.env.FIREBASE_PROJECT_ID;
@@ -28,16 +31,24 @@ function loadServiceAccountFromEnv(): ServiceAccount | null {
 function loadServiceAccountFromFile(): ServiceAccount {
   const filePath = path.join(process.cwd(), "secrets", "service-account.json");
   const raw = fs.readFileSync(filePath, "utf8");
-  const parsed = JSON.parse(raw) as Partial<ServiceAccount>;
+  const parsed = JSON.parse(raw) as Partial<ServiceAccount> & {
+    project_id?: string;
+    client_email?: string;
+    private_key?: string;
+  };
 
-  if (!parsed.projectId || !parsed.clientEmail || !parsed.privateKey) {
+  const projectId = parsed.projectId ?? parsed.project_id;
+  const clientEmail = parsed.clientEmail ?? parsed.client_email;
+  const privateKey = parsed.privateKey ?? parsed.private_key;
+
+  if (!projectId || !clientEmail || !privateKey) {
     throw new Error("Invalid service account file");
   }
 
   return {
-    projectId: parsed.projectId,
-    clientEmail: parsed.clientEmail,
-    privateKey: parsed.privateKey,
+    projectId,
+    clientEmail,
+    privateKey,
   };
 }
 
@@ -58,19 +69,10 @@ function initAdmin() {
 }
 
 function normalizeDocument(data: Record<string, unknown>) {
-  const fileName =
-    getString(data.fileName) ??
-    getString(data.originalName) ??
-    getString(data.filename) ??
-    getString(data.docType) ??
-    "Recovered document";
-
-  const docType = getString(data.docType) ?? "general";
+  const fileName = resolveDocumentFileName(data);
+  const docType = getString(data.docType) ?? detectDocTypeFromFileName(fileName);
   const status = getString(data.status) ?? "active";
-  const createdAt =
-    typeof data.createdAt === "number" && Number.isFinite(data.createdAt)
-      ? data.createdAt
-      : Date.now();
+  const createdAt = normalizeCreatedAt(data.createdAt);
 
   return {
     fileName,
@@ -85,32 +87,99 @@ async function migrateDocuments() {
   initAdmin();
 
   const db = getFirestore();
-  const snapshot = await db.collection("documents").get();
+  const contractorsSnapshot = await db.collection("contractors").get();
 
-  if (snapshot.empty) {
-    console.log("No documents found in collection \"documents\".");
+  if (contractorsSnapshot.empty) {
+    console.log("No contractors found in collection \"contractors\".");
     return;
   }
 
-  console.log(`Found ${snapshot.size} documents. Starting safe migration...`);
+  console.log(`Found ${contractorsSnapshot.size} contractors. Starting safe migration...`);
 
-  const docs = snapshot.docs;
-  const chunkSize = 400;
+  const docs: any[] = [];
+
+  for (const contractorDoc of contractorsSnapshot.docs) {
+    const documentsSnapshot = await contractorDoc.ref.collection("documents").get();
+    for (const documentDoc of documentsSnapshot.docs) {
+      docs.push(documentDoc);
+    }
+  }
+
+  if (docs.length === 0) {
+    console.log("No contractor documents found to migrate.");
+    return;
+  }
+
+  let scanned = 0;
+  let matchedLegacyCriteria = 0;
+  let upgraded = 0;
+  let unresolved = 0;
+
+  const chunkSize = 350;
 
   for (let i = 0; i < docs.length; i += chunkSize) {
     const batch = db.batch();
     const chunk = docs.slice(i, i + chunkSize);
 
     for (const docSnap of chunk) {
-      const normalized = normalizeDocument(docSnap.data() as Record<string, unknown>);
+      scanned += 1;
+      const raw = docSnap.data() as Record<string, unknown>;
+      const currentFileName = getString(raw.fileName);
+      const currentOriginalName = getString(raw.originalName);
+      const shouldMigrate =
+        !currentFileName ||
+        currentFileName === RECOVERED_DOCUMENT_PLACEHOLDER ||
+        !currentOriginalName;
+
+      if (!shouldMigrate) {
+        continue;
+      }
+
+      matchedLegacyCriteria += 1;
+
+      const normalized = normalizeDocument(raw);
+      if (normalized.fileName === RECOVERED_DOCUMENT_PLACEHOLDER) {
+        unresolved += 1;
+      }
+
+      const nextPayload: Record<string, unknown> = {
+        fileName: normalized.fileName,
+        originalName: normalized.originalName,
+        docType: normalized.docType,
+        createdAt: normalized.createdAt,
+      };
+
+      const changed =
+        raw.fileName !== nextPayload.fileName ||
+        raw.originalName !== nextPayload.originalName ||
+        raw.docType !== nextPayload.docType ||
+        raw.createdAt !== nextPayload.createdAt;
+
+      if (!changed) {
+        continue;
+      }
 
       // Idempotent in-place update. No new documents are created.
-      batch.set(docSnap.ref, normalized, { merge: true });
+      batch.set(docSnap.ref, nextPayload, { merge: true });
+      upgraded += 1;
     }
 
     await batch.commit();
     console.log(`Processed ${Math.min(i + chunk.length, docs.length)} / ${docs.length}`);
   }
+
+  console.log(
+    JSON.stringify(
+      {
+        scanned,
+        matchedLegacyCriteria,
+        upgraded,
+        unresolvedAfterUpgrade: unresolved,
+      },
+      null,
+      2
+    )
+  );
 
   console.log("Document migration completed successfully.");
 }

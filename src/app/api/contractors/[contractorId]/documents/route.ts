@@ -1,6 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebase/admin";
 import type { ContractorDocument } from "@/types/document";
+import { getAuth } from "firebase-admin/auth";
+import {
+  detectDocTypeFromFileName,
+  getString,
+  normalizeCreatedAt,
+  resolveDocumentFileName,
+} from "@/lib/documents/normalizeDocumentName";
 
 /**
  * Always return JSON error safely
@@ -21,36 +28,20 @@ function normalizeDocument(
   id: string,
   data: any
 ): ContractorDocument {
-  const fileName =
-    typeof data?.fileName === "string" && data.fileName.trim().length > 0
-      ? data.fileName
-      : typeof data?.originalName === "string" && data.originalName.trim().length > 0
-      ? data.originalName
-      : typeof data?.filename === "string" && data.filename.trim().length > 0
-      ? data.filename
-      : typeof data?.docType === "string" && data.docType.trim().length > 0
-      ? data.docType
-      : "Recovered document";
+  const source = (data ?? {}) as Record<string, unknown>;
+  const fileName = resolveDocumentFileName(source);
 
   const originalName =
-    typeof data?.originalName === "string" && data.originalName.trim().length > 0
-      ? data.originalName
-      : fileName;
+    getString(source.originalName) ??
+    fileName;
 
   const docType =
-    typeof data?.docType === "string" && data.docType.trim().length > 0
-      ? data.docType
-      : "general";
+    getString(source.docType) ?? detectDocTypeFromFileName(fileName);
 
   const status =
-    typeof data?.status === "string" && data.status.trim().length > 0
-      ? data.status
-      : "active";
+    getString(source.status) ?? "active";
 
-  const createdAt =
-    typeof data?.createdAt === "number" && Number.isFinite(data.createdAt)
-      ? data.createdAt
-      : Date.now();
+  const createdAt = normalizeCreatedAt(source.createdAt);
 
   return {
 
@@ -91,6 +82,28 @@ function normalizeDocument(
 
   };
 
+}
+
+async function requireAdmin(request: NextRequest): Promise<{ ok: true } | { ok: false; response: NextResponse }> {
+  const authHeader = request.headers.get("authorization") ?? "";
+  const token = authHeader.startsWith("Bearer ") ? authHeader.slice("Bearer ".length).trim() : "";
+
+  if (!token) {
+    return { ok: false, response: jsonError("Missing Authorization token", 401) };
+  }
+
+  try {
+    const decoded = await getAuth().verifyIdToken(token);
+    const role = typeof decoded.role === "string" ? decoded.role : "";
+
+    if (role !== "admin") {
+      return { ok: false, response: jsonError("Forbidden", 403) };
+    }
+
+    return { ok: true };
+  } catch {
+    return { ok: false, response: jsonError("Invalid Authorization token", 401) };
+  }
 }
 
 /**
@@ -212,4 +225,70 @@ export async function POST(
 
   }
 
+}
+
+/**
+ * PATCH contractor document metadata (admin only)
+ */
+export async function PATCH(
+  request: NextRequest,
+  context: { params: Promise<{ contractorId: string }> }
+) {
+  try {
+    const authResult = await requireAdmin(request);
+    if (!authResult.ok) return authResult.response;
+
+    const { contractorId } = await context.params;
+
+    if (!contractorId) {
+      return jsonError("Missing contractorId", 400);
+    }
+
+    const body = await request.json() as { documentId?: unknown; fileName?: unknown };
+    const documentId = getString(body.documentId);
+    const nextFileName = getString(body.fileName);
+
+    if (!documentId) {
+      return jsonError("Missing documentId", 400);
+    }
+
+    if (!nextFileName) {
+      return jsonError("Missing fileName", 400);
+    }
+
+    const docRef = adminDb
+      .collection("contractors")
+      .doc(contractorId)
+      .collection("documents")
+      .doc(documentId);
+
+    const snap = await docRef.get();
+
+    if (!snap.exists) {
+      return jsonError("Document not found", 404);
+    }
+
+    await docRef.set(
+      {
+        fileName: nextFileName,
+        originalName: nextFileName,
+      },
+      { merge: true }
+    );
+
+    const updated = await docRef.get();
+
+    return NextResponse.json(
+      { document: normalizeDocument(updated.id, updated.data()) },
+      { status: 200 }
+    );
+  }
+  catch (error: any) {
+    console.error(error);
+
+    return jsonError(
+      error?.message ?? "Failed to update document",
+      500
+    );
+  }
 }

@@ -14,6 +14,7 @@ import { calculateCompliance } from "@/lib/compliance/calculateCompliance";
 import Card, { IdentityCardHeader } from "@/components/ui/Card";
 import Badge from "@/components/ui/Badge";
 import Table from "@/components/ui/Table";
+import { useAuth } from "@/context/AuthContext";
 
 type RiskLabel = "Valid" | "Expiring Soon" | "Expired";
 
@@ -36,6 +37,7 @@ function toneForRisk(risk: RiskLabel): "success" | "warning" | "danger" {
 }
 
 export default function ContractorPage() {
+  const { role, user } = useAuth();
   const params = useParams();
   const contractorId = typeof params?.contractorId === "string" ? params.contractorId : null;
 
@@ -43,6 +45,7 @@ export default function ContractorPage() {
   const [documents, setDocuments] = useState<ContractorDocument[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [renamingDocumentId, setRenamingDocumentId] = useState<string | null>(null);
 
   const compliance = calculateCompliance(documents);
 
@@ -76,6 +79,7 @@ export default function ContractorPage() {
   if (error) return <div className="enterprise-page">{error}</div>;
   if (!contractor) return <div className="enterprise-page">Contractor not found</div>;
   const resolvedContractorId = contractorId;
+  const canRename = role === "admin";
 
   const contractorDisplayName =
     contractor.companyName ?? contractor.contactPerson ?? contractor.name ?? contractor.email ?? "Contractor";
@@ -142,10 +146,12 @@ export default function ContractorPage() {
             <thead>
               <tr>
                 <th>Document Name</th>
+                <th>Name Status</th>
                 <th>Document Type</th>
                 <th>Status Badge</th>
                 <th>Expiry Date</th>
                 <th>Risk Indicator</th>
+                {canRename && <th>Actions</th>}
               </tr>
             </thead>
             <tbody>
@@ -153,14 +159,70 @@ export default function ContractorPage() {
                 const risk = getDocumentRisk(doc);
                 const expiresAt = doc.expiresAt ?? doc.expiryDate ?? null;
                 const documentName = doc.fileName || doc.originalName || "Recovered document";
+                const unresolvedName = documentName === "Recovered document";
 
                 return (
                   <tr key={doc.id}>
                     <td>{documentName}</td>
+                    <td>
+                      {unresolvedName ? (
+                        <Badge tone="warning">NEEDS NAME</Badge>
+                      ) : (
+                        <Badge tone="success">OK</Badge>
+                      )}
+                    </td>
                     <td>{doc.docType ?? "general"}</td>
                     <td><Badge tone={toneForRisk(risk)}>{doc.status ?? "active"}</Badge></td>
                     <td>{expiresAt ? new Date(expiresAt).toLocaleDateString() : "-"}</td>
                     <td><Badge tone={toneForRisk(risk)}>{risk}</Badge></td>
+                    {canRename && (
+                      <td>
+                        <button
+                          disabled={renamingDocumentId === doc.id}
+                          onClick={async () => {
+                            if (!user || !contractorId) return;
+
+                            const suggestedName =
+                              documentName === "Recovered document"
+                                ? (doc.originalName ?? "")
+                                : documentName;
+                            const nextName = window.prompt("Set display name", suggestedName)?.trim();
+                            if (!nextName) return;
+
+                            try {
+                              setRenamingDocumentId(doc.id);
+                              const token = await user.getIdToken(true);
+                              const response = await fetch(`/api/contractors/${contractorId}/documents`, {
+                                method: "PATCH",
+                                headers: {
+                                  "Content-Type": "application/json",
+                                  Authorization: `Bearer ${token}`,
+                                },
+                                body: JSON.stringify({
+                                  documentId: doc.id,
+                                  fileName: nextName,
+                                }),
+                              });
+
+                              if (!response.ok) {
+                                const text = await response.text();
+                                throw new Error(text || "Failed to rename document");
+                              }
+
+                              const updated = await getContractorDocuments(resolvedContractorId);
+                              setDocuments(updated);
+                            } catch (renameError: any) {
+                              console.error(renameError);
+                              setError(renameError?.message ?? "Failed to rename document");
+                            } finally {
+                              setRenamingDocumentId(null);
+                            }
+                          }}
+                        >
+                          {renamingDocumentId === doc.id ? "Saving..." : "Rename"}
+                        </button>
+                      </td>
+                    )}
                   </tr>
                 );
               })}

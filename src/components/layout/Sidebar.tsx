@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
-import { canUpload, canViewContractorList } from "@/lib/auth/roleUtils";
+import { canViewContractorList } from "@/lib/auth/roleUtils";
 
 export default function Sidebar() {
   const { role, loading } = useAuth();
@@ -44,11 +44,6 @@ export default function Sidebar() {
         </Link>
       )}
 
-      {canUpload(role) && (
-        <Link href="/dashboard/upload" style={linkStyle}>
-          Upload PDF
-        </Link>
-      )}
     </aside>
   );
 }

@@ -3,8 +3,12 @@
 import Link from "next/link";
 import Card, { IdentityCardHeader } from "@/components/ui/Card";
 import Badge from "@/components/ui/Badge";
+import { useAuth } from "@/context/AuthContext";
 
 export default function DashboardHome() {
+  const { role } = useAuth();
+  const showUsersModule = role === "admin";
+
   return (
     <div className="enterprise-page enterprise-grid">
       <Card>
@@ -28,11 +32,13 @@ export default function DashboardHome() {
           <h2 className="enterprise-metric-value">Deals</h2>
           <Link href="/dashboard/deals">Open workspace</Link>
         </Card>
-        <Card>
-          <p className="enterprise-metric-label">Module</p>
-          <h2 className="enterprise-metric-value">Users</h2>
-          <Link href="/dashboard/users">Open workspace</Link>
-        </Card>
+        {showUsersModule && (
+          <Card>
+            <p className="enterprise-metric-label">Module</p>
+            <h2 className="enterprise-metric-value">Users</h2>
+            <Link href="/dashboard/users">Open workspace</Link>
+          </Card>
+        )}
       </div>
     </div>
   );
