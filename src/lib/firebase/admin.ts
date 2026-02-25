@@ -1,48 +1,45 @@
 import { initializeApp, cert, getApps, App } from "firebase-admin/app";
 import { getFirestore, Firestore } from "firebase-admin/firestore";
+import { getStorage, Storage } from "firebase-admin/storage";
 
-type FirebaseAdminGlobal = typeof globalThis & {
-  __firebaseAdminApp?: App;
-  __firebaseAdminDb?: Firestore;
+type FirebaseAdminContext = Firestore & {
+  app: App;
+  db: Firestore;
+  storage: Storage;
 };
 
-const globalForFirebase = globalThis as FirebaseAdminGlobal;
+let app: App;
+let db: Firestore;
+let storage: Storage;
+let context: FirebaseAdminContext;
 
-function getRequiredEnv(name: string): string {
-  const value = process.env[name];
-  if (!value) {
-    throw new Error(`Firebase Admin initialization failed: missing ${name}`);
-  }
-  return value;
-}
-
-export function getFirebaseAdmin() {
-  if (globalForFirebase.__firebaseAdminDb) {
-    return globalForFirebase.__firebaseAdminDb;
-  }
-
-  if (!globalForFirebase.__firebaseAdminApp) {
-    if (!getApps().length) {
-      const projectId = getRequiredEnv("FIREBASE_PROJECT_ID");
-      const clientEmail = getRequiredEnv("FIREBASE_CLIENT_EMAIL");
-      const privateKey = getRequiredEnv("FIREBASE_PRIVATE_KEY");
-
-      globalForFirebase.__firebaseAdminApp = initializeApp({
-        credential: cert({
-          projectId,
-          clientEmail,
-          privateKey: privateKey.replace(/\\n/g, "\n"),
-        }),
-      });
-    } else {
-      globalForFirebase.__firebaseAdminApp = getApps()[0];
+export function getFirebaseAdmin(): FirebaseAdminContext {
+  if (!app) {
+    if (
+      !process.env.FIREBASE_PROJECT_ID ||
+      !process.env.FIREBASE_CLIENT_EMAIL ||
+      !process.env.FIREBASE_PRIVATE_KEY ||
+      !process.env.FIREBASE_STORAGE_BUCKET
+    ) {
+      throw new Error("Missing Firebase Admin environment variables.");
     }
+
+    app =
+      getApps().length > 0
+        ? getApps()[0]
+        : initializeApp({
+            credential: cert({
+              projectId: process.env.FIREBASE_PROJECT_ID,
+              clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+              privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, "\n"),
+            }),
+            storageBucket: process.env.FIREBASE_STORAGE_BUCKET,
+          });
+
+    db = getFirestore(app);
+    storage = getStorage(app);
+    context = Object.assign(db, { app, db, storage });
   }
 
-  if (!globalForFirebase.__firebaseAdminApp) {
-    throw new Error("Firebase Admin initialization failed: app instance unavailable");
-  }
-
-  globalForFirebase.__firebaseAdminDb = getFirestore(globalForFirebase.__firebaseAdminApp);
-  return globalForFirebase.__firebaseAdminDb;
+  return context;
 }

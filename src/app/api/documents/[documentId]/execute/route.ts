@@ -27,7 +27,8 @@ async function requireRole(request: NextRequest): Promise<string> {
   }
 
   try {
-    const decoded = await getAuth().verifyIdToken(token);
+    const { app } = getFirebaseAdmin();
+    const decoded = await getAuth(app).verifyIdToken(token);
     return typeof decoded.role === "string" ? decoded.role : "";
   } catch {
     throw new DocumentExecutionError("Invalid Authorization token", 401);
@@ -46,7 +47,7 @@ export async function GET(
       return jsonError("Missing documentId", 400);
     }
 
-    const db = getFirebaseAdmin();
+    const { db } = getFirebaseAdmin();
 
     const snap = await db
       .collectionGroup("documents")
