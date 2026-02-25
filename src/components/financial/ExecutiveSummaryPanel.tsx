@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import Card from "@/components/ui/Card";
 import { API_ROUTES } from "@/lib/routes";
-import { auth } from "@/lib/firebase";
+import { authFetch } from "@/lib/client/authFetch";
 
 type Deal = {
   value?: number;
@@ -35,6 +36,7 @@ function isCompliantStatus(status: string | undefined): boolean {
 }
 
 export default function ExecutiveSummaryPanel() {
+  const router = useRouter();
   const [deals, setDeals] = useState<Deal[]>([]);
   const [contractorCount, setContractorCount] = useState(0);
   const [summary, setSummary] = useState<string>("");
@@ -44,7 +46,15 @@ export default function ExecutiveSummaryPanel() {
   useEffect(() => {
     async function loadExecutiveData() {
       try {
-        const dealsPromise = fetch(API_ROUTES.DEALS).then(async (res) => {
+        const dealsPromise = authFetch(API_ROUTES.DEALS).then(async (result) => {
+          if (!result.ok) {
+            if (result.code === "AUTH") {
+              throw new Error("AUTH");
+            }
+            throw new Error(result.message);
+          }
+
+          const res = result.response;
           if (!res.ok) {
             throw new Error("Failed to fetch deals");
           }
@@ -52,21 +62,22 @@ export default function ExecutiveSummaryPanel() {
           return Array.isArray(payload.deals) ? payload.deals : [];
         });
 
-        const contractorsPromise = (async () => {
-          const user = auth.currentUser;
-          const token = user ? await user.getIdToken(true) : null;
-          const headers: HeadersInit = token
-            ? { Authorization: `Bearer ${token}` }
-            : {};
+        const contractorsPromise = authFetch(API_ROUTES.CONTRACTORS).then(async (result) => {
+          if (!result.ok) {
+            if (result.code === "AUTH") {
+              throw new Error("AUTH");
+            }
+            throw new Error(result.message);
+          }
 
-          const res = await fetch(API_ROUTES.CONTRACTORS, { headers });
+          const res = result.response;
           if (!res.ok) {
             return 0;
           }
 
           const payload = (await res.json()) as ContractorPayload;
           return Array.isArray(payload.contractors) ? payload.contractors.length : 0;
-        })();
+        });
 
         const summaryPromise = generateExecutiveSummary();
 
@@ -81,6 +92,11 @@ export default function ExecutiveSummaryPanel() {
         setSummary(resolvedSummary);
       } catch (err) {
         console.error(err);
+        if (err instanceof Error && err.message === "AUTH") {
+          setError("Session expired. Please login again.");
+          router.push("/login");
+          return;
+        }
         setError("Unable to load executive summary");
       } finally {
         setLoading(false);
@@ -88,7 +104,7 @@ export default function ExecutiveSummaryPanel() {
     }
 
     loadExecutiveData();
-  }, []);
+  }, [router]);
 
   const metrics = useMemo(() => {
     const totalDeals = deals.length;

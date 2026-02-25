@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import Card from "@/components/ui/Card";
+import { authFetch } from "@/lib/client/authFetch";
 import { API_ROUTES } from "@/lib/routes";
 import {
   ResponsiveContainer,
@@ -29,6 +31,7 @@ function normalizeStatus(status: unknown): PipelineStatus {
 }
 
 export default function DealConversionGraph() {
+  const router = useRouter();
   const [deals, setDeals] = useState<Deal[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -36,7 +39,18 @@ export default function DealConversionGraph() {
   useEffect(() => {
     async function loadDeals() {
       try {
-        const res = await fetch(API_ROUTES.DEALS);
+        const result = await authFetch(API_ROUTES.DEALS);
+        if (!result.ok) {
+          if (result.code === "AUTH") {
+            setError("Session expired. Please login again.");
+            router.push("/login");
+            return;
+          }
+          throw new Error(result.message);
+        }
+
+        const { response: res } = result;
+
         if (!res.ok) {
           throw new Error("Failed to fetch deals");
         }
@@ -52,7 +66,7 @@ export default function DealConversionGraph() {
     }
 
     loadDeals();
-  }, []);
+  }, [router]);
 
   const data = useMemo(() => {
     const counts: Record<PipelineStatus, number> = {

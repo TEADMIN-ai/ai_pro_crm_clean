@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { getContractors } from "@/lib/contractors/getContractors";
 import type { Contractor } from "@/types/contractor";
 import Card, { IdentityCardHeader } from "@/components/ui/Card";
@@ -14,6 +15,7 @@ function normalizeStatus(status: string | null | undefined): string {
 }
 
 export default function ContractorsPage() {
+  const router = useRouter();
   const [contractors, setContractors] = useState<Contractor[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -25,6 +27,11 @@ export default function ContractorsPage() {
         setContractors(result);
       } catch (err: any) {
         console.error("Failed to fetch contractors:", err);
+        if (err?.code === "AUTH") {
+          setError("Session expired. Please login again.");
+          router.push("/login");
+          return;
+        }
         setError(err.message || "Failed to load contractors");
       } finally {
         setLoading(false);
@@ -32,7 +39,7 @@ export default function ContractorsPage() {
     }
 
     load();
-  }, []);
+  }, [router]);
 
   if (loading) {
     return <div className="enterprise-page">Loading contractors...</div>;

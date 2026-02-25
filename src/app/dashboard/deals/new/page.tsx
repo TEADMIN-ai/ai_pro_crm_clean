@@ -2,7 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { auth } from "@/lib/firebase";
+import { authFetch } from "@/lib/client/authFetch";
 import type { Contractor } from "@/types/contractor";
 import { API_ROUTES } from "@/lib/routes";
 
@@ -29,13 +29,17 @@ export default function NewDealPage() {
   useEffect(() => {
     async function loadContractors() {
       try {
-        const user = auth.currentUser;
-        const token = user ? await user.getIdToken(true) : null;
-        const headers: HeadersInit = token
-          ? { Authorization: `Bearer ${token}` }
-          : {};
+        const result = await authFetch(API_ROUTES.CONTRACTORS);
+        if (!result.ok) {
+          if (result.code === "AUTH") {
+            setError("Session expired. Please login again.");
+            router.push("/login");
+            return;
+          }
+          throw new Error(result.message);
+        }
 
-        const res = await fetch(API_ROUTES.CONTRACTORS, { headers });
+        const { response: res } = result;
 
         if (!res.ok) {
           throw new Error("Failed to fetch contractors");
@@ -53,7 +57,7 @@ export default function NewDealPage() {
     }
 
     loadContractors();
-  }, []);
+  }, [router]);
 
   const selectedContractorName = useMemo(
     () => {
@@ -72,7 +76,7 @@ export default function NewDealPage() {
       const parsedValue = Number(value);
       const safeValue = Number.isFinite(parsedValue) ? parsedValue : 0;
 
-      const res = await fetch(API_ROUTES.DEALS, {
+      const result = await authFetch(API_ROUTES.DEALS, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -83,6 +87,16 @@ export default function NewDealPage() {
           status: "draft",
         }),
       });
+      if (!result.ok) {
+        if (result.code === "AUTH") {
+          setError("Session expired. Please login again.");
+          router.push("/login");
+          return;
+        }
+        throw new Error(result.message);
+      }
+
+      const { response: res } = result;
 
       if (!res.ok) {
         const payload = (await res.json().catch(() => null)) as { error?: string } | null;

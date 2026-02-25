@@ -1,5 +1,5 @@
-import { auth } from "@/lib/firebase";
 import { API_ROUTES } from "@/lib/routes";
+import { authFetch } from "@/lib/client/authFetch";
 import type { Contractor } from "@/types/contractor";
 
 function hasKey<K extends string>(value: object, key: K): value is Record<K, unknown> {
@@ -39,20 +39,17 @@ function normalizeContractor(id: string, data: unknown): Contractor {
 }
 
 export async function getContractors(): Promise<Contractor[]> {
-  const user = auth.currentUser;
+  const result = await authFetch(API_ROUTES.CONTRACTORS, {
+    method: "GET",
+  });
 
-  if (!user) {
-    throw new Error("User not authenticated");
+  if (!result.ok) {
+    const error = new Error(result.message);
+    (error as Error & { code?: string }).code = result.code;
+    throw error;
   }
 
-  const token = await user.getIdToken(true);
-
-  const res = await fetch(API_ROUTES.CONTRACTORS, {
-    method: "GET",
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-  });
+  const { response: res } = result;
 
   if (!res.ok) {
     const text = await res.text();

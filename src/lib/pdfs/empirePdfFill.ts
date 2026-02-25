@@ -1,10 +1,15 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import { PDFDocument } from "pdf-lib";
+import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 
 import { getFirebaseAdmin } from "@/lib/firebase/admin";
 import type { CompanyProfile } from "@/lib/autofill/buildCompanyProfile";
 import { SBD_SCHEMA, type SbdFieldKey, type SbdFormKey } from "@/lib/pdfs/templates/sbdSchema";
+import {
+  TEMPLATE_REGISTRY,
+  type TemplateFieldMap,
+  type TemplateOverlayMap,
+} from "@/lib/pdfs/templates/templateRegistry";
 
 export type FillTenderPackParams = {
   templateKey: SbdFormKey;
@@ -28,8 +33,16 @@ export type TenderFillError = {
 
 export type TenderFillResult = TenderFillSuccess | TenderFillError;
 
-function resolveTemplatePath(templateKey: SbdFormKey): string {
-  return path.join(process.cwd(), "templates", "tender-packs", `${templateKey}.pdf`);
+function resolveTemplatePaths(templateKey: SbdFormKey): string[] {
+  const registryEntry = TEMPLATE_REGISTRY[templateKey];
+  if (!registryEntry) {
+    return [];
+  }
+
+  return [
+    path.join(process.cwd(), registryEntry.pdfRelativePath),
+    path.join(process.cwd(), "templates", "tender-packs", `${templateKey}.pdf`),
+  ];
 }
 
 async function writeAuditTrail(data: {
@@ -63,6 +76,17 @@ function buildFieldMap(profile: CompanyProfile): Record<string, string> {
   };
 }
 
+function buildMappedFieldMap(profile: CompanyProfile, mapping: TemplateFieldMap): Record<string, string> {
+  const result: Record<string, string> = {};
+
+  for (const [pdfFieldName, profileKey] of Object.entries(mapping)) {
+    const value = profileKey ? profile[profileKey] : "";
+    result[pdfFieldName] = typeof value === "string" ? value : "";
+  }
+
+  return result;
+}
+
 function getRequiredMissingWarnings(templateKey: SbdFormKey, profile: CompanyProfile): string[] {
   const required = SBD_SCHEMA[templateKey]?.requiredFields ?? [];
   return required
@@ -70,20 +94,98 @@ function getRequiredMissingWarnings(templateKey: SbdFormKey, profile: CompanyPro
     .map((field) => `Missing required field for ${templateKey}: ${field}`);
 }
 
+async function drawOverlayFields(params: {
+  pdfDoc: PDFDocument;
+  overlayMap: TemplateOverlayMap;
+  fieldMapUsed: Record<string, string>;
+  fallbackFieldMap: Record<string, string>;
+  warnings: string[];
+}) {
+  const { pdfDoc, overlayMap, fieldMapUsed, fallbackFieldMap, warnings } = params;
+  const pages = pdfDoc.getPages();
+  const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+
+  for (const [overlayFieldName, overlayField] of Object.entries(overlayMap)) {
+    const targetPage = pages[overlayField.page];
+    if (!targetPage) {
+      warnings.push(
+        `Overlay page index '${overlayField.page}' is out of range for field '${overlayFieldName}'`
+      );
+      continue;
+    }
+
+    const value =
+      fieldMapUsed[overlayFieldName] ?? fallbackFieldMap[overlayField.profileKey] ?? "";
+    if (!value) {
+      continue;
+    }
+
+    targetPage.drawText(value, {
+      x: overlayField.x,
+      y: overlayField.y,
+      size: overlayField.size ?? 10,
+      maxWidth: overlayField.maxWidth,
+      lineHeight: overlayField.lineHeight,
+      color: rgb(0, 0, 0),
+      font,
+    });
+  }
+}
+
 export async function fillTenderPack(params: FillTenderPackParams): Promise<TenderFillResult> {
   const { templateKey, profile, outputMode } = params;
 
-  const templatePath = resolveTemplatePath(templateKey);
-  const fieldMapUsed = buildFieldMap(profile);
+  const registryEntry = TEMPLATE_REGISTRY[templateKey];
+  if (!registryEntry) {
+    return {
+      ok: false,
+      error: `Template registry entry not found for key '${templateKey}'`,
+      warnings: [],
+      fieldMapUsed: {},
+    };
+  }
+
+  const fallbackFieldMap = buildFieldMap(profile);
+  const fieldMapUsed = registryEntry.fieldMap
+    ? buildMappedFieldMap(profile, registryEntry.fieldMap)
+    : fallbackFieldMap;
   const warnings = getRequiredMissingWarnings(templateKey, profile);
 
   let templateBytes: Buffer;
+  let templatePath = "";
+  const candidatePaths = resolveTemplatePaths(templateKey);
+
+  if (candidatePaths.length === 0) {
+    return {
+      ok: false,
+      error: `Template path could not be resolved for key '${templateKey}'`,
+      warnings,
+      fieldMapUsed,
+    };
+  }
+
   try {
-    templateBytes = await fs.readFile(templatePath);
+    let loaded = false;
+    templateBytes = Buffer.alloc(0);
+
+    for (const candidatePath of candidatePaths) {
+      try {
+        templateBytes = await fs.readFile(candidatePath);
+        templatePath = candidatePath;
+        loaded = true;
+        break;
+      } catch {
+        // try next candidate
+      }
+    }
+
+    if (!loaded) {
+      throw new Error("template not found in any configured path");
+    }
   } catch {
     return {
       ok: false,
-      error: `Template file not found for key '${templateKey}' at ${templatePath}`,
+      error: `Template file not found for key '${templateKey}' at ${candidatePaths.join(" or ")}`,
       warnings,
       fieldMapUsed,
     };
@@ -94,16 +196,28 @@ export async function fillTenderPack(params: FillTenderPackParams): Promise<Tend
     const form = pdfDoc.getForm();
 
     const fields = form.getFields();
-    for (const field of fields) {
-      const name = field.getName();
-      const value = fieldMapUsed[name] ?? "";
-      try {
-        if ("setText" in field && typeof (field as { setText?: unknown }).setText === "function") {
-          (field as { setText: (v: string) => void }).setText(value);
+    if (fields.length > 0) {
+      for (const field of fields) {
+        const name = field.getName();
+        const value = fieldMapUsed[name] ?? fallbackFieldMap[name] ?? "";
+        try {
+          if ("setText" in field && typeof (field as { setText?: unknown }).setText === "function") {
+            (field as { setText: (v: string) => void }).setText(value);
+          }
+        } catch {
+          warnings.push(`Unable to set field '${name}'`);
         }
-      } catch {
-        warnings.push(`Unable to set field '${name}'`);
       }
+    } else if (registryEntry.overlayMap) {
+      await drawOverlayFields({
+        pdfDoc,
+        overlayMap: registryEntry.overlayMap,
+        fieldMapUsed,
+        fallbackFieldMap,
+        warnings,
+      });
+    } else {
+      warnings.push(`No AcroForm fields found and no overlay mapping configured for '${templateKey}'`);
     }
 
     const bytes = await pdfDoc.save();
@@ -129,7 +243,7 @@ export async function fillTenderPack(params: FillTenderPackParams): Promise<Tend
       ok: false,
       error: error instanceof Error ? error.message : "Unknown PDF filling error",
       warnings,
-      fieldMapUsed,
+      fieldMapUsed: { ...fieldMapUsed, __templatePath: templatePath },
     };
   }
 }
