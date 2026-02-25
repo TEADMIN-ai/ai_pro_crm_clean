@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "next dev",
 
-    "build": "next build",
+    "build": "tsx scripts/envCheck.ts && next build",
 
     "start": "next start",
 

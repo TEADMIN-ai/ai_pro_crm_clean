@@ -1,28 +1,48 @@
 import { initializeApp, cert, getApps, App } from "firebase-admin/app";
-import { getFirestore } from "firebase-admin/firestore";
+import { getFirestore, Firestore } from "firebase-admin/firestore";
 
-let app: App;
+type FirebaseAdminGlobal = typeof globalThis & {
+  __firebaseAdminApp?: App;
+  __firebaseAdminDb?: Firestore;
+};
+
+const globalForFirebase = globalThis as FirebaseAdminGlobal;
+
+function getRequiredEnv(name: string): string {
+  const value = process.env[name];
+  if (!value) {
+    throw new Error(`Firebase Admin initialization failed: missing ${name}`);
+  }
+  return value;
+}
 
 export function getFirebaseAdmin() {
-  if (!getApps().length) {
-    if (
-      !process.env.FIREBASE_PROJECT_ID ||
-      !process.env.FIREBASE_CLIENT_EMAIL ||
-      !process.env.FIREBASE_PRIVATE_KEY
-    ) {
-      throw new Error("Firebase Admin env vars missing");
-    }
-
-    app = initializeApp({
-      credential: cert({
-        projectId: process.env.FIREBASE_PROJECT_ID,
-        clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-        privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, "\n"),
-      }),
-    });
-  } else {
-    app = getApps()[0];
+  if (globalForFirebase.__firebaseAdminDb) {
+    return globalForFirebase.__firebaseAdminDb;
   }
 
-  return getFirestore(app);
+  if (!globalForFirebase.__firebaseAdminApp) {
+    if (!getApps().length) {
+      const projectId = getRequiredEnv("FIREBASE_PROJECT_ID");
+      const clientEmail = getRequiredEnv("FIREBASE_CLIENT_EMAIL");
+      const privateKey = getRequiredEnv("FIREBASE_PRIVATE_KEY");
+
+      globalForFirebase.__firebaseAdminApp = initializeApp({
+        credential: cert({
+          projectId,
+          clientEmail,
+          privateKey: privateKey.replace(/\\n/g, "\n"),
+        }),
+      });
+    } else {
+      globalForFirebase.__firebaseAdminApp = getApps()[0];
+    }
+  }
+
+  if (!globalForFirebase.__firebaseAdminApp) {
+    throw new Error("Firebase Admin initialization failed: app instance unavailable");
+  }
+
+  globalForFirebase.__firebaseAdminDb = getFirestore(globalForFirebase.__firebaseAdminApp);
+  return globalForFirebase.__firebaseAdminDb;
 }
