@@ -98,9 +98,23 @@ async function runSmokeChecks(): Promise<void> {
   const lockPath = path.join(process.cwd(), ".next", "dev", "lock");
 
   if (fs.existsSync(lockPath)) {
-    throw new Error(
-      "Detected an existing Next.js dev lock. Stop the running dev server or set SANITY_BASE_URL to an active instance."
-    );
+    if (await isReachable(localUrl)) {
+      console.log(`\n[sanity] smoke checks against existing server ${localUrl}`);
+      await smokeCheckEndpoint(localUrl, "/api/contractors");
+      await smokeCheckEndpoint(localUrl, "/api/deals");
+      await smokeCheckEndpoint(localUrl, "/api/contractors/smoke-check/documents");
+      return;
+    }
+
+    // Recover from stale lock files left by interrupted dev servers.
+    try {
+      fs.unlinkSync(lockPath);
+      console.log(`\n[sanity] removed stale dev lock at ${lockPath}`);
+    } catch (error) {
+      throw new Error(
+        `Detected a Next.js dev lock and could not remove it (${error instanceof Error ? error.message : String(error)}).`
+      );
+    }
   }
 
   console.log(`\n[sanity] starting dev server on ${localUrl} for smoke checks`);

@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit",
     "lint": "next lint",
     "test": "jest",
+    "route": "npm run route:integrity",
     "route:integrity": "tsx scripts/routeIntegrityCheck.ts",
     "autofill:integrity": "tsx scripts/autofillIntegrityCheck.ts",
     "sanity": "tsx scripts/sanityCheck.ts",
