@@ -2,6 +2,8 @@ export const API_ROUTES = {
   CONTRACTORS: "/api/contractors",
   CONTRACTOR_DOCUMENTS: (contractorId: string) =>
     `/api/contractors/${contractorId}/documents`,
+  DOCUMENT_EXECUTE: (documentId: string) =>
+    `/api/documents/${documentId}/execute`,
   DEALS: "/api/deals",
   PORTAL_REGISTER: "/api/portal/register",
   SYNC_ROLE: "/api/sync-role",
