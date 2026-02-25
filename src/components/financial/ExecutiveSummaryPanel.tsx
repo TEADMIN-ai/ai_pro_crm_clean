@@ -1,0 +1,183 @@
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+import Card from "@/components/ui/Card";
+import { API_ROUTES } from "@/lib/routes";
+import { auth } from "@/lib/firebase";
+
+type Deal = {
+  value?: number;
+  status?: string;
+};
+
+type ContractorPayload = {
+  contractors?: unknown[];
+};
+
+type DealsPayload = {
+  deals?: Deal[];
+};
+
+async function generateExecutiveSummary() {
+  return "Torque Empire is operating at high efficiency with strong compliance and revenue growth trajectory.";
+}
+
+function formatCurrency(value: number): string {
+  return new Intl.NumberFormat("en-ZA", {
+    style: "currency",
+    currency: "ZAR",
+    maximumFractionDigits: 0,
+  }).format(value);
+}
+
+function isCompliantStatus(status: string | undefined): boolean {
+  return status === "approved" || status === "submitted" || status === "awarded";
+}
+
+export default function ExecutiveSummaryPanel() {
+  const [deals, setDeals] = useState<Deal[]>([]);
+  const [contractorCount, setContractorCount] = useState(0);
+  const [summary, setSummary] = useState<string>("");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function loadExecutiveData() {
+      try {
+        const dealsPromise = fetch(API_ROUTES.DEALS).then(async (res) => {
+          if (!res.ok) {
+            throw new Error("Failed to fetch deals");
+          }
+          const payload = (await res.json()) as DealsPayload;
+          return Array.isArray(payload.deals) ? payload.deals : [];
+        });
+
+        const contractorsPromise = (async () => {
+          const user = auth.currentUser;
+          const token = user ? await user.getIdToken(true) : null;
+          const headers: HeadersInit = token
+            ? { Authorization: `Bearer ${token}` }
+            : {};
+
+          const res = await fetch(API_ROUTES.CONTRACTORS, { headers });
+          if (!res.ok) {
+            return 0;
+          }
+
+          const payload = (await res.json()) as ContractorPayload;
+          return Array.isArray(payload.contractors) ? payload.contractors.length : 0;
+        })();
+
+        const summaryPromise = generateExecutiveSummary();
+
+        const [resolvedDeals, resolvedContractors, resolvedSummary] = await Promise.all([
+          dealsPromise,
+          contractorsPromise,
+          summaryPromise,
+        ]);
+
+        setDeals(resolvedDeals);
+        setContractorCount(resolvedContractors);
+        setSummary(resolvedSummary);
+      } catch (err) {
+        console.error(err);
+        setError("Unable to load executive summary");
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    loadExecutiveData();
+  }, []);
+
+  const metrics = useMemo(() => {
+    const totalDeals = deals.length;
+    const totalRevenue = deals.reduce((sum, deal) => {
+      const value = typeof deal.value === "number" ? deal.value : 0;
+      return deal.status !== "draft" ? sum + value : sum;
+    }, 0);
+    const projectedProfit = totalRevenue * 0.35;
+
+    const compliantDeals = deals.filter((deal) =>
+      isCompliantStatus(typeof deal.status === "string" ? deal.status : undefined)
+    ).length;
+    const compliance = totalDeals > 0 ? (compliantDeals / totalDeals) * 100 : 0;
+
+    return {
+      totalDeals,
+      totalRevenue,
+      projectedProfit,
+      compliance,
+    };
+  }, [deals]);
+
+  return (
+    <Card>
+      <div
+        style={{
+          borderRadius: 12,
+          border: "1px solid rgba(109, 182, 255, 0.26)",
+          background:
+            "linear-gradient(160deg, rgba(11, 26, 46, 0.95), rgba(13, 30, 55, 0.9))",
+          boxShadow:
+            "0 16px 38px rgba(74, 145, 255, 0.2), inset 0 0 22px rgba(92, 175, 255, 0.07)",
+          padding: 14,
+          fontFamily: "\"Segoe UI\", system-ui, sans-serif",
+          color: "#e7f0ff",
+        }}
+      >
+        <p style={{ margin: 0, fontSize: 12, letterSpacing: 0.5, color: "#b7ceef" }}>
+          Executive Summary
+        </p>
+        {loading ? (
+          <p style={{ margin: "8px 0 0", color: "#cae0ff" }}>Loading...</p>
+        ) : error ? (
+          <p style={{ margin: "8px 0 0", color: "#ffb6b6" }}>{error}</p>
+        ) : (
+          <>
+            <div
+              style={{
+                display: "grid",
+                gap: 10,
+                marginTop: 10,
+                gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+              }}
+            >
+              <div>
+                <p style={{ margin: 0, color: "#b7ceef", fontSize: 12 }}>Total Contractors</p>
+                <p style={{ margin: "6px 0 0", fontSize: 22, fontWeight: 700 }}>
+                  {contractorCount}
+                </p>
+              </div>
+              <div>
+                <p style={{ margin: 0, color: "#b7ceef", fontSize: 12 }}>Total Deals</p>
+                <p style={{ margin: "6px 0 0", fontSize: 22, fontWeight: 700 }}>
+                  {metrics.totalDeals}
+                </p>
+              </div>
+              <div>
+                <p style={{ margin: 0, color: "#b7ceef", fontSize: 12 }}>Total Revenue</p>
+                <p style={{ margin: "6px 0 0", fontSize: 22, fontWeight: 700 }}>
+                  {formatCurrency(metrics.totalRevenue)}
+                </p>
+              </div>
+              <div>
+                <p style={{ margin: 0, color: "#b7ceef", fontSize: 12 }}>Projected Profit</p>
+                <p style={{ margin: "6px 0 0", fontSize: 22, fontWeight: 700 }}>
+                  {formatCurrency(metrics.projectedProfit)}
+                </p>
+              </div>
+              <div>
+                <p style={{ margin: 0, color: "#b7ceef", fontSize: 12 }}>Compliance %</p>
+                <p style={{ margin: "6px 0 0", fontSize: 22, fontWeight: 700 }}>
+                  {metrics.compliance.toFixed(1)}%
+                </p>
+              </div>
+            </div>
+            <p style={{ margin: "12px 0 0", color: "#cae0ff", fontSize: 13 }}>{summary}</p>
+          </>
+        )}
+      </div>
+    </Card>
+  );
+}

@@ -8,6 +8,11 @@ import ComplianceScoreCard from "@/components/intelligence/ComplianceScoreCard";
 import DocumentStatusGraph from "@/components/intelligence/DocumentStatusGraph";
 import DealValueGraph from "@/components/intelligence/DealValueGraph";
 import AIInsightPanel from "@/components/intelligence/AIInsightPanel";
+import RevenueScoreCard from "@/components/financial/RevenueScoreCard";
+import RevenueTrendGraph from "@/components/financial/RevenueTrendGraph";
+import DealConversionGraph from "@/components/financial/DealConversionGraph";
+import ProfitProjectionPanel from "@/components/financial/ProfitProjectionPanel";
+import ExecutiveSummaryPanel from "@/components/financial/ExecutiveSummaryPanel";
 
 export default function DashboardHome() {
   const { role } = useAuth();
@@ -63,6 +68,12 @@ export default function DashboardHome() {
       />
       <DealValueGraph visibleModuleCount={visibleModuleCount} />
       <AIInsightPanel role={role} visibleModuleCount={visibleModuleCount} />
+      {/* Financial Intelligence Section */}
+      <RevenueScoreCard />
+      <RevenueTrendGraph />
+      <DealConversionGraph />
+      <ProfitProjectionPanel />
+      <ExecutiveSummaryPanel />
     </div>
   );
 }
