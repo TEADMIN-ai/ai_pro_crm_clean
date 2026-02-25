@@ -9,6 +9,10 @@ describe("API_ROUTES integrity", () => {
     expect(API_ROUTES.DEALS).toBe("/api/deals");
   });
 
+  test("TENDER_PACK_GENERATE route is correct", () => {
+    expect(API_ROUTES.TENDER_PACK_GENERATE).toBe("/api/tender-pack/generate");
+  });
+
   test("CONTRACTOR_DOCUMENTS builds correctly", () => {
     const contractorId = "test123";
     const expected = "/api/contractors/test123/documents";

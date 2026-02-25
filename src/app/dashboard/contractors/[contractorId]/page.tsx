@@ -18,6 +18,7 @@ import { useAuth } from "@/context/AuthContext";
 import { API_ROUTES } from "@/lib/routes";
 import { resolveDocumentFileName } from "@/lib/documents/normalizeDocumentName";
 import DocumentExecutionPanel from "@/components/documents/DocumentExecutionPanel";
+import TenderPackGeneratorPanel from "@/components/documents/TenderPackGeneratorPanel";
 
 type RiskLabel = "Valid" | "Expiring Soon" | "Expired";
 
@@ -235,6 +236,7 @@ export default function ContractorPage() {
       </Card>
 
       <DocumentExecutionPanel />
+      <TenderPackGeneratorPanel />
     </div>
   );
 }
