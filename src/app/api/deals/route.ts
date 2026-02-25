@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { adminDb } from "@/lib/firebase/admin";
+import { getFirebaseAdmin } from "@/lib/firebase/admin";
 
 type DealStatus = "draft" | "submitted" | "awarded";
 
@@ -20,7 +20,8 @@ function normalizeStatus(value: unknown): DealStatus {
 
 export async function GET() {
   try {
-    const snapshot = await adminDb
+    const db = getFirebaseAdmin();
+    const snapshot = await db
       .collection("deals")
       .orderBy("createdAt", "desc")
       .get();
@@ -55,6 +56,7 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
+    const db = getFirebaseAdmin();
     const body = (await request.json()) as Record<string, unknown>;
 
     const title = getString(body.title);
@@ -80,7 +82,7 @@ export async function POST(request: NextRequest) {
       createdAt,
     };
 
-    const docRef = await adminDb.collection("deals").add(doc);
+    const docRef = await db.collection("deals").add(doc);
 
     return NextResponse.json(
       { deal: { id: docRef.id, ...doc } },

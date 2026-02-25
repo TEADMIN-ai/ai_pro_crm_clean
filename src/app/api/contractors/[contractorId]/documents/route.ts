@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { adminDb } from "@/lib/firebase/admin";
+import { getFirebaseAdmin } from "@/lib/firebase/admin";
 import type { ContractorDocument } from "@/types/document";
 import { getAuth } from "firebase-admin/auth";
 import {
@@ -124,6 +124,7 @@ export async function GET(
   context: { params: Promise<{ contractorId: string }> }
 ) {
   try {
+    const db = getFirebaseAdmin();
 
     const { contractorId } = await context.params;
 
@@ -132,7 +133,7 @@ export async function GET(
     }
 
     const snapshot =
-      await adminDb
+      await db
         .collection("contractors")
         .doc(contractorId)
         .collection("documents")
@@ -173,6 +174,7 @@ export async function POST(
   context: { params: Promise<{ contractorId: string }> }
 ) {
   try {
+    const db = getFirebaseAdmin();
 
     const { contractorId } = await context.params;
 
@@ -201,7 +203,7 @@ export async function POST(
     const normalized = normalizeDocument("", payload);
 
     const docRef =
-      await adminDb
+      await db
         .collection("contractors")
         .doc(contractorId)
         .collection("documents")
@@ -256,6 +258,7 @@ export async function PATCH(
   context: { params: Promise<{ contractorId: string }> }
 ) {
   try {
+    const db = getFirebaseAdmin();
     const authResult = await requireAdmin(request);
     if (!authResult.ok) return authResult.response;
 
@@ -277,7 +280,7 @@ export async function PATCH(
       return jsonError("Missing fileName", 400);
     }
 
-    const docRef = adminDb
+    const docRef = db
       .collection("contractors")
       .doc(contractorId)
       .collection("documents")

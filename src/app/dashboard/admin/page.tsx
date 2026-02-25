@@ -1,8 +1,5 @@
 // src/app/dashboard/admin/page.tsx
 
-import { initializeApp, cert, getApps } from "firebase-admin/app";
-import { getFirestore } from "firebase-admin/firestore";
-
 import type { Deal } from "@/types/deal";
 
 import { computeAdminMetrics } from "@/lib/intelligence/admin/computeAdminMetrics";
@@ -14,29 +11,13 @@ import { computeExecutionVelocity } from "@/lib/executive/computeExecutionVeloci
 import { computePipelineQuality } from "@/lib/executive/computePipelineQuality";
 import { computePortfolioExposure } from "@/lib/executive/computePortfolioExposure";
 import { computeRevenueMomentum } from "@/lib/executive/computeRevenueMomentum";
+import { getFirebaseAdmin } from "@/lib/firebase/admin";
 import Card, { IdentityCardHeader } from "@/components/ui/Card";
 import Badge from "@/components/ui/Badge";
 import Table from "@/components/ui/Table";
 
-function initFirebaseAdmin() {
-  if (getApps().length > 0) return;
-
-  if (
-    !process.env.FIREBASE_PROJECT_ID ||
-    !process.env.FIREBASE_CLIENT_EMAIL ||
-    !process.env.FIREBASE_PRIVATE_KEY
-  ) {
-    throw new Error("Missing Firebase Admin environment variables.");
-  }
-
-  initializeApp({
-    credential: cert({
-      projectId: process.env.FIREBASE_PROJECT_ID,
-      clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-      privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, "\n"),
-    }),
-  });
-}
+export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
 
 function toneForScore(score: number): "success" | "warning" | "danger" {
   if (score >= 80) return "success";
@@ -45,9 +26,7 @@ function toneForScore(score: number): "success" | "warning" | "danger" {
 }
 
 export default async function AdminDashboardPage() {
-  initFirebaseAdmin();
-
-  const db = getFirestore();
+  const db = getFirebaseAdmin();
   const snapshot = await db.collection("deals").get();
   const deals = snapshot.docs.map((doc) => doc.data()) as Deal[];
 
