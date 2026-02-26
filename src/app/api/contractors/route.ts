@@ -1,80 +1,98 @@
-import { NextRequest, NextResponse } from "next/server";
-import { getAuth } from "firebase-admin/auth";
-import type { Contractor } from "@/types/contractor";
+import { NextResponse } from "next/server";
 import { getFirebaseAdmin } from "@/lib/firebase/admin";
-import { safeFirestoreQuery } from "@/lib/server/safeFirestore";
 
-export const runtime = "nodejs";
-
-const ALLOWED_ROLES = new Set(["admin", "manager", "staff"]);
-
-function hasKey<K extends string>(value: object, key: K): value is Record<K, unknown> {
-  return key in value;
-}
-
-function getString(data: unknown, key: string): string | null {
-  if (typeof data !== "object" || data === null || !hasKey(data, key)) {
-    return null;
-  }
-
-  const value = data[key];
-  return typeof value === "string" ? value : null;
-}
-
-function getNumber(data: unknown, key: string): number | null {
-  if (typeof data !== "object" || data === null || !hasKey(data, key)) {
-    return null;
-  }
-
-  const value = data[key];
-  return typeof value === "number" ? value : null;
-}
-
-function normalizeContractor(id: string, data: unknown): Contractor {
-  return {
-    id,
-    name: getString(data, "name"),
-    companyName: getString(data, "companyName"),
-    contactPerson: getString(data, "contactPerson"),
-    email: getString(data, "email"),
-    phone: getString(data, "phone"),
-    status: getString(data, "status"),
-    createdAt: getNumber(data, "createdAt"),
-    createdBy: getString(data, "createdBy"),
-  };
-}
-
-export async function GET(req: NextRequest) {
+/**
+ * GET /api/contractors
+ *
+ * Returns all contractors with proper ID mapping.
+ * This ensures frontend dropdowns and linking work correctly.
+ */
+export async function GET() {
   try {
-    const authHeader = req.headers.get("authorization");
-    if (!authHeader?.startsWith("Bearer ")) {
-      return NextResponse.json({ error: "Missing token" }, { status: 401 });
+    const { db } = getFirebaseAdmin();
+
+    if (!db) {
+      return NextResponse.json(
+        { error: "Firestore not initialized" },
+        { status: 500 }
+      );
     }
 
-    const idToken = authHeader.slice("Bearer ".length).trim();
-    if (!idToken) {
-      return NextResponse.json({ error: "Missing token" }, { status: 401 });
-    }
+    const snapshot = await db.collection("contractors").get();
 
-    const decodedToken = await getAuth().verifyIdToken(idToken);
-    const role = typeof decodedToken.role === "string" ? decodedToken.role : "";
+    const contractors = snapshot.docs.map((doc) => {
+      const data = doc.data() as Record<string, unknown>;
+      return {
+        id: doc.id,
+        name: typeof data.name === "string" ? data.name : "",
+        companyName: typeof data.companyName === "string" ? data.companyName : "",
+        email: typeof data.email === "string" ? data.email : "",
+        status: typeof data.status === "string" ? data.status : "",
+        createdAt: typeof data.createdAt === "number" ? data.createdAt : 0,
+      };
+    });
 
-    if (!ALLOWED_ROLES.has(role)) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    }
+    console.log("Contractors returned:", contractors.length);
 
-    const db = getFirebaseAdmin();
-    const snapshot = await safeFirestoreQuery(() =>
-      db.collection("contractors").orderBy("createdAt", "desc").get()
-    );
-
-    const contractors: Contractor[] = snapshot.docs.map((doc) =>
-      normalizeContractor(doc.id, doc.data())
-    );
-
-    return NextResponse.json({ contractors }, { status: 200 });
-  } catch (error) {
+    return NextResponse.json(contractors, { status: 200 });
+  } catch (error: any) {
     console.error("Failed to fetch contractors:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+
+    return NextResponse.json(
+      {
+        error: "Failed to fetch contractors",
+        details: error?.message || "Unknown error",
+      },
+      { status: 500 }
+    );
+  }
+}
+
+/**
+ * POST /api/contractors
+ *
+ * Creates a new contractor safely.
+ */
+export async function POST(req: Request) {
+  try {
+    const body = await req.json();
+
+    const { db } = getFirebaseAdmin();
+
+    if (!db) {
+      return NextResponse.json(
+        { error: "Firestore not initialized" },
+        { status: 500 }
+      );
+    }
+
+    const newContractor = {
+      name: body.name || "",
+      companyName: body.companyName || "",
+      email: body.email || "",
+      status: body.status || "active",
+      createdAt: Date.now(),
+    };
+
+    const docRef = await db.collection("contractors").add(newContractor);
+
+    return NextResponse.json(
+      {
+        success: true,
+        id: docRef.id,
+        ...newContractor,
+      },
+      { status: 201 }
+    );
+  } catch (error: any) {
+    console.error("Failed to create contractor:", error);
+
+    return NextResponse.json(
+      {
+        error: "Failed to create contractor",
+        details: error?.message || "Unknown error",
+      },
+      { status: 500 }
+    );
   }
 }

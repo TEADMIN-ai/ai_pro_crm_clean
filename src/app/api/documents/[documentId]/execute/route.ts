@@ -3,7 +3,6 @@ import { getAuth } from "firebase-admin/auth";
 import { FieldPath } from "firebase-admin/firestore";
 
 import { getFirebaseAdmin } from "@/lib/firebase/admin";
-import { resolveDocumentUrl } from "@/lib/documents/resolveDocumentUrl";
 import {
   DocumentExecutionError,
   guardDocumentExecution,
@@ -11,6 +10,16 @@ import {
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+function asString(value: unknown): string | null {
+  return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
+}
+
+function fallbackNameFromPath(pathValue: string): string {
+  const cleanPath = pathValue.split("?")[0];
+  const parts = cleanPath.split("/").filter(Boolean);
+  return parts[parts.length - 1] ?? "document";
+}
 
 function jsonError(message: string, status: number) {
   return NextResponse.json({ error: message }, { status });
@@ -63,20 +72,42 @@ export async function GET(
     }
 
     const metadata = (docSnap.data() ?? {}) as Record<string, unknown>;
-    const resolved = await resolveDocumentUrl(metadata);
+    const storagePath = asString(metadata.storagePath);
+
+    if (!storagePath) {
+      throw new DocumentExecutionError("Document is missing storagePath", 500);
+    }
+
+    const bucketName = process.env.FIREBASE_STORAGE_BUCKET;
+    if (!bucketName) {
+      throw new DocumentExecutionError("FIREBASE_STORAGE_BUCKET is not configured", 500);
+    }
+
+    const { storage } = getFirebaseAdmin();
+    const bucket = storage.bucket(bucketName);
+    const [signedUrl] = await bucket.file(storagePath).getSignedUrl({
+      action: "read",
+      expires: Date.now() + 24 * 60 * 60 * 1000,
+    });
+
+    const filename =
+      asString(metadata.name) ??
+      asString(metadata.fileName) ??
+      asString(metadata.filename) ??
+      asString(metadata.originalName) ??
+      fallbackNameFromPath(storagePath);
 
     guardDocumentExecution({
       exists,
       role,
-      url: resolved.url,
+      url: signedUrl,
     });
 
     return NextResponse.json(
       {
-        fileName: resolved.fileName,
-        url: resolved.url,
-        previewable: resolved.isPreviewable,
-        extension: resolved.extension,
+        url: signedUrl,
+        name: filename,
+        storagePath,
       },
       { status: 200 }
     );

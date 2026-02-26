@@ -185,6 +185,10 @@ export async function POST(
     const data =
       await request.json();
 
+    if (typeof data?.storagePath !== "string" || !data.storagePath.trim()) {
+      return jsonError("Missing storagePath", 400);
+    }
+
     const payload = {
       contractorId,
       fileName: data?.fileName,
@@ -209,6 +213,7 @@ export async function POST(
         .collection("documents")
         .add({
           contractorId,
+          name: normalized.fileName,
           fileName: normalized.fileName,
           originalName: normalized.originalName,
           filename: normalized.filename,
@@ -294,6 +299,7 @@ export async function PATCH(
 
     await docRef.set(
       {
+        name: nextFileName,
         fileName: nextFileName,
         originalName: nextFileName,
       },

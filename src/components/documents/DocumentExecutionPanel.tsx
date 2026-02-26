@@ -10,10 +10,9 @@ import { API_ROUTES } from "@/lib/routes";
 import type { ContractorDocument } from "@/types/document";
 
 type ExecutionPayload = {
-  fileName: string;
+  name: string;
   url: string;
-  previewable: boolean;
-  extension: string;
+  storagePath: string;
 };
 
 const PREVIEWABLE_EXTENSIONS = new Set(["pdf", "jpg", "jpeg", "png"]);
@@ -42,7 +41,6 @@ export default function DocumentExecutionPanel() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
-  const [preview, setPreview] = useState<ExecutionPayload | null>(null);
 
   useEffect(() => {
     if (!contractorId || !user) return;
@@ -89,14 +87,20 @@ export default function DocumentExecutionPanel() {
       throw new Error(text || "Failed to prepare document execution");
     }
 
-    return (await response.json()) as ExecutionPayload;
+    const payload = (await response.json()) as ExecutionPayload;
+
+    if (!payload.url) {
+      throw new Error("Missing signed URL");
+    }
+
+    return payload;
   }
 
   async function handleOpen(documentId: string) {
     try {
       setBusyId(documentId);
       const payload = await fetchExecution(documentId);
-      window.open(payload.url, "_blank", "noopener,noreferrer");
+      window.open(payload.url, "_blank");
     } catch (openError) {
       console.error(openError);
       setError("Failed to open document");
@@ -109,10 +113,7 @@ export default function DocumentExecutionPanel() {
     try {
       setBusyId(documentId);
       const payload = await fetchExecution(documentId);
-      if (!payload.previewable) {
-        throw new Error("Document is not previewable");
-      }
-      setPreview(payload);
+      window.open(payload.url, "_blank");
     } catch (previewError) {
       console.error(previewError);
       setError("Failed to preview document");
@@ -125,14 +126,7 @@ export default function DocumentExecutionPanel() {
     try {
       setBusyId(documentId);
       const payload = await fetchExecution(documentId);
-      const anchor = document.createElement("a");
-      anchor.href = payload.url;
-      anchor.download = payload.fileName;
-      anchor.rel = "noopener noreferrer";
-      anchor.target = "_blank";
-      document.body.appendChild(anchor);
-      anchor.click();
-      anchor.remove();
+      window.open(payload.url, "_blank");
     } catch (downloadError) {
       console.error(downloadError);
       setError("Failed to download document");
@@ -180,46 +174,6 @@ export default function DocumentExecutionPanel() {
               </div>
             </div>
           ))}
-        </div>
-      )}
-
-      {preview && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          style={{
-            position: "fixed",
-            inset: 0,
-            backgroundColor: "rgba(0, 0, 0, 0.7)",
-            display: "flex",
-            justifyContent: "center",
-            alignItems: "center",
-            zIndex: 1000,
-            padding: "24px",
-          }}
-        >
-          <div
-            style={{
-              width: "min(1000px, 95vw)",
-              height: "min(800px, 90vh)",
-              backgroundColor: "#111",
-              borderRadius: "10px",
-              overflow: "hidden",
-              display: "flex",
-              flexDirection: "column",
-              border: "1px solid rgba(255,255,255,0.2)",
-            }}
-          >
-            <div style={{ display: "flex", justifyContent: "space-between", padding: "12px 16px" }}>
-              <strong>{preview.fileName}</strong>
-              <button onClick={() => setPreview(null)}>Close</button>
-            </div>
-            <iframe
-              title={preview.fileName}
-              src={preview.url}
-              style={{ border: "none", width: "100%", height: "100%" }}
-            />
-          </div>
         </div>
       )}
     </Card>
