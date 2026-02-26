@@ -15,7 +15,7 @@ import {
 } from "recharts";
 
 type Deal = {
-  status?: string;
+  status?: unknown;
 };
 
 type PipelineStatus = "draft" | "review" | "approved" | "submitted" | "rejected";
@@ -39,24 +39,24 @@ export default function DealConversionGraph() {
   useEffect(() => {
     async function loadDeals() {
       try {
-        const result = await authFetch(API_ROUTES.DEALS);
-        if (!result.ok) {
-          if (result.code === "AUTH") {
+        const res = await authFetch(API_ROUTES.DEALS);
+        if (!res.ok) {
+          if (res.status === 401 || res.status === 403) {
             setError("Session expired. Please login again.");
             router.push("/login");
             return;
           }
-          throw new Error(result.message);
+          throw new Error(`Failed to fetch deals: ${res.status}`);
         }
-
-        const { response: res } = result;
-
-        if (!res.ok) {
-          throw new Error("Failed to fetch deals");
-        }
-
-        const payload = (await res.json()) as { deals?: Deal[] };
-        setDeals(Array.isArray(payload.deals) ? payload.deals : []);
+        const payload = (await res.json()) as unknown;
+        const source = Array.isArray(payload)
+          ? payload
+          : typeof payload === "object" &&
+            payload !== null &&
+            Array.isArray((payload as { deals?: unknown[] }).deals)
+          ? (payload as { deals: unknown[] }).deals
+          : [];
+        setDeals(source as Deal[]);
       } catch (err) {
         console.error(err);
         setError("Unable to load conversion data");

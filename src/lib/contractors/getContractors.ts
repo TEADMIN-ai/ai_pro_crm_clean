@@ -39,35 +39,24 @@ function normalizeContractor(id: string, data: unknown): Contractor {
 }
 
 export async function getContractors(): Promise<Contractor[]> {
-  const result = await authFetch(API_ROUTES.CONTRACTORS, {
+  const response = await authFetch(API_ROUTES.CONTRACTORS, {
     method: "GET",
   });
 
-  if (!result.ok) {
-    const error = new Error(result.message);
-    (error as Error & { code?: string }).code = result.code;
-    throw error;
+  if (!response.ok) {
+    throw new Error(`Failed to fetch contractors: ${response.status}`);
   }
 
-  const { response: res } = result;
+  const payload: unknown = await response.json();
+  const source = Array.isArray(payload)
+    ? payload
+    : typeof payload === "object" &&
+      payload !== null &&
+      Array.isArray((payload as { contractors?: unknown[] }).contractors)
+    ? (payload as { contractors: unknown[] }).contractors
+    : [];
 
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`Failed to fetch contractors: ${text}`);
-  }
-
-  const payload = await res.json();
-
-  if (
-    typeof payload !== "object" ||
-    payload === null ||
-    !("contractors" in payload) ||
-    !Array.isArray(payload.contractors)
-  ) {
-    throw new Error("Malformed contractor response");
-  }
-
-  return payload.contractors.map((item: unknown) => {
+  return source.map((item: unknown) => {
     const id = getString(item, "id") ?? "";
     return normalizeContractor(id, item);
   });

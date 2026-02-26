@@ -16,8 +16,8 @@ import {
 } from "recharts";
 
 type Deal = {
-  value?: number;
-  createdAt?: number;
+  value?: unknown;
+  createdAt?: unknown;
 };
 
 type RevenuePoint = {
@@ -42,24 +42,24 @@ export default function RevenueTrendGraph() {
   useEffect(() => {
     async function loadDeals() {
       try {
-        const result = await authFetch(API_ROUTES.DEALS);
-        if (!result.ok) {
-          if (result.code === "AUTH") {
+        const res = await authFetch(API_ROUTES.DEALS);
+        if (!res.ok) {
+          if (res.status === 401 || res.status === 403) {
             setError("Session expired. Please login again.");
             router.push("/login");
             return;
           }
-          throw new Error(result.message);
+          throw new Error(`Failed to fetch deals: ${res.status}`);
         }
-
-        const { response: res } = result;
-
-        if (!res.ok) {
-          throw new Error("Failed to fetch deals");
-        }
-
-        const payload = (await res.json()) as { deals?: Deal[] };
-        setDeals(Array.isArray(payload.deals) ? payload.deals : []);
+        const payload = (await res.json()) as unknown;
+        const source = Array.isArray(payload)
+          ? payload
+          : typeof payload === "object" &&
+            payload !== null &&
+            Array.isArray((payload as { deals?: unknown[] }).deals)
+          ? (payload as { deals: unknown[] }).deals
+          : [];
+        setDeals(source as Deal[]);
       } catch (err) {
         console.error(err);
         setError("Unable to load trend data");
@@ -75,8 +75,10 @@ export default function RevenueTrendGraph() {
     const monthTotals = new Map<number, number>();
 
     for (const deal of deals) {
-      const value = typeof deal.value === "number" ? deal.value : 0;
-      const createdAt = typeof deal.createdAt === "number" ? deal.createdAt : Date.now();
+      const parsedValue = Number(deal.value);
+      const value = Number.isFinite(parsedValue) ? parsedValue : 0;
+      const parsedDate = Number(deal.createdAt);
+      const createdAt = Number.isFinite(parsedDate) ? parsedDate : Date.now();
       const date = new Date(createdAt);
       const monthStart = new Date(date.getFullYear(), date.getMonth(), 1).getTime();
       monthTotals.set(monthStart, (monthTotals.get(monthStart) ?? 0) + value);

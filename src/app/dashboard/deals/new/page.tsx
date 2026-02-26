@@ -2,25 +2,42 @@
 
 import { useState, useEffect } from "react";
 import { authFetch } from "@/lib/client/authFetch";
+import { API_ROUTES } from "@/lib/routes";
+
+type ContractorOption = {
+  id: string;
+  companyName: string;
+};
 
 export default function NewDealPage() {
   const [title, setTitle] = useState("");
   const [value, setValue] = useState("");
-  const [contractors, setContractors] = useState<any[]>([]);
+  const [contractors, setContractors] = useState<ContractorOption[]>([]);
   const [contractorId, setContractorId] = useState("");
 
   useEffect(() => {
     async function loadContractors() {
       try {
-        const result = await authFetch("/api/contractors");
+        const response = await authFetch(API_ROUTES.CONTRACTORS);
 
-        if (!result.ok) {
-          throw new Error(result.message);
+        if (!response.ok) {
+          throw new Error(`Failed to fetch contractors: ${response.status}`);
         }
 
-        const response = result.response;
-        const data = await response.json();
-        setContractors(Array.isArray(data) ? data : []);
+        const data = (await response.json()) as unknown;
+        const source = Array.isArray(data)
+          ? data
+          : typeof data === "object" && data !== null && Array.isArray((data as { contractors?: unknown[] }).contractors)
+          ? (data as { contractors: unknown[] }).contractors
+          : [];
+
+        const normalized: ContractorOption[] = source
+              .map((item) => ({
+                id: typeof item?.id === "string" ? item.id : "",
+                companyName: typeof item?.companyName === "string" ? item.companyName : "",
+              }))
+              .filter((item) => item.id.length > 0)
+        setContractors(normalized);
       } catch {
         setContractors([]);
       }
@@ -32,7 +49,9 @@ export default function NewDealPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
 
-    const res = await fetch("/api/deals", {
+    const selectedContractor = contractors.find((contractor) => contractor.id === contractorId);
+
+    const res = await fetch(API_ROUTES.DEALS, {
       method: "POST",
       headers: {
         "Content-Type": "application/json"
@@ -40,7 +59,8 @@ export default function NewDealPage() {
       body: JSON.stringify({
         title,
         value: Number(value),
-        contractorId
+        contractorId,
+        contractorName: selectedContractor?.companyName ?? ""
       })
     });
 
@@ -76,7 +96,7 @@ export default function NewDealPage() {
             <option value="">Select contractor</option>
             {contractors.map((contractor) => (
               <option key={contractor.id} value={contractor.id}>
-                {contractor.companyName || contractor.name}
+                {contractor.companyName}
               </option>
             ))}
           </select>

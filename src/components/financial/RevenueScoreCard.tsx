@@ -7,9 +7,9 @@ import { authFetch } from "@/lib/client/authFetch";
 import { API_ROUTES } from "@/lib/routes";
 
 type Deal = {
-  value?: number;
-  status?: string;
-  createdAt?: number;
+  value?: unknown;
+  status?: unknown;
+  createdAt?: unknown;
 };
 
 function formatCurrency(value: number): string {
@@ -29,24 +29,24 @@ export default function RevenueScoreCard() {
   useEffect(() => {
     async function loadDeals() {
       try {
-        const result = await authFetch(API_ROUTES.DEALS);
-        if (!result.ok) {
-          if (result.code === "AUTH") {
+        const res = await authFetch(API_ROUTES.DEALS);
+        if (!res.ok) {
+          if (res.status === 401 || res.status === 403) {
             setError("Session expired. Please login again.");
             router.push("/login");
             return;
           }
-          throw new Error(result.message);
+          throw new Error(`Failed to fetch deals: ${res.status}`);
         }
-
-        const { response: res } = result;
-
-        if (!res.ok) {
-          throw new Error("Failed to fetch deals");
-        }
-
-        const payload = (await res.json()) as { deals?: Deal[] };
-        setDeals(Array.isArray(payload.deals) ? payload.deals : []);
+        const payload = (await res.json()) as unknown;
+        const source = Array.isArray(payload)
+          ? payload
+          : typeof payload === "object" &&
+            payload !== null &&
+            Array.isArray((payload as { deals?: unknown[] }).deals)
+          ? (payload as { deals: unknown[] }).deals
+          : [];
+        setDeals(source as Deal[]);
       } catch (err) {
         console.error(err);
         setError("Unable to load revenue data");
@@ -63,13 +63,17 @@ export default function RevenueScoreCard() {
     const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000;
 
     const totalRevenue = deals.reduce((sum, deal) => {
-      const value = typeof deal.value === "number" ? deal.value : 0;
-      return deal.status !== "draft" ? sum + value : sum;
+      const parsed = Number(deal.value);
+      const value = Number.isFinite(parsed) ? parsed : 0;
+      const status = typeof deal.status === "string" ? deal.status : "";
+      return status !== "draft" ? sum + value : sum;
     }, 0);
 
     const monthlyRevenue = deals.reduce((sum, deal) => {
-      const value = typeof deal.value === "number" ? deal.value : 0;
-      const createdAt = typeof deal.createdAt === "number" ? deal.createdAt : 0;
+      const parsed = Number(deal.value);
+      const value = Number.isFinite(parsed) ? parsed : 0;
+      const parsedDate = Number(deal.createdAt);
+      const createdAt = Number.isFinite(parsedDate) ? parsedDate : 0;
       const isRecent = now - createdAt <= thirtyDaysMs;
       return isRecent ? sum + value : sum;
     }, 0);

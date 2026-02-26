@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getFirebaseAdmin } from "@/lib/firebase/admin";
+import { GuardianMonitor } from "@/lib/guardian/GuardianMonitor";
 
 type DealStatus = "draft" | "submitted" | "awarded";
 
@@ -49,6 +50,12 @@ export async function GET() {
 
     return NextResponse.json({ deals }, { status: 200 });
   } catch (error) {
+    GuardianMonitor.error("api.deals.GET", "Failed to fetch deals", {
+      error:
+        error instanceof Error
+          ? { name: error.name, message: error.message }
+          : { value: String(error) },
+    });
     console.error("Failed to fetch deals:", error);
     return NextResponse.json({ error: "Failed to fetch deals" }, { status: 500 });
   }
@@ -66,9 +73,9 @@ export async function POST(request: NextRequest) {
     const status = normalizeStatus(body.status);
     const createdAt = Date.now();
 
-    if (!title || !contractorId || !contractorName) {
+    if (!title || !contractorId) {
       return NextResponse.json(
-        { error: "title, contractorId, and contractorName are required" },
+        { error: "title and contractorId are required" },
         { status: 400 }
       );
     }
@@ -76,7 +83,7 @@ export async function POST(request: NextRequest) {
     const doc = {
       title,
       contractorId,
-      contractorName,
+      contractorName: contractorName || contractorId,
       value,
       status,
       createdAt,
@@ -89,6 +96,12 @@ export async function POST(request: NextRequest) {
       { status: 201 }
     );
   } catch (error) {
+    GuardianMonitor.error("api.deals.POST", "Failed to create deal", {
+      error:
+        error instanceof Error
+          ? { name: error.name, message: error.message }
+          : { value: String(error) },
+    });
     console.error("Failed to create deal:", error);
     return NextResponse.json({ error: "Failed to create deal" }, { status: 500 });
   }

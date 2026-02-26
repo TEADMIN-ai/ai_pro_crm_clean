@@ -10,9 +10,8 @@ import { API_ROUTES } from "@/lib/routes";
 import type { ContractorDocument } from "@/types/document";
 
 type ExecutionPayload = {
-  name: string;
+  success: boolean;
   url: string;
-  storagePath: string;
 };
 
 const PREVIEWABLE_EXTENSIONS = new Set(["pdf", "jpg", "jpeg", "png"]);
@@ -89,7 +88,7 @@ export default function DocumentExecutionPanel() {
 
     const payload = (await response.json()) as ExecutionPayload;
 
-    if (!payload.url) {
+    if (!payload.success || !payload.url) {
       throw new Error("Missing signed URL");
     }
 

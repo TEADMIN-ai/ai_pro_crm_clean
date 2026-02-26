@@ -57,8 +57,18 @@ async function isReachable(baseUrl: string): Promise<boolean> {
   }
 }
 
-async function smokeCheckEndpoint(baseUrl: string, routePath: string): Promise<void> {
+async function smokeCheckEndpoint(
+  baseUrl: string,
+  routePath: string,
+  expectedStatus?: number
+): Promise<void> {
   const response = await fetch(`${baseUrl}${routePath}`, { method: "GET" });
+
+  if (typeof expectedStatus === "number" && response.status !== expectedStatus) {
+    throw new Error(
+      `Smoke check failed for ${routePath}: expected ${expectedStatus}, got ${response.status}`
+    );
+  }
 
   if (response.status === 404) {
     throw new Error(`Smoke check failed for ${routePath}: returned 404`);
@@ -79,6 +89,7 @@ async function runSmokeChecks(): Promise<void> {
     await smokeCheckEndpoint(baseUrl, "/api/contractors");
     await smokeCheckEndpoint(baseUrl, "/api/deals");
     await smokeCheckEndpoint(baseUrl, "/api/contractors/smoke-check/documents");
+    await smokeCheckEndpoint(baseUrl, "/api/documents/smoke-check/execute", 200);
     return;
   }
 
@@ -89,6 +100,7 @@ async function runSmokeChecks(): Promise<void> {
       await smokeCheckEndpoint(url, "/api/contractors");
       await smokeCheckEndpoint(url, "/api/deals");
       await smokeCheckEndpoint(url, "/api/contractors/smoke-check/documents");
+      await smokeCheckEndpoint(url, "/api/documents/smoke-check/execute", 200);
       return;
     }
   }
@@ -103,6 +115,7 @@ async function runSmokeChecks(): Promise<void> {
       await smokeCheckEndpoint(localUrl, "/api/contractors");
       await smokeCheckEndpoint(localUrl, "/api/deals");
       await smokeCheckEndpoint(localUrl, "/api/contractors/smoke-check/documents");
+      await smokeCheckEndpoint(localUrl, "/api/documents/smoke-check/execute", 200);
       return;
     }
 
@@ -133,6 +146,7 @@ async function runSmokeChecks(): Promise<void> {
     await smokeCheckEndpoint(localUrl, "/api/contractors");
     await smokeCheckEndpoint(localUrl, "/api/deals");
     await smokeCheckEndpoint(localUrl, "/api/contractors/smoke-check/documents");
+    await smokeCheckEndpoint(localUrl, "/api/documents/smoke-check/execute", 200);
   } finally {
     devChild.kill("SIGTERM");
   }

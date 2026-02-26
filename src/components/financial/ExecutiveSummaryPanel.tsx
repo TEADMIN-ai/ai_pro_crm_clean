@@ -7,8 +7,8 @@ import { API_ROUTES } from "@/lib/routes";
 import { authFetch } from "@/lib/client/authFetch";
 
 type Deal = {
-  value?: number;
-  status?: string;
+  value?: unknown;
+  status?: unknown;
 };
 
 type ContractorPayload = {
@@ -35,6 +35,11 @@ function isCompliantStatus(status: string | undefined): boolean {
   return status === "approved" || status === "submitted" || status === "awarded";
 }
 
+function toSafeNumber(value: unknown): number {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : 0;
+}
+
 export default function ExecutiveSummaryPanel() {
   const router = useRouter();
   const [deals, setDeals] = useState<Deal[]>([]);
@@ -48,35 +53,39 @@ export default function ExecutiveSummaryPanel() {
       try {
         const dealsPromise = authFetch(API_ROUTES.DEALS).then(async (result) => {
           if (!result.ok) {
-            if (result.code === "AUTH") {
+            if (result.status === 401 || result.status === 403) {
               throw new Error("AUTH");
             }
-            throw new Error(result.message);
+            throw new Error(`Failed to fetch deals: ${result.status}`);
           }
-
-          const res = result.response;
-          if (!res.ok) {
-            throw new Error("Failed to fetch deals");
-          }
-          const payload = (await res.json()) as DealsPayload;
-          return Array.isArray(payload.deals) ? payload.deals : [];
+          const payload = (await result.json()) as unknown;
+          const deals = Array.isArray(payload)
+            ? payload
+            : typeof payload === "object" &&
+              payload !== null &&
+              Array.isArray((payload as DealsPayload).deals)
+            ? (payload as DealsPayload).deals
+            : [];
+          return Array.isArray(deals) ? (deals as Deal[]) : [];
         });
 
         const contractorsPromise = authFetch(API_ROUTES.CONTRACTORS).then(async (result) => {
           if (!result.ok) {
-            if (result.code === "AUTH") {
+            if (result.status === 401 || result.status === 403) {
               throw new Error("AUTH");
             }
-            throw new Error(result.message);
+            throw new Error(`Failed to fetch contractors: ${result.status}`);
           }
 
-          const res = result.response;
-          if (!res.ok) {
-            return 0;
-          }
-
-          const payload = (await res.json()) as ContractorPayload;
-          return Array.isArray(payload.contractors) ? payload.contractors.length : 0;
+          const payload = (await result.json()) as unknown;
+          const contractors = Array.isArray(payload)
+            ? payload
+            : typeof payload === "object" &&
+              payload !== null &&
+              Array.isArray((payload as ContractorPayload).contractors)
+            ? (payload as ContractorPayload).contractors
+            : [];
+          return Array.isArray(contractors) ? contractors.length : 0;
         });
 
         const summaryPromise = generateExecutiveSummary();
@@ -109,8 +118,9 @@ export default function ExecutiveSummaryPanel() {
   const metrics = useMemo(() => {
     const totalDeals = deals.length;
     const totalRevenue = deals.reduce((sum, deal) => {
-      const value = typeof deal.value === "number" ? deal.value : 0;
-      return deal.status !== "draft" ? sum + value : sum;
+      const value = toSafeNumber(deal.value);
+      const status = typeof deal.status === "string" ? deal.status : "";
+      return status !== "draft" ? sum + value : sum;
     }, 0);
     const projectedProfit = totalRevenue * 0.35;
 

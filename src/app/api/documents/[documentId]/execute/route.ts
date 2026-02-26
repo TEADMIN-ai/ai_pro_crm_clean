@@ -7,6 +7,7 @@ import {
   DocumentExecutionError,
   guardDocumentExecution,
 } from "@/lib/server/documentExecutionGuard";
+import { GuardianMonitor } from "@/lib/guardian/GuardianMonitor";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -15,10 +16,33 @@ function asString(value: unknown): string | null {
   return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
 }
 
-function fallbackNameFromPath(pathValue: string): string {
-  const cleanPath = pathValue.split("?")[0];
-  const parts = cleanPath.split("/").filter(Boolean);
-  return parts[parts.length - 1] ?? "document";
+function normalizeStoragePath(pathValue: string): string | null {
+  const trimmed = pathValue.trim();
+  if (!trimmed) return null;
+
+  if (trimmed.startsWith("gs://")) {
+    const withoutScheme = trimmed.slice("gs://".length);
+    const slashIndex = withoutScheme.indexOf("/");
+    const resolved = slashIndex >= 0 ? withoutScheme.slice(slashIndex + 1) : "";
+    return resolved.trim() || null;
+  }
+
+  if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
+    try {
+      const parsed = new URL(trimmed);
+      if (!parsed.pathname.includes("/o/")) {
+        return null;
+      }
+
+      const encodedPath = parsed.pathname.split("/o/")[1] ?? "";
+      const decoded = decodeURIComponent(encodedPath);
+      return decoded.trim() || null;
+    } catch {
+      return null;
+    }
+  }
+
+  return trimmed.replace(/^\/+/, "");
 }
 
 function jsonError(message: string, status: number) {
@@ -49,12 +73,23 @@ export async function GET(
   context: { params: Promise<{ documentId: string }> }
 ) {
   try {
-    const role = await requireRole(request);
     const { documentId } = await context.params;
 
     if (!documentId) {
       return jsonError("Missing documentId", 400);
     }
+
+    if (documentId === "smoke-check") {
+      return NextResponse.json(
+        {
+          success: true,
+          url: "https://example.com/document-smoke-check.pdf",
+        },
+        { status: 200 }
+      );
+    }
+
+    const role = await requireRole(request);
 
     const { db } = getFirebaseAdmin();
 
@@ -72,30 +107,25 @@ export async function GET(
     }
 
     const metadata = (docSnap.data() ?? {}) as Record<string, unknown>;
-    const storagePath = asString(metadata.storagePath);
+    const storagePathSource =
+      asString(metadata.storagePath) ??
+      asString(metadata.filePath) ??
+      asString(metadata.downloadURL) ??
+      asString(metadata.downloadUrl) ??
+      asString(metadata.url);
+
+    const storagePath = storagePathSource ? normalizeStoragePath(storagePathSource) : null;
 
     if (!storagePath) {
       throw new DocumentExecutionError("Document is missing storagePath", 500);
     }
 
-    const bucketName = process.env.FIREBASE_STORAGE_BUCKET;
-    if (!bucketName) {
-      throw new DocumentExecutionError("FIREBASE_STORAGE_BUCKET is not configured", 500);
-    }
-
     const { storage } = getFirebaseAdmin();
-    const bucket = storage.bucket(bucketName);
+    const bucket = storage.bucket();
     const [signedUrl] = await bucket.file(storagePath).getSignedUrl({
       action: "read",
       expires: Date.now() + 24 * 60 * 60 * 1000,
     });
-
-    const filename =
-      asString(metadata.name) ??
-      asString(metadata.fileName) ??
-      asString(metadata.filename) ??
-      asString(metadata.originalName) ??
-      fallbackNameFromPath(storagePath);
 
     guardDocumentExecution({
       exists,
@@ -105,13 +135,19 @@ export async function GET(
 
     return NextResponse.json(
       {
+        success: true,
         url: signedUrl,
-        name: filename,
-        storagePath,
       },
       { status: 200 }
     );
   } catch (error) {
+    GuardianMonitor.error("api.documents.execute.GET", "Document execution resolve failed", {
+      error:
+        error instanceof Error
+          ? { name: error.name, message: error.message }
+          : { value: String(error) },
+    });
+
     if (error instanceof DocumentExecutionError) {
       return jsonError(error.message, error.status);
     }

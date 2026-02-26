@@ -1,5 +1,11 @@
 // src/app/dashboard/admin/page.tsx
 
+export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
+
+import { initializeApp, cert, getApps } from "firebase-admin/app";
+import { getFirestore } from "firebase-admin/firestore";
+
 import type { Deal } from "@/types/deal";
 
 import { computeAdminMetrics } from "@/lib/intelligence/admin/computeAdminMetrics";
@@ -11,29 +17,76 @@ import { computeExecutionVelocity } from "@/lib/executive/computeExecutionVeloci
 import { computePipelineQuality } from "@/lib/executive/computePipelineQuality";
 import { computePortfolioExposure } from "@/lib/executive/computePortfolioExposure";
 import { computeRevenueMomentum } from "@/lib/executive/computeRevenueMomentum";
-import { getFirebaseAdmin } from "@/lib/firebase/admin";
+
 import Card, { IdentityCardHeader } from "@/components/ui/Card";
 import Badge from "@/components/ui/Badge";
 import Table from "@/components/ui/Table";
 
-export const dynamic = "force-dynamic";
-export const runtime = "nodejs";
 
+// ------------------------------------------------------------
+// SAFE FIREBASE ADMIN INITIALIZER (VERCEL + NEXTJS SAFE)
+// ------------------------------------------------------------
+function initFirebaseAdmin() {
+  if (getApps().length > 0) return;
+
+  const projectId = process.env.FIREBASE_PROJECT_ID;
+  const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
+  const privateKey = process.env.FIREBASE_PRIVATE_KEY;
+
+  if (!projectId || !clientEmail || !privateKey) {
+    throw new Error(
+      "Missing Firebase Admin environment variables. Ensure FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY are set in Vercel."
+    );
+  }
+
+  initializeApp({
+    credential: cert({
+      projectId,
+      clientEmail,
+      privateKey: privateKey.replace(/\\n/g, "\n"),
+    }),
+  });
+}
+
+
+// ------------------------------------------------------------
+// UI HELPERS
+// ------------------------------------------------------------
 function toneForScore(score: number): "success" | "warning" | "danger" {
   if (score >= 80) return "success";
   if (score >= 60) return "warning";
   return "danger";
 }
 
-export default async function AdminDashboardPage() {
-  const db = getFirebaseAdmin();
-  const snapshot = await db.collection("deals").get();
-  const deals = snapshot.docs.map((doc) => doc.data()) as Deal[];
 
+// ------------------------------------------------------------
+// MAIN PAGE
+// ------------------------------------------------------------
+export default async function AdminDashboardPage() {
+
+  // Initialize Firebase Admin safely
+  initFirebaseAdmin();
+
+  const db = getFirestore();
+
+  // Fetch deals safely
+  const snapshot = await db.collection("deals").get();
+
+  const deals: Deal[] = snapshot.docs.map((doc) => ({
+    ...(doc.data() as Omit<Deal, "id">),
+    id: doc.id,
+  }));
+
+
+  // ------------------------------------------------------------
+  // COMPUTE METRICS
+  // ------------------------------------------------------------
   const metrics = computeAdminMetrics(deals);
+
   const revenueHealth = computeRevenueHealthScore(deals);
 
   const riskScores = deals.map((d) => computeDealRisk(d));
+
   const avgRisk =
     riskScores.length > 0
       ? riskScores.reduce((a, b) => a + b.score, 0) / riskScores.length
@@ -42,74 +95,189 @@ export default async function AdminDashboardPage() {
   const conversionRate = metrics?.submissionConversion ?? 0;
 
   const capitalEfficiency = computeCapitalEfficiency(deals);
+
   const executionVelocity = computeExecutionVelocity(deals);
+
   const pipelineQuality = computePipelineQuality(deals);
+
   const portfolioExposure = computePortfolioExposure(deals);
+
   const revenueMomentum = computeRevenueMomentum(deals);
 
+
+  // ------------------------------------------------------------
+  // RENDER
+  // ------------------------------------------------------------
   return (
     <div className="enterprise-page enterprise-grid">
+
+      {/* HEADER */}
       <Card>
         <IdentityCardHeader
           title="Admin Control Tower"
           subtitle="Enterprise portfolio and compliance signals"
         >
-          <Badge tone={toneForScore(revenueHealth)}>Revenue Health {revenueHealth.toFixed(1)}%</Badge>
-          <Badge tone={toneForScore(100 - avgRisk)}>Risk {avgRisk.toFixed(1)}</Badge>
-          <Badge tone="info">Deals {deals.length}</Badge>
+          <Badge tone={toneForScore(revenueHealth)}>
+            Revenue Health {revenueHealth.toFixed(1)}%
+          </Badge>
+
+          <Badge tone={toneForScore(100 - avgRisk)}>
+            Risk {avgRisk.toFixed(1)}
+          </Badge>
+
+          <Badge tone="info">
+            Deals {deals.length}
+          </Badge>
+
         </IdentityCardHeader>
       </Card>
 
+
+      {/* COMPLIANCE SUMMARY */}
       <Card>
         <h2>Compliance Score Summary</h2>
+
         <div className="compliance-summary">
+
           <div className="compliance-summary-item">
-            <p className="enterprise-metric-label">Ready To Submit</p>
-            <p className="enterprise-metric-value">{metrics.readyToSubmitCount || 0}</p>
+            <p className="enterprise-metric-label">
+              Ready To Submit
+            </p>
+
+            <p className="enterprise-metric-value">
+              {metrics.readyToSubmitCount || 0}
+            </p>
           </div>
+
+
           <div className="compliance-summary-item">
-            <p className="enterprise-metric-label">Manager Review Stuck</p>
-            <p className="enterprise-metric-value">{metrics.managerReviewStuckCount || 0}</p>
+            <p className="enterprise-metric-label">
+              Manager Review Stuck
+            </p>
+
+            <p className="enterprise-metric-value">
+              {metrics.managerReviewStuckCount || 0}
+            </p>
           </div>
+
+
           <div className="compliance-summary-item">
-            <p className="enterprise-metric-label">Submission Conversion</p>
-            <p className="enterprise-metric-value">{conversionRate.toFixed(1)}%</p>
+            <p className="enterprise-metric-label">
+              Submission Conversion
+            </p>
+
+            <p className="enterprise-metric-value">
+              {conversionRate.toFixed(1)}%
+            </p>
           </div>
+
+
           <div className="compliance-summary-item">
-            <p className="enterprise-metric-label">Execution Velocity</p>
-            <p className="enterprise-metric-value">{executionVelocity.toFixed(1)}</p>
+            <p className="enterprise-metric-label">
+              Execution Velocity
+            </p>
+
+            <p className="enterprise-metric-value">
+              {executionVelocity.toFixed(1)}
+            </p>
           </div>
+
         </div>
       </Card>
 
+
+      {/* EXECUTIVE METRICS GRID */}
       <div className="enterprise-grid-metrics">
+
         <Card>
-          <p className="enterprise-metric-label">Revenue Momentum</p>
-          <h2 className="enterprise-metric-value">{revenueMomentum.percentage.toFixed(1)}%</h2>
-          <Badge tone={revenueMomentum.trend === "up" ? "success" : revenueMomentum.trend === "down" ? "danger" : "warning"}>
+          <p className="enterprise-metric-label">
+            Revenue Momentum
+          </p>
+
+          <h2 className="enterprise-metric-value">
+            {revenueMomentum.percentage.toFixed(1)}%
+          </h2>
+
+          <Badge
+            tone={
+              revenueMomentum.trend === "up"
+                ? "success"
+                : revenueMomentum.trend === "down"
+                ? "danger"
+                : "warning"
+            }
+          >
             {revenueMomentum.trend}
           </Badge>
         </Card>
+
+
         <Card>
-          <p className="enterprise-metric-label">Pipeline Quality</p>
-          <h2 className="enterprise-metric-value">{pipelineQuality.score}/100</h2>
-          <Badge tone={toneForScore(pipelineQuality.score)}>Quality Band</Badge>
+          <p className="enterprise-metric-label">
+            Pipeline Quality
+          </p>
+
+          <h2 className="enterprise-metric-value">
+            {pipelineQuality.score}/100
+          </h2>
+
+          <Badge tone={toneForScore(pipelineQuality.score)}>
+            Quality Band
+          </Badge>
         </Card>
+
+
         <Card>
-          <p className="enterprise-metric-label">Capital Efficiency</p>
-          <h2 className="enterprise-metric-value">{capitalEfficiency.toFixed(2)}</h2>
-          <Badge tone={capitalEfficiency >= 0.8 ? "success" : "warning"}>Efficiency</Badge>
+          <p className="enterprise-metric-label">
+            Capital Efficiency
+          </p>
+
+          <h2 className="enterprise-metric-value">
+            {capitalEfficiency.toFixed(2)}
+          </h2>
+
+          <Badge
+            tone={
+              capitalEfficiency >= 0.8
+                ? "success"
+                : "warning"
+            }
+          >
+            Efficiency
+          </Badge>
         </Card>
+
+
         <Card>
-          <p className="enterprise-metric-label">Portfolio Exposure</p>
-          <h2 className="enterprise-metric-value">{portfolioExposure}/100</h2>
-          <Badge tone={portfolioExposure <= 40 ? "success" : "danger"}>Risk Exposure</Badge>
+          <p className="enterprise-metric-label">
+            Portfolio Exposure
+          </p>
+
+          <h2 className="enterprise-metric-value">
+            {portfolioExposure}/100
+          </h2>
+
+          <Badge
+            tone={
+              portfolioExposure <= 40
+                ? "success"
+                : "danger"
+            }
+          >
+            Risk Exposure
+          </Badge>
         </Card>
+
       </div>
 
+
+      {/* PORTFOLIO TABLE */}
       <Card>
+
         <h2>Premium Portfolio Table</h2>
+
         <Table>
+
           <thead>
             <tr>
               <th>Metric</th>
@@ -117,30 +285,55 @@ export default async function AdminDashboardPage() {
               <th>Risk Indicator</th>
             </tr>
           </thead>
+
           <tbody>
+
             <tr>
               <td>Total Pipeline</td>
-              <td>R {metrics.totalPipelineValue?.toLocaleString() || 0}</td>
-              <td><Badge tone="info">Financial</Badge></td>
+              <td>
+                R {metrics.totalPipelineValue?.toLocaleString() || 0}
+              </td>
+              <td>
+                <Badge tone="info">Financial</Badge>
+              </td>
             </tr>
+
             <tr>
               <td>Weighted Revenue</td>
-              <td>R {metrics.weightedRevenue?.toLocaleString() || 0}</td>
-              <td><Badge tone="info">Forecast</Badge></td>
+              <td>
+                R {metrics.weightedRevenue?.toLocaleString() || 0}
+              </td>
+              <td>
+                <Badge tone="info">Forecast</Badge>
+              </td>
             </tr>
+
             <tr>
               <td>Critical Risk Deals</td>
-              <td>{metrics.criticalRiskCount || 0}</td>
-              <td><Badge tone="danger">Critical</Badge></td>
+              <td>
+                {metrics.criticalRiskCount || 0}
+              </td>
+              <td>
+                <Badge tone="danger">Critical</Badge>
+              </td>
             </tr>
+
             <tr>
               <td>High Risk Deals</td>
-              <td>{metrics.highRiskCount || 0}</td>
-              <td><Badge tone="warning">High</Badge></td>
+              <td>
+                {metrics.highRiskCount || 0}
+              </td>
+              <td>
+                <Badge tone="warning">High</Badge>
+              </td>
             </tr>
+
           </tbody>
+
         </Table>
+
       </Card>
+
     </div>
   );
 }
