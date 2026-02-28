@@ -21,7 +21,7 @@ export async function getTenderAudit(dealId: string): Promise<TenderAuditEvent[]
 
   const snapshot = await getDocs(q);
 
-  return snapshot.docs.map((doc) => {
+  return snapshot.docs.map((doc: any) => {
     const data = doc.data();
 
     return {

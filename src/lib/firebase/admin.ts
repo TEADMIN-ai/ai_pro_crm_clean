@@ -14,4 +14,17 @@ const app =
       })
     : getApps()[0];
 
-export const db = getFirestore(app);
+const db = getFirestore(app);
+
+/**
+ * Backward-compatible accessor for legacy routes.
+ * Do NOT reinitialize Firebase anywhere else.
+ */
+export function getFirebaseAdmin() {
+  return db;
+}
+
+/**
+ * Preferred modern import for new routes.
+ */
+export { db };

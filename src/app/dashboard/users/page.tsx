@@ -19,7 +19,7 @@ export default function UsersPage() {
     async function fetchUsers() {
       try {
         const snapshot = await getDocs(collection(db, "users"));
-        const data: AppUser[] = snapshot.docs.map((doc) => doc.data() as AppUser);
+        const data: AppUser[] = snapshot.docs.map((doc: any) => doc.data() as AppUser);
         setUsers(data);
       } catch (err) {
         console.error("Error fetching users:", err);

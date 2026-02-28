@@ -72,7 +72,7 @@ export default async function AdminDashboardPage() {
   // Fetch deals safely
   const snapshot = await db.collection("deals").get();
 
-  const deals: Deal[] = snapshot.docs.map((doc) => ({
+  const deals: Deal[] = snapshot.docs.map((doc: any) => ({
     ...(doc.data() as Omit<Deal, "id">),
     id: doc.id,
   }));

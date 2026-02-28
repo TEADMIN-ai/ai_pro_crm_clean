@@ -25,7 +25,7 @@ export default function DealDocumentList({ dealId }: { dealId: string }) {
     const unsubscribe = onSnapshot(
       collection(db, "deals", dealId, "documents"),
       (snapshot) => {
-        const fileList = snapshot.docs.map((doc) => ({
+        const fileList = snapshot.docs.map((doc: any) => ({
           id: doc.id,
           ...doc.data(),
         })) as FileItem[];

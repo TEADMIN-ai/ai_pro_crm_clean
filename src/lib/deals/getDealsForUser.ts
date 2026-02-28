@@ -47,7 +47,7 @@ export async function getDealsForUser(): Promise<Deal[]> {
   const q = query(collection(db, "deals"));
   const snapshot = await getDocs(q);
 
-  return snapshot.docs.map((doc) => {
+  return snapshot.docs.map((doc: any) => {
     const data = doc.data();
 
     return {

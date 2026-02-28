@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAuth } from "firebase-admin/auth";
 import { FieldPath } from "firebase-admin/firestore";
+import { getStorage } from "firebase-admin/storage";
 
 import { getFirebaseAdmin } from "@/lib/firebase/admin";
 import {
@@ -60,8 +61,7 @@ async function requireRole(request: NextRequest): Promise<string> {
   }
 
   try {
-    const { app } = getFirebaseAdmin();
-    const decoded = await getAuth(app).verifyIdToken(token);
+    const decoded = await getAuth().verifyIdToken(token);
     return typeof decoded.role === "string" ? decoded.role : "";
   } catch {
     throw new DocumentExecutionError("Invalid Authorization token", 401);
@@ -91,7 +91,7 @@ export async function GET(
 
     const role = await requireRole(request);
 
-    const { db } = getFirebaseAdmin();
+    const db = getFirebaseAdmin();
 
     const snap = await db
       .collectionGroup("documents")
@@ -120,8 +120,7 @@ export async function GET(
       throw new DocumentExecutionError("Document is missing storagePath", 500);
     }
 
-    const { storage } = getFirebaseAdmin();
-    const bucket = storage.bucket();
+    const bucket = getStorage().bucket();
     const [signedUrl] = await bucket.file(storagePath).getSignedUrl({
       action: "read",
       expires: Date.now() + 24 * 60 * 60 * 1000,

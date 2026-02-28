@@ -5,7 +5,7 @@ export async function GET() {
   try {
     const snapshot = await db.collection("contractors").get();
 
-    const contractors = snapshot.docs.map((doc) => ({
+    const contractors = snapshot.docs.map((doc: any) => ({
       id: doc.id,
       ...doc.data(),
     }));

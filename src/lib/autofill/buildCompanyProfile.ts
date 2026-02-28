@@ -74,7 +74,7 @@ export async function buildCompanyProfile(contractorId: string): Promise<Company
 
   try {
     const docsSnap = await db.collection("contractors").doc(contractorId).collection("documents").get();
-    documentData = docsSnap.docs.map((doc) => (doc.data() ?? {}) as Record<string, unknown>);
+    documentData = docsSnap.docs.map((doc: any) => (doc.data() ?? {}) as Record<string, unknown>);
   } catch {
     documentData = [];
   }

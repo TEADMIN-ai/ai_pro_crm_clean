@@ -27,7 +27,7 @@ export async function GET() {
       .orderBy("createdAt", "desc")
       .get();
 
-    const deals = snapshot.docs.map((doc) => {
+    const deals = snapshot.docs.map((doc: any) => {
       const data = doc.data() as Record<string, unknown>;
       const contractorName = getString(data.contractorName);
       const contractorId = getString(data.contractorId) || getString(data.companyId);
