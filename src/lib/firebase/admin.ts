@@ -7,11 +7,21 @@ const firebaseAdminConfig = {
   privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, "\n"),
 };
 
+const hasServiceAccountConfig = Boolean(
+  firebaseAdminConfig.projectId &&
+    firebaseAdminConfig.clientEmail &&
+    firebaseAdminConfig.privateKey
+);
+
 const app =
   getApps().length === 0
-    ? initializeApp({
-        credential: cert(firebaseAdminConfig),
-      })
+    ? initializeApp(
+        hasServiceAccountConfig
+          ? {
+              credential: cert(firebaseAdminConfig as any),
+            }
+          : undefined
+      )
     : getApps()[0];
 
 const db = getFirestore(app);
