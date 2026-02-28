@@ -1,114 +1,89 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { getContractors } from "@/lib/contractors/getContractors";
-import type { Contractor } from "@/types/contractor";
-import Card, { IdentityCardHeader } from "@/components/ui/Card";
-import Badge from "@/components/ui/Badge";
-import Table from "@/components/ui/Table";
 
-function normalizeStatus(status: string | null | undefined): string {
-  if (!status) return "active";
-  return status.toLowerCase();
+interface Contractor {
+  id: string;
+  companyName?: string;
+  email?: string;
+  [key: string]: any;
 }
 
 export default function ContractorsPage() {
-  const router = useRouter();
   const [contractors, setContractors] = useState<Contractor[]>([]);
-  const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    async function load() {
+    const fetchContractors = async () => {
       try {
-        const result = await getContractors();
-        setContractors(result);
-      } catch (err: any) {
-        console.error("Failed to fetch contractors:", err);
-        if (err?.code === "AUTH") {
-          setError("Session expired. Please login again.");
-          router.push("/login");
+        const res = await fetch("/api/contractors");
+
+        if (!res.ok) {
+          throw new Error(`HTTP error ${res.status}`);
+        }
+
+        const data = await res.json();
+
+        // 🔒 Strict contract validation
+        if (!data || !Array.isArray(data.contractors)) {
+          setError("Malformed contractor response");
+          setContractors([]);
           return;
         }
-        setError(err.message || "Failed to load contractors");
+
+        setContractors(data.contractors);
+      } catch (err) {
+        console.error("Failed to load contractors:", err);
+        setError("Failed to load contractors");
       } finally {
         setLoading(false);
       }
-    }
+    };
 
-    load();
-  }, [router]);
+    fetchContractors();
+  }, []);
 
   if (loading) {
-    return <div className="enterprise-page">Loading contractors...</div>;
+    return <div style={{ padding: "2rem" }}>Loading contractors...</div>;
   }
 
   if (error) {
-    return <div className="enterprise-page">{error}</div>;
+    return (
+      <div style={{ padding: "2rem", color: "red" }}>
+        {error}
+      </div>
+    );
   }
 
-  const activeCount = contractors.filter((c) => normalizeStatus(c.status) === "active").length;
-  const otherCount = contractors.length - activeCount;
-
   return (
-    <div className="enterprise-page enterprise-grid">
-      <Card>
-        <IdentityCardHeader title="Contractors" subtitle="Enterprise supplier and compliance view">
-          <Badge tone="info">Total {contractors.length}</Badge>
-          <Badge tone={otherCount > 0 ? "warning" : "success"}>Risk Flags {otherCount}</Badge>
-        </IdentityCardHeader>
-      </Card>
+    <div style={{ padding: "2rem" }}>
+      <h1>Contractors</h1>
 
-      <Card>
-        <h2>Compliance Score Summary</h2>
-        <div className="compliance-summary">
-          <div className="compliance-summary-item">
-            <p className="enterprise-metric-label">Active</p>
-            <p className="enterprise-metric-value">{activeCount}</p>
-          </div>
-          <div className="compliance-summary-item">
-            <p className="enterprise-metric-label">Risk Indicators</p>
-            <p className="enterprise-metric-value">{otherCount}</p>
-          </div>
-        </div>
-      </Card>
-
-      <Card>
-        <h2>Premium Contractors Table</h2>
-        {contractors.length === 0 ? (
-          <div>No contractors found.</div>
-        ) : (
-          <Table>
-            <thead>
-              <tr>
-                <th>Contractor</th>
-                <th>Email</th>
-                <th>Status</th>
-                <th>Risk Indicator</th>
+      {contractors.length === 0 ? (
+        <p>No contractors found.</p>
+      ) : (
+        <table style={{ width: "100%", marginTop: "1rem", borderCollapse: "collapse" }}>
+          <thead>
+            <tr>
+              <th style={{ textAlign: "left", borderBottom: "1px solid #ccc" }}>Company</th>
+              <th style={{ textAlign: "left", borderBottom: "1px solid #ccc" }}>Email</th>
+            </tr>
+          </thead>
+          <tbody>
+            {contractors.map((contractor) => (
+              <tr key={contractor.id}>
+                <td style={{ padding: "0.5rem 0" }}>
+                  {contractor.companyName || "—"}
+                </td>
+                <td style={{ padding: "0.5rem 0" }}>
+                  {contractor.email || "—"}
+                </td>
               </tr>
-            </thead>
-            <tbody>
-              {contractors.map((contractor) => {
-                const status = normalizeStatus(contractor.status);
-                return (
-                  <tr key={contractor.id}>
-                    <td>
-                      <Link href={`/dashboard/contractors/${contractor.id}`}>
-                        {contractor.companyName || contractor.contactPerson || contractor.name || "Contractor"}
-                      </Link>
-                    </td>
-                    <td>{contractor.email || "-"}</td>
-                    <td><Badge tone={status === "active" ? "success" : "warning"}>{status}</Badge></td>
-                    <td><Badge tone={status === "active" ? "success" : "danger"}>{status === "active" ? "Low" : "Medium"}</Badge></td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </Table>
-        )}
-      </Card>
+            ))}
+          </tbody>
+        </table>
+      )}
     </div>
   );
 }
