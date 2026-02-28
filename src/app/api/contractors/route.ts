@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server";
-import { db } from "@/lib/firebase/admin";
+import { getFirebaseAdmin } from "@/lib/firebase/admin";
 
 export async function GET() {
   try {
+    const db = getFirebaseAdmin();
+
     const snapshot = await db.collection("contractors").get();
 
     const contractors = snapshot.docs.map((doc: any) => ({
@@ -10,15 +12,15 @@ export async function GET() {
       ...doc.data(),
     }));
 
-    return NextResponse.json({ contractors }, { status: 200 });
-  } catch (error: any) {
-    console.error("Failed to fetch contractors:", error);
+    return NextResponse.json(
+      { contractors },
+      { status: 200 }
+    );
+  } catch (error) {
+    console.error("GET /api/contractors error:", error);
 
     return NextResponse.json(
-      {
-        error: "Failed to fetch contractors",
-        details: error.message || "Unknown error",
-      },
+      { error: "Failed to fetch contractors" },
       { status: 500 }
     );
   }
