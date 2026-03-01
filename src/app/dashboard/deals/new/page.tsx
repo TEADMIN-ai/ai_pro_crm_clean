@@ -25,16 +25,29 @@ export default function NewDealPage() {
         }
 
         const data = (await response.json()) as unknown;
-        const source = Array.isArray(data)
-          ? data
-          : typeof data === "object" && data !== null && Array.isArray((data as { contractors?: unknown[] }).contractors)
-          ? (data as { contractors: unknown[] }).contractors
-          : [];
+        if (
+          typeof data !== "object" ||
+          data === null ||
+          !Array.isArray((data as { contractors?: unknown[] }).contractors)
+        ) {
+          throw new Error("Malformed contractor response");
+        }
+        const source = (data as { contractors: unknown[] }).contractors;
 
         const normalized: ContractorOption[] = source
               .map((item) => ({
-                id: typeof item?.id === "string" ? item.id : "",
-                companyName: typeof item?.companyName === "string" ? item.companyName : "",
+                id:
+                  typeof item === "object" &&
+                  item !== null &&
+                  typeof (item as { id?: unknown }).id === "string"
+                    ? (item as { id: string }).id
+                    : "",
+                companyName:
+                  typeof item === "object" &&
+                  item !== null &&
+                  typeof (item as { companyName?: unknown }).companyName === "string"
+                    ? (item as { companyName: string }).companyName
+                    : "",
               }))
               .filter((item) => item.id.length > 0)
         setContractors(normalized);

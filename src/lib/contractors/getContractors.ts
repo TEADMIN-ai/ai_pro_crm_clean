@@ -48,13 +48,14 @@ export async function getContractors(): Promise<Contractor[]> {
   }
 
   const payload: unknown = await response.json();
-  const source = Array.isArray(payload)
-    ? payload
-    : typeof payload === "object" &&
-      payload !== null &&
-      Array.isArray((payload as { contractors?: unknown[] }).contractors)
-    ? (payload as { contractors: unknown[] }).contractors
-    : [];
+  if (
+    typeof payload !== "object" ||
+    payload === null ||
+    !Array.isArray((payload as { contractors?: unknown[] }).contractors)
+  ) {
+    throw new Error("Malformed contractor response");
+  }
+  const source = (payload as { contractors: unknown[] }).contractors;
 
   return source.map((item: unknown) => {
     const id = getString(item, "id") ?? "";

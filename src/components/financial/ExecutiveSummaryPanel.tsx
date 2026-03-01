@@ -78,14 +78,15 @@ export default function ExecutiveSummaryPanel() {
           }
 
           const payload = (await result.json()) as unknown;
-          const contractors = Array.isArray(payload)
-            ? payload
-            : typeof payload === "object" &&
-              payload !== null &&
-              Array.isArray((payload as ContractorPayload).contractors)
-            ? (payload as ContractorPayload).contractors
-            : [];
-          return Array.isArray(contractors) ? contractors.length : 0;
+          if (
+            typeof payload !== "object" ||
+            payload === null ||
+            !Array.isArray((payload as ContractorPayload).contractors)
+          ) {
+            throw new Error("Malformed contractor response");
+          }
+          const contractors = (payload as { contractors: unknown[] }).contractors;
+          return contractors.length;
         });
 
         const summaryPromise = generateExecutiveSummary();
