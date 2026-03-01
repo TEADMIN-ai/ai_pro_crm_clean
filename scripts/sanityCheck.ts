@@ -81,6 +81,34 @@ async function smokeCheckEndpoint(
   console.log(`[sanity] smoke ${routePath} -> ${response.status}`);
 }
 
+const PAGE_SMOKE_ROUTES = ["/dashboard/contractors"] as const;
+
+async function smokeCheckPageEndpoint(baseUrl: string, routePath: string): Promise<void> {
+  try {
+    const response = await fetch(`${baseUrl}${routePath}`, {
+      method: "GET",
+      signal: AbortSignal.timeout(8_000),
+    });
+
+    if (response.status >= 500) {
+      console.warn(`[sanity] warning page smoke ${routePath} -> server error ${response.status}`);
+      return;
+    }
+
+    console.log(`[sanity] page smoke ${routePath} -> ${response.status}`);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.warn(`[sanity] warning page smoke ${routePath} failed: ${message}`);
+  }
+}
+
+async function runOptionalPageSmokeChecks(baseUrl: string): Promise<void> {
+  console.log(`[sanity] optional page smoke checks against ${baseUrl}`);
+  for (const routePath of PAGE_SMOKE_ROUTES) {
+    await smokeCheckPageEndpoint(baseUrl, routePath);
+  }
+}
+
 async function runSmokeChecks(): Promise<void> {
   const baseUrl = process.env.SANITY_BASE_URL;
 
@@ -90,6 +118,7 @@ async function runSmokeChecks(): Promise<void> {
     await smokeCheckEndpoint(baseUrl, "/api/deals");
     await smokeCheckEndpoint(baseUrl, "/api/contractors/smoke-check/documents");
     await smokeCheckEndpoint(baseUrl, "/api/documents/smoke-check/execute", 200);
+    await runOptionalPageSmokeChecks(baseUrl);
     return;
   }
 
@@ -101,6 +130,7 @@ async function runSmokeChecks(): Promise<void> {
       await smokeCheckEndpoint(url, "/api/deals");
       await smokeCheckEndpoint(url, "/api/contractors/smoke-check/documents");
       await smokeCheckEndpoint(url, "/api/documents/smoke-check/execute", 200);
+      await runOptionalPageSmokeChecks(url);
       return;
     }
   }
@@ -116,6 +146,7 @@ async function runSmokeChecks(): Promise<void> {
       await smokeCheckEndpoint(localUrl, "/api/deals");
       await smokeCheckEndpoint(localUrl, "/api/contractors/smoke-check/documents");
       await smokeCheckEndpoint(localUrl, "/api/documents/smoke-check/execute", 200);
+      await runOptionalPageSmokeChecks(localUrl);
       return;
     }
 
@@ -147,6 +178,7 @@ async function runSmokeChecks(): Promise<void> {
     await smokeCheckEndpoint(localUrl, "/api/deals");
     await smokeCheckEndpoint(localUrl, "/api/contractors/smoke-check/documents");
     await smokeCheckEndpoint(localUrl, "/api/documents/smoke-check/execute", 200);
+    await runOptionalPageSmokeChecks(localUrl);
   } finally {
     devChild.kill("SIGTERM");
   }

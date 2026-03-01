@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { API_ROUTES } from "@/lib/routes";
 
 interface Contractor {
   id: string;
@@ -17,7 +18,7 @@ export default function ContractorsPage() {
   useEffect(() => {
     const fetchContractors = async () => {
       try {
-        const res = await fetch("/api/contractors");
+        const res = await fetch(API_ROUTES.CONTRACTORS);
 
         if (!res.ok) {
           throw new Error(`HTTP error ${res.status}`);
