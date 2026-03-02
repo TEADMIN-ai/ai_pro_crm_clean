@@ -1,8 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { API_ROUTES } from "@/lib/routes";
-
+import { API_ROUTES } from "@/lib/constants/routes";
 interface Contractor {
   id: string;
   companyName?: string;
@@ -26,7 +25,6 @@ export default function ContractorsPage() {
 
         const data = await res.json();
 
-        // 🔒 Strict contract validation
         if (!data || !Array.isArray(data.contractors)) {
           setError("Malformed contractor response");
           setContractors([]);
@@ -64,11 +62,21 @@ export default function ContractorsPage() {
       {contractors.length === 0 ? (
         <p>No contractors found.</p>
       ) : (
-        <table style={{ width: "100%", marginTop: "1rem", borderCollapse: "collapse" }}>
+        <table
+          style={{
+            width: "100%",
+            marginTop: "1rem",
+            borderCollapse: "collapse",
+          }}
+        >
           <thead>
             <tr>
-              <th style={{ textAlign: "left", borderBottom: "1px solid #ccc" }}>Company</th>
-              <th style={{ textAlign: "left", borderBottom: "1px solid #ccc" }}>Email</th>
+              <th style={{ textAlign: "left", borderBottom: "1px solid #ccc" }}>
+                Company
+              </th>
+              <th style={{ textAlign: "left", borderBottom: "1px solid #ccc" }}>
+                Email
+              </th>
             </tr>
           </thead>
           <tbody>
