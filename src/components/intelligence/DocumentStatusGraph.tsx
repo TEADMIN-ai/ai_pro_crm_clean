@@ -8,7 +8,9 @@ import {
   XAxis,
   YAxis,
   Tooltip,
+  CartesianGrid,
 } from "recharts";
+import { empireColors } from "@/theme/empireTheme";
 
 type DocumentStatusGraphProps = {
   role: string | null | undefined;
@@ -47,10 +49,17 @@ export default function DocumentStatusGraph({
         <div style={{ width: "100%", height: 250, marginTop: 10 }}>
           <ResponsiveContainer>
             <BarChart data={data}>
-              <XAxis dataKey="status" stroke="#d6e5ff" />
-              <YAxis allowDecimals={false} stroke="#d6e5ff" />
-              <Tooltip />
-              <Bar dataKey="count" fill="#53a8ff" radius={[5, 5, 0, 0]} />
+              <CartesianGrid stroke="rgba(30, 41, 59, 0.8)" strokeDasharray="3 3" />
+              <XAxis dataKey="status" stroke={empireColors.textSecondary} />
+              <YAxis allowDecimals={false} stroke={empireColors.textSecondary} />
+              <Tooltip
+                contentStyle={{
+                  background: empireColors.surface,
+                  border: `1px solid ${empireColors.border}`,
+                  color: empireColors.textPrimary,
+                }}
+              />
+              <Bar dataKey="count" fill={empireColors.primary} radius={[5, 5, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </div>

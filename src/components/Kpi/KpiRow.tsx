@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import EmpireKpiCard from "@/components/ui/EmpireKpiCard";
 
 interface KpiItem {
   label: string;
@@ -26,18 +27,7 @@ export default function KpiRow({ items = [] }: Props) {
       }}
     >
       {items.map((kpi, index) => (
-        <div
-          key={index}
-          style={{
-            background: 'rgba(255,255,255,0.04)',
-            borderRadius: 16,
-            padding: 20,
-            boxShadow: '0 10px 30px rgba(0,0,0,0.25)',
-          }}
-        >
-          <div style={{ fontSize: 14, opacity: 0.7 }}>{kpi.label}</div>
-          <div style={{ fontSize: 32, fontWeight: 600 }}>{kpi.value}</div>
-        </div>
+        <EmpireKpiCard key={`${kpi.label}-${index}`} title={kpi.label} value={kpi.value} />
       ))}
     </div>
   );

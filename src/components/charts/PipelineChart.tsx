@@ -8,7 +8,9 @@ import {
   XAxis,
   YAxis,
   Tooltip,
+  CartesianGrid,
 } from "recharts";
+import { empireColors } from "@/theme/empireTheme";
 
 type Props = {
   deals: Deal[];
@@ -36,10 +38,17 @@ export default function PipelineChart({ deals }: Props) {
     <div style={{ width: "100%", height: 260 }}>
       <ResponsiveContainer>
         <BarChart data={data}>
-          <XAxis dataKey="stage" />
-          <YAxis allowDecimals={false} />
-          <Tooltip />
-          <Bar dataKey="count" fill="#2563eb" />
+          <CartesianGrid stroke="rgba(30, 41, 59, 0.8)" strokeDasharray="3 3" />
+          <XAxis dataKey="stage" stroke={empireColors.textSecondary} />
+          <YAxis allowDecimals={false} stroke={empireColors.textSecondary} />
+          <Tooltip
+            contentStyle={{
+              background: empireColors.surface,
+              border: `1px solid ${empireColors.border}`,
+              color: empireColors.textPrimary,
+            }}
+          />
+          <Bar dataKey="count" fill={empireColors.primary} radius={[5, 5, 0, 0]} />
         </BarChart>
       </ResponsiveContainer>
     </div>

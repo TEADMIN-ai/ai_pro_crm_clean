@@ -14,6 +14,7 @@ import {
   Tooltip,
   CartesianGrid,
 } from "recharts";
+import { empireColors } from "@/theme/empireTheme";
 
 type Deal = {
   value?: unknown;
@@ -118,16 +119,23 @@ export default function RevenueTrendGraph() {
           <div style={{ width: "100%", height: 260, marginTop: 10 }}>
             <ResponsiveContainer>
               <LineChart data={data}>
-                <CartesianGrid stroke="rgba(170, 205, 255, 0.15)" />
-                <XAxis dataKey="month" stroke="#d6e5ff" />
-                <YAxis stroke="#d6e5ff" />
-                <Tooltip formatter={(value) => formatCurrency(Number(value))} />
+                <CartesianGrid stroke="rgba(30, 41, 59, 0.8)" strokeDasharray="3 3" />
+                <XAxis dataKey="month" stroke={empireColors.textSecondary} />
+                <YAxis stroke={empireColors.textSecondary} />
+                <Tooltip
+                  formatter={(value) => formatCurrency(Number(value))}
+                  contentStyle={{
+                    background: empireColors.surface,
+                    border: `1px solid ${empireColors.border}`,
+                    color: empireColors.textPrimary,
+                  }}
+                />
                 <Line
                   type="monotone"
                   dataKey="revenue"
-                  stroke="#70d1ff"
+                  stroke={empireColors.primary}
                   strokeWidth={3}
-                  dot={{ r: 3 }}
+                  dot={{ r: 3, stroke: empireColors.primary, fill: empireColors.primary }}
                 />
               </LineChart>
             </ResponsiveContainer>

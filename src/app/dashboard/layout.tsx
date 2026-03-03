@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import Sidebar from "@/components/layout/Sidebar";
 import DashboardHeader from "@/components/layout/DashboardHeader";
+import EmpireShell from "@/components/layout/EmpireShell";
 
 export default function DashboardLayout({
   children,
@@ -29,12 +30,12 @@ export default function DashboardLayout({
   }
 
   return (
-    <div style={{ display: "flex" }}>
+    <EmpireShell>
       <Sidebar />
       <div style={{ flex: 1 }}>
         <DashboardHeader />
         {children}
       </div>
-    </div>
+    </EmpireShell>
   );
 }

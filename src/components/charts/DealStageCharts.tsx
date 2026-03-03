@@ -2,15 +2,16 @@
 
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
 import type { Deal } from "@/types/deal";
+import { empireColors } from "@/theme/empireTheme";
 
 const COLORS: Record<string, string> = {
-  lead: "#60a5fa",
-  tender: "#38bdf8",
-  proposal: "#818cf8",
-  negotiation: "#a78bfa",
-  won: "#22c55e",
-  lost: "#ef4444",
-  closed: "#9ca3af",
+  lead: "#00F0FF",
+  tender: "#22D3EE",
+  proposal: "#7C3AED",
+  negotiation: "#A855F7",
+  won: "#00FF9D",
+  lost: "#FF4D4D",
+  closed: "#64748B",
 };
 
 export default function DealStageCharts({ deals }: { deals: Deal[] }) {
@@ -44,7 +45,13 @@ export default function DealStageCharts({ deals }: { deals: Deal[] }) {
             />
           ))}
         </Pie>
-        <Tooltip />
+        <Tooltip
+          contentStyle={{
+            background: empireColors.surface,
+            border: `1px solid ${empireColors.border}`,
+            color: empireColors.textPrimary,
+          }}
+        />
       </PieChart>
     </ResponsiveContainer>
   );
