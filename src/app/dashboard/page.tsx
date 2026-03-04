@@ -17,7 +17,7 @@ import ExecutiveSummaryPanel from "@/components/financial/ExecutiveSummaryPanel"
 export default function DashboardHome() {
   const { role } = useAuth();
   const showUsersModule = role === "admin";
-  const visibleModuleCount = showUsersModule ? 3 : 2;
+  const visibleModuleCount = showUsersModule ? 4 : 2;
 
   return (
     <div className="enterprise-page enterprise-grid">
@@ -47,6 +47,13 @@ export default function DashboardHome() {
             <p className="enterprise-metric-label">Module</p>
             <h2 className="enterprise-metric-value">Users</h2>
             <Link href="/dashboard/users">Open workspace</Link>
+          </Card>
+        )}
+        {showUsersModule && (
+          <Card>
+            <p className="enterprise-metric-label">Module</p>
+            <h2 className="enterprise-metric-value">Executive</h2>
+            <Link href="/dashboard/executive">Open workspace</Link>
           </Card>
         )}
       </div>

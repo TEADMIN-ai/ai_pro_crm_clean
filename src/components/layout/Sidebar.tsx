@@ -64,6 +64,16 @@ export default function Sidebar() {
         </Link>
       )}
 
+      {role === "admin" && (
+        <Link
+          href="/dashboard/executive"
+          className={`empire-sidebar-link ${pathname.startsWith("/dashboard/executive") ? "empire-sidebar-link-active" : ""}`}
+          style={linkStyle(pathname.startsWith("/dashboard/executive"))}
+        >
+          Executive
+        </Link>
+      )}
+
     </aside>
   );
 }
