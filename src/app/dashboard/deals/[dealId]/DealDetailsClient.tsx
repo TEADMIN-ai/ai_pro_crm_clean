@@ -37,6 +37,12 @@ import {
 import TenderTrajectoryPanel from "@/components/intelligence/TenderTrajectoryPanel";
 import ImpactAttributionPanel from "@/components/intelligence/ImpactAttributionPanel";
 import { calculateImpactAttribution } from "@/lib/intelligence/impactAttribution";
+import {
+  analyzeUploadedDocument,
+  type DocumentIntelligenceResult,
+} from "@/lib/intelligence/documentIntelligenceEngine";
+import { generateAutoFillPreview } from "@/lib/pdf/autoFillPreviewEngine";
+import AutoFillPreviewPanel from "@/components/intelligence/AutoFillPreviewPanel";
 
 type DealDocument = Omit<DocumentRecord, "uploadedAt" | "updatedAt" | "expiryDate" | "reviewedAt"> & {
   uploadedAt?: { toDate?: () => Date };
@@ -53,6 +59,7 @@ export default function DealDetailsClient({ dealId }: { dealId: string }) {
   const [isLoadingDocs, setIsLoadingDocs] = useState(true);
   const [busyDocumentId, setBusyDocumentId] = useState<string | null>(null);
   const [previousWpi, setPreviousWpi] = useState<WpiHistoryPoint | null>(null);
+  const [documentIntelligence, setDocumentIntelligence] = useState<DocumentIntelligenceResult | null>(null);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -316,6 +323,117 @@ export default function DealDetailsClient({ dealId }: { dealId: string }) {
     void persistWpiHistory();
   }, [dealId, winProbability.probability, riskRadar.riskScore]);
 
+  const analyzedDocumentCandidates = useMemo(() => {
+    return documents
+      .filter((item) => Boolean(item.downloadURL))
+      .map((item) => ({
+        id: item.id,
+        name: item.name,
+        downloadURL: item.downloadURL,
+      }));
+  }, [documents]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!analyzedDocumentCandidates.length) {
+      setDocumentIntelligence({
+        extractedFields: {
+          expiryDates: [],
+          registrationNumbers: [],
+        },
+        flags: {
+          expired: false,
+          duplicatePatternDetected: false,
+        },
+        confidenceScore: 0,
+      });
+      return;
+    }
+
+    async function analyzeDocuments() {
+      try {
+        const results = await Promise.all(
+          analyzedDocumentCandidates.map(async (item) => {
+            try {
+              const response = await fetch(item.downloadURL);
+              const arrayBuffer = await response.arrayBuffer();
+              const bytes = new Uint8Array(arrayBuffer);
+              return analyzeUploadedDocument(bytes as Buffer, item.name);
+            } catch (error) {
+              console.warn("Document intelligence analysis fallback:", error);
+              return analyzeUploadedDocument(new Uint8Array() as Buffer, item.name);
+            }
+          })
+        );
+
+        const allExpiryDates = results.flatMap((result) => result.extractedFields.expiryDates);
+        const allRegistrationNumbers = results.flatMap(
+          (result) => result.extractedFields.registrationNumbers
+        );
+        const uniqueExpiryDates = Array.from(new Set(allExpiryDates));
+        const uniqueRegistrationNumbers = Array.from(new Set(allRegistrationNumbers));
+        const duplicatePatternDetected = uniqueRegistrationNumbers.length < allRegistrationNumbers.length;
+
+        const merged: DocumentIntelligenceResult = {
+          extractedFields: {
+            expiryDates: uniqueExpiryDates,
+            registrationNumbers: uniqueRegistrationNumbers,
+          },
+          flags: {
+            expired: results.some((result) => result.flags.expired),
+            duplicatePatternDetected:
+              duplicatePatternDetected ||
+              results.some((result) => result.flags.duplicatePatternDetected),
+          },
+          confidenceScore: Math.round(
+            results.reduce((sum, result) => sum + result.confidenceScore, 0) / results.length
+          ),
+        };
+
+        if (!cancelled) {
+          setDocumentIntelligence(merged);
+        }
+      } catch (error) {
+        console.warn("Document intelligence analysis skipped:", error);
+      }
+    }
+
+    void analyzeDocuments();
+    return () => {
+      cancelled = true;
+    };
+  }, [analyzedDocumentCandidates]);
+
+  const autoFillPreview = useMemo(() => {
+    return generateAutoFillPreview(
+      documentIntelligence?.extractedFields ?? { expiryDates: [], registrationNumbers: [] },
+      "SBD1_SBD4"
+    );
+  }, [documentIntelligence]);
+
+  const documentIntelligencePayload = useMemo(() => {
+    return {
+      ...documentIntelligence,
+      autoFillPreview,
+      updatedAt: Date.now(),
+    };
+  }, [autoFillPreview, documentIntelligence]);
+
+  useEffect(() => {
+    if (!dealId || !documentIntelligence) return;
+
+    async function persistDocumentIntelligence() {
+      try {
+        const intelligenceDocRef = doc(db, "deals", dealId, "analytics", "documentIntelligence");
+        await setDoc(intelligenceDocRef, documentIntelligencePayload, { merge: true });
+      } catch (error) {
+        console.warn("Document intelligence persistence skipped:", error);
+      }
+    }
+
+    void persistDocumentIntelligence();
+  }, [dealId, documentIntelligence, documentIntelligencePayload]);
+
   if (!user) return null;
 
   return (
@@ -332,6 +450,14 @@ export default function DealDetailsClient({ dealId }: { dealId: string }) {
           explanationLines={impactAttribution.explanationLines}
         />
       )}
+
+      <section style={{ marginTop: 20 }}>
+        <h2 style={{ marginBottom: 8 }}>Document Intelligence</h2>
+        <p style={{ marginTop: 0, opacity: 0.7 }}>
+          Heuristic extraction and preview mapping for SBD auto-fill.
+        </p>
+        <AutoFillPreviewPanel intelligence={documentIntelligence} preview={autoFillPreview} />
+      </section>
 
       {canUpload(role) && (
         <div style={{ marginBottom: 20 }}>
