@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
 import { canCreateDeal } from "@/lib/auth/roleUtils";
@@ -18,6 +19,7 @@ type DealListItem = {
 };
 
 export default function DealsPage() {
+  const router = useRouter();
   const { role } = useAuth();
   const [deals, setDeals] = useState<DealListItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -94,12 +96,20 @@ export default function DealsPage() {
                 </tr>
               ) : (
                 deals.map((deal) => (
-                  <tr key={deal.id}>
+                  <tr
+                    key={deal.id}
+                    onClick={() => router.push(`/dashboard/deals/${deal.id}`)}
+                    style={{ cursor: "pointer" }}
+                  >
                     <td>{deal.title || "Untitled deal"}</td>
                     <td>{deal.contractorName || deal.contractorId || "-"}</td>
                     <td>{Number(deal.value ?? 0).toLocaleString()}</td>
                     <td>{deal.status}</td>
-                    <td>{deal.createdAt ? new Date(deal.createdAt).toLocaleDateString() : "-"}</td>
+                    <td>
+                      {deal.createdAt
+                        ? new Date(deal.createdAt).toLocaleDateString()
+                        : "-"}
+                    </td>
                   </tr>
                 ))
               )}
@@ -110,4 +120,3 @@ export default function DealsPage() {
     </div>
   );
 }
-
