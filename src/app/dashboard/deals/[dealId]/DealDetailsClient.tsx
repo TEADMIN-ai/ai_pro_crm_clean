@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import {
   collection,
   deleteDoc,
@@ -54,6 +54,9 @@ type DealDocument = Omit<DocumentRecord, "uploadedAt" | "updatedAt" | "expiryDat
 export default function DealDetailsClient({ dealId }: { dealId: string }) {
   const { user, role, loading } = useAuth();
   const router = useRouter();
+  const params = useParams<{ dealId?: string | string[] }>();
+  const routeDealId = Array.isArray(params.dealId) ? params.dealId[0] : params.dealId;
+  const resolvedDealId = decodeURIComponent(routeDealId ?? dealId);
 
   const [documents, setDocuments] = useState<DealDocument[]>([]);
   const [isLoadingDocs, setIsLoadingDocs] = useState(true);
@@ -68,9 +71,12 @@ export default function DealDetailsClient({ dealId }: { dealId: string }) {
   }, [loading, user, router]);
 
   useEffect(() => {
-    if (!dealId) return;
+    if (!resolvedDealId) return;
 
-    const q = query(collection(db, "deals", dealId, "documents"), orderBy("uploadedAt", "desc"));
+    const q = query(
+      collection(db, "deals", resolvedDealId, "documents"),
+      orderBy("uploadedAt", "desc")
+    );
     const unsubscribe = onSnapshot(
       q,
       (snapshot) => {
@@ -92,14 +98,14 @@ export default function DealDetailsClient({ dealId }: { dealId: string }) {
     );
 
     return () => unsubscribe();
-  }, [dealId]);
+  }, [resolvedDealId]);
 
   useEffect(() => {
-    if (!dealId) return;
+    if (!resolvedDealId) return;
 
     async function loadPreviousWpi() {
       try {
-        const historyDocRef = doc(db, "deals", dealId, "analytics", "wpiHistory");
+        const historyDocRef = doc(db, "deals", resolvedDealId, "analytics", "wpiHistory");
         const snapshot = await getDoc(historyDocRef);
         if (!snapshot.exists()) {
           setPreviousWpi(null);
@@ -128,14 +134,14 @@ export default function DealDetailsClient({ dealId }: { dealId: string }) {
     }
 
     void loadPreviousWpi();
-  }, [dealId]);
+  }, [resolvedDealId]);
 
   const handleStatusUpdate = async (documentId: string, newStatus: "approved" | "rejected") => {
     if (!user || !canReview(role)) return;
 
     setBusyDocumentId(documentId);
     try {
-      await updateDoc(doc(db, "deals", dealId, "documents", documentId), {
+      await updateDoc(doc(db, "deals", resolvedDealId, "documents", documentId), {
         status: newStatus,
         reviewedByUid: user.uid,
         reviewedByRole: role,
@@ -159,17 +165,13 @@ export default function DealDetailsClient({ dealId }: { dealId: string }) {
         await deleteObject(ref(storage, docItem.storagePath));
       }
 
-      await deleteDoc(doc(db, "deals", dealId, "documents", docItem.id));
+      await deleteDoc(doc(db, "deals", resolvedDealId, "documents", docItem.id));
     } catch (error) {
       console.error("Delete failed:", error);
     } finally {
       setBusyDocumentId(null);
     }
   };
-
-  if (loading || isLoadingDocs) {
-    return <div style={{ padding: 40 }}>Loading documents...</div>;
-  }
 
   const categoryScores = useMemo(() => {
     const total = documents.length;
@@ -301,11 +303,11 @@ export default function DealDetailsClient({ dealId }: { dealId: string }) {
   ]);
 
   useEffect(() => {
-    if (!dealId) return;
+    if (!resolvedDealId) return;
 
     async function persistWpiHistory() {
       try {
-        const historyDocRef = doc(db, "deals", dealId, "analytics", "wpiHistory");
+        const historyDocRef = doc(db, "deals", resolvedDealId, "analytics", "wpiHistory");
         await setDoc(
           historyDocRef,
           {
@@ -321,7 +323,7 @@ export default function DealDetailsClient({ dealId }: { dealId: string }) {
     }
 
     void persistWpiHistory();
-  }, [dealId, winProbability.probability, riskRadar.riskScore]);
+  }, [resolvedDealId, winProbability.probability, riskRadar.riskScore]);
 
   const analyzedDocumentCandidates = useMemo(() => {
     return documents
@@ -420,11 +422,17 @@ export default function DealDetailsClient({ dealId }: { dealId: string }) {
   }, [autoFillPreview, documentIntelligence]);
 
   useEffect(() => {
-    if (!dealId || !documentIntelligence) return;
+    if (!resolvedDealId || !documentIntelligence) return;
 
     async function persistDocumentIntelligence() {
       try {
-        const intelligenceDocRef = doc(db, "deals", dealId, "analytics", "documentIntelligence");
+        const intelligenceDocRef = doc(
+          db,
+          "deals",
+          resolvedDealId,
+          "analytics",
+          "documentIntelligence"
+        );
         await setDoc(intelligenceDocRef, documentIntelligencePayload, { merge: true });
       } catch (error) {
         console.warn("Document intelligence persistence skipped:", error);
@@ -432,14 +440,20 @@ export default function DealDetailsClient({ dealId }: { dealId: string }) {
     }
 
     void persistDocumentIntelligence();
-  }, [dealId, documentIntelligence, documentIntelligencePayload]);
+  }, [resolvedDealId, documentIntelligence, documentIntelligencePayload]);
+
+  const isPageLoading = loading || isLoadingDocs;
+
+  if (isPageLoading) {
+    return <div style={{ padding: 40 }}>Loading documents...</div>;
+  }
 
   if (!user) return null;
 
   return (
     <div style={{ padding: 40 }}>
       <h1>Deal Documents</h1>
-      <p style={{ opacity: 0.6 }}>Deal ID: {dealId}</p>
+      <p style={{ opacity: 0.6 }}>Deal ID: {resolvedDealId}</p>
       <TenderProjectionPanel categoryScores={categoryScores} />
       <TenderRiskPanel risk={riskRadar} />
       <WinProbabilityPanel result={winProbability} />
@@ -462,7 +476,7 @@ export default function DealDetailsClient({ dealId }: { dealId: string }) {
       {canUpload(role) && (
         <div style={{ marginBottom: 20 }}>
           <button
-            onClick={() => router.push(`/dashboard/deals/${dealId}/upload`)}
+            onClick={() => router.push(`/dashboard/deals/${resolvedDealId}/upload`)}
             style={{
               padding: "10px 16px",
               background: "#2563eb",

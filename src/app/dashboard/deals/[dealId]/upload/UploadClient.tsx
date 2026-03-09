@@ -1,13 +1,16 @@
 "use client";
 
 import { ChangeEvent, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { canUpload } from "@/lib/auth/roleUtils";
 import { uploadDealDocuments } from "@/lib/firebase/storage/uploadDealDocuments";
 
 export default function UploadClient({ dealId }: { dealId: string }) {
   const router = useRouter();
+  const params = useParams<{ dealId?: string | string[] }>();
+  const routeDealId = Array.isArray(params.dealId) ? params.dealId[0] : params.dealId;
+  const resolvedDealId = decodeURIComponent(routeDealId ?? dealId);
   const { user, role, loading } = useAuth();
   const [uploading, setUploading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -40,7 +43,7 @@ export default function UploadClient({ dealId }: { dealId: string }) {
 
     try {
       const currentUser = user;
-      await uploadDealDocuments(dealId, file, currentUser.uid, role);
+      await uploadDealDocuments(resolvedDealId, file, currentUser.uid, role);
       setMessage("Upload successful.");
       event.target.value = "";
     } catch (uploadError: unknown) {
@@ -54,7 +57,7 @@ export default function UploadClient({ dealId }: { dealId: string }) {
   return (
     <div style={{ padding: 40, maxWidth: 640 }}>
       <h1>Upload Document</h1>
-      <p style={{ opacity: 0.7, marginTop: 8 }}>Deal ID: {dealId}</p>
+      <p style={{ opacity: 0.7, marginTop: 8 }}>Deal ID: {resolvedDealId}</p>
 
       <div style={{ marginTop: 20 }}>
         <label
@@ -86,7 +89,7 @@ export default function UploadClient({ dealId }: { dealId: string }) {
       <div style={{ marginTop: 20 }}>
         <button
           type="button"
-          onClick={() => router.push(`/dashboard/deals/${dealId}`)}
+          onClick={() => router.push(`/dashboard/deals/${resolvedDealId}`)}
           style={{
             border: "none",
             padding: "10px 14px",
