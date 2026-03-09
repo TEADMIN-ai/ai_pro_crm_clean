@@ -42,7 +42,7 @@ import {
   type DocumentIntelligenceResult,
 } from "@/lib/intelligence/documentIntelligenceEngine";
 import { generateAutoFillPreview } from "@/lib/pdf/autoFillPreviewEngine";
-import AutoFillPreviewPanel from "@/components/intelligence/AutoFillPreviewPanel";
+import DocumentIntelligence from "@/components/deals/DocumentIntelligence";
 
 type DealDocument = Omit<DocumentRecord, "uploadedAt" | "updatedAt" | "expiryDate" | "reviewedAt"> & {
   uploadedAt?: { toDate?: () => Date };
@@ -421,6 +421,13 @@ export default function DealDetailsClient({ dealId }: { dealId: string }) {
     };
   }, [autoFillPreview, documentIntelligence]);
 
+  const deal = useMemo(
+    () => ({
+      documentAnalysis: documentIntelligence,
+    }),
+    [documentIntelligence]
+  );
+
   useEffect(() => {
     if (!resolvedDealId || !documentIntelligence) return;
 
@@ -470,7 +477,7 @@ export default function DealDetailsClient({ dealId }: { dealId: string }) {
         <p style={{ marginTop: 0, opacity: 0.7 }}>
           Heuristic extraction and preview mapping for SBD auto-fill.
         </p>
-        <AutoFillPreviewPanel intelligence={documentIntelligence} preview={autoFillPreview} />
+        <DocumentIntelligence analysis={deal.documentAnalysis} />
       </section>
 
       {canUpload(role) && (

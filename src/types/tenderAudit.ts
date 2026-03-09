@@ -1,15 +1,23 @@
-export type TenderAuditEventType =
-  | "TENDER_SUBMITTED"
-  | "TENDER_LOCKED"
-  | "DOCUMENT_UPLOADED"
-  | "DOCUMENT_REMOVED";
+export type DocumentAnalysis = {
+  registrationNumber?: string;
+  documentType?: string;
+  expiryDate?: string;
+  confidence?: number;
+  expired?: boolean;
+  duplicate?: boolean;
+};
 
-export interface TenderAuditEvent {
+export type TenderEvaluation = {
+  readinessScore: number;
+  complianceStatus: "PASS" | "WARNING" | "FAIL";
+  riskFlags: string[];
+  missingRequirements: string[];
+  recommendations: string[];
+};
+
+export type TenderAuditEvent = {
   id: string;
-  dealId: string;
-  type: TenderAuditEventType;
   message: string;
-  userId: string;
   createdAt: Date;
-}
-
+  userId: string;
+};
