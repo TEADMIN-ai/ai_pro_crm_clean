@@ -5,11 +5,12 @@ export const API_ROUTES = {
   CONTRACTOR: (contractorId: string) =>
     `/api/contractors/${encodeURIComponent(contractorId)}`,
   CONTRACTOR_DOCUMENTS: (contractorId: string) =>
-    `/api/contractors/${contractorId}/documents`,
+    `/api/contractors/${encodeURIComponent(contractorId)}/documents`,
   DOCUMENT_EXECUTE: (documentId: string) =>
     `/api/documents/${documentId}/execute`,
   TENDER_PACK_GENERATE: "/api/tender-pack/generate",
   DEALS: "/api/deals",
+  DEAL_SUBMIT: "/api/deals/submit",
   PORTAL_REGISTER: "/api/portal/register",
   SYNC_ROLE: "/api/sync-role",
   AI_TENDER_SUMMARY: (tenderId: string) =>

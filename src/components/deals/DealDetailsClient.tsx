@@ -10,6 +10,7 @@ type Deal = {
   title?: string;
   status?: string;
   createdAt?: string;
+  readinessUpdatedAt?: string;
   documentAnalysis?: DocumentAnalysis;
 };
 
@@ -30,7 +31,10 @@ export default function DealDetailsClient({ deal }: Props) {
         {deal.createdAt && <p className="mt-1 text-xs text-gray-500">Created: {deal.createdAt}</p>}
       </div>
 
-      <TenderReadinessPanel evaluation={readiness} />
+      <TenderReadinessPanel
+        evaluation={readiness}
+        readinessUpdatedAt={deal.readinessUpdatedAt}
+      />
       <DocumentIntelligence analysis={deal.documentAnalysis ?? null} />
     </div>
   );

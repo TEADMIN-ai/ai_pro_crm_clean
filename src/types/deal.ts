@@ -23,6 +23,7 @@ export interface DealAuditActor {
   uid: string;
   name?: string;
   role?: string;
+  email?: string | null;
 }
 
 export type DealAuditEventType =
@@ -80,6 +81,10 @@ export interface Deal {
 
   // Tender System
   isTenderLocked?: boolean;
+  readinessScore?: number;
+  docsMissing?: number;
+  tenderLockStatus?: "READY" | "RISK" | "BLOCKED";
+  readinessUpdatedAt?: string;
   tenderSubmittedAt?: Date;
   tenderSubmittedBy?: string;
 

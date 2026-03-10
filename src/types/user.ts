@@ -4,7 +4,9 @@ export interface AppUser {
   uid: string;
   email: string;
   role: UserRole;
-  companyId: string;
+  contractorId?: string;
+  status?: string;
+  name?: string;
   createdAt: any; // Firestore Timestamp
 }
 

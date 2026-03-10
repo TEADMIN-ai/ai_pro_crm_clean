@@ -6,10 +6,16 @@ import { createContext, useContext, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { auth, db } from "@/lib/firebase";
 import type { UserRole } from "@/lib/auth/roleUtils";
+import {
+  normalizeContractorId,
+  normalizeRole,
+  type AuthUser,
+  type UserProfile,
+} from "@/lib/auth/userProfile";
 import { API_ROUTES } from "@/lib/routes";
 
 interface AuthContextType {
-  user: FirebaseUser | null;
+  user: AuthUser | null;
   role: UserRole;
   loading: boolean;
   logout: () => Promise<void>;
@@ -22,30 +28,50 @@ const AuthContext = createContext<AuthContextType>({
   logout: async () => {},
 });
 
-const VALID_ROLES: UserRole[] = ["admin", "manager", "staff", "contractor", "guest"];
-
-function normalizeRole(value: unknown): UserRole | null {
-  if (typeof value !== "string") return null;
-  return VALID_ROLES.includes(value as UserRole) ? (value as UserRole) : null;
-}
-
-async function getRoleFromFirestore(uid: string): Promise<UserRole | null> {
+async function getUserProfileFromFirestore(uid: string): Promise<UserProfile | null> {
   try {
     const snap = await getDoc(doc(db, "users", uid));
     if (!snap.exists()) return null;
-    const roleValue = (snap.data() as { role?: unknown }).role;
-    const normalized = normalizeRole(roleValue);
-    if (!normalized || normalized === "guest") return null;
-    return normalized;
+
+    const data = snap.data() as Record<string, unknown>;
+    return {
+      name: typeof data.name === "string" ? data.name : undefined,
+      email: typeof data.email === "string" ? data.email : undefined,
+      role: normalizeRole(data.role),
+      status: typeof data.status === "string" ? data.status : undefined,
+      contractorId: normalizeContractorId(data.contractorId),
+      createdAt: data.createdAt,
+    };
   } catch (error) {
-    console.error("Failed to read Firestore role fallback:", error);
+    console.error("Failed to read Firestore user fallback:", error);
     return null;
   }
 }
 
+function mergeFirebaseUser(firebaseUser: FirebaseUser, profile: UserProfile): AuthUser {
+  const merged = firebaseUser as AuthUser;
+  merged.role = profile.role;
+  merged.contractorId = profile.contractorId;
+  merged.status = profile.status;
+  merged.name = profile.name ?? firebaseUser.displayName ?? undefined;
+  merged.createdAt = profile.createdAt;
+  return merged;
+}
+
+function sanitizeProfile(profile: UserProfile): UserProfile {
+  if (profile.role === "contractor" && !profile.contractorId) {
+    return {
+      ...profile,
+      role: "guest",
+    };
+  }
+
+  return profile;
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
-  const [user, setUser] = useState<FirebaseUser | null>(null);
+  const [user, setUser] = useState<AuthUser | null>(null);
   const [role, setRole] = useState<UserRole>("guest");
   const [loading, setLoading] = useState(true);
 
@@ -60,9 +86,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
-      setUser(firebaseUser);
-
       try {
+        const firestoreProfile = await getUserProfileFromFirestore(firebaseUser.uid);
         const token = await firebaseUser.getIdToken();
 
         await fetch(API_ROUTES.SYNC_ROLE, {
@@ -75,18 +100,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         await firebaseUser.getIdToken(true);
 
         const tokenResult = await firebaseUser.getIdTokenResult();
-        const claimRole = normalizeRole(tokenResult.claims.role);
+        const profile = sanitizeProfile({
+          name: firestoreProfile?.name ?? firebaseUser.displayName ?? undefined,
+          email: firestoreProfile?.email ?? firebaseUser.email ?? undefined,
+          role: firestoreProfile?.role ?? normalizeRole(tokenResult.claims.role),
+          status: firestoreProfile?.status,
+          contractorId:
+            firestoreProfile?.contractorId ?? normalizeContractorId(tokenResult.claims.contractorId),
+          createdAt: firestoreProfile?.createdAt,
+        });
 
-        if (claimRole && claimRole !== "guest") {
-          setRole(claimRole);
-        } else {
-          const firestoreRole = await getRoleFromFirestore(firebaseUser.uid);
-          setRole(firestoreRole ?? "guest");
-        }
+        const mergedUser = mergeFirebaseUser(firebaseUser, profile);
+        setUser(mergedUser);
+        setRole(profile.role);
       } catch (error) {
         console.error("Auth role resolution error:", error);
-        const firestoreRole = await getRoleFromFirestore(firebaseUser.uid);
-        setRole(firestoreRole ?? "guest");
+        const fallbackProfile = sanitizeProfile((await getUserProfileFromFirestore(firebaseUser.uid)) ?? {
+          email: firebaseUser.email ?? undefined,
+          name: firebaseUser.displayName ?? undefined,
+          role: "guest" as UserRole,
+        });
+        const mergedUser = mergeFirebaseUser(firebaseUser, fallbackProfile);
+        setUser(mergedUser);
+        setRole(fallbackProfile.role);
       } finally {
         setLoading(false);
       }

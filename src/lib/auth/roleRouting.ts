@@ -7,11 +7,10 @@ export function getDashboardPath(role: UserRole) {
     case "manager":
       return "/dashboard/manager";
     case "contractor":
-      return "/dashboard/staff";
+      return "/dashboard";
     case "staff":
       return "/dashboard/staff";
     default:
       return "/login";
   }
 }
-

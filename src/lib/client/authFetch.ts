@@ -1,23 +1,18 @@
+import { auth } from "@/lib/firebase";
+
 export async function authFetch(
   input: RequestInfo | URL,
   init?: RequestInit
 ): Promise<Response> {
-
-  const token =
-    typeof window !== "undefined"
-      ? localStorage.getItem("authToken")
-      : null;
-
   const headers = new Headers(init?.headers ?? {});
+  const token = auth.currentUser ? await auth.currentUser.getIdToken(true) : null;
 
   if (token) {
     headers.set("Authorization", `Bearer ${token}`);
   }
 
-  const response = await fetch(input, {
+  return fetch(input, {
     ...init,
     headers,
   });
-
-  return response;
 }

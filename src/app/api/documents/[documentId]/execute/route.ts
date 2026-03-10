@@ -1,14 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAuth } from "firebase-admin/auth";
 import { FieldPath } from "firebase-admin/firestore";
 import { getStorage } from "firebase-admin/storage";
 
 import { getFirebaseAdmin } from "@/lib/firebase/admin";
+import { analyzeUploadedDocument } from "@/lib/intelligence/documentIntelligenceEngine";
 import {
   DocumentExecutionError,
   guardDocumentExecution,
 } from "@/lib/server/documentExecutionGuard";
+import { calcReadinessFromDocs } from "@/lib/tender/calcReadinessFromDocs";
+import { validateTenderSubmission } from "@/lib/tender/tenderLock";
+import type { DocumentAnalysis } from "@/types/tenderAudit";
 import { GuardianMonitor } from "@/lib/guardian/GuardianMonitor";
+import { AuthorizationError, canAccessContractor, requireAuthorizedUser } from "@/lib/server/authz";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -50,21 +54,49 @@ function jsonError(message: string, status: number) {
   return NextResponse.json({ error: message }, { status });
 }
 
-async function requireRole(request: NextRequest): Promise<string> {
-  const authHeader = request.headers.get("authorization") ?? "";
-  const token = authHeader.startsWith("Bearer ")
-    ? authHeader.slice("Bearer ".length).trim()
-    : "";
+function toDocumentAnalysis(result: ReturnType<typeof analyzeUploadedDocument>): DocumentAnalysis {
+  return {
+    registrationNumber: result.extractedFields.registrationNumbers[0],
+    expiryDate: result.extractedFields.expiryDates[0],
+    confidence: result.confidenceScore,
+    expired: result.flags.expired,
+    duplicate: result.flags.duplicatePatternDetected,
+  };
+}
 
-  if (!token) {
-    throw new DocumentExecutionError("Missing Authorization token", 401);
+function resolveTenderLockStatus(
+  score: number,
+  docsMissing: number
+): "READY" | "RISK" | "BLOCKED" {
+  if (docsMissing > 0 || score < 60) {
+    return "BLOCKED";
   }
 
+  if (score < 80) {
+    return "RISK";
+  }
+
+  return "READY";
+}
+
+async function requireDocumentAccess(request: NextRequest, contractorId?: string) {
   try {
-    const decoded = await getAuth().verifyIdToken(token);
-    return typeof decoded.role === "string" ? decoded.role : "";
-  } catch {
-    throw new DocumentExecutionError("Invalid Authorization token", 401);
+    const user = await requireAuthorizedUser(request);
+    if (user.role === "guest") {
+      throw new AuthorizationError("unauthorized", 403);
+    }
+
+    if (contractorId && !canAccessContractor(user, contractorId)) {
+      throw new AuthorizationError("unauthorized", 403);
+    }
+
+    return user;
+  } catch (error) {
+    if (error instanceof AuthorizationError) {
+      throw new DocumentExecutionError(error.message, error.status);
+    }
+
+    throw error;
   }
 }
 
@@ -89,8 +121,6 @@ export async function GET(
       );
     }
 
-    const role = await requireRole(request);
-
     const db = getFirebaseAdmin();
 
     const snap = await db
@@ -103,10 +133,16 @@ export async function GET(
     const exists = Boolean(docSnap?.exists);
 
     if (!exists) {
-      guardDocumentExecution({ exists, role, url: "https://placeholder.local" });
+      throw new DocumentExecutionError("Document not found", 404);
     }
 
     const metadata = (docSnap.data() ?? {}) as Record<string, unknown>;
+    const authorizedUser = await requireDocumentAccess(
+      request,
+      asString(metadata.contractorId) ??
+        asString(metadata.companyId) ??
+        (docSnap.ref.parent.parent?.id ?? undefined)
+    );
     const storagePathSource =
       asString(metadata.storagePath) ??
       asString(metadata.filePath) ??
@@ -128,7 +164,7 @@ export async function GET(
 
     guardDocumentExecution({
       exists,
-      role,
+      role: authorizedUser.role,
       url: signedUrl,
     });
 
@@ -153,5 +189,125 @@ export async function GET(
 
     console.error("Document execution resolve failed:", error);
     return jsonError("Failed to prepare document execution", 500);
+  }
+}
+
+export async function POST(
+  request: NextRequest,
+  context: { params: Promise<{ documentId: string }> }
+) {
+  try {
+    const { documentId } = await context.params;
+
+    if (!documentId) {
+      return jsonError("Missing documentId", 400);
+    }
+
+    const db = getFirebaseAdmin();
+    const snap = await db
+      .collectionGroup("documents")
+      .where(FieldPath.documentId(), "==", documentId)
+      .limit(1)
+      .get();
+
+    const targetDoc = snap.docs[0];
+    if (!targetDoc?.exists) {
+      return jsonError("Document not found", 404);
+    }
+
+    const dealRef = targetDoc.ref.parent.parent;
+    if (!dealRef) {
+      return jsonError("Deal reference not found for document", 500);
+    }
+
+    const targetDocData = (targetDoc.data() ?? {}) as Record<string, unknown>;
+    await requireDocumentAccess(
+      request,
+      asString(targetDocData.contractorId) ?? asString(targetDocData.companyId) ?? undefined
+    );
+
+    const bucket = getStorage().bucket();
+    const allDocumentSnapshots = await dealRef.collection("documents").get();
+
+    const analyses = (
+      await Promise.all(
+        allDocumentSnapshots.docs.map(async (documentSnapshot) => {
+          const metadata = (documentSnapshot.data() ?? {}) as Record<string, unknown>;
+          const storagePathSource =
+            asString(metadata.storagePath) ??
+            asString(metadata.filePath) ??
+            asString(metadata.downloadURL) ??
+            asString(metadata.downloadUrl) ??
+            asString(metadata.url);
+
+          const storagePath = storagePathSource
+            ? normalizeStoragePath(storagePathSource)
+            : null;
+
+          if (!storagePath) {
+            return null;
+          }
+
+          try {
+            const [bytes] = await bucket.file(storagePath).download();
+            const fileName = asString(metadata.name) ?? documentSnapshot.id;
+            return toDocumentAnalysis(analyzeUploadedDocument(bytes, fileName));
+          } catch (error) {
+            console.warn("Document analysis skipped for readiness recompute:", error);
+            return null;
+          }
+        })
+      )
+    ).filter((analysis): analysis is DocumentAnalysis => Boolean(analysis));
+
+    const readiness = calcReadinessFromDocs(analyses);
+    const lock = validateTenderSubmission(
+      readiness.readinessScore,
+      readiness.docsMissing
+    );
+    const readinessUpdatedAt = new Date().toISOString();
+
+    await dealRef.update({
+      readinessScore: readiness.readinessScore,
+      docsMissing: readiness.docsMissing,
+      tenderLockStatus: lock.allowed
+        ? readiness.readinessScore >= 80
+          ? "READY"
+          : "RISK"
+        : "BLOCKED",
+      isTenderLocked: !lock.allowed,
+      readinessUpdatedAt,
+    });
+
+    return NextResponse.json(
+      {
+        success: true,
+        analyses,
+        readiness: {
+          ...readiness,
+          tenderLockStatus: resolveTenderLockStatus(
+            readiness.readinessScore,
+            readiness.docsMissing
+          ),
+          isTenderLocked: !lock.allowed,
+          readinessUpdatedAt,
+        },
+      },
+      { status: 200 }
+    );
+  } catch (error) {
+    GuardianMonitor.error("api.documents.execute.POST", "Document execution analysis failed", {
+      error:
+        error instanceof Error
+          ? { name: error.name, message: error.message }
+          : { value: String(error) },
+    });
+
+    if (error instanceof DocumentExecutionError) {
+      return jsonError(error.message, error.status);
+    }
+
+    console.error("Document execution analysis failed:", error);
+    return jsonError("Failed to execute document analysis", 500);
   }
 }

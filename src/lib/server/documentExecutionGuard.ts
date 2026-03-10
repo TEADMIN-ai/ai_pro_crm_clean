@@ -8,7 +8,7 @@ export class DocumentExecutionError extends Error {
   }
 }
 
-const ALLOWED_ROLES = new Set(["admin", "manager", "staff"]);
+const ALLOWED_ROLES = new Set(["admin", "manager", "staff", "contractor"]);
 
 export function guardDocumentExecution(params: {
   exists: boolean;

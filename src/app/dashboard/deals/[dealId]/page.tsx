@@ -1,13 +1,14 @@
-import DealDetailsClient from "./DealDetailsClient";
-
-type PageProps = {
-  params: Promise<{
+interface DealPageProps {
+  params: {
     dealId: string;
-  }>;
-};
+  };
+}
 
-export default async function DealDetailsPage({ params }: PageProps) {
-  const { dealId } = await params;
-
-  return <DealDetailsClient dealId={dealId} />;
+export default function DealPage({ params }: DealPageProps) {
+  return (
+    <div style={{ padding: "40px" }}>
+      <h1>Deal Details</h1>
+      <p>Deal ID: {params.dealId}</p>
+    </div>
+  );
 }

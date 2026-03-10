@@ -8,12 +8,67 @@ import { canViewContractorList } from "@/lib/auth/roleUtils";
 import { empireColors } from "@/theme/empireTheme";
 
 export default function Sidebar() {
-  const { role, loading } = useAuth();
+  const { user, role, loading } = useAuth();
   const pathname = usePathname();
 
   if (loading) {
     return null;
   }
+
+  const contractorLinks =
+    role === "contractor" && user?.contractorId
+      ? [
+          {
+            href: "/dashboard",
+            label: "Compliance Status",
+            active: pathname === "/dashboard",
+          },
+          {
+            href: "/dashboard/deals",
+            label: "Tender Submissions",
+            active: pathname.startsWith("/dashboard/deals"),
+          },
+          {
+            href: `/dashboard/contractors/${encodeURIComponent(user.contractorId)}`,
+            label: "My Documents",
+            active: pathname.startsWith("/dashboard/contractors"),
+          },
+        ]
+      : [];
+
+  const internalLinks =
+    role !== "contractor"
+      ? [
+          {
+            href: "/dashboard",
+            label: "Dashboard",
+            active: pathname === "/dashboard",
+          },
+          {
+            href: "/dashboard/deals",
+            label: "Deals",
+            active: pathname.startsWith("/dashboard/deals"),
+          },
+          ...(canViewContractorList(role)
+            ? [
+                {
+                  href: "/dashboard/contractors",
+                  label: "Contractors",
+                  active: pathname.startsWith("/dashboard/contractors"),
+                },
+              ]
+            : []),
+          ...(role === "admin"
+            ? [
+                {
+                  href: "/dashboard/executive",
+                  label: "Executive",
+                  active: pathname.startsWith("/dashboard/executive"),
+                },
+              ]
+            : []),
+        ]
+      : [];
 
   return (
     <aside
@@ -34,46 +89,29 @@ export default function Sidebar() {
     >
       <h2 style={{ marginBottom: 10 }}>Navigation</h2>
 
-      <div style={{ fontSize: 14, opacity: 0.7 }}>
-        Role: {role}
-      </div>
+      <div style={{ fontSize: 14, opacity: 0.7 }}>Role: {role}</div>
 
-      <Link
-        href="/dashboard"
-        className={`empire-sidebar-link ${pathname === "/dashboard" ? "empire-sidebar-link-active" : ""}`}
-        style={linkStyle(pathname === "/dashboard")}
-      >
-        Dashboard
-      </Link>
-
-      <Link
-        href="/dashboard/deals"
-        className={`empire-sidebar-link ${pathname.startsWith("/dashboard/deals") ? "empire-sidebar-link-active" : ""}`}
-        style={linkStyle(pathname.startsWith("/dashboard/deals"))}
-      >
-        Deals
-      </Link>
-
-      {canViewContractorList(role) && (
+      {contractorLinks.map((item) => (
         <Link
-          href="/dashboard/contractors"
-          className={`empire-sidebar-link ${pathname.startsWith("/dashboard/contractors") ? "empire-sidebar-link-active" : ""}`}
-          style={linkStyle(pathname.startsWith("/dashboard/contractors"))}
+          key={item.href}
+          href={item.href}
+          className={`empire-sidebar-link ${item.active ? "empire-sidebar-link-active" : ""}`}
+          style={linkStyle(item.active)}
         >
-          Contractors
+          {item.label}
         </Link>
-      )}
+      ))}
 
-      {role === "admin" && (
+      {internalLinks.map((item) => (
         <Link
-          href="/dashboard/executive"
-          className={`empire-sidebar-link ${pathname.startsWith("/dashboard/executive") ? "empire-sidebar-link-active" : ""}`}
-          style={linkStyle(pathname.startsWith("/dashboard/executive"))}
+          key={item.href}
+          href={item.href}
+          className={`empire-sidebar-link ${item.active ? "empire-sidebar-link-active" : ""}`}
+          style={linkStyle(item.active)}
         >
-          Executive
+          {item.label}
         </Link>
-      )}
-
+      ))}
     </aside>
   );
 }

@@ -53,11 +53,18 @@ export interface ContractorDocument {
    * AI classified document type
    */
   docType?: string;
+  documentType?: string;
+
+  /**
+   * Canonical display name for compliance documents
+   */
+  documentName?: string;
 
   /**
    * Compliance status
    */
   status?: string;
+  verified?: boolean;
 
   /**
    * Expiry timestamp (Unix milliseconds)
@@ -69,10 +76,20 @@ export interface ContractorDocument {
    * Creation timestamp
    */
   createdAt?: number;
+  uploadedAt?: number;
 
   /**
    * Last updated timestamp
    */
   updatedAt?: number;
+
+  extractedAt?: number;
+  confidenceScore?: number;
+  extractedFields?: Record<string, string | null>;
+
+  /**
+   * Direct file URL used by the dashboard and execution APIs
+   */
+  fileUrl?: string;
 
 }

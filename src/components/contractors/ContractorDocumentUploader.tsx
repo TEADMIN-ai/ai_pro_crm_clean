@@ -1,149 +1,131 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import Card from "@/components/ui/Card";
 import Badge from "@/components/ui/Badge";
-import { API_ROUTES } from "@/lib/routes";
+import {
+  getDocumentTypeLabel,
+  SUPPORTED_DOCUMENT_TYPES,
+  type SupportedDocumentType,
+} from "@/lib/compliance/contractorCompliance";
+import { uploadContractorDocument } from "@/lib/contractors/uploadContractorDocument";
+import type { ContractorDocument } from "@/types/document";
 
 type Props = {
   contractorId: string;
-
-  /** Action called after successful upload */
+  documents: ContractorDocument[];
   onUploadedAction?: () => void | Promise<void>;
 };
 
 export default function ContractorDocumentUploader({
   contractorId,
+  documents,
   onUploadedAction,
 }: Props) {
+  const [files, setFiles] = useState<Partial<Record<SupportedDocumentType, File>>>({});
+  const [uploadingType, setUploadingType] = useState<SupportedDocumentType | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
-  const [file, setFile] = useState<File | null>(null);
-  const [fileName, setFileName] = useState("");
-  const [expiryDate, setExpiryDate] = useState("");
-  const [loading, setLoading] = useState(false);
+  const documentsByType = useMemo(() => {
+    return new Map(
+      documents
+        .filter((document) => typeof document.documentType === "string")
+        .map((document) => [document.documentType as SupportedDocumentType, document])
+    );
+  }, [documents]);
 
-  function detectDocType(name: string): string {
-    const extension = name.toLowerCase().split(".").pop() ?? "";
+  async function handleUpload(documentType: SupportedDocumentType) {
+    const file = files[documentType];
 
-    if (extension === "pdf") return "certificate";
-    if (extension === "csv" || extension === "xls" || extension === "xlsx") return "tax";
-    if (extension === "jpg" || extension === "jpeg" || extension === "png" || extension === "webp") {
-      return "identity";
+    if (!file) {
+      setError("Choose a PDF before uploading.");
+      return;
     }
-    if (extension === "doc" || extension === "docx") return "general";
-
-    return "general";
-  }
-
-  async function upload() {
-
-    if (!file) return;
 
     try {
-
-      setLoading(true);
-
-      const expiryDateValue =
-        expiryDate.trim().length > 0
-          ? new Date(expiryDate).getTime()
-          : undefined;
-
-      const res = await fetch(
-        API_ROUTES.CONTRACTOR_DOCUMENTS(contractorId),
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-
-            fileName: file.name,
-            originalName: file.name,
-            docType: detectDocType(file.name),
-            status: "active",
-            expiryDate:
-              typeof expiryDateValue === "number" && Number.isFinite(expiryDateValue)
-                ? expiryDateValue
-                : undefined,
-
-          }),
-        }
-      );
-
-      if (!res.ok) {
-
-        const text = await res.text();
-        throw new Error(text);
-
-      }
-
-      setFile(null);
-      setFileName("");
-      setExpiryDate("");
+      setUploadingType(documentType);
+      setError(null);
+      await uploadContractorDocument(contractorId, documentType, file);
+      setFiles((current) => {
+        const next = { ...current };
+        delete next[documentType];
+        return next;
+      });
 
       if (onUploadedAction) {
-
         await onUploadedAction();
-
       }
-
-    }
-    catch (err) {
-
-      console.error(err);
-
-    }
-    finally {
-
-      setLoading(false);
-
+    } catch (uploadError) {
+      console.error(uploadError);
+      setError(uploadError instanceof Error ? uploadError.message : "Upload failed");
+    } finally {
+      setUploadingType(null);
     }
   }
 
   return (
     <Card>
-      <div className="enterprise-grid">
-        <div>
-          <Badge tone="info">Client Upload Flow</Badge>
-        </div>
-      <input
-        type="file"
-        onChange={(e) => {
+      <h2>Compliance Documents</h2>
+      <p>Upload required PDF compliance documents. Replacing a file updates readiness automatically.</p>
+      {error && <p style={{ color: "#b91c1c" }}>{error}</p>}
 
-          const selected = e.target.files?.[0] ?? null;
+      <div style={{ display: "grid", gap: 14 }}>
+        {SUPPORTED_DOCUMENT_TYPES.map((documentType) => {
+          const currentDocument = documentsByType.get(documentType);
+          const isUploading = uploadingType === documentType;
 
-          setFile(selected);
+          return (
+            <div
+              key={documentType}
+              style={{
+                display: "grid",
+                gap: 10,
+                padding: 14,
+                border: "1px solid rgba(148, 163, 184, 0.25)",
+                borderRadius: 12,
+              }}
+            >
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+                <strong>{getDocumentTypeLabel(documentType)}</strong>
+                <Badge tone={currentDocument?.fileUrl ? "success" : "warning"}>
+                  {currentDocument?.fileUrl ? "Uploaded" : "Missing"}
+                </Badge>
+              </div>
 
-          if (selected) {
-            setFileName(selected.name);
-          }
+              <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
+                <input
+                  type="file"
+                  accept="application/pdf,.pdf"
+                  onChange={(event) => {
+                    const file = event.target.files?.[0];
+                    if (!file) {
+                      return;
+                    }
 
-        }}
-      />
-      <div>
-        <input
-          value={fileName}
-          readOnly
-          placeholder="File name"
-          style={{ width: "100%", maxWidth: 420, padding: 8, borderRadius: 8, border: "1px solid #c9d8ef" }}
-        />
-      </div>
-      <div>
-        <label htmlFor="document-expiry-date">Expiry Date (optional)</label>
-        <input
-          id="document-expiry-date"
-          type="date"
-          value={expiryDate}
-          onChange={(event) => setExpiryDate(event.target.value)}
-          style={{ width: "100%", maxWidth: 240, padding: 8, borderRadius: 8, border: "1px solid #c9d8ef" }}
-        />
-      </div>
-      <button
-        onClick={upload}
-        disabled={loading || !file}
-      >
-        {loading ? "Uploading..." : "Upload"}
-      </button>
+                    setFiles((current) => ({
+                      ...current,
+                      [documentType]: file,
+                    }));
+                  }}
+                />
+
+                <button type="button" disabled={isUploading || !files[documentType]} onClick={() => handleUpload(documentType)}>
+                  {isUploading ? "Uploading..." : currentDocument?.fileUrl ? "Replace document" : "Upload document"}
+                </button>
+
+                {currentDocument?.fileUrl && (
+                  <a href={currentDocument.fileUrl} target="_blank" rel="noreferrer noopener">
+                    View document
+                  </a>
+                )}
+              </div>
+
+              <div style={{ fontSize: 13, opacity: 0.8 }}>
+                Status: {currentDocument?.verified ? "Verified" : currentDocument?.fileUrl ? "Uploaded" : "Not uploaded"}
+              </div>
+            </div>
+          );
+        })}
       </div>
     </Card>
   );

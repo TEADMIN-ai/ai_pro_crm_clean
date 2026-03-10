@@ -19,35 +19,32 @@ export default function DealsClient() {
     return {
       uid: user.uid,
       email: user.email ?? null,
-      name: (user as any).displayName ?? null,
+      name: user.displayName ?? undefined,
     };
   }, [user]);
 
   useEffect(() => {
     async function loadDeals() {
       try {
-        const result = await getDealsForUser();
+        const result = await getDealsForUser(user);
         setDeals(result);
       } catch (err) {
         console.error("Failed to load deals:", err);
       }
     }
 
-    loadDeals();
-  }, []);
+    void loadDeals();
+  }, [user]);
 
   async function handleDealChange(updatedDeal: Deal) {
-    setDeals((prev) =>
-      prev.map((d) => (d.id === updatedDeal.id ? updatedDeal : d))
-    );
-
+    setDeals((prev) => prev.map((d) => (d.id === updatedDeal.id ? updatedDeal : d)));
     await updateDealStage(updatedDeal.id, updatedDeal.stage);
   }
 
   async function handleTenderSubmit(deal: Deal) {
     if (!actor) return;
 
-    await submitTender(deal, actor);
+    await submitTender(deal);
 
     setDeals((prev) =>
       prev.map((d) =>
@@ -55,6 +52,10 @@ export default function DealsClient() {
           ? {
               ...d,
               stage: "submitted" as DealStage,
+              status: "submitted",
+              isTenderLocked: true,
+              tenderSubmittedAt: new Date(),
+              tenderSubmittedBy: actor.uid,
             }
           : d
       )
@@ -72,9 +73,7 @@ export default function DealsClient() {
 
       setDeals((prev) =>
         prev.map((d) =>
-          d.id === deal.id
-            ? { ...d, pricingStatus: "manager_approved" }
-            : d
+          d.id === deal.id ? { ...d, pricingStatus: "manager_approved" } : d
         )
       );
     } catch (error: any) {
@@ -96,4 +95,3 @@ export default function DealsClient() {
     </>
   );
 }
-

@@ -7,6 +7,7 @@ import { useAuth } from "@/context/AuthContext";
 import { canCreateDeal } from "@/lib/auth/roleUtils";
 import Table from "@/components/ui/Table";
 import { API_ROUTES } from "@/lib/routes";
+import { authFetch } from "@/lib/client/authFetch";
 
 type DealListItem = {
   id: string;
@@ -31,7 +32,7 @@ export default function DealsPage() {
         setLoading(true);
         setError(null);
 
-        const res = await fetch(API_ROUTES.DEALS, {
+        const res = await authFetch(API_ROUTES.DEALS, {
           method: "GET",
           headers: { Accept: "application/json" },
         });
@@ -50,12 +51,12 @@ export default function DealsPage() {
       }
     }
 
-    loadDeals();
+    void loadDeals();
   }, []);
 
   return (
     <div>
-      <h1>Deals</h1>
+      <h1>{role === "contractor" ? "My Deals" : "Deals"}</h1>
 
       {canCreateDeal(role) && (
         <div style={{ marginTop: 20 }}>
@@ -105,11 +106,7 @@ export default function DealsPage() {
                     <td>{deal.contractorName || deal.contractorId || "-"}</td>
                     <td>{Number(deal.value ?? 0).toLocaleString()}</td>
                     <td>{deal.status}</td>
-                    <td>
-                      {deal.createdAt
-                        ? new Date(deal.createdAt).toLocaleDateString()
-                        : "-"}
-                    </td>
+                    <td>{deal.createdAt ? new Date(deal.createdAt).toLocaleDateString() : "-"}</td>
                   </tr>
                 ))
               )}

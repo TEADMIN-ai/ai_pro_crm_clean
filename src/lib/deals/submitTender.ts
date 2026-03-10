@@ -1,37 +1,39 @@
-// src/lib/deals/submitTender.ts
+import type { Deal } from "@/types/deal";
+import { authFetch } from "@/lib/client/authFetch";
+import { API_ROUTES } from "@/lib/routes";
 
-import type { Deal, DealAuditActor } from "@/types/deal";
-import { computeTenderReadiness } from "@/lib/tender/computeTenderReadiness";
-import { updateDeal } from "@/lib/deals/updateDeal";
+type SubmitTenderResponse = {
+  success?: boolean;
+  error?: string;
+  reason?: string;
+};
 
-export async function submitTender(deal: Deal, actor?: DealAuditActor): Promise<void> {
-  const readiness = computeTenderReadiness(deal);
-
-if (!readiness.isReady) {
-  console.log("READINESS DEBUG:", readiness);
-  throw new Error("Tender is not ready for submission.");
-}
-
-  await updateDeal(
-    deal.id,
-    {
-      stage: "submitted",
-      isTenderLocked: true,
-      tenderSubmittedAt: new Date(),
-      tenderSubmittedBy: actor?.uid,
+export async function submitTender(deal: Deal): Promise<void> {
+  const response = await authFetch(API_ROUTES.DEAL_SUBMIT, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
     },
-    deal,
-    {
-      actor,
-      type: "tender_submitted",
-      meta: {
-        completionPercent: readiness.completionPercent,
-        missingDocuments: readiness.missingDocuments,
-        missingFields: readiness.missingFields,
-      },
+    body: JSON.stringify({
+      dealId: deal.id,
+    }),
+  });
+
+  if (response.ok) {
+    return;
+  }
+
+  let message = `Failed to submit tender (${response.status})`;
+  const rawBody = await response.text();
+
+  try {
+    const payload = JSON.parse(rawBody) as SubmitTenderResponse;
+    message = payload.reason ?? payload.error ?? message;
+  } catch {
+    if (rawBody.trim()) {
+      message = rawBody;
     }
-  );
+  }
 
-  console.log("✅ Tender submitted + locked:", deal.id);
+  throw new Error(message);
 }
-

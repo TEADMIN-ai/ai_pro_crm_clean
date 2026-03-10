@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { authFetch } from "@/lib/client/authFetch";
 import { API_ROUTES } from "@/lib/routes";
+import { useAuth } from "@/context/AuthContext";
 
 type ContractorOption = {
   id: string;
@@ -10,6 +11,7 @@ type ContractorOption = {
 };
 
 export default function NewDealPage() {
+  const { user, role } = useAuth();
   const [title, setTitle] = useState("");
   const [value, setValue] = useState("");
   const [contractors, setContractors] = useState<ContractorOption[]>([]);
@@ -19,7 +21,6 @@ export default function NewDealPage() {
     async function loadContractors() {
       try {
         const response = await authFetch(API_ROUTES.CONTRACTORS);
-
         if (!response.ok) {
           throw new Error(`Failed to fetch contractors: ${response.status}`);
         }
@@ -32,49 +33,55 @@ export default function NewDealPage() {
         ) {
           throw new Error("Malformed contractor response");
         }
-        const source = (data as { contractors: unknown[] }).contractors;
 
+        const source = (data as { contractors: unknown[] }).contractors;
         const normalized: ContractorOption[] = source
-              .map((item) => ({
-                id:
-                  typeof item === "object" &&
-                  item !== null &&
-                  typeof (item as { id?: unknown }).id === "string"
-                    ? (item as { id: string }).id
-                    : "",
-                companyName:
-                  typeof item === "object" &&
-                  item !== null &&
-                  typeof (item as { companyName?: unknown }).companyName === "string"
-                    ? (item as { companyName: string }).companyName
-                    : "",
-              }))
-              .filter((item) => item.id.length > 0)
+          .map((item) => ({
+            id:
+              typeof item === "object" &&
+              item !== null &&
+              typeof (item as { id?: unknown }).id === "string"
+                ? (item as { id: string }).id
+                : "",
+            companyName:
+              typeof item === "object" &&
+              item !== null &&
+              typeof (item as { companyName?: unknown }).companyName === "string"
+                ? (item as { companyName: string }).companyName
+                : "",
+          }))
+          .filter((item) => item.id.length > 0);
+
         setContractors(normalized);
+
+        if (role === "contractor" && user?.contractorId) {
+          setContractorId(user.contractorId);
+        }
       } catch {
         setContractors([]);
       }
     }
 
-    loadContractors();
-  }, []);
+    void loadContractors();
+  }, [role, user]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
 
-    const selectedContractor = contractors.find((contractor) => contractor.id === contractorId);
+    const resolvedContractorId = role === "contractor" ? user?.contractorId ?? contractorId : contractorId;
+    const selectedContractor = contractors.find((contractor) => contractor.id === resolvedContractorId);
 
-    const res = await fetch(API_ROUTES.DEALS, {
+    const res = await authFetch(API_ROUTES.DEALS, {
       method: "POST",
       headers: {
-        "Content-Type": "application/json"
+        "Content-Type": "application/json",
       },
       body: JSON.stringify({
         title,
         value: Number(value),
-        contractorId,
-        contractorName: selectedContractor?.companyName ?? ""
-      })
+        contractorId: resolvedContractorId,
+        contractorName: selectedContractor?.companyName ?? "",
+      }),
     });
 
     if (res.ok) {
@@ -92,19 +99,16 @@ export default function NewDealPage() {
       <form onSubmit={handleSubmit}>
         <div>
           <label>Deal Title</label>
-          <input
-            value={title}
-            onChange={e => setTitle(e.target.value)}
-            required
-          />
+          <input value={title} onChange={(e) => setTitle(e.target.value)} required />
         </div>
 
         <div>
           <label>Contractor</label>
           <select
             value={contractorId}
-            onChange={e => setContractorId(e.target.value)}
+            onChange={(e) => setContractorId(e.target.value)}
             required
+            disabled={role === "contractor"}
           >
             <option value="">Select contractor</option>
             {contractors.map((contractor) => (
@@ -117,16 +121,10 @@ export default function NewDealPage() {
 
         <div>
           <label>Value</label>
-          <input
-            value={value}
-            onChange={e => setValue(e.target.value)}
-            required
-          />
+          <input value={value} onChange={(e) => setValue(e.target.value)} required />
         </div>
 
-        <button type="submit">
-          Submit
-        </button>
+        <button type="submit">Submit</button>
       </form>
     </div>
   );

@@ -1,79 +1,29 @@
-// src/lib/deals/getDealsForUser.ts
-
-import {
-  collection,
-  getDocs,
-  query,
-  where,
-} from "firebase/firestore";
+import { collection, getDocs, query, where } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import type { AuthUser } from "@/lib/auth/userProfile";
+import { normalizeDeal } from "@/lib/deals/normalizeDeal";
 import type { Deal } from "@/types/deal";
 
-function normalizeNumber(value: any): number {
-  if (typeof value === "number") return value;
-  if (typeof value === "string") {
-    const parsed = parseFloat(value);
-    return isNaN(parsed) ? 0 : parsed;
+export async function getDealsForUser(user: Pick<AuthUser, "role" | "contractorId"> | null): Promise<Deal[]> {
+  if (!user || user.role === "guest") {
+    return [];
   }
-  return 0;
+
+  const dealsRef = collection(db, "deals");
+  if (user.role === "contractor") {
+    if (!user.contractorId) {
+      return [];
+    }
+
+    const contractorDealsQuery = query(dealsRef, where("contractorId", "==", user.contractorId));
+    const snapshot = await getDocs(contractorDealsQuery);
+    return snapshot.docs.map((docSnapshot) => normalizeDeal(docSnapshot.id, docSnapshot.data() as Record<string, unknown>));
+  }
+
+  if (user.role !== "admin" && user.role !== "manager" && user.role !== "staff") {
+    return [];
+  }
+
+  const snapshot = await getDocs(query(dealsRef));
+  return snapshot.docs.map((docSnapshot) => normalizeDeal(docSnapshot.id, docSnapshot.data() as Record<string, unknown>));
 }
-
-function normalizeStage(stage: any): Deal["stage"] {
-  const allowed = [
-    "lead",
-    "manager_review",
-    "manager_approved",
-    "submitted",
-    "won",
-    "lost",
-    "closed",
-  ];
-
-  return allowed.includes(stage) ? stage : "lead";
-}
-
-function normalizePricingStatus(status: any): Deal["pricingStatus"] {
-  const allowed = [
-    "not_started",
-    "in_progress",
-    "manager_approved",
-    "rejected",
-  ];
-
-  return allowed.includes(status) ? status : "not_started";
-}
-
-export async function getDealsForUser(): Promise<Deal[]> {
-  const q = query(collection(db, "deals"));
-  const snapshot = await getDocs(q);
-
-  return snapshot.docs.map((doc: any) => {
-    const data = doc.data();
-
-    return {
-      id: doc.id,
-      title: data.title ?? "Untitled",
-      companyId: data.companyId ?? "unknown",
-
-      stage: normalizeStage(data.stage),
-      pricingStatus: normalizePricingStatus(data.pricingStatus),
-
-      value: normalizeNumber(data.value),
-
-      assignedTo: data.assignedTo ?? null,
-
-      createdAt: data.createdAt,
-      updatedAt: data.updatedAt,
-
-      firstResponseAt: data.firstResponseAt,
-      managerApprovedAt: data.managerApprovedAt,
-      submittedAt: data.submittedAt,
-      closedAt: data.closedAt,
-
-      isTenderLocked: data.isTenderLocked ?? false,
-      tenderSubmittedAt: data.tenderSubmittedAt,
-      tenderSubmittedBy: data.tenderSubmittedBy,
-    };
-  });
-}
-

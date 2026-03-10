@@ -1,35 +1,32 @@
 "use client";
 
 import Card from "@/components/ui/Card";
+import type { Deal } from "@/types/deal";
 
 type AIInsightPanelProps = {
-  role: string | null | undefined;
-  visibleModuleCount: number;
+  deals: Deal[];
 };
 
-export default function AIInsightPanel({
-  role,
-  visibleModuleCount,
-}: AIInsightPanelProps) {
-  const leadRisk = role === "admin" ? "Low" : "Moderate";
-  const pipelineHealth = visibleModuleCount === 3 ? "Strong" : "Stable";
-  const closeWindow = visibleModuleCount === 3 ? "7 days" : "9 days";
+export default function AIInsightPanel({ deals }: AIInsightPanelProps) {
+  const totalDeals = deals.length;
+  const blockedDeals = deals.filter((deal) => deal.tenderLockStatus === "BLOCKED").length;
+  const readyDeals = deals.filter((deal) => deal.tenderLockStatus === "READY").length;
 
   const insights = [
     {
       label: "Pipeline Health",
-      value: pipelineHealth,
-      note: "Conversion velocity remains on target.",
+      value: blockedDeals === 0 ? "Strong" : blockedDeals < Math.max(1, totalDeals / 3) ? "Stable" : "At Risk",
+      note: `${readyDeals} of ${totalDeals} visible deals are submission-ready.`,
     },
     {
       label: "Lead Risk",
-      value: leadRisk,
-      note: "AI flags no urgent account compliance risk.",
+      value: blockedDeals === 0 ? "Low" : blockedDeals < readyDeals ? "Moderate" : "High",
+      note: `${blockedDeals} visible deals are blocked by TenderLock.`,
     },
     {
       label: "Best Close Window",
-      value: closeWindow,
-      note: "Highest probability close window from recent trends.",
+      value: readyDeals > 0 ? "Current cycle" : "After remediation",
+      note: "Signals are computed only from deals visible to the signed-in role.",
     },
   ];
 
@@ -39,20 +36,14 @@ export default function AIInsightPanel({
         style={{
           borderRadius: 12,
           border: "1px solid rgba(109, 182, 255, 0.26)",
-          background:
-            "linear-gradient(160deg, rgba(11, 26, 46, 0.95), rgba(13, 30, 55, 0.9))",
-          boxShadow:
-            "0 16px 38px rgba(74, 145, 255, 0.2), inset 0 0 22px rgba(92, 175, 255, 0.07)",
+          background: "linear-gradient(160deg, rgba(11, 26, 46, 0.95), rgba(13, 30, 55, 0.9))",
+          boxShadow: "0 16px 38px rgba(74, 145, 255, 0.2), inset 0 0 22px rgba(92, 175, 255, 0.07)",
           padding: 14,
           fontFamily: "\"Segoe UI\", system-ui, sans-serif",
         }}
       >
-        <p style={{ margin: 0, fontSize: 12, letterSpacing: 0.5, color: "#b7ceef" }}>
-          AI Insight Readiness
-        </p>
-        <h3 style={{ margin: "8px 0 12px", color: "#ffffff" }}>
-          Executive Signals
-        </h3>
+        <p style={{ margin: 0, fontSize: 12, letterSpacing: 0.5, color: "#b7ceef" }}>AI Insight Readiness</p>
+        <h3 style={{ margin: "8px 0 12px", color: "#ffffff" }}>Operational Signals</h3>
         <div
           style={{
             display: "grid",
@@ -70,9 +61,7 @@ export default function AIInsightPanel({
                 padding: 12,
               }}
             >
-              <p style={{ margin: 0, color: "#b7ceef", fontSize: 12 }}>
-                {insight.label}
-              </p>
+              <p style={{ margin: 0, color: "#b7ceef", fontSize: 12 }}>{insight.label}</p>
               <p
                 style={{
                   margin: "5px 0 0",
@@ -83,9 +72,7 @@ export default function AIInsightPanel({
               >
                 {insight.value}
               </p>
-              <p style={{ margin: "8px 0 0", color: "#cae0ff", fontSize: 13 }}>
-                {insight.note}
-              </p>
+              <p style={{ margin: "8px 0 0", color: "#cae0ff", fontSize: 13 }}>{insight.note}</p>
             </div>
           ))}
         </div>

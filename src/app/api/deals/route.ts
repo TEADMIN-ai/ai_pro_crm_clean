@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getFirebaseAdmin } from "@/lib/firebase/admin";
+import { normalizeDocsMissingCount } from "@/lib/compliance/contractorCompliance";
+import { normalizeDeal, resolveTenderLockStatus } from "@/lib/deals/normalizeDeal";
+import { AuthorizationError, assertCanAccessContractor, assertOperationalRole, isPrivilegedRole, requireAuthorizedUser } from "@/lib/server/authz";
 import { GuardianMonitor } from "@/lib/guardian/GuardianMonitor";
-
-type DealStatus = "draft" | "submitted" | "awarded";
 
 function getString(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
@@ -12,49 +13,59 @@ function getNumber(value: unknown): number {
   return typeof value === "number" && Number.isFinite(value) ? value : 0;
 }
 
-function normalizeStatus(value: unknown): DealStatus {
-  if (value === "submitted" || value === "awarded") {
-    return value;
-  }
-  return "draft";
+function buildDealPayload(body: Record<string, unknown>, contractorId: string) {
+  const contractorName = getString(body.contractorName) || contractorId;
+  const readinessScore = getNumber(body.readinessScore);
+  const docsMissing = normalizeDocsMissingCount(body.docsMissing);
+
+  return {
+    title: getString(body.title) || "Untitled deal",
+    contractorId,
+    contractorName,
+    companyId: contractorId,
+    value: getNumber(body.value),
+    status: body.status === "submitted" || body.status === "awarded" ? body.status : "draft",
+    stage: typeof body.stage === "string" ? body.stage : "lead",
+    readinessScore,
+    docsMissing,
+    tenderLockStatus: resolveTenderLockStatus(readinessScore, docsMissing, body.tenderLockStatus),
+    isTenderLocked: body.isTenderLocked === true || docsMissing > 0 || readinessScore < 60,
+    createdAt: body.createdAt ?? Date.now(),
+    updatedAt: body.updatedAt ?? new Date(),
+    readinessUpdatedAt:
+      typeof body.readinessUpdatedAt === "string" && body.readinessUpdatedAt.trim().length > 0
+        ? body.readinessUpdatedAt
+        : new Date().toISOString(),
+  };
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    const user = await requireAuthorizedUser(request);
+    if (user.role === "guest") {
+      return NextResponse.json({ error: "unauthorized" }, { status: 403 });
+    }
+
     const db = getFirebaseAdmin();
-    const snapshot = await db
-      .collection("deals")
-      .orderBy("createdAt", "desc")
-      .get();
+    const dealsQuery =
+      user.role === "contractor"
+        ? db.collection("deals").where("contractorId", "==", user.contractorId)
+        : db.collection("deals");
 
-    const deals = snapshot.docs.map((doc: any) => {
-      const data = doc.data() as Record<string, unknown>;
-      const contractorName = getString(data.contractorName);
-      const contractorId = getString(data.contractorId) || getString(data.companyId);
-      const createdAtRaw = data.createdAt;
-      const createdAt =
-        createdAtRaw instanceof Date
-          ? createdAtRaw.getTime()
-          : getNumber(createdAtRaw);
-
-      return {
-        id: doc.id,
-        title: getString(data.title) || "Untitled deal",
-        contractorId,
-        contractorName: contractorName || contractorId || "Unknown contractor",
-        value: getNumber(data.value),
-        status: normalizeStatus(data.status ?? data.stage),
-        createdAt: createdAt || Date.now(),
-      };
-    });
+    const snapshot = await dealsQuery.get();
+    const deals = snapshot.docs
+      .map((doc) => normalizeDeal(doc.id, doc.data() as Record<string, unknown>))
+      .filter((deal) => isPrivilegedRole(user.role) || deal.contractorId === user.contractorId)
+      .sort((a, b) => Number(b.createdAt ?? 0) - Number(a.createdAt ?? 0));
 
     return NextResponse.json({ deals }, { status: 200 });
   } catch (error) {
+    if (error instanceof AuthorizationError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
+
     GuardianMonitor.error("api.deals.GET", "Failed to fetch deals", {
-      error:
-        error instanceof Error
-          ? { name: error.name, message: error.message }
-          : { value: String(error) },
+      error: error instanceof Error ? { name: error.name, message: error.message } : { value: String(error) },
     });
     console.error("Failed to fetch deals:", error);
     return NextResponse.json({ error: "Failed to fetch deals" }, { status: 500 });
@@ -63,44 +74,31 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
-    const db = getFirebaseAdmin();
+    const user = await requireAuthorizedUser(request);
+    assertOperationalRole(user);
+
     const body = (await request.json()) as Record<string, unknown>;
+    const requestedContractorId = getString(body.contractorId);
+    const contractorId = user.role === "contractor" ? user.contractorId ?? "" : requestedContractorId;
 
-    const title = getString(body.title);
-    const contractorId = getString(body.contractorId);
-    const contractorName = getString(body.contractorName);
-    const value = getNumber(body.value);
-    const status = normalizeStatus(body.status);
-    const createdAt = Date.now();
-
-    if (!title || !contractorId) {
-      return NextResponse.json(
-        { error: "title and contractorId are required" },
-        { status: 400 }
-      );
+    if (!contractorId) {
+      return NextResponse.json({ error: "title and contractorId are required" }, { status: 400 });
     }
 
-    const doc = {
-      title,
-      contractorId,
-      contractorName: contractorName || contractorId,
-      value,
-      status,
-      createdAt,
-    };
+    assertCanAccessContractor(user, contractorId);
 
-    const docRef = await db.collection("deals").add(doc);
+    const db = getFirebaseAdmin();
+    const deal = buildDealPayload(body, contractorId);
+    const docRef = await db.collection("deals").add(deal);
 
-    return NextResponse.json(
-      { deal: { id: docRef.id, ...doc } },
-      { status: 201 }
-    );
+    return NextResponse.json({ deal: { id: docRef.id, ...deal } }, { status: 201 });
   } catch (error) {
+    if (error instanceof AuthorizationError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
+
     GuardianMonitor.error("api.deals.POST", "Failed to create deal", {
-      error:
-        error instanceof Error
-          ? { name: error.name, message: error.message }
-          : { value: String(error) },
+      error: error instanceof Error ? { name: error.name, message: error.message } : { value: String(error) },
     });
     console.error("Failed to create deal:", error);
     return NextResponse.json({ error: "Failed to create deal" }, { status: 500 });

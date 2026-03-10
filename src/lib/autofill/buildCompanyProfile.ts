@@ -45,15 +45,27 @@ function readDocumentExtract(data: Record<string, unknown>): DocumentExtract {
 
   return {
     companyName: pickFirst(extracted.companyName, extracted.legalName),
-    regNumber: pickFirst(extracted.regNumber, extracted.registrationNumber, extracted.companyRegNumber),
+    regNumber: pickFirst(
+      extracted.regNumber,
+      extracted.registrationNumber,
+      extracted.companyRegNumber,
+      extracted.companyRegistrationNumber,
+      extracted.employerRegistrationNumber
+    ),
     vatNumber: pickFirst(extracted.vatNumber, extracted.vat),
     taxPin: pickFirst(extracted.taxPin, extracted.taxNumber),
     cidb: pickFirst(extracted.cidb, extracted.cidbNumber),
     csdNumber: pickFirst(extracted.csdNumber, extracted.csd),
-    bankingDetails: pickFirst(extracted.bankingDetails, extracted.bankName, extracted.bankAccount),
+    bankingDetails: pickFirst(
+      extracted.bankingDetails,
+      extracted.bankName,
+      extracted.bankAccount,
+      extracted.accountNumber,
+      extracted.branchCode
+    ),
     directors: pickFirst(extracted.directors, extracted.directorNames),
     address: pickFirst(extracted.address, extracted.physicalAddress, extracted.postalAddress),
-    contactPerson: pickFirst(extracted.contactPerson, extracted.contactName),
+    contactPerson: pickFirst(extracted.contactPerson, extracted.contactName, extracted.accountHolder),
     email: pickFirst(extracted.email, extracted.contactEmail),
     phone: pickFirst(extracted.phone, extracted.contactPhone),
   };
@@ -87,12 +99,23 @@ export async function buildCompanyProfile(contractorId: string): Promise<Company
       contractorData.name,
       contractorData.legalName
     ),
-    regNumber: pickFirst(contractorData.regNumber, contractorData.registrationNumber),
+    regNumber: pickFirst(
+      contractorData.regNumber,
+      contractorData.registrationNumber,
+      contractorData.companyRegistrationNumber,
+      contractorData.coidaRegistrationNumber
+    ),
     vatNumber: pickFirst(contractorData.vatNumber, contractorData.vat),
     taxPin: pickFirst(contractorData.taxPin, contractorData.taxNumber),
     cidb: pickFirst(contractorData.cidb, contractorData.cidbNumber),
     csdNumber: pickFirst(contractorData.csdNumber, contractorData.csd),
-    bankingDetails: pickFirst(contractorData.bankingDetails, contractorData.bankDetails),
+    bankingDetails: pickFirst(
+      contractorData.bankingDetails,
+      contractorData.bankDetails,
+      contractorData.bankName,
+      contractorData.bankAccountNumber,
+      contractorData.bankBranchCode
+    ),
     directors: pickFirst(contractorData.directors, contractorData.directorNames),
     address: pickFirst(contractorData.address, contractorData.physicalAddress),
     contactPerson: pickFirst(contractorData.contactPerson, contractorData.contactName),

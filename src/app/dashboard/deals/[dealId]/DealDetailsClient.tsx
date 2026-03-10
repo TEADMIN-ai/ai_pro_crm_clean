@@ -19,6 +19,7 @@ import { useAuth } from "@/context/AuthContext";
 import { db, storage } from "@/lib/firebase/index";
 import { canDelete, canReview, canUpload } from "@/lib/auth/roleUtils";
 import type { DocumentRecord } from "@/lib/firebase/storage/uploadDealDocuments";
+import TenderReadinessPanel from "@/components/deals/TenderReadinessPanel";
 import TenderProjectionPanel from "@/components/intelligence/TenderProjectionPanel";
 import TenderRiskPanel from "@/components/intelligence/TenderRiskPanel";
 import { tenderRiskRadar } from "@/lib/intelligence/tenderRiskRadar";
@@ -38,11 +39,12 @@ import TenderTrajectoryPanel from "@/components/intelligence/TenderTrajectoryPan
 import ImpactAttributionPanel from "@/components/intelligence/ImpactAttributionPanel";
 import { calculateImpactAttribution } from "@/lib/intelligence/impactAttribution";
 import {
-  analyzeUploadedDocument,
   type DocumentIntelligenceResult,
 } from "@/lib/intelligence/documentIntelligenceEngine";
 import { generateAutoFillPreview } from "@/lib/pdf/autoFillPreviewEngine";
 import DocumentIntelligence from "@/components/deals/DocumentIntelligence";
+import { evaluateTenderReadiness } from "@/lib/tender/evaluateTenderReadiness";
+import type { DocumentAnalysis } from "@/types/tenderAudit";
 
 type DealDocument = Omit<DocumentRecord, "uploadedAt" | "updatedAt" | "expiryDate" | "reviewedAt"> & {
   uploadedAt?: { toDate?: () => Date };
@@ -63,12 +65,35 @@ export default function DealDetailsClient({ dealId }: { dealId: string }) {
   const [busyDocumentId, setBusyDocumentId] = useState<string | null>(null);
   const [previousWpi, setPreviousWpi] = useState<WpiHistoryPoint | null>(null);
   const [documentIntelligence, setDocumentIntelligence] = useState<DocumentIntelligenceResult | null>(null);
+  const [readinessUpdatedAt, setReadinessUpdatedAt] = useState<string | undefined>(undefined);
 
   useEffect(() => {
     if (!loading && !user) {
       router.replace("/login");
     }
   }, [loading, user, router]);
+
+  useEffect(() => {
+    if (!resolvedDealId) return;
+
+    const dealRef = doc(db, "deals", resolvedDealId);
+    const unsubscribe = onSnapshot(
+      dealRef,
+      (snapshot) => {
+        const data = snapshot.data() as { readinessUpdatedAt?: unknown } | undefined;
+        if (typeof data?.readinessUpdatedAt === "string" && data.readinessUpdatedAt.trim()) {
+          setReadinessUpdatedAt(data.readinessUpdatedAt);
+          return;
+        }
+        setReadinessUpdatedAt(undefined);
+      },
+      (error) => {
+        console.warn("Deal readiness subscription skipped:", error);
+      }
+    );
+
+    return () => unsubscribe();
+  }, [resolvedDealId]);
 
   useEffect(() => {
     if (!resolvedDealId) return;
@@ -335,6 +360,20 @@ export default function DealDetailsClient({ dealId }: { dealId: string }) {
       }));
   }, [documents]);
 
+  const tenderEvaluation = useMemo(() => {
+    const analysis: DocumentAnalysis | undefined = documentIntelligence
+      ? {
+          registrationNumber: documentIntelligence.extractedFields.registrationNumbers[0],
+          expiryDate: documentIntelligence.extractedFields.expiryDates[0],
+          confidence: documentIntelligence.confidenceScore,
+          expired: documentIntelligence.flags.expired,
+          duplicate: documentIntelligence.flags.duplicatePatternDetected,
+        }
+      : undefined;
+
+    return evaluateTenderReadiness(analysis);
+  }, [documentIntelligence]);
+
   useEffect(() => {
     let cancelled = false;
     if (!analyzedDocumentCandidates.length) {
@@ -354,27 +393,41 @@ export default function DealDetailsClient({ dealId }: { dealId: string }) {
 
     async function analyzeDocuments() {
       try {
-        const results = await Promise.all(
-          analyzedDocumentCandidates.map(async (item) => {
-            try {
-              const response = await fetch(item.downloadURL);
-              const arrayBuffer = await response.arrayBuffer();
-              const bytes = new Uint8Array(arrayBuffer);
-              return analyzeUploadedDocument(bytes as Buffer, item.name);
-            } catch (error) {
-              console.warn("Document intelligence analysis fallback:", error);
-              return analyzeUploadedDocument(new Uint8Array() as Buffer, item.name);
-            }
-          })
+        if (!user) return;
+
+        const token = await user.getIdToken();
+        const response = await fetch(
+          `/api/documents/${encodeURIComponent(analyzedDocumentCandidates[0].id)}/execute`,
+          {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          }
         );
 
-        const allExpiryDates = results.flatMap((result) => result.extractedFields.expiryDates);
-        const allRegistrationNumbers = results.flatMap(
-          (result) => result.extractedFields.registrationNumbers
-        );
+        if (!response.ok) {
+          throw new Error(`Document execution failed with status ${response.status}`);
+        }
+
+        const payload = (await response.json()) as {
+          analyses?: DocumentAnalysis[];
+          readiness?: { readinessUpdatedAt?: string };
+        };
+
+        const analyses = Array.isArray(payload.analyses) ? payload.analyses : [];
+        const allExpiryDates = analyses
+          .map((analysis) => analysis.expiryDate)
+          .filter((value): value is string => typeof value === "string" && value.length > 0);
+        const allRegistrationNumbers = analyses
+          .map((analysis) => analysis.registrationNumber)
+          .filter((value): value is string => typeof value === "string" && value.length > 0);
         const uniqueExpiryDates = Array.from(new Set(allExpiryDates));
         const uniqueRegistrationNumbers = Array.from(new Set(allRegistrationNumbers));
-        const duplicatePatternDetected = uniqueRegistrationNumbers.length < allRegistrationNumbers.length;
+
+        const duplicatePatternDetected =
+          uniqueRegistrationNumbers.length < allRegistrationNumbers.length ||
+          analyses.some((analysis) => analysis.duplicate === true);
 
         const merged: DocumentIntelligenceResult = {
           extractedFields: {
@@ -382,18 +435,21 @@ export default function DealDetailsClient({ dealId }: { dealId: string }) {
             registrationNumbers: uniqueRegistrationNumbers,
           },
           flags: {
-            expired: results.some((result) => result.flags.expired),
-            duplicatePatternDetected:
-              duplicatePatternDetected ||
-              results.some((result) => result.flags.duplicatePatternDetected),
+            expired: analyses.some((analysis) => analysis.expired === true),
+            duplicatePatternDetected,
           },
-          confidenceScore: Math.round(
-            results.reduce((sum, result) => sum + result.confidenceScore, 0) / results.length
-          ),
+          confidenceScore:
+            analyses.length > 0
+              ? Math.round(
+                  analyses.reduce((sum, analysis) => sum + (analysis.confidence ?? 0), 0) /
+                    analyses.length
+                )
+              : 0,
         };
 
         if (!cancelled) {
           setDocumentIntelligence(merged);
+          setReadinessUpdatedAt(payload.readiness?.readinessUpdatedAt);
         }
       } catch (error) {
         console.warn("Document intelligence analysis skipped:", error);
@@ -404,7 +460,7 @@ export default function DealDetailsClient({ dealId }: { dealId: string }) {
     return () => {
       cancelled = true;
     };
-  }, [analyzedDocumentCandidates]);
+  }, [analyzedDocumentCandidates, user]);
 
   const autoFillPreview = useMemo(() => {
     return generateAutoFillPreview(
@@ -465,6 +521,10 @@ export default function DealDetailsClient({ dealId }: { dealId: string }) {
       <TenderRiskPanel risk={riskRadar} />
       <WinProbabilityPanel result={winProbability} />
       <TenderTrajectoryPanel trajectory={trajectory} points={trajectoryPoints} />
+      <TenderReadinessPanel
+        evaluation={tenderEvaluation}
+        readinessUpdatedAt={readinessUpdatedAt}
+      />
       {impactAttribution && (
         <ImpactAttributionPanel
           deltaProbability={impactAttribution.deltaProbability}
