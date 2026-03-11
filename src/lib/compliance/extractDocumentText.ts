@@ -1,4 +1,4 @@
-import { PDFParse } from "pdf-parse";
+import { extractTextFromPdf } from "@/lib/pdf/extractTextFromPdf";
 
 export async function extractDocumentText(fileUrl: string): Promise<string> {
   const normalizedUrl = fileUrl.trim();
@@ -13,14 +13,5 @@ export async function extractDocumentText(fileUrl: string): Promise<string> {
   }
 
   const arrayBuffer = await response.arrayBuffer();
-  const parser = new PDFParse({
-    data: new Uint8Array(arrayBuffer),
-  });
-
-  try {
-    const result = await parser.getText();
-    return result.text?.trim() ?? "";
-  } finally {
-    await parser.destroy();
-  }
+  return extractTextFromPdf(Buffer.from(arrayBuffer));
 }

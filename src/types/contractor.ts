@@ -18,6 +18,11 @@ export interface Contractor {
   email?: string | null;
   phone?: string | null;
   status?: string | null;
+  readinessScore?: number | null;
+  docsMissing?: number | null;
+  tenderLockStatus?: "READY" | "RISK" | "BLOCKED" | null;
+  isTenderLocked?: boolean | null;
   createdAt?: number | null;
   createdBy?: string | null;
+  updatedAt?: string | null;
 }

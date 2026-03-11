@@ -1,5 +1,5 @@
 import type { Firestore } from "firebase-admin/firestore";
-import { calculateContractorCompliance } from "@/lib/compliance/contractorCompliance";
+import { calculateContractorCompliance, resolveContractorDocumentStatus } from "@/lib/compliance/contractorCompliance";
 import type { ContractorDocument } from "@/types/document";
 
 function toMillis(value: unknown): number | undefined {
@@ -15,7 +15,7 @@ function toMillis(value: unknown): number | undefined {
 }
 
 function normalizeContractorDocument(id: string, source: Record<string, unknown>): ContractorDocument {
-  return {
+  const document: ContractorDocument = {
     id,
     contractorId: typeof source.contractorId === "string" ? source.contractorId : "",
     documentName: typeof source.documentName === "string" ? source.documentName : undefined,
@@ -48,6 +48,7 @@ function normalizeContractorDocument(id: string, source: Record<string, unknown>
           ? source.documentName
           : undefined,
     verified: source.verified === true,
+    validationError: typeof source.validationError === "string" ? source.validationError : undefined,
     uploadedAt: toMillis(source.uploadedAt),
     updatedAt: toMillis(source.updatedAt),
     extractedAt: toMillis(source.extractedAt),
@@ -58,6 +59,11 @@ function normalizeContractorDocument(id: string, source: Record<string, unknown>
         ? (source.extractedFields as Record<string, string | null>)
         : undefined,
     status: typeof source.status === "string" ? source.status : undefined,
+  };
+
+  return {
+    ...document,
+    status: resolveContractorDocumentStatus(document),
   };
 }
 

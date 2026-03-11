@@ -18,6 +18,8 @@ export type ContractorComplianceSummary = {
   isTenderLocked: boolean;
 };
 
+export type ContractorDocumentStatus = "missing" | "uploaded" | "verified" | "invalid" | "expired" | "expiringSoon";
+
 export function isSupportedDocumentType(value: string): value is SupportedDocumentType {
   return (SUPPORTED_DOCUMENT_TYPES as readonly string[]).includes(value);
 }
@@ -66,66 +68,62 @@ export function resolveTenderLockStatusFromScore(score: number): ContractorCompl
   return "READY";
 }
 
+export function resolveContractorDocumentStatus(
+  document: Pick<ContractorDocument, "fileUrl" | "verified" | "validationError" | "expiresAt" | "status">,
+  now = Date.now()
+): ContractorDocumentStatus {
+  if (!document.fileUrl) {
+    return "missing";
+  }
+
+  if (typeof document.expiresAt === "number" && document.expiresAt <= now) {
+    return "expired";
+  }
+
+  if (document.status === "expiringSoon" && document.verified === true) {
+    return "expiringSoon";
+  }
+
+  if (document.verified === true) {
+    return "verified";
+  }
+
+  if (document.verified === false && typeof document.validationError === "string" && document.validationError.trim()) {
+    return "invalid";
+  }
+
+  if (
+    document.status === "expired" ||
+    document.status === "invalid" ||
+    document.status === "verified" ||
+    document.status === "expiringSoon"
+  ) {
+    return document.status;
+  }
+
+  return "uploaded";
+}
+
 export function calculateContractorCompliance(documents: ContractorDocument[]): ContractorComplianceSummary {
+  const verifiedTypes = new Set<SupportedDocumentType>();
   const now = Date.now();
-  const uploadedTypes = new Set<SupportedDocumentType>();
-  let expiredDocuments = 0;
-  let missingRegistrationNumbers = 0;
-  let invalidBeeLevels = 0;
 
   for (const document of documents) {
     const type = document.documentType ?? document.docType;
-    if (type && isSupportedDocumentType(type) && document.fileUrl) {
-      uploadedTypes.add(type);
+    if (!type || !isSupportedDocumentType(type)) {
+      continue;
+    }
 
-      if (typeof document.expiresAt === "number" && document.expiresAt < now) {
-        expiredDocuments += 1;
-      }
-
-      const extractedFields = document.extractedFields ?? {};
-      if (
-        type === "cipc" &&
-        (!extractedFields.companyRegistrationNumber || !String(extractedFields.companyRegistrationNumber).trim())
-      ) {
-        missingRegistrationNumbers += 1;
-      }
-
-      if (
-        type === "coida" &&
-        (!extractedFields.employerRegistrationNumber || !String(extractedFields.employerRegistrationNumber).trim())
-      ) {
-        missingRegistrationNumbers += 1;
-      }
-
-      if (type === "bbbee") {
-        const beeLevel = typeof extractedFields.beeLevel === "string" ? extractedFields.beeLevel.trim() : "";
-        if (beeLevel && !/\b([1-8])\b/.test(beeLevel)) {
-          invalidBeeLevels += 1;
-        }
-      }
+    const status = resolveContractorDocumentStatus(document, now);
+    if (status === "verified" || status === "expiringSoon") {
+      verifiedTypes.add(type);
     }
   }
 
-  const missingDocumentTypes = SUPPORTED_DOCUMENT_TYPES.filter((type) => !uploadedTypes.has(type));
-  const docsMissing =
-    missingDocumentTypes.length + expiredDocuments + missingRegistrationNumbers + invalidBeeLevels;
-  const readinessScore = Math.max(
-    0,
-    Math.min(
-      100,
-      100 -
-        missingDocumentTypes.length * 20 -
-        expiredDocuments * 15 -
-        missingRegistrationNumbers * 10 -
-        invalidBeeLevels * 10
-    )
-  );
-  const tenderLockStatus =
-    missingDocumentTypes.length > 0 || expiredDocuments > 0 || missingRegistrationNumbers > 0
-      ? "BLOCKED"
-      : invalidBeeLevels > 0
-        ? "RISK"
-        : resolveTenderLockStatusFromScore(readinessScore);
+  const missingDocumentTypes = SUPPORTED_DOCUMENT_TYPES.filter((type) => !verifiedTypes.has(type));
+  const docsMissing = missingDocumentTypes.length;
+  const readinessScore = Math.round((verifiedTypes.size / SUPPORTED_DOCUMENT_TYPES.length) * 100);
+  const tenderLockStatus = docsMissing > 0 ? "BLOCKED" : resolveTenderLockStatusFromScore(readinessScore);
 
   return {
     readinessScore,

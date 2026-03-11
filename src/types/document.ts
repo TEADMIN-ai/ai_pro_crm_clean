@@ -65,6 +65,8 @@ export interface ContractorDocument {
    */
   status?: string;
   verified?: boolean;
+  verifiedAt?: number;
+  validationError?: string;
 
   /**
    * Expiry timestamp (Unix milliseconds)

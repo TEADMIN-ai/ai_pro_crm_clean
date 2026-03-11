@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { analyzeComplianceDocument } from "@/lib/compliance/analyzeComplianceDocument";
+import { verifyComplianceDocument } from "@/lib/compliance/analyzeComplianceDocument";
 import { getFirebaseAdmin } from "@/lib/firebase/admin";
 import {
   getDocumentTypeLabel,
+  resolveContractorDocumentStatus,
   isSupportedDocumentType,
   SUPPORTED_DOCUMENT_TYPES,
   type SupportedDocumentType,
@@ -39,7 +40,7 @@ function toMillis(value: unknown): number | undefined {
 }
 
 function normalizeDocument(id: string, data: Record<string, unknown>): ContractorDocument {
-  return {
+  const document: ContractorDocument = {
     id,
     contractorId: typeof data.contractorId === "string" ? data.contractorId : "",
     documentName:
@@ -74,6 +75,8 @@ function normalizeDocument(id: string, data: Record<string, unknown>): Contracto
           ? data.fileUrl
           : undefined,
     verified: data.verified === true,
+    verifiedAt: toMillis(data.verifiedAt),
+    validationError: typeof data.validationError === "string" ? data.validationError : undefined,
     uploadedAt: toMillis(data.uploadedAt),
     createdAt: toMillis(data.createdAt),
     updatedAt: toMillis(data.updatedAt),
@@ -85,7 +88,12 @@ function normalizeDocument(id: string, data: Record<string, unknown>): Contracto
       data.extractedFields && typeof data.extractedFields === "object"
         ? (data.extractedFields as Record<string, string | null>)
         : undefined,
-    status: typeof data.status === "string" ? data.status : "uploaded",
+    status: typeof data.status === "string" ? data.status : undefined,
+  };
+
+  return {
+    ...document,
+    status: resolveContractorDocumentStatus(document),
   };
 }
 
@@ -199,24 +207,32 @@ export async function POST(
         createdAt: now,
         updatedAt: now,
         verified: false,
+        verifiedAt: null,
+        validationError: null,
         status: "uploaded",
       },
       { merge: true }
     );
 
+    let summary:
+      | Awaited<ReturnType<typeof recalculateContractorCompliance>>
+      | null = null;
+
     try {
-      const text = await extractDocumentText(fileUrl);
-      const analysis = await analyzeComplianceDocument(documentType, text);
-      await updateComplianceState(db, contractorId, analysis);
-    } catch (scanError) {
-      console.error("Compliance scanner failed", {
+      console.log("Compliance scanner running", {
         contractorId,
         documentType,
-        scanError,
       });
+
+      const text = await extractDocumentText(fileUrl);
+      const analysis = verifyComplianceDocument(documentType, text);
+      await updateComplianceState(db, contractorId, analysis);
+      summary = await recalculateContractorCompliance(db, contractorId);
+    } catch (error) {
+      console.error("Compliance scanner failed", error);
     }
 
-    const summary = await recalculateContractorCompliance(db, contractorId);
+    summary ??= await recalculateContractorCompliance(db, contractorId);
     const savedDoc = await docRef.get();
 
     return NextResponse.json(

@@ -1,44 +1,6 @@
-import type { Firestore } from "firebase-admin/firestore";
-import type { ComplianceAnalysisResult } from "@/lib/compliance/analyzeComplianceDocument";
+import { FieldValue, type Firestore } from "firebase-admin/firestore";
+import { type ComplianceAnalysisResult } from "@/lib/compliance/analyzeComplianceDocument";
 import { type SupportedDocumentType } from "@/lib/compliance/contractorCompliance";
-
-function parseIsoDate(value: unknown): number | null {
-  if (typeof value !== "string" || !value.trim()) {
-    return null;
-  }
-
-  const match = value.trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  if (!match) {
-    return null;
-  }
-
-  const [, year, month, day] = match;
-  const timestamp = Date.UTC(Number(year), Number(month) - 1, Number(day));
-  return Number.isFinite(timestamp) ? timestamp : null;
-}
-
-function getDocumentExpiry(documentType: SupportedDocumentType, fields: Record<string, string | null>): number | null {
-  switch (documentType) {
-    case "bbbee":
-    case "taxClearance":
-    case "coida":
-      return parseIsoDate(fields.expiryDate);
-    default:
-      return null;
-  }
-}
-
-function hasExtractedValues(fields: Record<string, string | null>): boolean {
-  return Object.values(fields).some((value) => typeof value === "string" && value.trim().length > 0);
-}
-
-function resolveDocumentStatus(expiresAt: number | null, verified: boolean): "uploaded" | "verified" | "expired" {
-  if (typeof expiresAt === "number" && expiresAt < Date.now()) {
-    return "expired";
-  }
-
-  return verified ? "verified" : "uploaded";
-}
 
 function buildContractorSummaryUpdates(
   documentType: SupportedDocumentType,
@@ -84,9 +46,7 @@ export async function updateComplianceState(
   analysis: ComplianceAnalysisResult
 ): Promise<void> {
   const now = new Date();
-  const expiresAt = getDocumentExpiry(analysis.documentType, analysis.extractedFields);
-  const verified = hasExtractedValues(analysis.extractedFields);
-  const status = resolveDocumentStatus(expiresAt, verified);
+  const verifiedAt = analysis.verified ? FieldValue.serverTimestamp() : null;
 
   await db.collection("contractors").doc(contractorId).collection("complianceData").doc(analysis.documentType).set(
     {
@@ -94,9 +54,11 @@ export async function updateComplianceState(
       extractedAt: now,
       extractedFields: analysis.extractedFields,
       confidenceScore: analysis.confidenceScore,
-      expiresAt,
-      verified,
-      status,
+      expiresAt: analysis.expiresAt,
+      verified: analysis.verified,
+      verifiedAt,
+      validationError: analysis.validationError,
+      status: analysis.status,
       updatedAt: now,
     },
     { merge: true }
@@ -107,9 +69,11 @@ export async function updateComplianceState(
       extractedAt: now,
       extractedFields: analysis.extractedFields,
       confidenceScore: analysis.confidenceScore,
-      expiresAt,
-      verified,
-      status,
+      expiresAt: analysis.expiresAt,
+      verified: analysis.verified,
+      verifiedAt,
+      validationError: analysis.validationError,
+      status: analysis.status,
       updatedAt: now,
     },
     { merge: true }
@@ -117,7 +81,12 @@ export async function updateComplianceState(
 
   await db.collection("contractors").doc(contractorId).set(
     {
-      ...buildContractorSummaryUpdates(analysis.documentType, analysis.extractedFields, expiresAt, verified),
+      ...buildContractorSummaryUpdates(
+        analysis.documentType,
+        analysis.extractedFields,
+        analysis.expiresAt,
+        analysis.verified
+      ),
       updatedAt: now.toISOString(),
     },
     { merge: true }

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import ContractorDocumentUploader from "@/components/contractors/ContractorDocumentUploader";
+import ComplianceRadar from "@/components/intelligence/ComplianceRadar";
 import DocumentExecutionPanel from "@/components/documents/DocumentExecutionPanel";
 import TenderPackGeneratorPanel from "@/components/documents/TenderPackGeneratorPanel";
 import Badge from "@/components/ui/Badge";
@@ -27,7 +28,7 @@ function formatDate(value?: number): string {
   return typeof value === "number" ? new Date(value).toLocaleDateString() : "-";
 }
 
-function resolveDocumentStatus(document: ContractorDocument): "Uploaded" | "Verified" | "Expired" | "Missing" {
+function resolveDocumentStatus(document: ContractorDocument): "Uploaded" | "Verified" | "Expired" | "Invalid" | "Missing" {
   if (!document.fileUrl) {
     return "Missing";
   }
@@ -42,6 +43,10 @@ function resolveDocumentStatus(document: ContractorDocument): "Uploaded" | "Veri
 
   if (document.verified || document.status === "verified") {
     return "Verified";
+  }
+
+  if (document.status === "invalid") {
+    return "Invalid";
   }
 
   return "Uploaded";
@@ -195,6 +200,11 @@ export default function ContractorDetailPage() {
         contractorId={contractorId}
         documents={documents}
         onUploadedAction={() => loadPage(contractorId)}
+      />
+
+      <ComplianceRadar
+        contractorId={contractorId}
+        refreshKey={`${contractor?.readinessScore ?? readinessScore}-${contractor?.docsMissing ?? docsMissing}-${contractor?.isTenderLocked ?? isTenderLocked}`}
       />
 
       <Card>
