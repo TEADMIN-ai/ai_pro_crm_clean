@@ -1,67 +1,71 @@
-import { cookies } from "next/headers";
-import { NextRequest, NextResponse } from "next/server";
-import { getAdminAuth, getFirebaseAdminStatus } from "@/lib/firebase/admin";
+import { NextResponse } from "next/server";
+import { getApps, initializeApp, cert } from "firebase-admin/app";
+import { getAuth } from "firebase-admin/auth";
 
-const SESSION_MAX_AGE = 60 * 60 * 24 * 5;
-const SESSION_EXPIRES_IN_MS = SESSION_MAX_AGE * 1000;
+export const runtime = "nodejs";
 
-export async function POST(request: NextRequest) {
+function getFirebaseAdmin() {
+  if (!getApps().length) {
+    const privateKey = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, "\n");
+
+    initializeApp({
+      credential: cert({
+        projectId: process.env.FIREBASE_PROJECT_ID,
+        clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+        privateKey,
+      }),
+    });
+  }
+
+  return getAuth();
+}
+
+export async function POST(req: Request) {
+  console.log("LOGIN REQUEST RECEIVED");
+  console.log("Firebase Project:", process.env.FIREBASE_PROJECT_ID);
+
   try {
-    const body = (await request.json()) as { idToken?: string };
-    const idToken = typeof body.idToken === "string" ? body.idToken.trim() : "";
+    const body = await req.json();
+    const idToken: string | undefined = body?.idToken;
 
     if (!idToken) {
-      return NextResponse.json({ error: "MISSING_ID_TOKEN" }, { status: 400 });
+      return NextResponse.json({ error: "Missing idToken" }, { status: 400 });
     }
 
-    const firebaseStatus = getFirebaseAdminStatus();
-    if (!firebaseStatus.valid) {
-      console.error("Auth login failure:", {
-        code: "FIREBASE_ENV_INVALID",
-        message: firebaseStatus.message,
-      });
-      return NextResponse.json({ error: "FIREBASE_ENV_INVALID" }, { status: 503 });
-    }
+    const auth = getFirebaseAdmin();
 
-    const adminAuth = getAdminAuth();
+    const decodedToken = await auth.verifyIdToken(idToken);
 
-    try {
-      await adminAuth.verifyIdToken(idToken);
-    } catch (error) {
-      console.error("Auth login failure:", {
-        code: "ID_TOKEN_VERIFICATION_FAILED",
-        error,
-      });
-      return NextResponse.json({ error: "ID_TOKEN_VERIFICATION_FAILED" }, { status: 401 });
-    }
-
-    let sessionToken: string;
-    try {
-      sessionToken = await adminAuth.createSessionCookie(idToken, {
-        expiresIn: SESSION_EXPIRES_IN_MS,
-      });
-    } catch (error) {
-      console.error("Auth login failure:", {
-        code: "SESSION_CREATION_FAILED",
-        error,
-      });
-      return NextResponse.json({ error: "SESSION_CREATION_FAILED" }, { status: 401 });
-    }
-
-    const cookieStore = await cookies();
-    cookieStore.set("session", sessionToken, {
-      httpOnly: true,
-      secure: true,
-      sameSite: "lax",
-      path: "/",
-      maxAge: SESSION_MAX_AGE,
+    const sessionCookie = await auth.createSessionCookie(idToken, {
+      expiresIn: 60 * 60 * 24 * 5 * 1000,
     });
 
-    console.log("Login success, session cookie created");
+    const response = NextResponse.json({
+      success: true,
+      uid: decodedToken.uid,
+    });
 
-    return NextResponse.json({ success: true }, { status: 200 });
-  } catch (error) {
-    console.error("Auth login failure:", error);
-    return NextResponse.json({ error: "AUTH_LOGIN_FAILED" }, { status: 500 });
+    response.cookies.set("session", sessionCookie, {
+      httpOnly: true,
+      secure: true,
+      path: "/",
+      sameSite: "lax",
+      maxAge: 60 * 60 * 24 * 5,
+    });
+
+    console.log("User authenticated:", decodedToken.uid);
+
+    return response;
+
+  } catch (error: any) {
+    console.error("Login error:", error);
+
+    return NextResponse.json(
+      {
+        error: "Authentication failed",
+        details: error?.message ?? "Unknown error",
+      },
+      { status: 401 }
+    );
   }
 }
