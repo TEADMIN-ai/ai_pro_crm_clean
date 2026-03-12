@@ -3,22 +3,23 @@
 import { useRouter } from "next/navigation";
 import { signOut } from "firebase/auth";
 import { auth } from "@/lib/firebase";
+import { API_ROUTES } from "@/lib/routes";
 
 export default function LogoutButton() {
   const router = useRouter();
 
   const handleLogout = async () => {
-    console.log("🔥 Logout clicked");
-
     try {
       await signOut(auth);
-
-      console.log("✅ Firebase signOut completed");
+      await fetch(API_ROUTES.AUTH_LOGOUT, {
+        method: "POST",
+        credentials: "include",
+      });
 
       router.replace("/login");
       router.refresh();
     } catch (error) {
-      console.error("❌ Logout failed:", error);
+      console.error("Logout failed:", error);
       alert("Logout failed. Check console.");
     }
   };

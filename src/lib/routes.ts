@@ -1,4 +1,7 @@
 export const API_ROUTES = {
+  AUTH_LOGIN: "/api/auth/login",
+  AUTH_LOGOUT: "/api/auth/logout",
+  AUTH_DEBUG: "/api/auth/debug",
   CONTRACTORS: "/api/contractors",
   CONTRACTOR_DETAIL: (contractorId: string) =>
     `/api/contractors/${encodeURIComponent(contractorId)}`,

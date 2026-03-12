@@ -1,19 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getApps, initializeApp, cert } from "firebase-admin/app";
-import { getAuth } from "firebase-admin/auth";
-import { getFirestore } from "firebase-admin/firestore";
-import fs from "fs";
-import path from "path";
 import { normalizeContractorId, normalizeRole } from "@/lib/auth/userProfile";
-
-if (!getApps().length) {
-  const serviceAccountPath = path.join(process.cwd(), "secrets", "service-account.json");
-  const serviceAccount = JSON.parse(fs.readFileSync(serviceAccountPath, "utf8"));
-
-  initializeApp({
-    credential: cert(serviceAccount),
-  });
-}
+import { adminAuth, db } from "@/lib/firebase/admin";
 
 export async function POST(req: NextRequest) {
   try {
@@ -24,9 +11,6 @@ export async function POST(req: NextRequest) {
     }
 
     const idToken = authHeader.split("Bearer ")[1];
-    const adminAuth = getAuth();
-    const db = getFirestore();
-
     const decodedToken = await adminAuth.verifyIdToken(idToken);
     const uid = decodedToken.uid;
     const userDoc = await db.collection("users").doc(uid).get();

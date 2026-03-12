@@ -2,6 +2,7 @@
 
 import { ReactNode, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import AuthGuard from "@/components/auth/AuthGuard";
 import { useAuth } from "@/context/AuthContext";
 import Sidebar from "@/components/layout/Sidebar";
 import DashboardHeader from "@/components/layout/DashboardHeader";
@@ -30,12 +31,14 @@ export default function DashboardLayout({
   }
 
   return (
-    <EmpireShell>
-      <Sidebar />
-      <div style={{ flex: 1 }}>
-        <DashboardHeader />
-        {children}
-      </div>
-    </EmpireShell>
+    <AuthGuard>
+      <EmpireShell>
+        <Sidebar />
+        <div style={{ flex: 1 }}>
+          <DashboardHeader />
+          {children}
+        </div>
+      </EmpireShell>
+    </AuthGuard>
   );
 }

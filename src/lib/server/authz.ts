@@ -1,8 +1,8 @@
-import { getAuth } from "firebase-admin/auth";
 import type { NextRequest } from "next/server";
-import { db } from "@/lib/firebase/admin";
+import { adminAuth, db } from "@/lib/firebase/admin";
 import { normalizeContractorId, normalizeRole, type UserProfile } from "@/lib/auth/userProfile";
 import type { UserRole } from "@/lib/auth/roleUtils";
+import { verifySessionValue } from "@/lib/server/verifySession";
 
 export interface AuthorizedUser {
   uid: string;
@@ -23,13 +23,7 @@ export class AuthorizationError extends Error {
 
 function getBearerToken(request: NextRequest): string {
   const authHeader = request.headers.get("authorization") ?? "";
-  const token = authHeader.startsWith("Bearer ") ? authHeader.slice("Bearer ".length).trim() : "";
-
-  if (!token) {
-    throw new AuthorizationError("unauthorized", 401);
-  }
-
-  return token;
+  return authHeader.startsWith("Bearer ") ? authHeader.slice("Bearer ".length).trim() : "";
 }
 
 async function getUserProfile(uid: string): Promise<UserProfile | null> {
@@ -53,9 +47,16 @@ export async function requireAuthorizedUser(request: NextRequest): Promise<Autho
   const token = getBearerToken(request);
 
   try {
-    const decoded = await getAuth().verifyIdToken(token);
-    const profile = await getUserProfile(decoded.uid);
+    const decoded =
+      token.length > 0
+        ? await adminAuth.verifyIdToken(token)
+        : await verifySessionValue(request.cookies.get("session")?.value ?? "");
 
+    if (!decoded) {
+      throw new AuthorizationError("unauthorized", 401);
+    }
+
+    const profile = await getUserProfile(decoded.uid);
     const role = profile?.role ?? normalizeRole(decoded.role);
     const contractorId = profile?.contractorId ?? normalizeContractorId(decoded.contractorId);
 
@@ -74,6 +75,7 @@ export async function requireAuthorizedUser(request: NextRequest): Promise<Autho
       throw error;
     }
 
+    console.error("Authorization failed", error);
     throw new AuthorizationError("unauthorized", 401);
   }
 }

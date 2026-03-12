@@ -1,4 +1,4 @@
-import { cert, getApps, initializeApp } from "firebase-admin/app";
+import admin from "firebase-admin";
 import { getFirestore } from "firebase-admin/firestore";
 
 const firebaseAdminConfig = {
@@ -7,34 +7,30 @@ const firebaseAdminConfig = {
   privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, "\n"),
 };
 
-const hasServiceAccountConfig = Boolean(
-  firebaseAdminConfig.projectId &&
+if (!admin.apps.length) {
+  if (
+    firebaseAdminConfig.projectId &&
     firebaseAdminConfig.clientEmail &&
     firebaseAdminConfig.privateKey
-);
+  ) {
+    admin.initializeApp({
+      credential: admin.credential.cert({
+        projectId: firebaseAdminConfig.projectId,
+        clientEmail: firebaseAdminConfig.clientEmail,
+        privateKey: firebaseAdminConfig.privateKey,
+      }),
+    });
+  } else {
+    admin.initializeApp();
+  }
+}
 
-const app =
-  getApps().length === 0
-    ? initializeApp(
-        hasServiceAccountConfig
-          ? {
-              credential: cert(firebaseAdminConfig as any),
-            }
-          : undefined
-      )
-    : getApps()[0];
+const adminApp = admin.apps[0]!;
+const db = getFirestore(adminApp);
+const adminAuth = admin.auth(adminApp);
 
-const db = getFirestore(app);
-
-/**
- * Backward-compatible accessor for legacy routes.
- * Do NOT reinitialize Firebase anywhere else.
- */
 export function getFirebaseAdmin() {
   return db;
 }
 
-/**
- * Preferred modern import for new routes.
- */
-export { db };
+export { adminApp, adminAuth, db };

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { getAuth, signInWithEmailAndPassword } from "firebase/auth";
+import { API_ROUTES } from "@/lib/routes";
 
 export default function LoginForm() {
   const router = useRouter();
@@ -19,10 +20,21 @@ export default function LoginForm() {
     setLoading(true);
 
     try {
-      await signInWithEmailAndPassword(auth, email, password);
+      const credential = await signInWithEmailAndPassword(auth, email, password);
+      const idToken = await credential.user.getIdToken(true);
+      const response = await fetch(API_ROUTES.AUTH_LOGIN, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "include",
+        body: JSON.stringify({ idToken }),
+      });
 
-      // ✅ Do NOT manually route to dashboard here
-      // AuthContext + dashboard layout guards will handle routing
+      if (!response.ok) {
+        throw new Error("Failed to create server session");
+      }
+
       router.replace("/dashboard");
     } catch (err: any) {
       console.error("Login failed:", err);
@@ -68,11 +80,7 @@ export default function LoginForm() {
         }}
       />
 
-      {error && (
-        <div style={{ color: "red", fontSize: 14 }}>
-          {error}
-        </div>
-      )}
+      {error && <div style={{ color: "red", fontSize: 14 }}>{error}</div>}
 
       <button
         type="submit"
@@ -92,4 +100,3 @@ export default function LoginForm() {
     </form>
   );
 }
-

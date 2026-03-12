@@ -69,6 +69,28 @@ function sanitizeProfile(profile: UserProfile): UserProfile {
   return profile;
 }
 
+async function syncServerSession(token: string): Promise<void> {
+  const response = await fetch(API_ROUTES.AUTH_LOGIN, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    credentials: "include",
+    body: JSON.stringify({ idToken: token }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Session sync failed with status ${response.status}`);
+  }
+}
+
+async function clearServerSession(): Promise<void> {
+  await fetch(API_ROUTES.AUTH_LOGOUT, {
+    method: "POST",
+    credentials: "include",
+  });
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const [user, setUser] = useState<AuthUser | null>(null);
@@ -80,6 +102,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setLoading(true);
 
       if (!firebaseUser) {
+        await clearServerSession().catch((error) => {
+          console.error("Server session clear failed:", error);
+        });
         setUser(null);
         setRole("guest");
         setLoading(false);
@@ -97,7 +122,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           },
         });
 
-        await firebaseUser.getIdToken(true);
+        const refreshedToken = await firebaseUser.getIdToken(true);
+        await syncServerSession(refreshedToken);
 
         const tokenResult = await firebaseUser.getIdTokenResult();
         const profile = sanitizeProfile({
@@ -115,11 +141,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setRole(profile.role);
       } catch (error) {
         console.error("Auth role resolution error:", error);
-        const fallbackProfile = sanitizeProfile((await getUserProfileFromFirestore(firebaseUser.uid)) ?? {
-          email: firebaseUser.email ?? undefined,
-          name: firebaseUser.displayName ?? undefined,
-          role: "guest" as UserRole,
-        });
+        const fallbackProfile = sanitizeProfile(
+          (await getUserProfileFromFirestore(firebaseUser.uid)) ?? {
+            email: firebaseUser.email ?? undefined,
+            name: firebaseUser.displayName ?? undefined,
+            role: "guest" as UserRole,
+          }
+        );
         const mergedUser = mergeFirebaseUser(firebaseUser, fallbackProfile);
         setUser(mergedUser);
         setRole(fallbackProfile.role);
@@ -134,6 +162,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const logout = async () => {
     try {
       await signOut(auth);
+      await clearServerSession();
     } finally {
       setUser(null);
       setRole("guest");
@@ -146,4 +175,3 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 }
 
 export const useAuth = () => useContext(AuthContext);
-
