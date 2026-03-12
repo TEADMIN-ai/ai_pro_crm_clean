@@ -1,8 +1,12 @@
 import { execSync, spawn } from "child_process";
 import { createRequire } from "module";
 import net from "net";
+import { loadEnvConfig } from "@next/env";
+import { getFirebaseAdminServices } from "../src/lib/firebase/admin";
+import { assertValidFirebaseEnv } from "../src/lib/server/validateFirebaseEnv";
 
 const require = createRequire(import.meta.url);
+loadEnvConfig(process.cwd());
 
 function run(command: string) {
   execSync(command, { stdio: "inherit" });
@@ -52,7 +56,7 @@ async function runSmokeChecks() {
   const port = await getAvailablePort();
   const nextCliPath = require.resolve("next/dist/bin/next");
 
-  const server = spawn(process.execPath, [nextCliPath, "start", "-p", String(port)], {
+  const server = spawn(process.execPath, [nextCliPath, "start", "-H", "127.0.0.1", "-p", String(port)], {
     stdio: "inherit",
   });
 
@@ -63,6 +67,7 @@ async function runSmokeChecks() {
     const endpoints = [
       { path: "/api/contractors", allowedStatuses: [401, 403] },
       { path: "/api/deals", allowedStatuses: [401, 403] },
+      { path: "/api/auth/health", allowedStatuses: [200] },
       { path: "/api/contractors/smoke-check/documents", allowedStatuses: [200] },
       { path: "/api/documents/smoke-check/execute", allowedStatuses: [200, 404] },
       { path: "/dashboard/contractors", allowedStatuses: [200, 307, 308] },
@@ -86,6 +91,12 @@ async function runSmokeChecks() {
 }
 
 async function main() {
+  console.log("[sanity] firebase env validation");
+  assertValidFirebaseEnv();
+
+  console.log("[sanity] firebase admin initialization");
+  getFirebaseAdminServices();
+
   console.log("[sanity] typecheck");
   run("npm run typecheck");
 

@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { normalizeContractorId, normalizeRole } from "@/lib/auth/userProfile";
-import { adminAuth, db } from "@/lib/firebase/admin";
+import { getAdminAuth, getFirebaseAdmin } from "@/lib/firebase/admin";
 
 export async function POST(req: NextRequest) {
   try {
+    const adminAuth = getAdminAuth();
+    const db = getFirebaseAdmin();
     const authHeader = req.headers.get("authorization");
 
     if (!authHeader?.startsWith("Bearer ")) {

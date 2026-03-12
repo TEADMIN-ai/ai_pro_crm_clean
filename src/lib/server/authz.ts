@@ -1,5 +1,5 @@
 import type { NextRequest } from "next/server";
-import { adminAuth, db } from "@/lib/firebase/admin";
+import { getAdminAuth, getFirebaseAdmin } from "@/lib/firebase/admin";
 import { normalizeContractorId, normalizeRole, type UserProfile } from "@/lib/auth/userProfile";
 import type { UserRole } from "@/lib/auth/roleUtils";
 import { verifySessionValue } from "@/lib/server/verifySession";
@@ -27,7 +27,7 @@ function getBearerToken(request: NextRequest): string {
 }
 
 async function getUserProfile(uid: string): Promise<UserProfile | null> {
-  const snapshot = await db.collection("users").doc(uid).get();
+  const snapshot = await getFirebaseAdmin().collection("users").doc(uid).get();
   if (!snapshot.exists) {
     return null;
   }
@@ -49,7 +49,7 @@ export async function requireAuthorizedUser(request: NextRequest): Promise<Autho
   try {
     const decoded =
       token.length > 0
-        ? await adminAuth.verifyIdToken(token)
+        ? await getAdminAuth().verifyIdToken(token)
         : await verifySessionValue(request.cookies.get("session")?.value ?? "");
 
     if (!decoded) {

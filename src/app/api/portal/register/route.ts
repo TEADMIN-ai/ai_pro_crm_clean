@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
-import { db } from "@/lib/firebase/admin";
+import { getFirebaseAdmin } from "@/lib/firebase/admin";
 
 export async function POST(req: Request) {
   try {
+    const db = getFirebaseAdmin();
     const body = await req.json();
 
     const contractor = {

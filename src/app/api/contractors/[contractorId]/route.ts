@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/lib/firebase/admin";
+import { getFirebaseAdmin } from "@/lib/firebase/admin";
 import { AuthorizationError, assertCanAccessContractor, assertPrivilegedRole, requireAuthorizedUser } from "@/lib/server/authz";
 
 export async function GET(
@@ -7,6 +7,7 @@ export async function GET(
   { params }: { params: Promise<{ contractorId: string }> }
 ) {
   try {
+    const db = getFirebaseAdmin();
     const user = await requireAuthorizedUser(req);
     const { contractorId } = await params;
 
@@ -41,6 +42,7 @@ export async function PATCH(
   { params }: { params: Promise<{ contractorId: string }> }
 ) {
   try {
+    const db = getFirebaseAdmin();
     const user = await requireAuthorizedUser(req);
     const { contractorId } = await params;
     const body = await req.json();
@@ -72,6 +74,7 @@ export async function DELETE(
   { params }: { params: Promise<{ contractorId: string }> }
 ) {
   try {
+    const db = getFirebaseAdmin();
     const user = await requireAuthorizedUser(req);
     const { contractorId } = await params;
 

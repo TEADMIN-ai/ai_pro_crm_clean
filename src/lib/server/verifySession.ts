@@ -1,6 +1,6 @@
 import { cookies } from "next/headers";
 import type { DecodedIdToken } from "firebase-admin/auth";
-import { adminAuth } from "@/lib/firebase/admin";
+import { getAdminAuth } from "@/lib/firebase/admin";
 
 export async function verifySessionValue(session: string): Promise<DecodedIdToken | null> {
   if (!session) {
@@ -8,7 +8,7 @@ export async function verifySessionValue(session: string): Promise<DecodedIdToke
   }
 
   try {
-    const decoded = await adminAuth.verifySessionCookie(session, true);
+    const decoded = await getAdminAuth().verifySessionCookie(session, true);
     console.log("Session verified:", decoded.uid);
     return decoded;
   } catch (error) {
