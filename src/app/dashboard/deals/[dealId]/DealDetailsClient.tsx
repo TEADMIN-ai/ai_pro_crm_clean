@@ -44,6 +44,7 @@ import {
 import { generateAutoFillPreview } from "@/lib/pdf/autoFillPreviewEngine";
 import DocumentIntelligence from "@/components/deals/DocumentIntelligence";
 import { evaluateTenderReadiness } from "@/lib/tender/evaluateTenderReadiness";
+import { API_ROUTES } from "@/lib/routes";
 import type { DocumentAnalysis } from "@/types/tenderAudit";
 
 type DealDocument = Omit<DocumentRecord, "uploadedAt" | "updatedAt" | "expiryDate" | "reviewedAt"> & {
@@ -396,15 +397,12 @@ export default function DealDetailsClient({ dealId }: { dealId: string }) {
         if (!user) return;
 
         const token = await user.getIdToken();
-        const response = await fetch(
-          `/api/documents/${encodeURIComponent(analyzedDocumentCandidates[0].id)}/execute`,
-          {
-            method: "POST",
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-          }
-        );
+        const response = await fetch(API_ROUTES.DOCUMENT_EXECUTE(analyzedDocumentCandidates[0].id), {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
 
         if (!response.ok) {
           throw new Error(`Document execution failed with status ${response.status}`);
