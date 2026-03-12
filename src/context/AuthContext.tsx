@@ -98,13 +98,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let isActive = true;
+
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      if (!isActive) {
+        return;
+      }
+
       setLoading(true);
 
       if (!firebaseUser) {
         await clearServerSession().catch((error) => {
           console.error("Server session clear failed:", error);
         });
+
+        if (!isActive) {
+          return;
+        }
+
         setUser(null);
         setRole("guest");
         setLoading(false);
@@ -112,7 +123,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       try {
-        const firestoreProfile = await getUserProfileFromFirestore(firebaseUser.uid);
         const token = await firebaseUser.getIdToken();
 
         await fetch(API_ROUTES.SYNC_ROLE, {
@@ -126,6 +136,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         await syncServerSession(refreshedToken);
 
         const tokenResult = await firebaseUser.getIdTokenResult();
+        const firestoreProfile = await getUserProfileFromFirestore(firebaseUser.uid);
         const profile = sanitizeProfile({
           name: firestoreProfile?.name ?? firebaseUser.displayName ?? undefined,
           email: firestoreProfile?.email ?? firebaseUser.email ?? undefined,
@@ -136,27 +147,41 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           createdAt: firestoreProfile?.createdAt,
         });
 
+        if (!isActive) {
+          return;
+        }
+
         const mergedUser = mergeFirebaseUser(firebaseUser, profile);
         setUser(mergedUser);
         setRole(profile.role);
       } catch (error) {
         console.error("Auth role resolution error:", error);
-        const fallbackProfile = sanitizeProfile(
-          (await getUserProfileFromFirestore(firebaseUser.uid)) ?? {
-            email: firebaseUser.email ?? undefined,
-            name: firebaseUser.displayName ?? undefined,
-            role: "guest" as UserRole,
-          }
-        );
+        const tokenResult = await firebaseUser.getIdTokenResult().catch(() => null);
+        const fallbackProfile = sanitizeProfile({
+          email: firebaseUser.email ?? undefined,
+          name: firebaseUser.displayName ?? undefined,
+          role: normalizeRole(tokenResult?.claims.role),
+          contractorId: normalizeContractorId(tokenResult?.claims.contractorId),
+        });
+
+        if (!isActive) {
+          return;
+        }
+
         const mergedUser = mergeFirebaseUser(firebaseUser, fallbackProfile);
         setUser(mergedUser);
         setRole(fallbackProfile.role);
       } finally {
-        setLoading(false);
+        if (isActive) {
+          setLoading(false);
+        }
       }
     });
 
-    return () => unsubscribe();
+    return () => {
+      isActive = false;
+      unsubscribe();
+    };
   }, []);
 
   const logout = async () => {

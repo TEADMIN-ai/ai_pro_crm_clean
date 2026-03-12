@@ -16,7 +16,6 @@ function getFirebaseAdmin() {
       }),
     });
   }
-
   return getAuth();
 }
 
@@ -34,10 +33,15 @@ export async function POST(req: Request) {
 
     const auth = getFirebaseAdmin();
 
+    // Verify client token
     const decodedToken = await auth.verifyIdToken(idToken);
 
+    // 5 days expressed in both units clearly
+    const SESSION_EXPIRES_MS = 5 * 24 * 60 * 60 * 1000; // milliseconds
+    const COOKIE_MAX_AGE_SEC = 5 * 24 * 60 * 60;       // seconds
+
     const sessionCookie = await auth.createSessionCookie(idToken, {
-      expiresIn: 60 * 60 * 24 * 5 * 1000,
+      expiresIn: SESSION_EXPIRES_MS,
     });
 
     const response = NextResponse.json({
@@ -50,19 +54,19 @@ export async function POST(req: Request) {
       secure: true,
       path: "/",
       sameSite: "lax",
-      maxAge: 60 * 60 * 24 * 5,
+      maxAge: COOKIE_MAX_AGE_SEC,
     });
 
-    console.log("User authenticated:", decodedToken.uid);
+    console.log("Session cookie created for:", decodedToken.uid);
 
     return response;
 
   } catch (error: any) {
-    console.error("Login error:", error);
+    console.error("Session creation error:", error);
 
     return NextResponse.json(
       {
-        error: "Authentication failed",
+        error: "Failed to create server session",
         details: error?.message ?? "Unknown error",
       },
       { status: 401 }
