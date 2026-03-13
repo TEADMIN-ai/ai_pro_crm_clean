@@ -1,13 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import {
-  collection,
-  getDocs,
-  orderBy,
-  query,
-} from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { authFetch } from "@/lib/client/authFetch";
+import { API_ROUTES } from "@/lib/routes";
 
 type Activity = {
   id: string;
@@ -16,7 +11,7 @@ type Activity = {
   from?: string | null;
   to?: string | null;
   performedByEmail?: string;
-  createdAt?: any;
+  createdAt?: string;
 };
 
 export default function DealActivityTimeline({
@@ -29,25 +24,21 @@ export default function DealActivityTimeline({
 
   useEffect(() => {
     const loadActivity = async () => {
-      const q = query(
-        collection(db, "deals", dealId, "activity"),
-        orderBy("createdAt", "desc")
-      );
+      const response = await authFetch(API_ROUTES.DEAL_ACTIVITY(dealId));
+      if (!response.ok) {
+        setLoading(false);
+        return;
+      }
 
-      const snap = await getDocs(q);
-      setActivity(
-        snap.docs.map((d) => ({
-          id: d.id,
-          ...(d.data() as Omit<Activity, "id">),
-        }))
-      );
+      const payload = (await response.json()) as { activity?: Activity[] };
+      setActivity(Array.isArray(payload.activity) ? payload.activity : []);
       setLoading(false);
     };
 
-    loadActivity();
+    void loadActivity();
   }, [dealId]);
 
-  if (loading) return <p style={{ fontSize: 12 }}>Loading activity…</p>;
+  if (loading) return <p style={{ fontSize: 12 }}>Loading activity...</p>;
 
   if (activity.length === 0) {
     return <p style={{ fontSize: 12 }}>No activity yet.</p>;
@@ -61,7 +52,7 @@ export default function DealActivityTimeline({
             <strong>{a.message}</strong>
           </div>
           <div style={{ opacity: 0.7 }}>
-            {a.from ?? "Unassigned"} → {a.to ?? "Unassigned"}
+            {a.from ?? "Unassigned"} to {a.to ?? "Unassigned"}
           </div>
           <div style={{ opacity: 0.6 }}>
             by {a.performedByEmail}
@@ -71,4 +62,3 @@ export default function DealActivityTimeline({
     </ul>
   );
 }
-

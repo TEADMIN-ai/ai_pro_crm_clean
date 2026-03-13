@@ -56,6 +56,17 @@ export interface DealDocument {
   uploadedBy?: string;
 }
 
+export interface TenderAnalysisSnapshot {
+  issuingAuthority?: string | null;
+  tenderNumber?: string | null;
+  deadline?: string | null;
+  scope?: string | null;
+  requiredCertificates?: string[];
+  estimatedValue?: number | null;
+  location?: string | null;
+  aiAnalyzedAt?: string | null;
+}
+
 /* ---------------------------------- */
 /* Core Deal Model                    */
 /* ---------------------------------- */
@@ -87,6 +98,11 @@ export interface Deal {
   readinessUpdatedAt?: string;
   tenderSubmittedAt?: Date;
   tenderSubmittedBy?: string;
+  complianceMatch?: boolean;
+  missingRequirements?: string[];
+  riskLevel?: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
+  estimatedDealValue?: number;
+  tenderAnalysis?: TenderAnalysisSnapshot;
 
   // Approval
   pricingApprovedAt?: Date;

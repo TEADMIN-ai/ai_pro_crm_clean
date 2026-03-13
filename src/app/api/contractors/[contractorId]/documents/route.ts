@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifyComplianceDocument } from "@/lib/compliance/analyzeComplianceDocument";
 import { getFirebaseAdmin } from "@/lib/firebase/admin";
 import {
   getDocumentTypeLabel,
@@ -8,8 +7,6 @@ import {
   SUPPORTED_DOCUMENT_TYPES,
   type SupportedDocumentType,
 } from "@/lib/compliance/contractorCompliance";
-import { extractDocumentText } from "@/lib/compliance/extractDocumentText";
-import { updateComplianceState } from "@/lib/compliance/updateComplianceState";
 import {
   AuthorizationError,
   assertCanAccessContractor,
@@ -17,6 +14,12 @@ import {
   requireAuthorizedUser,
 } from "@/lib/server/authz";
 import { recalculateContractorCompliance } from "@/lib/server/recalculateContractorCompliance";
+import { verifyStoredContractorDocument } from "@/server/services/documentVerificationService";
+import {
+  getContractorDocument,
+  listContractorDocuments,
+  upsertContractorDocument,
+} from "@/server/services/contractorService";
 import type { ContractorDocument } from "@/types/document";
 
 function jsonError(message: string, status = 500) {
@@ -37,6 +40,10 @@ function toMillis(value: unknown): number | undefined {
   }
 
   return undefined;
+}
+
+function hasTimestamp(value: unknown): boolean {
+  return typeof toMillis(value) === "number";
 }
 
 function normalizeDocument(id: string, data: Record<string, unknown>): ContractorDocument {
@@ -74,7 +81,7 @@ function normalizeDocument(id: string, data: Record<string, unknown>): Contracto
         : typeof data.fileUrl === "string"
           ? data.fileUrl
           : undefined,
-    verified: data.verified === true,
+    verified: data.verified === true || hasTimestamp(data.verifiedAt),
     verifiedAt: toMillis(data.verifiedAt),
     validationError: typeof data.validationError === "string" ? data.validationError : undefined,
     uploadedAt: toMillis(data.uploadedAt),
@@ -84,10 +91,29 @@ function normalizeDocument(id: string, data: Record<string, unknown>): Contracto
     expiresAt: typeof data.expiresAt === "number" ? data.expiresAt : undefined,
     expiryDate: typeof data.expiryDate === "number" ? data.expiryDate : undefined,
     confidenceScore: typeof data.confidenceScore === "number" ? data.confidenceScore : undefined,
+    extractedData:
+      data.extractedData && typeof data.extractedData === "object"
+        ? (data.extractedData as Record<string, string | null>)
+        : undefined,
     extractedFields:
       data.extractedFields && typeof data.extractedFields === "object"
         ? (data.extractedFields as Record<string, string | null>)
+        : data.extractedData && typeof data.extractedData === "object"
+          ? (data.extractedData as Record<string, string | null>)
+          : undefined,
+    missingFields: Array.isArray(data.missingFields)
+      ? data.missingFields.filter((value): value is string => typeof value === "string")
+      : undefined,
+    validationErrors: Array.isArray(data.validationErrors)
+      ? data.validationErrors.filter((value): value is string => typeof value === "string")
+      : undefined,
+    analysisTimestamp: toMillis(data.analysisTimestamp),
+    extractionMethod:
+      data.extractionMethod === "pdf-parse" || data.extractionMethod === "ocr"
+        ? data.extractionMethod
         : undefined,
+    extractedTextLength:
+      typeof data.extractedTextLength === "number" ? data.extractedTextLength : undefined,
     status: typeof data.status === "string" ? data.status : undefined,
   };
 
@@ -112,7 +138,6 @@ export async function GET(
 ) {
   try {
     const user = await requireAuthorizedUser(request);
-    const db = getFirebaseAdmin();
     const { contractorId } = await context.params;
 
     if (!contractorId) {
@@ -121,9 +146,8 @@ export async function GET(
 
     assertCanAccessContractor(user, contractorId);
 
-    const contractorRef = db.collection("contractors").doc(contractorId);
-    const snapshot = await contractorRef.collection("documents").get();
-    const docsById = new Map(snapshot.docs.map((doc) => [doc.id, normalizeDocument(doc.id, doc.data() as Record<string, unknown>)]));
+    const existingDocuments = await listContractorDocuments(contractorId);
+    const docsById = new Map(existingDocuments.map((doc) => [doc.id, doc]));
     const documents = SUPPORTED_DOCUMENT_TYPES.map((type) => {
       const existing = docsById.get(type);
       return (
@@ -156,7 +180,6 @@ export async function POST(
 ) {
   try {
     const user = await requireAuthorizedUser(request);
-    const db = getFirebaseAdmin();
     const { contractorId } = await context.params;
 
     if (!contractorId) {
@@ -188,9 +211,9 @@ export async function POST(
     }
 
     const now = new Date();
-    const docRef = db.collection("contractors").doc(contractorId).collection("documents").doc(documentType);
-
-    await docRef.set(
+    await upsertContractorDocument(
+      contractorId,
+      documentType,
       {
         contractorId,
         documentType,
@@ -211,29 +234,27 @@ export async function POST(
         validationError: null,
         status: "uploaded",
       },
-      { merge: true }
     );
 
-    let summary:
-      | Awaited<ReturnType<typeof recalculateContractorCompliance>>
-      | null = null;
-
     try {
-      console.log("Compliance scanner running", {
+      console.log("Document verification running", {
         contractorId,
         documentType,
       });
 
-      const text = await extractDocumentText(fileUrl);
-      const analysis = verifyComplianceDocument(documentType, text);
-      await updateComplianceState(db, contractorId, analysis);
-      summary = await recalculateContractorCompliance(db, contractorId);
+      await verifyStoredContractorDocument({
+        contractorId,
+        documentId: documentType,
+        documentType,
+        storagePath,
+        fileName: documentName || `${documentType}.pdf`,
+      });
     } catch (error) {
-      console.error("Compliance scanner failed", error);
+      console.error("Document verification failed", error);
     }
 
-    summary ??= await recalculateContractorCompliance(db, contractorId);
-    const savedDoc = await docRef.get();
+    const summary = await recalculateContractorCompliance(getFirebaseAdmin(), contractorId);
+    const savedDoc = await getContractorDocument(contractorId, documentType);
 
     return NextResponse.json(
       {
@@ -274,8 +295,7 @@ export async function PATCH(
       return jsonError("Unsupported documentType", 400);
     }
 
-    const docRef = db.collection("contractors").doc(contractorId).collection("documents").doc(documentType);
-    const snap = await docRef.get();
+    const snap = await getContractorDocument(contractorId, documentType);
 
     if (!snap.exists) {
       return jsonError("Document not found", 404);
@@ -295,9 +315,9 @@ export async function PATCH(
       updates.originalName = body.documentName.trim();
     }
 
-    await docRef.set(updates, { merge: true });
+    await upsertContractorDocument(contractorId, documentType, updates);
     const summary = await recalculateContractorCompliance(db, contractorId);
-    const updated = await docRef.get();
+    const updated = await getContractorDocument(contractorId, documentType);
 
     return NextResponse.json(
       {

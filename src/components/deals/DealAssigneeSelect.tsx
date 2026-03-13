@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { collection, getDocs, updateDoc, doc } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { authFetch } from "@/lib/client/authFetch";
+import { API_ROUTES } from "@/lib/routes";
 
 type User = {
   uid: string;
@@ -21,23 +21,34 @@ export default function DealAssigneeSelect({ dealId, assignedTo }: Props) {
 
   useEffect(() => {
     async function loadStaff() {
-      const snap = await getDocs(collection(db, "users"));
-      const staffUsers = snap.docs
-        .map(d => d.data() as User)
-        .filter(u => u.role === "staff");
+      const response = await authFetch(API_ROUTES.USERS);
+      if (!response.ok) {
+        return;
+      }
 
-      setUsers(staffUsers);
+      const payload = (await response.json()) as { users?: User[] };
+      const allUsers = Array.isArray(payload.users) ? payload.users : [];
+      setUsers(allUsers.filter((user) => user.role === "staff"));
     }
 
-    loadStaff();
+    void loadStaff();
   }, []);
 
   async function assign(uid: string) {
     setLoading(true);
-    await updateDoc(doc(db, "deals", dealId), {
-      assignedTo: uid,
-    });
-    setLoading(false);
+    try {
+      await authFetch(API_ROUTES.DEAL_ASSIGNMENT(dealId), {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          assignedTo: uid,
+        }),
+      });
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
@@ -55,12 +66,11 @@ export default function DealAssigneeSelect({ dealId, assignedTo }: Props) {
       }}
     >
       <option value="">Unassigned</option>
-      {users.map(u => (
-        <option key={u.uid} value={u.uid}>
-          {u.email}
+      {users.map((user) => (
+        <option key={user.uid} value={user.uid}>
+          {user.email}
         </option>
       ))}
     </select>
   );
 }
-

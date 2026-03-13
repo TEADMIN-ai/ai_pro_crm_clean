@@ -1,9 +1,8 @@
 import { NextResponse } from "next/server";
-import { getFirebaseAdmin } from "@/lib/firebase/admin";
+import { createContractor } from "@/server/services/contractorService";
 
 export async function POST(req: Request) {
   try {
-    const db = getFirebaseAdmin();
     const body = await req.json();
 
     const contractor = {
@@ -14,11 +13,11 @@ export async function POST(req: Request) {
       compliancePercentage: 0
     };
 
-    const docRef = await db.collection("contractors").add(contractor);
+    const contractorId = await createContractor(contractor);
 
     return NextResponse.json({
       success: true,
-      contractorId: docRef.id
+      contractorId
     });
 
   } catch (error) {

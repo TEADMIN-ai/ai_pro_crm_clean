@@ -52,6 +52,32 @@ function resolveDocumentStatus(document: ContractorDocument): "Uploaded" | "Veri
   return "Uploaded";
 }
 
+function renderMissingFields(document: ContractorDocument): string {
+  if (document.missingFields && document.missingFields.length > 0) {
+    return document.missingFields.join(", ");
+  }
+
+  if (document.validationErrors && document.validationErrors.length > 0) {
+    return document.validationErrors.join(", ");
+  }
+
+  return "-";
+}
+
+function renderExtractedData(document: ContractorDocument): string {
+  const fields = document.extractedFields ?? document.extractedData;
+  if (!fields) {
+    return "-";
+  }
+
+  const pairs = Object.entries(fields)
+    .filter(([, value]) => typeof value === "string" && value.trim().length > 0)
+    .slice(0, 4)
+    .map(([key, value]) => `${key}: ${value}`);
+
+  return pairs.length > 0 ? pairs.join(" | ") : "-";
+}
+
 function renderExtractedSummary(document: ContractorDocument): string {
   const fields = document.extractedFields ?? {};
 
@@ -213,7 +239,9 @@ export default function ContractorDetailPage() {
           <thead>
             <tr>
               <th>Document</th>
-              <th>Status</th>
+              <th>Validation Status</th>
+              <th>Missing Fields</th>
+              <th>AI Extracted Data</th>
               <th>Extracted Data</th>
               <th>Uploaded</th>
               <th>Actions</th>
@@ -224,6 +252,8 @@ export default function ContractorDetailPage() {
               <tr key={document.id}>
                 <td>{document.documentName ?? document.fileName ?? document.id}</td>
                 <td>{resolveDocumentStatus(document)}</td>
+                <td>{renderMissingFields(document)}</td>
+                <td>{renderExtractedData(document)}</td>
                 <td>{renderExtractedSummary(document)}</td>
                 <td>{formatDate(document.uploadedAt)}</td>
                 <td>

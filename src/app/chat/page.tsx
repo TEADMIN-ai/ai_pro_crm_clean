@@ -1,8 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { addDoc, collection, serverTimestamp } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { API_ROUTES } from "@/lib/routes";
 
 type Step =
   | "name"
@@ -16,7 +15,7 @@ type Step =
 export default function CarSalesAssistantPage() {
   const [messages, setMessages] = useState<
     { role: "bot" | "user"; text: string }[]
-  >([{ role: "bot", text: "Hi 👋 What is your full name?" }]);
+  >([{ role: "bot", text: "Hi. What is your full name?" }]);
 
   const [input, setInput] = useState("");
   const [step, setStep] = useState<Step>("name");
@@ -41,105 +40,77 @@ export default function CarSalesAssistantPage() {
     switch (step) {
       case "name":
         setLead((l) => ({ ...l, name: userText }));
-        setMessages((m) => [
-          ...m,
-          { role: "bot", text: "How can we contact you? (email or phone)" },
-        ]);
+        setMessages((m) => [...m, { role: "bot", text: "How can we contact you? (email or phone)" }]);
         setStep("contact");
         break;
-
       case "contact":
         setLead((l) => ({ ...l, contactMethod: userText }));
-        setMessages((m) => [
-          ...m,
-          {
-            role: "bot",
-            text: "Which vehicle are you interested in? (make & model)",
-          },
-        ]);
+        setMessages((m) => [...m, { role: "bot", text: "Which vehicle are you interested in? (make & model)" }]);
         setStep("vehicle");
         break;
-
       case "vehicle":
         setLead((l) => ({ ...l, vehicle: userText }));
-        setMessages((m) => [
-          ...m,
-          { role: "bot", text: "Do you have a budget range in mind?" },
-        ]);
+        setMessages((m) => [...m, { role: "bot", text: "Do you have a budget range in mind?" }]);
         setStep("budget");
         break;
-
       case "budget":
         setLead((l) => ({ ...l, budget: userText }));
-        setMessages((m) => [
-          ...m,
-          { role: "bot", text: "Will you require finance? (yes / no)" },
-        ]);
+        setMessages((m) => [...m, { role: "bot", text: "Will you require finance? (yes / no)" }]);
         setStep("finance");
         break;
-
       case "finance":
         setLead((l) => ({ ...l, finance: userText }));
-        setMessages((m) => [
-          ...m,
-          { role: "bot", text: "When are you looking to buy?" },
-        ]);
+        setMessages((m) => [...m, { role: "bot", text: "When are you looking to buy?" }]);
         setStep("timeline");
         break;
-
       case "timeline":
         setLead((l) => ({ ...l, timeline: userText }));
-        setMessages((m) => [
-          ...m,
-          { role: "bot", text: "Creating your enquiry…" },
-        ]);
+        setMessages((m) => [...m, { role: "bot", text: "Creating your enquiry..." }]);
         setLoading(true);
 
         try {
-          await addDoc(collection(db, "deals"), {
-            title: `${lead.vehicle} enquiry`,
-            status: "new",
-            assignedTo: null,
-            companyId: "torque-empire",
-
-            // 🔹 CRM-required fields
-            sla: null,
-            source: "car_sales_bot",
-
-            // 🔹 Lead details
-            customerName: lead.name,
-            contactMethod: lead.contactMethod,
-            vehicle: lead.vehicle,
-            budget: lead.budget,
-            financeRequired: lead.finance,
-            purchaseTimeline: lead.timeline,
-
-            createdAt: serverTimestamp(),
-            updatedAt: serverTimestamp(),
+          const response = await fetch(API_ROUTES.LEADS, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              companyId: "torque-empire",
+              customerName: lead.name,
+              contactMethod: lead.contactMethod,
+              vehicle: lead.vehicle,
+              budget: lead.budget,
+              financeRequired: lead.finance,
+              purchaseTimeline: lead.timeline,
+            }),
           });
+
+          if (!response.ok) {
+            throw new Error(`Lead creation failed (${response.status})`);
+          }
 
           setMessages((m) => [
             ...m,
             {
               role: "bot",
-              text:
-                "✅ Your enquiry has been submitted. A sales consultant will contact you shortly.",
+              text: "Your enquiry has been submitted. A sales consultant will contact you shortly.",
             },
           ]);
           setStep("done");
         } catch (err) {
-          console.error("❌ Deal creation failed:", err);
+          console.error("Deal creation failed:", err);
           setMessages((m) => [
             ...m,
             {
               role: "bot",
-              text:
-                "❌ Something went wrong while creating your enquiry. Please try again later.",
+              text: "Something went wrong while creating your enquiry. Please try again later.",
             },
           ]);
         } finally {
           setLoading(false);
         }
+        break;
+      default:
         break;
     }
   };
@@ -170,7 +141,7 @@ export default function CarSalesAssistantPage() {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && send()}
-            placeholder="Type your reply…"
+            placeholder="Type your reply..."
             style={{ width: "80%", padding: 8 }}
           />
           <button onClick={send} style={{ padding: 8, marginLeft: 8 }}>
@@ -181,4 +152,3 @@ export default function CarSalesAssistantPage() {
     </main>
   );
 }
-

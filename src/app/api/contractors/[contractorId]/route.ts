@@ -1,13 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getFirebaseAdmin } from "@/lib/firebase/admin";
 import { AuthorizationError, assertCanAccessContractor, assertPrivilegedRole, requireAuthorizedUser } from "@/lib/server/authz";
+import { deleteContractorById, getContractorById, updateContractorById } from "@/server/services/contractorService";
 
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ contractorId: string }> }
 ) {
   try {
-    const db = getFirebaseAdmin();
     const user = await requireAuthorizedUser(req);
     const { contractorId } = await params;
 
@@ -17,15 +16,14 @@ export async function GET(
 
     assertCanAccessContractor(user, contractorId);
 
-    const contractorSnap = await db.collection("contractors").doc(contractorId).get();
-    if (!contractorSnap.exists) {
+    const contractor = await getContractorById(contractorId);
+    if (!contractor) {
       return NextResponse.json({ success: false, error: "Contractor not found" }, { status: 404 });
     }
 
     return NextResponse.json({
       success: true,
-      id: contractorSnap.id,
-      ...contractorSnap.data(),
+      ...contractor,
     });
   } catch (error) {
     if (error instanceof AuthorizationError) {
@@ -42,7 +40,6 @@ export async function PATCH(
   { params }: { params: Promise<{ contractorId: string }> }
 ) {
   try {
-    const db = getFirebaseAdmin();
     const user = await requireAuthorizedUser(req);
     const { contractorId } = await params;
     const body = await req.json();
@@ -53,10 +50,7 @@ export async function PATCH(
 
     assertPrivilegedRole(user);
 
-    await db.collection("contractors").doc(contractorId).update({
-      ...body,
-      updatedAt: new Date().toISOString(),
-    });
+    await updateContractorById(contractorId, body as Record<string, unknown>);
 
     return NextResponse.json({ success: true, message: "Contractor updated successfully" });
   } catch (error) {
@@ -74,7 +68,6 @@ export async function DELETE(
   { params }: { params: Promise<{ contractorId: string }> }
 ) {
   try {
-    const db = getFirebaseAdmin();
     const user = await requireAuthorizedUser(req);
     const { contractorId } = await params;
 
@@ -84,7 +77,7 @@ export async function DELETE(
 
     assertPrivilegedRole(user);
 
-    await db.collection("contractors").doc(contractorId).delete();
+    await deleteContractorById(contractorId);
     return NextResponse.json({ success: true, message: "Contractor deleted" });
   } catch (error) {
     if (error instanceof AuthorizationError) {

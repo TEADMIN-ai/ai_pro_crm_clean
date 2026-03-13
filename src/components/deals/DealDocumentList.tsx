@@ -1,15 +1,15 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { db } from "@/lib/firebase/client";
-import { collection, onSnapshot } from "firebase/firestore";
+import { authFetch } from "@/lib/client/authFetch";
+import { API_ROUTES } from "@/lib/routes";
 
 type FileItem = {
   id: string;
   name: string;
   size: number;
   uploadedBy: string;
-  uploadedAt: any;
+  uploadedAt: string;
 };
 
 export default function DealDocumentList({ dealId }: { dealId: string }) {
@@ -22,24 +22,23 @@ export default function DealDocumentList({ dealId }: { dealId: string }) {
       return;
     }
 
-    const unsubscribe = onSnapshot(
-      collection(db, "deals", dealId, "documents"),
-      (snapshot) => {
-        const fileList = snapshot.docs.map((doc: any) => ({
-          id: doc.id,
-          ...doc.data(),
-        })) as FileItem[];
+    async function loadDocuments() {
+      try {
+        const response = await authFetch(API_ROUTES.DEAL_DOCUMENTS(dealId));
+        if (!response.ok) {
+          throw new Error(`Failed to load documents (${response.status})`);
+        }
 
-        setFiles(fileList);
+        const payload = (await response.json()) as { documents?: FileItem[] };
+        setFiles(Array.isArray(payload.documents) ? payload.documents : []);
         setError(null);
-      },
-      (err) => {
+      } catch (err) {
         console.error(err);
         setError("Failed to load deal files.");
       }
-    );
+    }
 
-    return () => unsubscribe();
+    void loadDocuments();
   }, [dealId]);
 
   if (error) {
@@ -72,4 +71,3 @@ export default function DealDocumentList({ dealId }: { dealId: string }) {
     </div>
   );
 }
-

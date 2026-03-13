@@ -47,12 +47,20 @@ export async function updateComplianceState(
 ): Promise<void> {
   const now = new Date();
   const verifiedAt = analysis.verified ? FieldValue.serverTimestamp() : null;
+  const extractedData = {
+    detectedDocumentType: analysis.documentType,
+    ...analysis.extractedFields,
+  };
 
   await db.collection("contractors").doc(contractorId).collection("complianceData").doc(analysis.documentType).set(
     {
       documentType: analysis.documentType,
       extractedAt: now,
-      extractedFields: analysis.extractedFields,
+      extractedData,
+      extractedFields: extractedData,
+      missingFields: analysis.missingFields,
+      validationErrors: analysis.validationErrors,
+      analysisTimestamp: now.getTime(),
       confidenceScore: analysis.confidenceScore,
       expiresAt: analysis.expiresAt,
       verified: analysis.verified,
@@ -67,7 +75,11 @@ export async function updateComplianceState(
   await db.collection("contractors").doc(contractorId).collection("documents").doc(analysis.documentType).set(
     {
       extractedAt: now,
-      extractedFields: analysis.extractedFields,
+      extractedData,
+      extractedFields: extractedData,
+      missingFields: analysis.missingFields,
+      validationErrors: analysis.validationErrors,
+      analysisTimestamp: now.getTime(),
       confidenceScore: analysis.confidenceScore,
       expiresAt: analysis.expiresAt,
       verified: analysis.verified,

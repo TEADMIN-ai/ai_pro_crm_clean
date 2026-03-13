@@ -7,6 +7,8 @@ export type ComplianceAnalysisResult = {
   verified: boolean;
   expiresAt: number | null;
   extractedFields: Record<string, string | null>;
+  missingFields: string[];
+  validationErrors: string[];
   confidenceScore: number;
   validationError: string | null;
   status: ComplianceDocumentStatus;
@@ -64,6 +66,8 @@ function buildResult(params: {
   extractedFields: Record<string, string | null>;
   expiresAt?: Date | null;
   verified: boolean;
+  missingFields?: string[];
+  validationErrors?: string[];
   validationError?: string | null;
   confidenceScore: number;
 }): ComplianceAnalysisResult {
@@ -82,6 +86,8 @@ function buildResult(params: {
     verified: params.verified,
     expiresAt,
     extractedFields: params.extractedFields,
+    missingFields: params.missingFields ?? [],
+    validationErrors: params.validationErrors ?? (validationError ? [validationError] : []),
     confidenceScore: params.confidenceScore,
     validationError,
     status,
@@ -98,6 +104,10 @@ export function analyzeComplianceDocument(
     case "cipc": {
       const regMatch = text.match(/\b\d{4}\/\d{6}\/\d{2}\b/);
       const companyNameMatch = text.match(/(?:enterprise name|company name)[:\s]+([A-Z0-9][A-Z0-9 '&.,()-]{2,})/i);
+      const missingFields = [
+        ...(!regMatch ? ["companyRegistrationNumber"] : []),
+        ...(!companyNameMatch ? ["companyName"] : []),
+      ];
 
       return buildResult({
         documentType: type,
@@ -105,8 +115,9 @@ export function analyzeComplianceDocument(
           companyRegistrationNumber: regMatch?.[0] ?? null,
           companyName: companyNameMatch?.[1]?.trim() ?? null,
         },
-        verified: Boolean(regMatch),
-        validationError: regMatch ? null : "CIPC registration number not found",
+        verified: Boolean(regMatch && companyNameMatch),
+        missingFields,
+        validationError: missingFields.length === 0 ? null : `Missing CIPC fields: ${missingFields.join(", ")}`,
         confidenceScore: toConfidence(Number(Boolean(regMatch)) + Number(Boolean(companyNameMatch)), 2),
       });
     }
@@ -117,6 +128,11 @@ export function analyzeComplianceDocument(
       const certMatch = text.match(/Certificate Number[:\s]+([A-Z0-9-]+)/i);
 
       const expiresAt = expiryMatch ? parseDateDDMMYYYY(expiryMatch[1]) : null;
+      const missingFields = [
+        ...(!levelMatch ? ["beeLevel"] : []),
+        ...(!certMatch ? ["certificateNumber"] : []),
+        ...(!expiryMatch ? ["expiryDate"] : []),
+      ];
       const hasRequiredFields = Boolean(levelMatch && certMatch && expiresAt);
 
       return buildResult({
@@ -127,8 +143,9 @@ export function analyzeComplianceDocument(
           expiryDate: expiryMatch?.[1] ?? null,
         },
         expiresAt,
+        missingFields,
         verified: Boolean(expiresAt && expiresAt.getTime() > now && hasRequiredFields),
-        validationError: hasRequiredFields ? null : "Missing B-BBEE fields",
+        validationError: hasRequiredFields ? null : `Missing B-BBEE fields: ${missingFields.join(", ")}`,
         confidenceScore: toConfidence(
           Number(Boolean(levelMatch)) + Number(Boolean(certMatch)) + Number(Boolean(expiryMatch)),
           3
@@ -142,6 +159,11 @@ export function analyzeComplianceDocument(
       const taxpayerMatch = text.match(/(?:taxpayer name|registered name)[:\s]+([A-Z0-9][A-Z0-9 '&.,()-]{2,})/i);
       const expiresAt = expiryMatch ? parseDateDDMMYYYY(expiryMatch[1]) : null;
       const hasExpiry = Boolean(expiresAt);
+      const missingFields = [
+        ...(!expiryMatch ? ["expiryDate"] : []),
+        ...(!taxPinMatch ? ["taxPin"] : []),
+        ...(!taxpayerMatch ? ["taxpayerName"] : []),
+      ];
 
       return buildResult({
         documentType: type,
@@ -151,8 +173,9 @@ export function analyzeComplianceDocument(
           expiryDate: expiryMatch?.[1] ?? null,
         },
         expiresAt,
+        missingFields,
         verified: Boolean(expiresAt && expiresAt.getTime() > now),
-        validationError: hasExpiry ? null : "Expiry date not found",
+        validationError: hasExpiry ? null : `Missing tax clearance fields: ${missingFields.join(", ")}`,
         confidenceScore: toConfidence(
           Number(Boolean(expiryMatch)) + Number(Boolean(taxPinMatch)) + Number(Boolean(taxpayerMatch)),
           3
@@ -165,6 +188,10 @@ export function analyzeComplianceDocument(
       const employerMatch = text.match(/(?:employer(?:'s)? registration(?: number)?)[:\s]+([A-Z0-9/-]+)/i);
       const expiresAt = expiryMatch ? parseDateDDMMYYYY(expiryMatch[1]) : null;
       const hasExpiry = Boolean(expiresAt);
+      const missingFields = [
+        ...(!employerMatch ? ["employerRegistrationNumber"] : []),
+        ...(!expiryMatch ? ["expiryDate"] : []),
+      ];
 
       return buildResult({
         documentType: type,
@@ -173,8 +200,9 @@ export function analyzeComplianceDocument(
           expiryDate: expiryMatch?.[1] ?? null,
         },
         expiresAt,
+        missingFields,
         verified: Boolean(expiresAt && expiresAt.getTime() > now),
-        validationError: hasExpiry ? null : "Expiry date not found",
+        validationError: hasExpiry ? null : `Missing COIDA fields: ${missingFields.join(", ")}`,
         confidenceScore: toConfidence(Number(Boolean(expiryMatch)) + Number(Boolean(employerMatch)), 2),
       });
     }
@@ -185,6 +213,12 @@ export function analyzeComplianceDocument(
       const accountHolderMatch = text.match(/(?:account holder|account name)[:\s]+([A-Z][A-Z0-9 '&.,()-]{2,})/i);
       const branchCodeMatch = text.match(/(?:branch code|branch no\.?)[:\s]+(\d{3,10})/i);
       const hasRequiredFields = Boolean(accountMatch && bankMatch);
+      const missingFields = [
+        ...(!accountMatch ? ["accountNumber"] : []),
+        ...(!bankMatch ? ["bankName"] : []),
+        ...(!accountHolderMatch ? ["accountHolder"] : []),
+        ...(!branchCodeMatch ? ["branchCode"] : []),
+      ];
 
       return buildResult({
         documentType: type,
@@ -194,8 +228,9 @@ export function analyzeComplianceDocument(
           accountHolder: accountHolderMatch?.[1]?.trim() ?? null,
           branchCode: branchCodeMatch?.[1] ?? null,
         },
+        missingFields,
         verified: hasRequiredFields,
-        validationError: hasRequiredFields ? null : "Bank account information missing",
+        validationError: hasRequiredFields ? null : `Missing bank confirmation fields: ${missingFields.join(", ")}`,
         confidenceScore: toConfidence(
           Number(Boolean(accountMatch)) +
             Number(Boolean(bankMatch)) +
@@ -211,6 +246,7 @@ export function analyzeComplianceDocument(
         documentType: type,
         extractedFields: {},
         verified: false,
+        missingFields: [],
         validationError: "Unknown document type",
         confidenceScore: 0,
       });

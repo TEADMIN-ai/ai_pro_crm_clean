@@ -14,6 +14,19 @@ function normalizeNumber(value: unknown): number {
   return 0;
 }
 
+function normalizeOptionalNumber(value: unknown): number | undefined {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+
+  if (typeof value === "string") {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : undefined;
+  }
+
+  return undefined;
+}
+
 function normalizeStage(stage: unknown): Deal["stage"] {
   const allowed: Deal["stage"][] = [
     "lead",
@@ -39,6 +52,35 @@ function normalizeBoolean(value: unknown): boolean {
 
 function normalizeOptionalString(value: unknown): string | undefined {
   return typeof value === "string" && value.trim().length > 0 ? value.trim() : undefined;
+}
+
+function normalizeStringArray(value: unknown): string[] | undefined {
+  if (!Array.isArray(value)) {
+    return undefined;
+  }
+
+  const normalized = value.filter((item): item is string => typeof item === "string" && item.trim().length > 0);
+  return normalized.length > 0 ? normalized : [];
+}
+
+function normalizeTenderAnalysis(value: unknown): Deal["tenderAnalysis"] | undefined {
+  if (!value || typeof value !== "object") {
+    return undefined;
+  }
+
+  const source = value as Record<string, unknown>;
+  return {
+    issuingAuthority: normalizeOptionalString(source.issuingAuthority) ?? null,
+    tenderNumber: normalizeOptionalString(source.tenderNumber) ?? null,
+    deadline: normalizeOptionalString(source.deadline) ?? null,
+    scope: normalizeOptionalString(source.scope) ?? null,
+    requiredCertificates: normalizeStringArray(source.requiredCertificates) ?? [],
+    estimatedValue: typeof source.estimatedValue === "number" && Number.isFinite(source.estimatedValue)
+      ? source.estimatedValue
+      : null,
+    location: normalizeOptionalString(source.location) ?? null,
+    aiAnalyzedAt: normalizeOptionalString(source.aiAnalyzedAt) ?? null,
+  };
 }
 
 export function resolveTenderLockStatus(
@@ -93,5 +135,16 @@ export function normalizeDeal(id: string, source: Record<string, unknown>): Deal
     readinessUpdatedAt: normalizeOptionalString(source.readinessUpdatedAt),
     tenderSubmittedAt: source.tenderSubmittedAt as Deal["tenderSubmittedAt"],
     tenderSubmittedBy: normalizeOptionalString(source.tenderSubmittedBy),
+    complianceMatch: source.complianceMatch === true,
+    missingRequirements: normalizeStringArray(source.missingRequirements) ?? [],
+    riskLevel:
+      source.riskLevel === "LOW" ||
+      source.riskLevel === "MEDIUM" ||
+      source.riskLevel === "HIGH" ||
+      source.riskLevel === "CRITICAL"
+        ? source.riskLevel
+        : undefined,
+    estimatedDealValue: normalizeOptionalNumber(source.estimatedDealValue),
+    tenderAnalysis: normalizeTenderAnalysis(source.tenderAnalysis),
   };
 }

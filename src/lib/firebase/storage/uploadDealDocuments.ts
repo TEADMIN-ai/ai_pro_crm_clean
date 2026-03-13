@@ -1,7 +1,9 @@
-import { addDoc, collection, serverTimestamp, updateDoc, type Timestamp } from "firebase/firestore";
+import type { Timestamp } from "firebase/firestore";
 import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
-import { db, storage } from "@/lib/firebase/index";
+import { storage } from "@/lib/firebase/index";
 import type { UserRole } from "@/lib/auth/roleUtils";
+import { authFetch } from "@/lib/client/authFetch";
+import { API_ROUTES } from "@/lib/routes";
 
 export type DocumentReviewRole = "admin" | "manager";
 export type DocumentStatus = "pending" | "approved" | "rejected";
@@ -58,26 +60,31 @@ export async function uploadDealDocuments(
 
   const downloadURL = await getDownloadURL(fileRef);
 
-  const documentsRef = collection(db, "deals", dealId, "documents");
-  const createdRef = await addDoc(documentsRef, {
-    dealId,
-    name: file.name,
-    contentType: file.type || "application/pdf",
-    size: file.size,
-    storagePath,
-    downloadURL,
-    uploadedByUid: userId,
-    uploadedByRole: userRole,
-    uploadedAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
-    status: "pending",
-    version: 1,
+  const response = await authFetch(API_ROUTES.DEAL_DOCUMENTS(dealId), {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      name: file.name,
+      contentType: file.type || "application/pdf",
+      size: file.size,
+      storagePath,
+      downloadURL,
+      uploadedByUid: userId,
+      uploadedByRole: userRole,
+    }),
   });
 
-  await updateDoc(createdRef, { id: createdRef.id });
+  if (!response.ok) {
+    const payload = (await response.json().catch(() => null)) as { error?: string } | null;
+    throw new Error(payload?.error ?? `Failed to store deal document metadata (${response.status})`);
+  }
+
+  const payload = (await response.json()) as { document?: { id?: string } };
 
   return {
-    id: createdRef.id,
+    id: payload.document?.id ?? "",
     downloadURL,
     storagePath,
   };

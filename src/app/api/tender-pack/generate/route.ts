@@ -2,10 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAuth } from "firebase-admin/auth";
 import { getStorage } from "firebase-admin/storage";
 
-import { getFirebaseAdmin } from "@/lib/firebase/admin";
 import { buildCompanyProfile } from "@/lib/autofill/buildCompanyProfile";
 import { fillTenderPack } from "@/lib/pdfs/empirePdfFill";
 import { SBD_TEMPLATE_KEYS, type SbdFormKey } from "@/lib/pdfs/templates/sbdSchema";
+import { createTenderPackRecord } from "@/server/services/tenderPackService";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -74,7 +74,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    getFirebaseAdmin();
     const timestamp = Date.now();
     const storagePath = `tender-packs/${contractorId}/${timestamp}-${templateKey}.pdf`;
     const bucket = getStorage().bucket();
@@ -92,8 +91,7 @@ export async function POST(request: NextRequest) {
       expires: "2035-01-01",
     });
 
-    const db = getFirebaseAdmin();
-    const packRef = await db.collection("tenderPacks").add({
+    const packId = await createTenderPackRecord({
       storagePath,
       downloadURL,
       createdAt: timestamp,
@@ -107,7 +105,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(
       {
-        packId: packRef.id,
+        packId,
         downloadURL,
         missingFields: profile.missingFields,
         warnings: fillResult.warnings,

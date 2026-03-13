@@ -1,48 +1,31 @@
 import { NextResponse } from "next/server";
-import { getApps, initializeApp, cert } from "firebase-admin/app";
-import { getAuth } from "firebase-admin/auth";
+import { getAdminAuth, SESSION_COOKIE_EXPIRES_IN_MS } from "@/lib/firebase/admin";
 
 export const runtime = "nodejs";
 
-function getFirebaseAdmin() {
-  if (!getApps().length) {
-    const privateKey = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, "\n");
-
-    initializeApp({
-      credential: cert({
-        projectId: process.env.FIREBASE_PROJECT_ID,
-        clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-        privateKey,
-      }),
-    });
-  }
-  return getAuth();
-}
-
-export async function POST(req: Request) {
-  console.log("LOGIN REQUEST RECEIVED");
-  console.log("Firebase Project:", process.env.FIREBASE_PROJECT_ID);
-
+export async function POST(request: Request) {
   try {
-    const body = await req.json();
-    const idToken: string | undefined = body?.idToken;
+    console.log("LOGIN START");
+
+    const { idToken } = (await request.json()) as { idToken?: string };
 
     if (!idToken) {
-      return NextResponse.json({ error: "Missing idToken" }, { status: 400 });
+      return NextResponse.json({ error: "Missing ID token" }, { status: 400 });
     }
 
-    const auth = getFirebaseAdmin();
+    console.log("TOKEN LENGTH:", idToken?.length);
 
-    // Verify client token
-    const decodedToken = await auth.verifyIdToken(idToken);
+    const adminAuth = getAdminAuth();
 
-    // 5 days expressed in both units clearly
-    const SESSION_EXPIRES_MS = 5 * 24 * 60 * 60 * 1000; // milliseconds
-    const COOKIE_MAX_AGE_SEC = 5 * 24 * 60 * 60;       // seconds
+    console.log("VERIFYING TOKEN");
+    const decodedToken = await adminAuth.verifyIdToken(idToken);
 
-    const sessionCookie = await auth.createSessionCookie(idToken, {
-      expiresIn: SESSION_EXPIRES_MS,
-    });
+    console.log("LOGIN DEBUG UID:", decodedToken.uid);
+
+    const expiresIn = SESSION_COOKIE_EXPIRES_IN_MS;
+    const sessionCookie = await adminAuth.createSessionCookie(idToken, { expiresIn });
+
+    console.log("SESSION COOKIE CREATED");
 
     const response = NextResponse.json({
       success: true,
@@ -51,25 +34,24 @@ export async function POST(req: Request) {
 
     response.cookies.set("session", sessionCookie, {
       httpOnly: true,
-      secure: true,
-      path: "/",
+      secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
-      maxAge: COOKIE_MAX_AGE_SEC,
+      path: "/",
+      maxAge: expiresIn / 1000,
     });
 
-    console.log("Session cookie created for:", decodedToken.uid);
-
     return response;
+  } catch (error: unknown) {
+    console.error("LOGIN ERROR:", error);
 
-  } catch (error: any) {
-    console.error("Session creation error:", error);
+    const details = error instanceof Error ? error.message : "Unknown error";
 
     return NextResponse.json(
       {
-        error: "Failed to create server session",
-        details: error?.message ?? "Unknown error",
+        error: "Session creation failed",
+        details,
       },
-      { status: 401 }
+      { status: 500 }
     );
   }
 }

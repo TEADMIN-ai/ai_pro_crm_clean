@@ -87,7 +87,13 @@ export interface ContractorDocument {
 
   extractedAt?: number;
   confidenceScore?: number;
+  extractedData?: Record<string, string | null>;
   extractedFields?: Record<string, string | null>;
+  missingFields?: string[];
+  validationErrors?: string[];
+  analysisTimestamp?: number;
+  extractionMethod?: "pdf-parse" | "ocr";
+  extractedTextLength?: number;
 
   /**
    * Direct file URL used by the dashboard and execution APIs

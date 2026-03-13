@@ -69,11 +69,20 @@ export function resolveTenderLockStatusFromScore(score: number): ContractorCompl
 }
 
 export function resolveContractorDocumentStatus(
-  document: Pick<ContractorDocument, "fileUrl" | "verified" | "validationError" | "expiresAt" | "status">,
+  document: Pick<ContractorDocument, "fileUrl" | "verified" | "verifiedAt" | "validationError" | "expiresAt" | "status">,
   now = Date.now()
 ): ContractorDocumentStatus {
   if (!document.fileUrl) {
     return "missing";
+  }
+
+  if (
+    document.status === "expired" ||
+    document.status === "invalid" ||
+    document.status === "verified" ||
+    document.status === "expiringSoon"
+  ) {
+    return document.status;
   }
 
   if (typeof document.expiresAt === "number" && document.expiresAt <= now) {
@@ -84,21 +93,12 @@ export function resolveContractorDocumentStatus(
     return "expiringSoon";
   }
 
-  if (document.verified === true) {
+  if (document.verified === true || typeof document.verifiedAt === "number") {
     return "verified";
   }
 
   if (document.verified === false && typeof document.validationError === "string" && document.validationError.trim()) {
     return "invalid";
-  }
-
-  if (
-    document.status === "expired" ||
-    document.status === "invalid" ||
-    document.status === "verified" ||
-    document.status === "expiringSoon"
-  ) {
-    return document.status;
   }
 
   return "uploaded";

@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { FieldPath } from "firebase-admin/firestore";
 import { getStorage } from "firebase-admin/storage";
+import { PDFParse } from "pdf-parse";
 
-import { getFirebaseAdmin } from "@/lib/firebase/admin";
 import { analyzeUploadedDocument } from "@/lib/intelligence/documentIntelligenceEngine";
 import {
   DocumentExecutionError,
@@ -13,6 +12,13 @@ import { validateTenderSubmission } from "@/lib/tender/tenderLock";
 import type { DocumentAnalysis } from "@/types/tenderAudit";
 import { GuardianMonitor } from "@/lib/guardian/GuardianMonitor";
 import { AuthorizationError, canAccessContractor, requireAuthorizedUser } from "@/lib/server/authz";
+import {
+  findDocumentSnapshotById,
+  listDealDocumentSnapshots,
+  updateDealReadinessState,
+} from "@/server/services/documentExecutionService";
+import { analyzeTenderDocument } from "@/server/services/tenderAnalysisService";
+import { extractTextOCR } from "@/server/services/ocrService";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -121,15 +127,7 @@ export async function GET(
       );
     }
 
-    const db = getFirebaseAdmin();
-
-    const snap = await db
-      .collectionGroup("documents")
-      .where(FieldPath.documentId(), "==", documentId)
-      .limit(1)
-      .get();
-
-    const docSnap = snap.docs[0];
+    const docSnap = await findDocumentSnapshotById(documentId);
     const exists = Boolean(docSnap?.exists);
 
     if (!exists) {
@@ -203,14 +201,7 @@ export async function POST(
       return jsonError("Missing documentId", 400);
     }
 
-    const db = getFirebaseAdmin();
-    const snap = await db
-      .collectionGroup("documents")
-      .where(FieldPath.documentId(), "==", documentId)
-      .limit(1)
-      .get();
-
-    const targetDoc = snap.docs[0];
+    const targetDoc = await findDocumentSnapshotById(documentId);
     if (!targetDoc?.exists) {
       return jsonError("Document not found", 404);
     }
@@ -227,7 +218,7 @@ export async function POST(
     );
 
     const bucket = getStorage().bucket();
-    const allDocumentSnapshots = await dealRef.collection("documents").get();
+    const allDocumentSnapshots = await listDealDocumentSnapshots(dealRef.id);
 
     const analyses = (
       await Promise.all(
@@ -267,7 +258,7 @@ export async function POST(
     );
     const readinessUpdatedAt = new Date().toISOString();
 
-    await dealRef.update({
+    await updateDealReadinessState(dealRef.id, {
       readinessScore: readiness.readinessScore,
       docsMissing: readiness.docsMissing,
       tenderLockStatus: lock.allowed
@@ -279,10 +270,65 @@ export async function POST(
       readinessUpdatedAt,
     });
 
+    const targetStoragePathSource =
+      asString(targetDocData.storagePath) ??
+      asString(targetDocData.filePath) ??
+      asString(targetDocData.downloadURL) ??
+      asString(targetDocData.downloadUrl) ??
+      asString(targetDocData.url);
+    const targetStoragePath = targetStoragePathSource ? normalizeStoragePath(targetStoragePathSource) : null;
+    const contractorId =
+      asString(targetDocData.contractorId) ??
+      asString(targetDocData.companyId);
+
+    let tenderAnalysis: Awaited<ReturnType<typeof analyzeTenderDocument>> | null = null;
+
+    if (targetStoragePath && contractorId) {
+      try {
+        const [buffer] = await bucket.file(targetStoragePath).download();
+        const parser = new PDFParse({ data: Buffer.from(buffer) });
+        let text = "";
+
+        try {
+          const data = await parser.getText();
+          text = data.text.trim();
+        } finally {
+          await parser.destroy();
+        }
+
+        console.log("----- DOCUMENT DEBUG -----");
+        console.log("Document ID:", documentId);
+        console.log("Extracted text length:", text?.length ?? 0);
+
+        if (text) {
+          console.log("Text preview:", text.slice(0, 500));
+        } else {
+          console.log("No text extracted");
+        }
+        console.log("--------------------------");
+
+        if (!text || text.length < 100) {
+          console.log("FALLBACK: OCR triggered");
+          text = await extractTextOCR(Buffer.from(buffer));
+        }
+
+        tenderAnalysis = await analyzeTenderDocument({
+          contractorId,
+          documentPath: targetStoragePath,
+          documentType: asString(targetDocData.documentType) ?? asString(targetDocData.name) ?? "unknown",
+        });
+        console.log("AI ANALYSIS RESULT");
+        console.log(JSON.stringify(tenderAnalysis, null, 2));
+      } catch (error) {
+        console.warn("Tender analysis skipped after execute:", error);
+      }
+    }
+
     return NextResponse.json(
       {
         success: true,
         analyses,
+        tenderAnalysis,
         readiness: {
           ...readiness,
           tenderLockStatus: resolveTenderLockStatus(

@@ -1,14 +1,17 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { doc, getDoc } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { authFetch } from "@/lib/client/authFetch";
+import { API_ROUTES } from "@/lib/routes";
 
 interface UserDoc {
+  uid: string;
   email: string;
   role: string;
-  companyId: string;
-  createdAt?: any;
+  contractorId?: string;
+  createdAt?: number;
+  status?: string;
+  name?: string;
 }
 
 export default function UserProfileClient({ uid }: { uid: string }) {
@@ -17,28 +20,29 @@ export default function UserProfileClient({ uid }: { uid: string }) {
   const [notFound, setNotFound] = useState(false);
 
   useEffect(() => {
-    
     const fetchUser = async () => {
       try {
-        if (!db) {
-          console.error("Firestore db is undefined");
-          setNotFound(true);
-          return;
-        }
-
         if (!uid) {
-          console.error("UID is empty/undefined");
           setNotFound(true);
           return;
         }
 
-        const snap = await getDoc(doc(db, "users", uid));
-
-        if (!snap.exists()) {
+        const response = await authFetch(API_ROUTES.USER_DETAIL(uid));
+        if (response.status === 404) {
           setNotFound(true);
-        } else {
-          setUser(snap.data() as UserDoc);
+          return;
         }
+        if (!response.ok) {
+          throw new Error(`Failed to fetch user (${response.status})`);
+        }
+
+        const payload = (await response.json()) as { user?: UserDoc };
+        if (!payload.user) {
+          setNotFound(true);
+          return;
+        }
+
+        setUser(payload.user);
       } catch (err) {
         console.error(err);
         setNotFound(true);
@@ -47,10 +51,10 @@ export default function UserProfileClient({ uid }: { uid: string }) {
       }
     };
 
-    fetchUser();
+    void fetchUser();
   }, [uid]);
 
-  if (loading) return <div style={{ padding: 40 }}>Loading user profile…</div>;
+  if (loading) return <div style={{ padding: 40 }}>Loading user profile...</div>;
   if (notFound || !user) return <div style={{ padding: 40 }}>User not found.</div>;
 
   return (
@@ -60,7 +64,7 @@ export default function UserProfileClient({ uid }: { uid: string }) {
         <p><strong>UID:</strong> {uid}</p>
         <p><strong>Email:</strong> {user.email}</p>
         <p><strong>Role:</strong> {user.role}</p>
-        <p><strong>Company:</strong> {user.companyId}</p>
+        <p><strong>Contractor:</strong> {user.contractorId ?? "-"}</p>
       </div>
     </div>
   );

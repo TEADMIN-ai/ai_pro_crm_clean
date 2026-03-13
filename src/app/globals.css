@@ -309,6 +309,93 @@ button:hover {
   border: 1px solid rgba(30, 41, 59, 0.9);
 }
 
+.enterprise-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1100;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(2, 6, 23, 0.72);
+  backdrop-filter: blur(10px);
+}
+
+.enterprise-modal {
+  width: min(100%, 640px);
+  border-radius: 18px;
+  border: 1px solid rgba(0, 240, 255, 0.18);
+  background: linear-gradient(180deg, rgba(11, 18, 32, 0.96), rgba(15, 23, 42, 0.94));
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
+  padding: 20px;
+}
+
+.enterprise-modal-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.enterprise-form-grid {
+  display: grid;
+  gap: 14px;
+}
+
+.enterprise-field {
+  display: grid;
+  gap: 8px;
+}
+
+.enterprise-field span {
+  color: var(--enterprise-text-main);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+}
+
+.enterprise-input {
+  width: 100%;
+  border: 1px solid rgba(71, 85, 105, 0.9);
+  border-radius: 12px;
+  background: rgba(15, 23, 42, 0.9);
+  color: var(--enterprise-text-main);
+  padding: 12px 14px;
+  outline: none;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.enterprise-input:focus {
+  border-color: rgba(0, 240, 255, 0.68);
+  box-shadow: 0 0 0 3px rgba(0, 240, 255, 0.12);
+}
+
+.enterprise-input::placeholder {
+  color: var(--enterprise-text-muted);
+}
+
+.enterprise-form-error {
+  margin: 0;
+  color: #fca5a5;
+}
+
+.enterprise-form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.enterprise-button-secondary {
+  background: rgba(30, 41, 59, 0.9);
+  color: var(--enterprise-text-main);
+  border: 1px solid rgba(71, 85, 105, 0.9);
+}
+
+.enterprise-button-secondary:hover {
+  background: rgba(51, 65, 85, 0.95);
+}
+
 @keyframes tender-risk-pulse {
   0% {
     box-shadow: 0 0 8px rgba(239, 68, 68, 0.35);

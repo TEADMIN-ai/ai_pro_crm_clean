@@ -1,16 +1,53 @@
 "use client";
 
+import type { FormEvent } from "react";
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { API_ROUTES } from "@/lib/constants/routes";
-import { authFetch } from "@/lib/client/authFetch";
+import Badge from "@/components/ui/Badge";
+import Card, { IdentityCardHeader } from "@/components/ui/Card";
+import Table from "@/components/ui/Table";
 import { useAuth } from "@/context/AuthContext";
+import { authFetch } from "@/lib/client/authFetch";
+import { API_ROUTES } from "@/lib/routes";
+
+type ContractorStatus = "pending" | "active" | "inactive";
 
 interface Contractor {
   id: string;
-  companyName?: string;
-  email?: string;
-  [key: string]: any;
+  companyName?: string | null;
+  companyRegistrationNumber?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  status?: string | null;
+}
+
+interface ContractorFormState {
+  companyName: string;
+  companyRegistrationNumber: string;
+  email: string;
+  phone: string;
+  status: ContractorStatus;
+}
+
+const INITIAL_FORM_STATE: ContractorFormState = {
+  companyName: "",
+  companyRegistrationNumber: "",
+  email: "",
+  phone: "",
+  status: "pending",
+};
+
+function resolveBadgeTone(status?: string | null): "warning" | "success" | "neutral" {
+  if (status === "active") {
+    return "success";
+  }
+
+  if (status === "inactive") {
+    return "neutral";
+  }
+
+  return "warning";
 }
 
 export default function ContractorsPage() {
@@ -19,6 +56,31 @@ export default function ContractorsPage() {
   const [contractors, setContractors] = useState<Contractor[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [form, setForm] = useState<ContractorFormState>(INITIAL_FORM_STATE);
+
+  async function loadContractors() {
+    setError(null);
+
+    try {
+      const response = await authFetch(API_ROUTES.CONTRACTORS);
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch contractors (${response.status})`);
+      }
+
+      const payload = (await response.json()) as { contractors?: Contractor[] };
+      setContractors(Array.isArray(payload.contractors) ? payload.contractors : []);
+    } catch (loadError) {
+      console.error("Failed to load contractors:", loadError);
+      setError("Failed to load contractors");
+      setContractors([]);
+    } finally {
+      setLoading(false);
+    }
+  }
 
   useEffect(() => {
     if (authLoading) {
@@ -30,71 +92,208 @@ export default function ContractorsPage() {
       return;
     }
 
-    const fetchContractors = async () => {
-      try {
-        const res = await authFetch(API_ROUTES.CONTRACTORS);
-
-        if (!res.ok) {
-          throw new Error(`HTTP error ${res.status}`);
-        }
-
-        const data = await res.json();
-        if (!data || !Array.isArray(data.contractors)) {
-          setError("Malformed contractor response");
-          setContractors([]);
-          return;
-        }
-
-        setContractors(data.contractors);
-      } catch (err) {
-        console.error("Failed to load contractors:", err);
-        setError("Failed to load contractors");
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    void fetchContractors();
+    void loadContractors();
   }, [authLoading, role, router, user?.contractorId]);
 
-  if (authLoading || loading) {
-    return <div style={{ padding: "2rem" }}>Loading contractors...</div>;
+  function openCreateModal() {
+    setForm(INITIAL_FORM_STATE);
+    setSubmitError(null);
+    setIsCreateModalOpen(true);
   }
 
-  if (error) {
-    return <div style={{ padding: "2rem", color: "red" }}>{error}</div>;
+  function closeCreateModal() {
+    if (isSubmitting) {
+      return;
+    }
+
+    setIsCreateModalOpen(false);
+    setSubmitError(null);
+  }
+
+  async function handleCreateContractor(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setIsSubmitting(true);
+    setSubmitError(null);
+
+    try {
+      const response = await authFetch(API_ROUTES.CONTRACTORS, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(form),
+      });
+
+      const payload = (await response.json()) as { error?: string };
+      if (!response.ok) {
+        throw new Error(payload.error ?? "Failed to create contractor");
+      }
+
+      setIsCreateModalOpen(false);
+      setForm(INITIAL_FORM_STATE);
+      await loadContractors();
+    } catch (submitFailure) {
+      console.error("Create contractor error:", submitFailure);
+      setSubmitError(submitFailure instanceof Error ? submitFailure.message : "Failed to create contractor");
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  if (authLoading || loading) {
+    return <div className="enterprise-page">Loading contractors...</div>;
+  }
+
+  if (role !== "admin" && role !== "manager" && role !== "staff") {
+    return <div className="enterprise-page">Access denied</div>;
   }
 
   return (
-    <div style={{ padding: "2rem" }}>
-      <h1>Contractors</h1>
+    <div className="enterprise-page enterprise-grid">
+      <Card>
+        <IdentityCardHeader title="Contractors" subtitle="Workspace for onboarding, oversight, and compliance readiness">
+          <Badge tone="info">Total {contractors.length}</Badge>
+          <button type="button" onClick={openCreateModal}>
+            Create Contractor
+          </button>
+        </IdentityCardHeader>
+      </Card>
 
-      {contractors.length === 0 ? (
-        <p>No contractors found.</p>
-      ) : (
-        <table
-          style={{
-            width: "100%",
-            marginTop: "1rem",
-            borderCollapse: "collapse",
-          }}
-        >
-          <thead>
-            <tr>
-              <th style={{ textAlign: "left", borderBottom: "1px solid #ccc" }}>Company</th>
-              <th style={{ textAlign: "left", borderBottom: "1px solid #ccc" }}>Email</th>
-            </tr>
-          </thead>
-          <tbody>
-            {contractors.map((contractor) => (
-              <tr key={contractor.id}>
-                <td style={{ padding: "0.5rem 0" }}>{contractor.companyName || "-"}</td>
-                <td style={{ padding: "0.5rem 0" }}>{contractor.email || "-"}</td>
+      <Card>
+        <h2>Contractor Register</h2>
+        <p>Track supplier onboarding and open each contractor workspace from a single operational view.</p>
+        {error ? <p className="enterprise-form-error">{error}</p> : null}
+        {contractors.length === 0 ? (
+          <p>No contractors found.</p>
+        ) : (
+          <Table>
+            <thead>
+              <tr>
+                <th>Company</th>
+                <th>Registration Number</th>
+                <th>Contact Email</th>
+                <th>Contact Phone</th>
+                <th>Status</th>
+                <th>Workspace</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
+            </thead>
+            <tbody>
+              {contractors.map((contractor) => (
+                <tr key={contractor.id}>
+                  <td>{contractor.companyName ?? "-"}</td>
+                  <td>{contractor.companyRegistrationNumber ?? "-"}</td>
+                  <td>{contractor.email ?? "-"}</td>
+                  <td>{contractor.phone ?? "-"}</td>
+                  <td>
+                    <Badge tone={resolveBadgeTone(contractor.status)}>
+                      {contractor.status ?? "pending"}
+                    </Badge>
+                  </td>
+                  <td>
+                    <Link href={`/dashboard/contractors/${encodeURIComponent(contractor.id)}`}>
+                      Open workspace
+                    </Link>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </Table>
+        )}
+      </Card>
+
+      {isCreateModalOpen ? (
+        <div
+          className="enterprise-modal-backdrop"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="create-contractor-title"
+          onClick={closeCreateModal}
+        >
+          <div className="enterprise-modal" onClick={(event) => event.stopPropagation()}>
+            <div className="enterprise-modal-header">
+              <div>
+                <h2 id="create-contractor-title">Create Contractor</h2>
+                <p>Add a contractor record to the CRM and initialize compliance tracking.</p>
+              </div>
+              <button type="button" className="enterprise-button-secondary" onClick={closeCreateModal}>
+                Close
+              </button>
+            </div>
+
+            <form className="enterprise-form-grid" onSubmit={handleCreateContractor}>
+              <label className="enterprise-field">
+                <span>Company name</span>
+                <input
+                  className="enterprise-input"
+                  value={form.companyName}
+                  onChange={(event) => setForm((current) => ({ ...current, companyName: event.target.value }))}
+                  required
+                />
+              </label>
+
+              <label className="enterprise-field">
+                <span>Registration number</span>
+                <input
+                  className="enterprise-input"
+                  value={form.companyRegistrationNumber}
+                  onChange={(event) =>
+                    setForm((current) => ({ ...current, companyRegistrationNumber: event.target.value }))
+                  }
+                  required
+                />
+              </label>
+
+              <label className="enterprise-field">
+                <span>Contact email</span>
+                <input
+                  className="enterprise-input"
+                  type="email"
+                  value={form.email}
+                  onChange={(event) => setForm((current) => ({ ...current, email: event.target.value }))}
+                  required
+                />
+              </label>
+
+              <label className="enterprise-field">
+                <span>Contact phone</span>
+                <input
+                  className="enterprise-input"
+                  type="tel"
+                  value={form.phone}
+                  onChange={(event) => setForm((current) => ({ ...current, phone: event.target.value }))}
+                  required
+                />
+              </label>
+
+              <label className="enterprise-field">
+                <span>Status</span>
+                <select
+                  className="enterprise-input"
+                  value={form.status}
+                  onChange={(event) =>
+                    setForm((current) => ({ ...current, status: event.target.value as ContractorStatus }))
+                  }
+                >
+                  <option value="pending">Pending</option>
+                  <option value="active">Active</option>
+                  <option value="inactive">Inactive</option>
+                </select>
+              </label>
+
+              {submitError ? <p className="enterprise-form-error">{submitError}</p> : null}
+
+              <div className="enterprise-form-actions">
+                <button type="button" className="enterprise-button-secondary" onClick={closeCreateModal}>
+                  Cancel
+                </button>
+                <button type="submit" disabled={isSubmitting}>
+                  {isSubmitting ? "Creating..." : "Create Contractor"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -1,3 +1,4 @@
+import "server-only";
 import { cert, getApp, getApps, initializeApp, type App } from "firebase-admin/app";
 import { getAuth, type Auth } from "firebase-admin/auth";
 import { getFirestore, type Firestore } from "firebase-admin/firestore";
@@ -11,6 +12,8 @@ interface FirebaseAdminServices {
   auth: Auth;
   db: Firestore;
 }
+
+export const SESSION_COOKIE_EXPIRES_IN_MS = 5 * 24 * 60 * 60 * 1000;
 
 let cachedServices: FirebaseAdminServices | null = null;
 let bootLogEmitted = false;

@@ -1,10 +1,9 @@
 "use client";
 
 import { onAuthStateChanged, signOut, User as FirebaseUser } from "firebase/auth";
-import { doc, getDoc } from "firebase/firestore";
 import { createContext, useContext, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { auth, db } from "@/lib/firebase";
+import { auth } from "@/lib/firebase";
 import type { UserRole } from "@/lib/auth/roleUtils";
 import {
   normalizeContractorId,
@@ -27,26 +26,6 @@ const AuthContext = createContext<AuthContextType>({
   loading: true,
   logout: async () => {},
 });
-
-async function getUserProfileFromFirestore(uid: string): Promise<UserProfile | null> {
-  try {
-    const snap = await getDoc(doc(db, "users", uid));
-    if (!snap.exists()) return null;
-
-    const data = snap.data() as Record<string, unknown>;
-    return {
-      name: typeof data.name === "string" ? data.name : undefined,
-      email: typeof data.email === "string" ? data.email : undefined,
-      role: normalizeRole(data.role),
-      status: typeof data.status === "string" ? data.status : undefined,
-      contractorId: normalizeContractorId(data.contractorId),
-      createdAt: data.createdAt,
-    };
-  } catch (error) {
-    console.error("Failed to read Firestore user fallback:", error);
-    return null;
-  }
-}
 
 function mergeFirebaseUser(firebaseUser: FirebaseUser, profile: UserProfile): AuthUser {
   const merged = firebaseUser as AuthUser;
@@ -89,6 +68,44 @@ async function clearServerSession(): Promise<void> {
     method: "POST",
     credentials: "include",
   });
+}
+
+async function fetchBootstrapProfile(token: string): Promise<UserProfile | null> {
+  const response = await fetch(API_ROUTES.AUTH_BOOTSTRAP, {
+    method: "GET",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+    credentials: "include",
+  });
+
+  if (!response.ok) {
+    return null;
+  }
+
+  const payload = (await response.json()) as {
+    user?: {
+      name?: string;
+      email?: string;
+      role?: unknown;
+      status?: string;
+      contractorId?: unknown;
+      createdAt?: unknown;
+    } | null;
+  };
+
+  if (!payload.user) {
+    return null;
+  }
+
+  return {
+    name: payload.user.name,
+    email: payload.user.email,
+    role: normalizeRole(payload.user.role),
+    status: payload.user.status,
+    contractorId: normalizeContractorId(payload.user.contractorId),
+    createdAt: payload.user.createdAt,
+  };
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -136,15 +153,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         await syncServerSession(refreshedToken);
 
         const tokenResult = await firebaseUser.getIdTokenResult();
-        const firestoreProfile = await getUserProfileFromFirestore(firebaseUser.uid);
+        const bootstrapProfile = await fetchBootstrapProfile(refreshedToken);
         const profile = sanitizeProfile({
-          name: firestoreProfile?.name ?? firebaseUser.displayName ?? undefined,
-          email: firestoreProfile?.email ?? firebaseUser.email ?? undefined,
-          role: firestoreProfile?.role ?? normalizeRole(tokenResult.claims.role),
-          status: firestoreProfile?.status,
+          name: bootstrapProfile?.name ?? firebaseUser.displayName ?? undefined,
+          email: bootstrapProfile?.email ?? firebaseUser.email ?? undefined,
+          role: bootstrapProfile?.role ?? normalizeRole(tokenResult.claims.role),
+          status: bootstrapProfile?.status,
           contractorId:
-            firestoreProfile?.contractorId ?? normalizeContractorId(tokenResult.claims.contractorId),
-          createdAt: firestoreProfile?.createdAt,
+            bootstrapProfile?.contractorId ?? normalizeContractorId(tokenResult.claims.contractorId),
+          createdAt: bootstrapProfile?.createdAt,
         });
 
         if (!isActive) {

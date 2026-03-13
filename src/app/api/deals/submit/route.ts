@@ -6,6 +6,7 @@ import { makeDealAuditEvent } from "@/lib/deals/recordDealAudit";
 import { validateTenderSubmission } from "@/lib/tender/tenderLock";
 import { recalculateContractorCompliance } from "@/lib/server/recalculateContractorCompliance";
 import { AuthorizationError, assertCanAccessContractor, requireAuthorizedUser } from "@/lib/server/authz";
+import { submitDealTender } from "@/server/services/dealService";
 
 function getNumber(value: unknown): number {
   return typeof value === "number" && Number.isFinite(value) ? value : 0;
@@ -95,17 +96,12 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    await dealRef.update({
-      stage: "submitted",
-      status: "submitted",
-      isTenderLocked: true,
-      readinessScore: score,
+    await submitDealTender({
+      dealId,
+      score,
       docsMissing,
       tenderLockStatus,
-      submittedAt: new Date(),
-      tenderSubmittedAt: new Date(),
-      tenderSubmittedBy: user.uid,
-      updatedAt: new Date(),
+      userUid: user.uid,
     });
 
     return NextResponse.json({

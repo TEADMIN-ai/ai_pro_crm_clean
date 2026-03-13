@@ -1,14 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { collection, getDocs } from "firebase/firestore";
 import Link from "next/link";
-import { db } from "@/lib/firebase";
 import type { AppUser } from "@/types/user";
 import Card, { IdentityCardHeader } from "@/components/ui/Card";
 import Badge from "@/components/ui/Badge";
 import Table from "@/components/ui/Table";
 import { useAuth } from "@/context/AuthContext";
+import { authFetch } from "@/lib/client/authFetch";
+import { API_ROUTES } from "@/lib/routes";
 
 export default function UsersPage() {
   const { role, loading: authLoading } = useAuth();
@@ -18,9 +18,13 @@ export default function UsersPage() {
   useEffect(() => {
     async function fetchUsers() {
       try {
-        const snapshot = await getDocs(collection(db, "users"));
-        const data: AppUser[] = snapshot.docs.map((doc: any) => doc.data() as AppUser);
-        setUsers(data);
+        const response = await authFetch(API_ROUTES.USERS);
+        if (!response.ok) {
+          throw new Error(`Failed to fetch users (${response.status})`);
+        }
+
+        const payload = (await response.json()) as { users?: AppUser[] };
+        setUsers(Array.isArray(payload.users) ? payload.users : []);
       } catch (err) {
         console.error("Error fetching users:", err);
       } finally {
@@ -28,7 +32,7 @@ export default function UsersPage() {
       }
     }
 
-    fetchUsers();
+    void fetchUsers();
   }, []);
 
   if (authLoading || loading) {

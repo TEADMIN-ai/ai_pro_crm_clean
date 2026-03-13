@@ -2,23 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import {
-  collection,
-  deleteDoc,
-  doc,
-  getDoc,
-  onSnapshot,
-  orderBy,
-  query,
-  setDoc,
-  serverTimestamp,
-  updateDoc,
-} from "firebase/firestore";
-import { deleteObject, ref } from "firebase/storage";
 import { useAuth } from "@/context/AuthContext";
-import { db, storage } from "@/lib/firebase/index";
 import { canDelete, canReview, canUpload } from "@/lib/auth/roleUtils";
-import type { DocumentRecord } from "@/lib/firebase/storage/uploadDealDocuments";
 import TenderReadinessPanel from "@/components/deals/TenderReadinessPanel";
 import TenderProjectionPanel from "@/components/intelligence/TenderProjectionPanel";
 import TenderRiskPanel from "@/components/intelligence/TenderRiskPanel";
@@ -27,9 +12,7 @@ import {
   projectTenderImprovement,
   type TenderCategoryScores,
 } from "@/lib/intelligence/tenderImprovementEngine";
-import {
-  calculateWinProbabilityIndex,
-} from "@/lib/intelligence/winProbabilityIndex";
+import { calculateWinProbabilityIndex } from "@/lib/intelligence/winProbabilityIndex";
 import WinProbabilityPanel from "@/components/intelligence/WinProbabilityPanel";
 import {
   tenderTrajectory,
@@ -38,20 +21,26 @@ import {
 import TenderTrajectoryPanel from "@/components/intelligence/TenderTrajectoryPanel";
 import ImpactAttributionPanel from "@/components/intelligence/ImpactAttributionPanel";
 import { calculateImpactAttribution } from "@/lib/intelligence/impactAttribution";
-import {
-  type DocumentIntelligenceResult,
-} from "@/lib/intelligence/documentIntelligenceEngine";
+import { type DocumentIntelligenceResult } from "@/lib/intelligence/documentIntelligenceEngine";
 import { generateAutoFillPreview } from "@/lib/pdf/autoFillPreviewEngine";
 import DocumentIntelligence from "@/components/deals/DocumentIntelligence";
 import { evaluateTenderReadiness } from "@/lib/tender/evaluateTenderReadiness";
 import { API_ROUTES } from "@/lib/routes";
 import type { DocumentAnalysis } from "@/types/tenderAudit";
+import { authFetch } from "@/lib/client/authFetch";
 
-type DealDocument = Omit<DocumentRecord, "uploadedAt" | "updatedAt" | "expiryDate" | "reviewedAt"> & {
-  uploadedAt?: { toDate?: () => Date };
-  updatedAt?: { toDate?: () => Date };
-  expiryDate?: { toDate?: () => Date };
-  reviewedAt?: { toDate?: () => Date };
+type DealDocument = {
+  id: string;
+  dealId: string;
+  name: string;
+  status: "pending" | "approved" | "rejected";
+  size?: number;
+  storagePath?: string;
+  downloadURL?: string;
+  uploadedByUid?: string;
+  uploadedAt?: string;
+  updatedAt?: string;
+  reviewedAt?: string;
 };
 
 export default function DealDetailsClient({ dealId }: { dealId: string }) {
@@ -77,89 +66,53 @@ export default function DealDetailsClient({ dealId }: { dealId: string }) {
   useEffect(() => {
     if (!resolvedDealId) return;
 
-    const dealRef = doc(db, "deals", resolvedDealId);
-    const unsubscribe = onSnapshot(
-      dealRef,
-      (snapshot) => {
-        const data = snapshot.data() as { readinessUpdatedAt?: unknown } | undefined;
-        if (typeof data?.readinessUpdatedAt === "string" && data.readinessUpdatedAt.trim()) {
-          setReadinessUpdatedAt(data.readinessUpdatedAt);
-          return;
-        }
-        setReadinessUpdatedAt(undefined);
-      },
-      (error) => {
-        console.warn("Deal readiness subscription skipped:", error);
-      }
-    );
+    let active = true;
 
-    return () => unsubscribe();
-  }, [resolvedDealId]);
-
-  useEffect(() => {
-    if (!resolvedDealId) return;
-
-    const q = query(
-      collection(db, "deals", resolvedDealId, "documents"),
-      orderBy("uploadedAt", "desc")
-    );
-    const unsubscribe = onSnapshot(
-      q,
-      (snapshot) => {
-        const docs = snapshot.docs.map((snapshotDoc) => {
-          const data = snapshotDoc.data() as Omit<DealDocument, "id">;
-          return {
-            id: snapshotDoc.id,
-            ...data,
-          };
-        });
-
-        setDocuments(docs);
-        setIsLoadingDocs(false);
-      },
-      (error) => {
-        console.error("Failed to subscribe documents:", error);
-        setIsLoadingDocs(false);
-      }
-    );
-
-    return () => unsubscribe();
-  }, [resolvedDealId]);
-
-  useEffect(() => {
-    if (!resolvedDealId) return;
-
-    async function loadPreviousWpi() {
+    async function loadDealState() {
       try {
-        const historyDocRef = doc(db, "deals", resolvedDealId, "analytics", "wpiHistory");
-        const snapshot = await getDoc(historyDocRef);
-        if (!snapshot.exists()) {
-          setPreviousWpi(null);
-          return;
+        const [dealResponse, documentsResponse] = await Promise.all([
+          authFetch(API_ROUTES.DEAL_DETAIL(resolvedDealId)),
+          authFetch(API_ROUTES.DEAL_DOCUMENTS(resolvedDealId)),
+        ]);
+
+        if (dealResponse.ok) {
+          const dealPayload = (await dealResponse.json()) as {
+            analytics?: {
+              readinessUpdatedAt?: string;
+              previousWpi?: WpiHistoryPoint | null;
+            };
+          };
+
+          if (active) {
+            setReadinessUpdatedAt(dealPayload.analytics?.readinessUpdatedAt);
+            setPreviousWpi(dealPayload.analytics?.previousWpi ?? null);
+          }
         }
 
-        const data = snapshot.data() as {
-          probability?: number;
-          riskScore?: number;
-          timestamp?: number;
-        };
-
-        if (typeof data.probability === "number" && typeof data.riskScore === "number") {
-          setPreviousWpi({
-            probability: data.probability,
-            riskScore: data.riskScore,
-            timestamp: typeof data.timestamp === "number" ? data.timestamp : undefined,
-          });
-        } else {
-          setPreviousWpi(null);
+        if (documentsResponse.ok) {
+          const payload = (await documentsResponse.json()) as { documents?: DealDocument[] };
+          if (active) {
+            setDocuments(Array.isArray(payload.documents) ? payload.documents : []);
+          }
         }
       } catch (error) {
-        console.warn("WPI history load skipped:", error);
-        setPreviousWpi(null);
+        console.error("Failed to load deal details:", error);
+      } finally {
+        if (active) {
+          setIsLoadingDocs(false);
+        }
       }
     }
 
-    void loadPreviousWpi();
+    void loadDealState();
+    const interval = window.setInterval(() => {
+      void loadDealState();
+    }, 15000);
+
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+    };
   }, [resolvedDealId]);
 
   const handleStatusUpdate = async (documentId: string, newStatus: "approved" | "rejected") => {
@@ -167,14 +120,27 @@ export default function DealDetailsClient({ dealId }: { dealId: string }) {
 
     setBusyDocumentId(documentId);
     try {
-      await updateDoc(doc(db, "deals", resolvedDealId, "documents", documentId), {
-        status: newStatus,
-        reviewedByUid: user.uid,
-        reviewedByRole: role,
-        reviewedAt: serverTimestamp(),
-        rejectionReason: newStatus === "rejected" ? "Rejected by reviewer" : "",
-        updatedAt: serverTimestamp(),
+      const response = await authFetch(API_ROUTES.DEAL_DOCUMENTS(resolvedDealId), {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          documentId,
+          status: newStatus,
+        }),
       });
+
+      if (!response.ok) {
+        throw new Error(`Status update failed with status ${response.status}`);
+      }
+
+      const payload = (await response.json()) as { document?: DealDocument };
+      if (payload.document) {
+        setDocuments((current) =>
+          current.map((item) => (item.id === payload.document?.id ? payload.document : item)),
+        );
+      }
     } catch (error) {
       console.error("Status update failed:", error);
     } finally {
@@ -187,11 +153,18 @@ export default function DealDetailsClient({ dealId }: { dealId: string }) {
 
     setBusyDocumentId(docItem.id);
     try {
-      if (docItem.storagePath) {
-        await deleteObject(ref(storage, docItem.storagePath));
+      const response = await authFetch(
+        `${API_ROUTES.DEAL_DOCUMENTS(resolvedDealId)}?documentId=${encodeURIComponent(docItem.id)}`,
+        {
+          method: "DELETE",
+        },
+      );
+
+      if (!response.ok) {
+        throw new Error(`Delete failed with status ${response.status}`);
       }
 
-      await deleteDoc(doc(db, "deals", resolvedDealId, "documents", docItem.id));
+      setDocuments((current) => current.filter((item) => item.id !== docItem.id));
     } catch (error) {
       console.error("Delete failed:", error);
     } finally {
@@ -227,33 +200,21 @@ export default function DealDetailsClient({ dealId }: { dealId: string }) {
     if (totalWeight <= 0) return 0;
     const weightedTotal = entries.reduce(
       (sum, category) => sum + category.score * category.weight,
-      0
+      0,
     );
     return Math.round((weightedTotal / totalWeight) * 10) / 10;
   }, [categoryScores]);
 
-  const projectionResult = useMemo(() => {
-    return projectTenderImprovement(categoryScores as TenderCategoryScores);
-  }, [categoryScores]);
+  const projectionResult = useMemo(
+    () => projectTenderImprovement(categoryScores as TenderCategoryScores),
+    [categoryScores],
+  );
 
   const deadlineAndDocs = useMemo(() => {
     const missingDocuments = documents.filter((item) => item.status !== "approved").length;
-    const datedDocuments = documents
-      .map((item) => item.expiryDate?.toDate?.())
-      .filter((value): value is Date => value instanceof Date);
-
-    const earliestDeadline = datedDocuments.length
-      ? Math.min(...datedDocuments.map((value) => value.getTime()))
-      : Number.POSITIVE_INFINITY;
-
-    const daysUntilDeadline =
-      earliestDeadline === Number.POSITIVE_INFINITY
-        ? 999
-        : Math.ceil((earliestDeadline - Date.now()) / (1000 * 60 * 60 * 24));
-
     return {
       missingDocuments,
-      daysUntilDeadline,
+      daysUntilDeadline: 999,
     };
   }, [documents]);
 
@@ -275,9 +236,7 @@ export default function DealDetailsClient({ dealId }: { dealId: string }) {
     });
   }, [overallScore, riskRadar.riskScore, projectionResult.improvementDelta, deadlineAndDocs]);
 
-  const trajectory = useMemo(() => {
-    return tenderTrajectory(winProbability, previousWpi);
-  }, [winProbability, previousWpi]);
+  const trajectory = useMemo(() => tenderTrajectory(winProbability, previousWpi), [winProbability, previousWpi]);
 
   const trajectoryPoints = useMemo(() => {
     const points: { probability: number; timestamp?: number }[] = [];
@@ -297,27 +256,21 @@ export default function DealDetailsClient({ dealId }: { dealId: string }) {
   const impactAttribution = useMemo(() => {
     if (!previousWpi) return null;
 
-    const previousSnapshot = {
-      probability: previousWpi.probability,
-      riskScore: previousWpi.riskScore,
-      // Historical values are not persisted in current minimal history schema.
-      // Reuse current baselines to avoid invented deltas.
-      missingDocuments: deadlineAndDocs.missingDocuments,
-      overallScore,
-      daysUntilDeadline: deadlineAndDocs.daysUntilDeadline,
-    };
-
-    const currentSnapshot = {
-      probability: winProbability.probability,
-      riskScore: riskRadar.riskScore,
-      missingDocuments: deadlineAndDocs.missingDocuments,
-      overallScore,
-      daysUntilDeadline: deadlineAndDocs.daysUntilDeadline,
-    };
-
     return calculateImpactAttribution({
-      previousSnapshot,
-      currentSnapshot,
+      previousSnapshot: {
+        probability: previousWpi.probability,
+        riskScore: previousWpi.riskScore,
+        missingDocuments: deadlineAndDocs.missingDocuments,
+        overallScore,
+        daysUntilDeadline: deadlineAndDocs.daysUntilDeadline,
+      },
+      currentSnapshot: {
+        probability: winProbability.probability,
+        riskScore: riskRadar.riskScore,
+        missingDocuments: deadlineAndDocs.missingDocuments,
+        overallScore,
+        daysUntilDeadline: deadlineAndDocs.daysUntilDeadline,
+      },
     });
   }, [
     previousWpi,
@@ -331,24 +284,18 @@ export default function DealDetailsClient({ dealId }: { dealId: string }) {
   useEffect(() => {
     if (!resolvedDealId) return;
 
-    async function persistWpiHistory() {
-      try {
-        const historyDocRef = doc(db, "deals", resolvedDealId, "analytics", "wpiHistory");
-        await setDoc(
-          historyDocRef,
-          {
-            timestamp: Date.now(),
-            probability: winProbability.probability,
-            riskScore: riskRadar.riskScore,
-          },
-          { merge: true }
-        );
-      } catch (error) {
-        console.warn("WPI history persistence skipped:", error);
-      }
-    }
-
-    void persistWpiHistory();
+    void authFetch(API_ROUTES.DEAL_ANALYTICS(resolvedDealId), {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        winProbability: winProbability.probability,
+        riskScore: riskRadar.riskScore,
+      }),
+    }).catch((error) => {
+      console.warn("WPI history persistence skipped:", error);
+    });
   }, [resolvedDealId, winProbability.probability, riskRadar.riskScore]);
 
   const analyzedDocumentCandidates = useMemo(() => {
@@ -394,14 +341,8 @@ export default function DealDetailsClient({ dealId }: { dealId: string }) {
 
     async function analyzeDocuments() {
       try {
-        if (!user) return;
-
-        const token = await user.getIdToken();
-        const response = await fetch(API_ROUTES.DOCUMENT_EXECUTE(analyzedDocumentCandidates[0].id), {
+        const response = await authFetch(API_ROUTES.DOCUMENT_EXECUTE(analyzedDocumentCandidates[0].id), {
           method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
         });
 
         if (!response.ok) {
@@ -440,7 +381,7 @@ export default function DealDetailsClient({ dealId }: { dealId: string }) {
             analyses.length > 0
               ? Math.round(
                   analyses.reduce((sum, analysis) => sum + (analysis.confidence ?? 0), 0) /
-                    analyses.length
+                    analyses.length,
                 )
               : 0,
         };
@@ -458,12 +399,12 @@ export default function DealDetailsClient({ dealId }: { dealId: string }) {
     return () => {
       cancelled = true;
     };
-  }, [analyzedDocumentCandidates, user]);
+  }, [analyzedDocumentCandidates]);
 
   const autoFillPreview = useMemo(() => {
     return generateAutoFillPreview(
       documentIntelligence?.extractedFields ?? { expiryDates: [], registrationNumbers: [] },
-      "SBD1_SBD4"
+      "SBD1_SBD4",
     );
   }, [documentIntelligence]);
 
@@ -479,28 +420,23 @@ export default function DealDetailsClient({ dealId }: { dealId: string }) {
     () => ({
       documentAnalysis: documentIntelligence,
     }),
-    [documentIntelligence]
+    [documentIntelligence],
   );
 
   useEffect(() => {
     if (!resolvedDealId || !documentIntelligence) return;
 
-    async function persistDocumentIntelligence() {
-      try {
-        const intelligenceDocRef = doc(
-          db,
-          "deals",
-          resolvedDealId,
-          "analytics",
-          "documentIntelligence"
-        );
-        await setDoc(intelligenceDocRef, documentIntelligencePayload, { merge: true });
-      } catch (error) {
-        console.warn("Document intelligence persistence skipped:", error);
-      }
-    }
-
-    void persistDocumentIntelligence();
+    void authFetch(API_ROUTES.DEAL_ANALYTICS(resolvedDealId), {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        documentIntelligence: documentIntelligencePayload,
+      }),
+    }).catch((error) => {
+      console.warn("Document intelligence persistence skipped:", error);
+    });
   }, [resolvedDealId, documentIntelligence, documentIntelligencePayload]);
 
   const isPageLoading = loading || isLoadingDocs;
@@ -584,7 +520,7 @@ export default function DealDetailsClient({ dealId }: { dealId: string }) {
                 <tr key={docItem.id}>
                   <td>{docItem.name}</td>
                   <td>{docItem.status ?? "pending"}</td>
-                  <td>{docItem.uploadedAt?.toDate?.() ? docItem.uploadedAt.toDate().toLocaleString() : "-"}</td>
+                  <td>{docItem.uploadedAt ? new Date(docItem.uploadedAt).toLocaleString() : "-"}</td>
                   <td>
                     <button
                       onClick={() => window.open(docItem.downloadURL, "_blank", "noopener,noreferrer")}

@@ -14,6 +14,10 @@ function toMillis(value: unknown): number | undefined {
   return undefined;
 }
 
+function hasTimestamp(value: unknown): boolean {
+  return typeof toMillis(value) === "number";
+}
+
 function normalizeContractorDocument(id: string, source: Record<string, unknown>): ContractorDocument {
   const document: ContractorDocument = {
     id,
@@ -47,16 +51,23 @@ function normalizeContractorDocument(id: string, source: Record<string, unknown>
         : typeof source.documentName === "string"
           ? source.documentName
           : undefined,
-    verified: source.verified === true,
+    verified: source.verified === true || hasTimestamp(source.verifiedAt),
+    verifiedAt: toMillis(source.verifiedAt),
     validationError: typeof source.validationError === "string" ? source.validationError : undefined,
     uploadedAt: toMillis(source.uploadedAt),
     updatedAt: toMillis(source.updatedAt),
     extractedAt: toMillis(source.extractedAt),
     expiresAt: typeof source.expiresAt === "number" ? source.expiresAt : toMillis(source.expiresAt),
     confidenceScore: typeof source.confidenceScore === "number" ? source.confidenceScore : undefined,
+    extractedData:
+      source.extractedData && typeof source.extractedData === "object"
+        ? (source.extractedData as Record<string, string | null>)
+        : undefined,
     extractedFields:
       source.extractedFields && typeof source.extractedFields === "object"
         ? (source.extractedFields as Record<string, string | null>)
+        : source.extractedData && typeof source.extractedData === "object"
+          ? (source.extractedData as Record<string, string | null>)
         : undefined,
     status: typeof source.status === "string" ? source.status : undefined,
   };

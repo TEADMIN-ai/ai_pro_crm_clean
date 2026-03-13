@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getFirebaseAdmin } from "@/lib/firebase/admin";
 import { normalizeDocsMissingCount } from "@/lib/compliance/contractorCompliance";
-import { normalizeDeal, resolveTenderLockStatus } from "@/lib/deals/normalizeDeal";
+import { resolveTenderLockStatus } from "@/lib/deals/normalizeDeal";
 import { AuthorizationError, assertCanAccessContractor, assertOperationalRole, isPrivilegedRole, requireAuthorizedUser } from "@/lib/server/authz";
 import { GuardianMonitor } from "@/lib/guardian/GuardianMonitor";
+import { listDealsForUser } from "@/server/services/dealService";
+import { getFirebaseAdmin } from "@/lib/firebase/admin";
 
 function getString(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
@@ -46,17 +47,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "unauthorized" }, { status: 403 });
     }
 
-    const db = getFirebaseAdmin();
-    const dealsQuery =
-      user.role === "contractor"
-        ? db.collection("deals").where("contractorId", "==", user.contractorId)
-        : db.collection("deals");
-
-    const snapshot = await dealsQuery.get();
-    const deals = snapshot.docs
-      .map((doc) => normalizeDeal(doc.id, doc.data() as Record<string, unknown>))
-      .filter((deal) => isPrivilegedRole(user.role) || deal.contractorId === user.contractorId)
-      .sort((a, b) => Number(b.createdAt ?? 0) - Number(a.createdAt ?? 0));
+    const deals = await listDealsForUser(user);
 
     return NextResponse.json({ deals }, { status: 200 });
   } catch (error) {
