@@ -1,8 +1,12 @@
 import { getFirebaseAdmin } from "@/lib/firebase/admin";
-import { getDocumentById } from "@/server/services/dealService";
 
-export async function findDocumentSnapshotById(documentId: string) {
-  return getDocumentById(documentId);
+export async function getContractorDocumentSnapshot(contractorId: string, documentType: string) {
+  return getFirebaseAdmin()
+    .collection("contractors")
+    .doc(contractorId)
+    .collection("documents")
+    .doc(documentType)
+    .get();
 }
 
 export async function listDealDocumentSnapshots(dealId: string) {

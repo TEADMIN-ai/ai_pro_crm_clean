@@ -6,7 +6,6 @@ import { useParams } from "next/navigation";
 import Card from "@/components/ui/Card";
 import { useAuth } from "@/context/AuthContext";
 import { getContractorDocuments } from "@/lib/contractors/getContractorDocuments";
-import { API_ROUTES } from "@/lib/routes";
 import type { ContractorDocument } from "@/types/document";
 
 type ExecutionPayload = {
@@ -29,6 +28,14 @@ function isPreviewableDocument(document: ContractorDocument): boolean {
 
   const extension = name.slice(dot + 1);
   return PREVIEWABLE_EXTENSIONS.has(extension);
+}
+
+function getExecutionDocumentId(document: ContractorDocument): string {
+  return document.id;
+}
+
+function getExecutionDocumentType(document: ContractorDocument): string {
+  return document.documentType ?? document.docType ?? document.id;
 }
 
 export default function DocumentExecutionPanel() {
@@ -67,13 +74,26 @@ export default function DocumentExecutionPanel() {
     [documents]
   );
 
-  async function fetchExecution(documentId: string): Promise<ExecutionPayload> {
+  async function fetchExecution(document: ContractorDocument): Promise<ExecutionPayload> {
     if (!user) {
       throw new Error("User not authenticated");
     }
 
+    const documentId = getExecutionDocumentId(document);
+    const documentType = getExecutionDocumentType(document);
+    const targetContractorId = document.contractorId || contractorId;
+
+    if (!targetContractorId) {
+      throw new Error("Missing contractorId for document execution");
+    }
+
+    console.log("Executing document analysis for ID:", documentId);
     const token = await user.getIdToken(true);
-    const response = await fetch(API_ROUTES.DOCUMENT_EXECUTE(documentId), {
+    const query = new URLSearchParams({
+      contractorId: targetContractorId,
+      documentType,
+    });
+    const response = await fetch(`/api/documents/${documentId}/execute?${query.toString()}`, {
       method: "GET",
       headers: {
         Authorization: `Bearer ${token}`,
@@ -95,10 +115,11 @@ export default function DocumentExecutionPanel() {
     return payload;
   }
 
-  async function handleOpen(documentId: string) {
+  async function handleOpen(document: ContractorDocument) {
+    const documentId = getExecutionDocumentId(document);
     try {
       setBusyId(documentId);
-      const payload = await fetchExecution(documentId);
+      const payload = await fetchExecution(document);
       window.open(payload.url, "_blank");
     } catch (openError) {
       console.error(openError);
@@ -108,10 +129,11 @@ export default function DocumentExecutionPanel() {
     }
   }
 
-  async function handlePreview(documentId: string) {
+  async function handlePreview(document: ContractorDocument) {
+    const documentId = getExecutionDocumentId(document);
     try {
       setBusyId(documentId);
-      const payload = await fetchExecution(documentId);
+      const payload = await fetchExecution(document);
       window.open(payload.url, "_blank");
     } catch (previewError) {
       console.error(previewError);
@@ -121,10 +143,11 @@ export default function DocumentExecutionPanel() {
     }
   }
 
-  async function handleDownload(documentId: string) {
+  async function handleDownload(document: ContractorDocument) {
+    const documentId = getExecutionDocumentId(document);
     try {
       setBusyId(documentId);
-      const payload = await fetchExecution(documentId);
+      const payload = await fetchExecution(document);
       window.open(payload.url, "_blank");
     } catch (downloadError) {
       console.error(downloadError);
@@ -145,34 +168,39 @@ export default function DocumentExecutionPanel() {
 
       {!loading && sortedDocuments.length > 0 && (
         <div>
-          {sortedDocuments.map((doc) => (
-            <div
-              key={doc.id}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                gap: "12px",
-                padding: "8px 0",
-                borderBottom: "1px solid rgba(255,255,255,0.1)",
-              }}
-            >
-              <span>{getDisplayName(doc)}</span>
-              <div style={{ display: "flex", gap: "8px" }}>
-                <button disabled={busyId === doc.id} onClick={() => handleOpen(doc.id)}>
-                  Open
-                </button>
-                {isPreviewableDocument(doc) && (
-                  <button disabled={busyId === doc.id} onClick={() => handlePreview(doc.id)}>
-                    Preview
+          {sortedDocuments.map((doc) => {
+            const documentId = getExecutionDocumentId(doc);
+            const documentType = getExecutionDocumentType(doc);
+
+            return (
+              <div
+                key={documentId}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: "12px",
+                  padding: "8px 0",
+                  borderBottom: "1px solid rgba(255,255,255,0.1)",
+                }}
+              >
+                <span title={documentType}>{getDisplayName(doc)}</span>
+                <div style={{ display: "flex", gap: "8px" }}>
+                  <button disabled={busyId === documentId} onClick={() => handleOpen(doc)}>
+                    Open
                   </button>
-                )}
-                <button disabled={busyId === doc.id} onClick={() => handleDownload(doc.id)}>
-                  Download
-                </button>
+                  {isPreviewableDocument(doc) && (
+                    <button disabled={busyId === documentId} onClick={() => handlePreview(doc)}>
+                      Preview
+                    </button>
+                  )}
+                  <button disabled={busyId === documentId} onClick={() => handleDownload(doc)}>
+                    Download
+                  </button>
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </Card>

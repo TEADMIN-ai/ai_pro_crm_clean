@@ -12,11 +12,7 @@ import { validateTenderSubmission } from "@/lib/tender/tenderLock";
 import type { DocumentAnalysis } from "@/types/tenderAudit";
 import { GuardianMonitor } from "@/lib/guardian/GuardianMonitor";
 import { AuthorizationError, canAccessContractor, requireAuthorizedUser } from "@/lib/server/authz";
-import {
-  findDocumentSnapshotById,
-  listDealDocumentSnapshots,
-  updateDealReadinessState,
-} from "@/server/services/documentExecutionService";
+import { getContractorDocumentSnapshot } from "@/server/services/documentExecutionService";
 import { analyzeTenderDocument } from "@/server/services/tenderAnalysisService";
 import { extractTextOCR } from "@/server/services/ocrService";
 
@@ -106,12 +102,28 @@ async function requireDocumentAccess(request: NextRequest, contractorId?: string
   }
 }
 
+function getExecutionTarget(
+  request: NextRequest,
+  routeDocumentId: string,
+): { contractorId: string | null; documentType: string | null; documentId: string } {
+  const contractorId = asString(request.nextUrl.searchParams.get("contractorId"));
+  const documentType =
+    asString(request.nextUrl.searchParams.get("documentType")) ?? asString(routeDocumentId);
+
+  return {
+    contractorId,
+    documentType,
+    documentId: routeDocumentId,
+  };
+}
+
 export async function GET(
   request: NextRequest,
   context: { params: Promise<{ documentId: string }> }
 ) {
   try {
     const { documentId } = await context.params;
+    const executionTarget = getExecutionTarget(request, documentId);
 
     if (!documentId) {
       return jsonError("Missing documentId", 400);
@@ -127,7 +139,14 @@ export async function GET(
       );
     }
 
-    const docSnap = await findDocumentSnapshotById(documentId);
+    if (!executionTarget.contractorId || !executionTarget.documentType) {
+      return jsonError("Missing contractorId or documentType", 400);
+    }
+
+    const docSnap = await getContractorDocumentSnapshot(
+      executionTarget.contractorId,
+      executionTarget.documentType
+    );
     const exists = Boolean(docSnap?.exists);
 
     if (!exists) {
@@ -196,19 +215,22 @@ export async function POST(
 ) {
   try {
     const { documentId } = await context.params;
+    const executionTarget = getExecutionTarget(request, documentId);
 
     if (!documentId) {
       return jsonError("Missing documentId", 400);
     }
 
-    const targetDoc = await findDocumentSnapshotById(documentId);
-    if (!targetDoc?.exists) {
-      return jsonError("Document not found", 404);
+    if (!executionTarget.contractorId || !executionTarget.documentType) {
+      return jsonError("Missing contractorId or documentType", 400);
     }
 
-    const dealRef = targetDoc.ref.parent.parent;
-    if (!dealRef) {
-      return jsonError("Deal reference not found for document", 500);
+    const targetDoc = await getContractorDocumentSnapshot(
+      executionTarget.contractorId,
+      executionTarget.documentType
+    );
+    if (!targetDoc?.exists) {
+      return jsonError("Document not found", 404);
     }
 
     const targetDocData = (targetDoc.data() ?? {}) as Record<string, unknown>;
@@ -218,57 +240,7 @@ export async function POST(
     );
 
     const bucket = getStorage().bucket();
-    const allDocumentSnapshots = await listDealDocumentSnapshots(dealRef.id);
-
-    const analyses = (
-      await Promise.all(
-        allDocumentSnapshots.docs.map(async (documentSnapshot) => {
-          const metadata = (documentSnapshot.data() ?? {}) as Record<string, unknown>;
-          const storagePathSource =
-            asString(metadata.storagePath) ??
-            asString(metadata.filePath) ??
-            asString(metadata.downloadURL) ??
-            asString(metadata.downloadUrl) ??
-            asString(metadata.url);
-
-          const storagePath = storagePathSource
-            ? normalizeStoragePath(storagePathSource)
-            : null;
-
-          if (!storagePath) {
-            return null;
-          }
-
-          try {
-            const [bytes] = await bucket.file(storagePath).download();
-            const fileName = asString(metadata.name) ?? documentSnapshot.id;
-            return toDocumentAnalysis(analyzeUploadedDocument(bytes, fileName));
-          } catch (error) {
-            console.warn("Document analysis skipped for readiness recompute:", error);
-            return null;
-          }
-        })
-      )
-    ).filter((analysis): analysis is DocumentAnalysis => Boolean(analysis));
-
-    const readiness = calcReadinessFromDocs(analyses);
-    const lock = validateTenderSubmission(
-      readiness.readinessScore,
-      readiness.docsMissing
-    );
     const readinessUpdatedAt = new Date().toISOString();
-
-    await updateDealReadinessState(dealRef.id, {
-      readinessScore: readiness.readinessScore,
-      docsMissing: readiness.docsMissing,
-      tenderLockStatus: lock.allowed
-        ? readiness.readinessScore >= 80
-          ? "READY"
-          : "RISK"
-        : "BLOCKED",
-      isTenderLocked: !lock.allowed,
-      readinessUpdatedAt,
-    });
 
     const targetStoragePathSource =
       asString(targetDocData.storagePath) ??
@@ -280,12 +252,19 @@ export async function POST(
     const contractorId =
       asString(targetDocData.contractorId) ??
       asString(targetDocData.companyId);
+    const fileName =
+      asString(targetDocData.fileName) ??
+      asString(targetDocData.filename) ??
+      asString(targetDocData.originalName) ??
+      executionTarget.documentType;
 
+    let analyses: DocumentAnalysis[] = [];
     let tenderAnalysis: Awaited<ReturnType<typeof analyzeTenderDocument>> | null = null;
 
     if (targetStoragePath && contractorId) {
       try {
         const [buffer] = await bucket.file(targetStoragePath).download();
+        analyses = [toDocumentAnalysis(analyzeUploadedDocument(buffer, fileName))];
         const parser = new PDFParse({ data: Buffer.from(buffer) });
         let text = "";
 
@@ -323,6 +302,12 @@ export async function POST(
         console.warn("Tender analysis skipped after execute:", error);
       }
     }
+
+    const readiness = calcReadinessFromDocs(analyses);
+    const lock = validateTenderSubmission(
+      readiness.readinessScore,
+      readiness.docsMissing
+    );
 
     return NextResponse.json(
       {
