@@ -24,15 +24,37 @@ export function normalizePrivateKey(key: string | undefined) {
   return key.replace(/\\n/g, "\n").replace(/\r/g, "").trim();
 }
 
+function normalizeStorageBucket(bucket: string | undefined) {
+  if (!bucket) {
+    return undefined;
+  }
+
+  return bucket.replace(/^gs:\/\//, "").replace(/^\/+|\/+$/g, "").trim() || undefined;
+}
+
+function resolveStorageBucket(projectId: string | undefined) {
+  const configuredBucket = normalizeStorageBucket(
+    process.env.FIREBASE_STORAGE_BUCKET ?? process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET
+  );
+
+  if (configuredBucket) {
+    return configuredBucket;
+  }
+
+  return projectId ? `${projectId}.firebasestorage.app` : undefined;
+}
+
 function emitBootLog(validation: FirebaseEnvValidationResult) {
   if (bootLogEmitted) {
     return;
   }
 
   bootLogEmitted = true;
+  const storageBucket = resolveStorageBucket(validation.projectId);
   console.info("Firebase Admin initialized successfully");
   console.info("Firebase Admin initialized");
   console.info(`Project ID: ${validation.projectId ?? "unknown"}`);
+  console.info(`Storage bucket: ${storageBucket ?? "unknown"}`);
   console.info(`Private key loaded: ${validation.privateKeyLoaded}`);
 }
 
@@ -55,6 +77,7 @@ function createFirebaseAdminServices(): FirebaseAdminServices {
   }
 
   const existingApp = getApps().length > 0 ? getApp() : null;
+  const storageBucket = resolveStorageBucket(validation.projectId);
   const app =
     existingApp ??
     initializeApp({
@@ -63,6 +86,7 @@ function createFirebaseAdminServices(): FirebaseAdminServices {
         clientEmail: validation.clientEmail,
         privateKey: validation.privateKey,
       }),
+      ...(storageBucket ? { storageBucket } : {}),
     });
 
   emitBootLog(validation);

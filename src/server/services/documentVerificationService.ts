@@ -1,4 +1,3 @@
-import { PDFParse } from "pdf-parse";
 import { getStorage } from "firebase-admin/storage";
 import { FieldValue } from "firebase-admin/firestore";
 import { getAdminApp, getFirebaseAdmin } from "@/lib/firebase/admin";
@@ -7,6 +6,7 @@ import {
   isSupportedDocumentType,
   type SupportedDocumentType,
 } from "@/lib/compliance/contractorCompliance";
+import { extractTextFromPdf } from "@/lib/pdf/extractTextFromPdf";
 import { updateComplianceState } from "@/lib/compliance/updateComplianceState";
 import { recalculateContractorCompliance } from "@/lib/server/recalculateContractorCompliance";
 import { extractTextOCR } from "@/server/services/ocrService";
@@ -43,6 +43,217 @@ const DETECTION_RULES: Array<{ type: SupportedDocumentType; patterns: RegExp[] }
     patterns: [/bank confirmation/i, /account number/i, /branch code/i],
   },
 ];
+
+function normalizeText(text: string): string {
+  return text.toLowerCase().replace(/\s+/g, " ").replace(/[^a-z0-9 ]/g, "").trim();
+}
+
+type ContractorVerificationProfile = {
+  companyName: string | null;
+  registrationNumber: string | null;
+};
+
+async function getContractorVerificationProfile(
+  contractorId: string
+): Promise<ContractorVerificationProfile> {
+  const snapshot = await getFirebaseAdmin().collection("contractors").doc(contractorId).get();
+  const data = snapshot.data();
+
+  const companyName =
+    typeof data?.companyName === "string" && data.companyName.trim().length > 0
+      ? data.companyName.trim()
+      : null;
+  const registrationNumber =
+    typeof data?.companyRegistrationNumber === "string" && data.companyRegistrationNumber.trim().length > 0
+      ? data.companyRegistrationNumber.trim()
+      : typeof data?.registrationNumber === "string" && data.registrationNumber.trim().length > 0
+        ? data.registrationNumber.trim()
+        : null;
+
+  return {
+    companyName,
+    registrationNumber,
+  };
+}
+
+function applyCompanyNameValidationFallback(
+  analysis: ReturnType<typeof verifyComplianceDocument>,
+  extractedText: string,
+  contractorCompanyName: string | null
+): ReturnType<typeof verifyComplianceDocument> {
+  if (!contractorCompanyName) {
+    return analysis;
+  }
+
+  const docText = normalizeText(extractedText);
+  const company = normalizeText(contractorCompanyName);
+  const companyNameMatches = Boolean(docText && company && docText.includes(company));
+
+  if (!companyNameMatches || !analysis.missingFields.includes("companyName")) {
+    return analysis;
+  }
+
+  const missingFields = analysis.missingFields.filter((field) => field !== "companyName");
+  const extractedFields = {
+    ...analysis.extractedFields,
+    companyName: analysis.extractedFields.companyName ?? contractorCompanyName,
+  };
+  const validationErrors = missingFields.length === 0 ? [] : analysis.validationErrors;
+  const validationError = missingFields.length === 0 ? null : analysis.validationError;
+  const verified = missingFields.length === 0 ? true : analysis.verified;
+  const status = missingFields.length === 0 && analysis.status === "invalid" ? "verified" : analysis.status;
+
+  return {
+    ...analysis,
+    extractedFields,
+    missingFields,
+    validationErrors,
+    validationError,
+    verified,
+    status,
+  };
+}
+
+function getNamedField(fields: Record<string, string | null>, ...keys: string[]): string | null {
+  for (const key of keys) {
+    const value = fields[key];
+    if (typeof value === "string" && value.trim().length > 0) {
+      return value.trim();
+    }
+  }
+
+  return null;
+}
+
+function resolveValidationStatus(expiresAt: number | null, verified: boolean, validationError: string | null) {
+  const now = Date.now();
+
+  if (typeof expiresAt === "number") {
+    if (expiresAt <= now) {
+      return "expired" as const;
+    }
+
+    if (expiresAt <= now + 30 * 24 * 60 * 60 * 1000) {
+      return "expiringSoon" as const;
+    }
+  }
+
+  if (verified) {
+    return "verified" as const;
+  }
+
+  if (validationError) {
+    return "invalid" as const;
+  }
+
+  return "uploaded" as const;
+}
+
+function applyDocumentAwareValidation(
+  analysis: ReturnType<typeof verifyComplianceDocument>,
+  contractorProfile: ContractorVerificationProfile
+): ReturnType<typeof verifyComplianceDocument> {
+  const extractedFields = {
+    ...analysis.extractedFields,
+  };
+
+  const registrationNumber = getNamedField(
+    extractedFields,
+    "registrationNumber",
+    "companyRegistrationNumber"
+  );
+  const certificateNumber = getNamedField(extractedFields, "certificateNumber");
+  const beeLevel = getNamedField(extractedFields, "beeLevel");
+  const taxReferenceNumber = getNamedField(extractedFields, "taxReferenceNumber", "taxPin");
+  const coidaNumber = getNamedField(
+    extractedFields,
+    "coidaRegistrationNumber",
+    "employerRegistrationNumber",
+    "registrationNumber"
+  );
+  const expiryDate = getNamedField(extractedFields, "expiryDate");
+
+  if (registrationNumber && !extractedFields.registrationNumber) {
+    extractedFields.registrationNumber = registrationNumber;
+  }
+  if (taxReferenceNumber && !extractedFields.taxReferenceNumber) {
+    extractedFields.taxReferenceNumber = taxReferenceNumber;
+  }
+  if (coidaNumber && !extractedFields.coidaRegistrationNumber) {
+    extractedFields.coidaRegistrationNumber = coidaNumber;
+  }
+
+  let verified = analysis.verified;
+  let missingFields = [...analysis.missingFields];
+  let validationErrors = [...analysis.validationErrors];
+  let validationError = analysis.validationError;
+
+  switch (analysis.documentType) {
+    case "cipc": {
+      if (registrationNumber) {
+        verified = true;
+        missingFields = missingFields.filter(
+          (field) => field !== "registrationNumber" && field !== "companyRegistrationNumber"
+        );
+
+        const contractorRegistration = contractorProfile.registrationNumber?.replace(/\s+/g, "") ?? null;
+        const documentRegistration = registrationNumber.replace(/\s+/g, "");
+        if (
+          contractorRegistration &&
+          contractorRegistration.toLowerCase() === documentRegistration.toLowerCase()
+        ) {
+          extractedFields.registrationNumberMatchesContractor = "true";
+        }
+      }
+      break;
+    }
+
+    case "bbbee":
+      verified = Boolean(beeLevel && certificateNumber);
+      missingFields = missingFields.filter(
+        (field) => field !== "beeLevel" && field !== "certificateNumber"
+      );
+      break;
+
+    case "taxClearance":
+      verified = Boolean(taxReferenceNumber && expiryDate);
+      missingFields = missingFields.filter(
+        (field) => field !== "taxReferenceNumber" && field !== "taxPin" && field !== "expiryDate"
+      );
+      break;
+
+    case "coida":
+      verified = Boolean(coidaNumber && expiryDate);
+      missingFields = missingFields.filter(
+        (field) =>
+          field !== "coidaNumber" &&
+          field !== "coidaRegistrationNumber" &&
+          field !== "employerRegistrationNumber" &&
+          field !== "expiryDate"
+      );
+      break;
+
+    default:
+      break;
+  }
+
+  if (verified) {
+    validationError = null;
+    validationErrors = [];
+  }
+
+  const status = resolveValidationStatus(analysis.expiresAt, verified, validationError);
+
+  return {
+    ...analysis,
+    extractedFields,
+    verified,
+    missingFields,
+    validationErrors,
+    validationError,
+    status,
+  };
+}
 
 function getBucketName(): string | undefined {
   const value = process.env.FIREBASE_STORAGE_BUCKET || process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET;
@@ -87,6 +298,13 @@ async function downloadPdfBuffer(storagePath: string): Promise<Buffer> {
   return Buffer.from(bytes);
 }
 
+function logDocumentDebug(documentId: string, text: string) {
+  console.log("DOCUMENT DEBUG");
+  console.log("Document ID:", documentId);
+  console.log("TEXT LENGTH", text?.length ?? 0);
+  console.log("TEXT PREVIEW", text ? text.slice(0, 500) : "No text extracted");
+}
+
 export async function verifyStoredContractorDocument(input: VerificationInput) {
   const documentId = input.documentId ?? input.documentType ?? "";
   if (!input.contractorId.trim()) {
@@ -104,40 +322,24 @@ export async function verifyStoredContractorDocument(input: VerificationInput) {
 
   try {
     const pdfBuffer = await downloadPdfBuffer(input.storagePath.trim());
-    const parser = new PDFParse({ data: pdfBuffer });
+    const contractorProfile = await getContractorVerificationProfile(input.contractorId);
     let text = "";
     let extractionMethod: "pdf-parse" | "ocr" = "pdf-parse";
 
     try {
-      const parsed = await parser.getText();
-      text = parsed.text.trim();
-    } finally {
-      await parser.destroy();
+      text = (await extractTextFromPdf(pdfBuffer)).trim();
+    } catch (error) {
+      console.error("PDF EXTRACTION FAILED", error);
+      throw new Error("pdf_extraction_failed");
     }
 
-    console.log("----- DOCUMENT DEBUG -----");
-    console.log("Document ID:", documentId);
-    console.log("Extracted text length:", text?.length ?? 0);
-    if (text) {
-      console.log("Text preview:", text.slice(0, 500));
-    } else {
-      console.log("No text extracted");
-    }
-    console.log("--------------------------");
+    logDocumentDebug(documentId, text);
 
     if (!text || text.length < 100) {
       console.log("FALLBACK: OCR triggered");
       text = await extractTextOCR(pdfBuffer);
       extractionMethod = "ocr";
-      console.log("----- DOCUMENT DEBUG -----");
-      console.log("Document ID:", documentId);
-      console.log("Extracted text length:", text?.length ?? 0);
-      if (text) {
-        console.log("Text preview:", text.slice(0, 500));
-      } else {
-        console.log("No text extracted");
-      }
-      console.log("--------------------------");
+      logDocumentDebug(documentId, text);
     }
 
     const detectedType = detectDocumentType(text, input.documentType);
@@ -146,6 +348,7 @@ export async function verifyStoredContractorDocument(input: VerificationInput) {
       await documentRef.set(
         {
           status: "invalid",
+          validationStatus: "invalid",
           verified: false,
           verifiedAt: null,
           validationError: "Unable to detect document type",
@@ -174,9 +377,32 @@ export async function verifyStoredContractorDocument(input: VerificationInput) {
       };
     }
 
-    const analysis = verifyComplianceDocument(detectedType, text);
+    const baseAnalysis = verifyComplianceDocument(detectedType, text);
+    const documentAwareAnalysis = applyDocumentAwareValidation(baseAnalysis, contractorProfile);
+    const analysis = applyCompanyNameValidationFallback(
+      documentAwareAnalysis,
+      text,
+      contractorProfile.companyName
+    );
+    console.log("Document type detected:", detectedType);
+    console.log("Fields detected:", analysis.extractedFields);
+    console.log("Validation result:", analysis.status);
     console.log("AI ANALYSIS RESULT");
     console.log(JSON.stringify(analysis, null, 2));
+    console.log("VALIDATION RESULT");
+    console.log(
+      JSON.stringify(
+        {
+          status: analysis.status,
+          verified: analysis.verified,
+          validationError: analysis.validationError,
+          missingFields: analysis.missingFields,
+          validationErrors: analysis.validationErrors,
+        },
+        null,
+        2
+      )
+    );
     const extractedData = {
       detectedDocumentType: detectedType,
       ...analysis.extractedFields,
@@ -187,6 +413,7 @@ export async function verifyStoredContractorDocument(input: VerificationInput) {
         documentType: detectedType,
         docType: detectedType,
         status: analysis.status,
+        validationStatus: analysis.status,
         verified: analysis.verified,
         verifiedAt: analysis.verified ? FieldValue.serverTimestamp() : null,
         validationError: analysis.validationError,
@@ -215,6 +442,7 @@ export async function verifyStoredContractorDocument(input: VerificationInput) {
         {
           extractedData,
           extractedFields: extractedData,
+          validationStatus: analysis.status,
           missingFields: analysis.missingFields,
           validationErrors: analysis.validationErrors,
           analysisTimestamp: verifiedAt.getTime(),
@@ -236,6 +464,7 @@ export async function verifyStoredContractorDocument(input: VerificationInput) {
     await documentRef.set(
       {
         status: "invalid",
+        validationStatus: "invalid",
         verified: false,
         verifiedAt: null,
         validationError: error instanceof Error ? error.message : "Document verification failed",

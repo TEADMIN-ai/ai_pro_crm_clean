@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
+import { Timestamp } from "firebase-admin/firestore";
+import { getStorage } from "firebase-admin/storage";
 import {
   AuthorizationError,
   assertCanAccessContractor,
@@ -12,6 +14,13 @@ import {
   updateDealDocumentReview,
 } from "@/server/services/dealService";
 import { canDelete, canReview } from "@/lib/auth/roleUtils";
+import { getAdminApp, getFirebaseAdmin } from "@/lib/firebase/admin";
+import { extractTextFromPdf } from "@/lib/pdf/extractTextFromPdf";
+
+function sanitizeFilename(name: string) {
+  const cleaned = name.replace(/[^a-zA-Z0-9._-]/g, "_");
+  return cleaned.length > 0 ? cleaned : "document.pdf";
+}
 
 export async function GET(
   request: NextRequest,
@@ -49,7 +58,6 @@ export async function POST(
   try {
     const actor = await requireAuthorizedUser(request);
     const { dealId } = await context.params;
-    const body = (await request.json()) as Record<string, unknown>;
     const deal = await getDealById(dealId);
 
     if (!deal) {
@@ -60,6 +68,95 @@ export async function POST(
       assertCanAccessContractor(actor, deal.contractorId);
     }
 
+    const contentType = request.headers.get("content-type") ?? "";
+
+    if (contentType.includes("multipart/form-data")) {
+      const formData = await request.formData();
+      const uploadedFile = formData.get("file");
+
+      if (!(uploadedFile instanceof File)) {
+        return NextResponse.json({ success: false, error: "Missing PDF file" }, { status: 400 });
+      }
+
+      if (!uploadedFile.name.toLowerCase().endsWith(".pdf")) {
+        return NextResponse.json({ success: false, error: "Only PDF files are allowed" }, { status: 400 });
+      }
+
+      const fileBuffer = Buffer.from(await uploadedFile.arrayBuffer());
+      const timestamp = Date.now();
+      const safeFilename = sanitizeFilename(uploadedFile.name);
+      const filePath = `uploads/deals/${dealId}/${timestamp}_${safeFilename}`;
+      const storage = getStorage(getAdminApp());
+      const bucket = storage.bucket();
+      const file = bucket.file(filePath);
+
+      await file.save(fileBuffer, {
+        metadata: {
+          contentType: uploadedFile.type || "application/pdf",
+        },
+      });
+
+      console.log(`File uploaded: ${filePath}`);
+
+      const [downloadURL] = await file.getSignedUrl({
+        action: "read",
+        expires: Date.now() + 1000 * 60 * 60 * 24 * 7,
+      });
+
+      const uploadedAt = Timestamp.now();
+      let extractedText = "";
+      let extractionError: string | null = null;
+
+      try {
+        extractedText = await extractTextFromPdf(fileBuffer);
+        console.log(`PDF text length: ${extractedText.length}`);
+      } catch (error) {
+        extractionError = "PDF extraction failed";
+        console.error("PDF extraction failed:", error);
+      }
+
+      const db = getFirebaseAdmin();
+      const metadataRef = db.collection("deals").doc(dealId).collection("documents").doc();
+
+      await metadataRef.set({
+        id: metadataRef.id,
+        dealId,
+        name: uploadedFile.name,
+        originalName: uploadedFile.name,
+        contentType: uploadedFile.type || "application/pdf",
+        size: uploadedFile.size,
+        storagePath: filePath,
+        filePath,
+        downloadURL,
+        uploadedByUid: actor.uid,
+        uploadedByRole: actor.role,
+        uploadedAt,
+        updatedAt: uploadedAt,
+        status: "pending",
+        version: 1,
+        extractedText,
+        textLength: extractedText.length,
+      });
+
+      console.log("Document stored in Firestore");
+
+      const snapshot = await metadataRef.get();
+      const document = {
+        id: snapshot.id,
+        ...(snapshot.data() ?? {}),
+      };
+
+      return NextResponse.json(
+        {
+          success: true,
+          document,
+          ...(extractionError ? { extraction: { success: false, error: extractionError } } : {}),
+        },
+        { status: 201 },
+      );
+    }
+
+    const body = (await request.json()) as Record<string, unknown>;
     const document = await createDealDocumentMetadata({
       dealId,
       name: typeof body.name === "string" ? body.name : "document.pdf",
@@ -71,14 +168,14 @@ export async function POST(
       uploadedByRole: actor.role,
     });
 
-    return NextResponse.json({ document }, { status: 201 });
+    return NextResponse.json({ success: true, document }, { status: 201 });
   } catch (error) {
     if (error instanceof AuthorizationError) {
-      return NextResponse.json({ error: error.message }, { status: error.status });
+      return NextResponse.json({ success: false, error: error.message }, { status: error.status });
     }
 
     console.error("Failed to create deal document:", error);
-    return NextResponse.json({ error: "Failed to create deal document" }, { status: 500 });
+    return NextResponse.json({ success: false, error: "Failed to create deal document" }, { status: 500 });
   }
 }
 
