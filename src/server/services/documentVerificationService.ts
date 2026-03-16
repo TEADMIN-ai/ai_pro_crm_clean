@@ -1,7 +1,8 @@
 import { getStorage } from "firebase-admin/storage";
-import { FieldValue } from "firebase-admin/firestore";
+import { FieldValue, type Firestore } from "firebase-admin/firestore";
 import { getAdminApp, getFirebaseAdmin } from "@/lib/firebase/admin";
 import { verifyComplianceDocument } from "@/lib/compliance/analyzeComplianceDocument";
+import { resolveComplianceExpiryAlert } from "@/lib/compliance/complianceScoring";
 import {
   isSupportedDocumentType,
   type SupportedDocumentType,
@@ -9,7 +10,7 @@ import {
 import { extractTextFromPdf } from "@/lib/pdf/extractTextFromPdf";
 import { updateComplianceState } from "@/lib/compliance/updateComplianceState";
 import { recalculateContractorCompliance } from "@/lib/server/recalculateContractorCompliance";
-import { extractTextOCR } from "@/server/services/ocrService";
+import { extractTextOCR as runOCR } from "@/server/services/ocrService";
 
 type VerificationInput = {
   contractorId: string;
@@ -298,6 +299,43 @@ async function downloadPdfBuffer(storagePath: string): Promise<Buffer> {
   return Buffer.from(bytes);
 }
 
+function getComplianceAlertRef(db: Firestore, contractorId: string, documentType: SupportedDocumentType) {
+  return db.collection("contractors").doc(contractorId).collection("complianceAlerts").doc(documentType);
+}
+
+async function syncComplianceExpiryAlert(
+  db: Firestore,
+  contractorId: string,
+  input: {
+    documentType: SupportedDocumentType;
+    complianceType: string;
+    expiryDate: number | null;
+    validationStatus: string;
+  },
+) {
+  const alert = resolveComplianceExpiryAlert(input.expiryDate);
+  const alertRef = getComplianceAlertRef(db, contractorId, input.documentType);
+
+  if (alert.state === "none") {
+    await alertRef.delete().catch(() => undefined);
+    return;
+  }
+
+  await alertRef.set(
+    {
+      documentType: input.documentType,
+      complianceType: input.complianceType,
+      expiryDate: input.expiryDate,
+      alertType: alert.state,
+      alertMessage: alert.message,
+      validationStatus: input.validationStatus,
+      daysUntilExpiry: alert.daysUntilExpiry,
+      updatedAt: new Date(),
+    },
+    { merge: true },
+  );
+}
+
 function logDocumentDebug(documentId: string, text: string) {
   console.log("DOCUMENT DEBUG");
   console.log("Document ID:", documentId);
@@ -307,38 +345,56 @@ function logDocumentDebug(documentId: string, text: string) {
 
 export async function verifyStoredContractorDocument(input: VerificationInput) {
   const documentId = input.documentId ?? input.documentType ?? "";
-  if (!input.contractorId.trim()) {
-    throw new Error("Missing contractorId");
-  }
-  if (!documentId.trim()) {
-    throw new Error("Missing documentId");
-  }
-  if (!input.storagePath.trim()) {
-    throw new Error("Missing storagePath");
-  }
-
-  const documentRef = getDocumentRef(input.contractorId, documentId);
+  const contractorId = input.contractorId.trim();
+  const storagePath = input.storagePath.trim();
+  const hasRequiredIdentifiers =
+    contractorId.length > 0 && documentId.trim().length > 0 && storagePath.length > 0;
+  const documentRef = hasRequiredIdentifiers
+    ? getDocumentRef(contractorId, documentId.trim())
+    : null;
   const verifiedAt = new Date();
+  const db = getFirebaseAdmin();
 
   try {
-    const pdfBuffer = await downloadPdfBuffer(input.storagePath.trim());
-    const contractorProfile = await getContractorVerificationProfile(input.contractorId);
+    if (!contractorId) {
+      throw new Error("Missing contractorId");
+    }
+    if (!documentId.trim()) {
+      throw new Error("Missing documentId");
+    }
+    if (!storagePath) {
+      throw new Error("Missing storagePath");
+    }
+    if (!documentRef) {
+      throw new Error("Missing document reference");
+    }
+
+    const pdfBuffer = await downloadPdfBuffer(storagePath);
+    const contractorProfile = await getContractorVerificationProfile(contractorId);
     let text = "";
     let extractionMethod: "pdf-parse" | "ocr" = "pdf-parse";
 
-    try {
-      text = (await extractTextFromPdf(pdfBuffer)).trim();
-    } catch (error) {
-      console.error("PDF EXTRACTION FAILED", error);
-      throw new Error("pdf_extraction_failed");
-    }
+    console.log("Running PDF extraction for contractor document");
+    text = (await extractTextFromPdf(pdfBuffer)).trim();
 
     logDocumentDebug(documentId, text);
 
-    if (!text || text.length < 100) {
-      console.log("FALLBACK: OCR triggered");
-      text = await extractTextOCR(pdfBuffer);
-      extractionMethod = "ocr";
+    if (!text || text.length === 0) {
+      console.log("No text found in PDF, running OCR fallback");
+
+      try {
+        const ocrText = (await runOCR(pdfBuffer)).trim();
+
+        if (ocrText.length > 0) {
+          text = ocrText;
+          extractionMethod = "ocr";
+        } else {
+          console.error("OCR fallback returned empty text");
+        }
+      } catch (ocrError) {
+        console.error("OCR fallback failed:", ocrError);
+      }
+
       logDocumentDebug(documentId, text);
     }
 
@@ -347,11 +403,16 @@ export async function verifyStoredContractorDocument(input: VerificationInput) {
     if (!detectedType) {
       await documentRef.set(
         {
+          complianceType: null,
           status: "invalid",
           validationStatus: "invalid",
           verified: false,
           verifiedAt: null,
           validationError: "Unable to detect document type",
+          expiryDate: null,
+          expiryAlert: "none",
+          expiryAlertMessage: null,
+          complianceScore: 0,
           extractedData: {
             detectedDocumentType: null,
           },
@@ -368,7 +429,7 @@ export async function verifyStoredContractorDocument(input: VerificationInput) {
         { merge: true }
       );
 
-      await recalculateContractorCompliance(getFirebaseAdmin(), input.contractorId);
+      await recalculateContractorCompliance(db, contractorId);
 
       return {
         status: "invalid" as const,
@@ -412,14 +473,19 @@ export async function verifyStoredContractorDocument(input: VerificationInput) {
       {
         documentType: detectedType,
         docType: detectedType,
+        complianceType: analysis.complianceType,
         status: analysis.status,
         validationStatus: analysis.status,
         verified: analysis.verified,
         verifiedAt: analysis.verified ? FieldValue.serverTimestamp() : null,
         validationError: analysis.validationError,
         expiresAt: analysis.expiresAt,
+        expiryDate: analysis.expiryDate,
+        expiryAlert: analysis.expiryAlert,
+        expiryAlertMessage: analysis.expiryAlertMessage,
         extractedAt: verifiedAt,
         confidenceScore: analysis.confidenceScore,
+        complianceScore: analysis.complianceScore,
         extractedData,
         extractedFields: extractedData,
         missingFields: analysis.missingFields,
@@ -432,14 +498,21 @@ export async function verifyStoredContractorDocument(input: VerificationInput) {
       { merge: true }
     );
 
-    await updateComplianceState(getFirebaseAdmin(), input.contractorId, analysis);
-    await getFirebaseAdmin()
+    await updateComplianceState(db, contractorId, analysis);
+    await syncComplianceExpiryAlert(db, contractorId, {
+      documentType: detectedType,
+      complianceType: analysis.complianceType,
+      expiryDate: analysis.expiryDate,
+      validationStatus: analysis.status,
+    });
+    await db
       .collection("contractors")
-      .doc(input.contractorId)
+      .doc(contractorId)
       .collection("complianceData")
       .doc(detectedType)
       .set(
         {
+          complianceType: analysis.complianceType,
           extractedData,
           extractedFields: extractedData,
           validationStatus: analysis.status,
@@ -448,12 +521,16 @@ export async function verifyStoredContractorDocument(input: VerificationInput) {
           analysisTimestamp: verifiedAt.getTime(),
           extractionMethod,
           extractedTextLength: text.length,
+          expiryDate: analysis.expiryDate,
+          expiryAlert: analysis.expiryAlert,
+          expiryAlertMessage: analysis.expiryAlertMessage,
+          complianceScore: analysis.complianceScore,
           updatedAt: verifiedAt,
         },
         { merge: true }
       );
 
-    await recalculateContractorCompliance(getFirebaseAdmin(), input.contractorId);
+    await recalculateContractorCompliance(db, contractorId);
 
     return {
       status: analysis.status,
@@ -461,31 +538,69 @@ export async function verifyStoredContractorDocument(input: VerificationInput) {
       verifiedAt: analysis.verified ? verifiedAt.getTime() : null,
     };
   } catch (error) {
-    await documentRef.set(
-      {
-        status: "invalid",
-        validationStatus: "invalid",
-        verified: false,
-        verifiedAt: null,
-        validationError: error instanceof Error ? error.message : "Document verification failed",
-        extractedData: {
-          detectedDocumentType: input.documentType && isSupportedDocumentType(input.documentType) ? input.documentType : null,
-        },
-        extractedFields: {
-          detectedDocumentType: input.documentType && isSupportedDocumentType(input.documentType) ? input.documentType : null,
-        },
-        missingFields: [],
-        validationErrors: [error instanceof Error ? error.message : "Document verification failed"],
-        analysisTimestamp: verifiedAt.getTime(),
-        extractionMethod: "pdf-parse",
-        extractedTextLength: 0,
-        updatedAt: verifiedAt,
-      },
-      { merge: true }
-    );
+    const message = error instanceof Error ? error.message : "Document verification failed";
+    const fallbackDocumentType =
+      input.documentType && isSupportedDocumentType(input.documentType) ? input.documentType : null;
 
-    await recalculateContractorCompliance(getFirebaseAdmin(), input.contractorId);
-    throw error;
+    console.error("Document verification failed:", error);
+
+    if (documentRef) {
+      try {
+        await documentRef.set(
+          {
+            complianceType: fallbackDocumentType,
+            status: "invalid",
+            validationStatus: "invalid",
+            verified: false,
+            verifiedAt: null,
+            validationError: message,
+            expiryDate: null,
+            expiryAlert: "none",
+            expiryAlertMessage: null,
+            complianceScore: 0,
+            extractedData: {
+              detectedDocumentType: fallbackDocumentType,
+            },
+            extractedFields: {
+              detectedDocumentType: fallbackDocumentType,
+            },
+            missingFields: [],
+            validationErrors: [message],
+            analysisTimestamp: verifiedAt.getTime(),
+            extractionMethod: "pdf-parse",
+            extractedTextLength: 0,
+            updatedAt: verifiedAt,
+          },
+          { merge: true }
+        );
+        if (fallbackDocumentType) {
+          await syncComplianceExpiryAlert(db, contractorId, {
+            documentType: fallbackDocumentType,
+            complianceType: fallbackDocumentType,
+            expiryDate: null,
+            validationStatus: "invalid",
+          });
+        }
+      } catch (persistError) {
+        console.error("Failed to persist verification failure state:", persistError);
+      }
+    }
+
+    if (contractorId) {
+      try {
+        await recalculateContractorCompliance(db, contractorId);
+      } catch (recalcError) {
+        console.error("Failed to recalculate contractor compliance:", recalcError);
+      }
+    }
+
+    return {
+      status: "invalid" as const,
+      extractedData: {
+        detectedDocumentType: fallbackDocumentType,
+      },
+      verifiedAt: null,
+    };
   }
 }
 

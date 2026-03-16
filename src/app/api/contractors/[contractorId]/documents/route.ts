@@ -261,7 +261,7 @@ export async function POST(
         document: normalizeDocument(savedDoc.id, (savedDoc.data() ?? {}) as Record<string, unknown>),
         compliance: summary,
       },
-      { status: 201 }
+      { status: 200 }
     );
   } catch (error: unknown) {
     if (error instanceof AuthorizationError) {

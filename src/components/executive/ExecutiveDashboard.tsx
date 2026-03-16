@@ -6,6 +6,9 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
+  Cell,
+  Pie,
+  PieChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -14,183 +17,258 @@ import {
 import Badge from "@/components/ui/Badge";
 import Card, { IdentityCardHeader } from "@/components/ui/Card";
 import { authFetch } from "@/lib/client/authFetch";
-import { calculatePortfolioIntelligence } from "@/lib/intelligence/portfolioIntelligenceEngine";
 import { API_ROUTES } from "@/lib/routes";
 import { empireColors } from "@/theme/empireTheme";
-import type { Deal } from "@/types/deal";
 
-type DealPayload = {
-  deals?: unknown[];
+type ExecutiveAnalyticsPayload = {
+  executiveSummary: string;
+  riskSummary: {
+    highPriorityRisks: number;
+  };
+  executiveMetrics: {
+    cards: {
+      activeAudits: number;
+      unresolvedRisks: number;
+      verifiedDocuments: number;
+      complianceAlerts: number;
+    };
+    complianceSummary: {
+      averageComplianceScore: number;
+      readyContractors: number;
+      riskContractors: number;
+      blockedContractors: number;
+      statusBreakdown: Array<{ status: string; count: number }>;
+    };
+    verificationStats: {
+      totalDocuments: number;
+      verified: number;
+      invalid: number;
+      expired: number;
+      expiringSoon: number;
+      uploaded: number;
+      averageConfidenceScore: number;
+    };
+    riskHeatmap: Array<{ category: string; severity: string; count: number }>;
+    auditProgress: Array<{ projectId: string; title: string; progress: number; openTasks: number; findings: number }>;
+  };
 };
-
-type DistributionPoint = {
-  band: string;
-  count: number;
-};
-
-type DealMetricSnapshot = {
-  winProbability?: unknown;
-  riskScore?: unknown;
-};
-
-function toSafeNumber(value: unknown): number {
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : 0;
-}
 
 function clampPercent(value: number): number {
   return Math.max(0, Math.min(100, value));
 }
 
-function parseDeals(payload: unknown): Deal[] {
-  const deals = Array.isArray(payload)
-    ? payload
-    : typeof payload === "object" &&
-      payload !== null &&
-      Array.isArray((payload as DealPayload).deals)
-    ? (payload as DealPayload).deals
-    : [];
-  return deals as Deal[];
+function getHeatColor(count: number): string {
+  if (count >= 4) return "#FF4D4D";
+  if (count >= 3) return "#FB923C";
+  if (count >= 2) return "#FACC15";
+  if (count >= 1) return "#22C55E";
+  return "#0F172A";
 }
 
-function asMetricSnapshot(deal: Deal): DealMetricSnapshot {
-  return deal as Deal & DealMetricSnapshot;
-}
-
-function buildWpiDistribution(deals: Deal[]): DistributionPoint[] {
-  const bands: DistributionPoint[] = [
-    { band: "0-39", count: 0 },
-    { band: "40-59", count: 0 },
-    { band: "60-79", count: 0 },
-    { band: "80-100", count: 0 },
-  ];
-
-  for (const deal of deals) {
-    const snapshot = asMetricSnapshot(deal);
-    const score = clampPercent(toSafeNumber(snapshot.winProbability));
-
-    if (score < 40) {
-      bands[0].count += 1;
-    } else if (score < 60) {
-      bands[1].count += 1;
-    } else if (score < 80) {
-      bands[2].count += 1;
-    } else {
-      bands[3].count += 1;
-    }
-  }
-
-  return bands;
-}
-
-function buildRiskDistribution(deals: Deal[]): DistributionPoint[] {
-  const bands: DistributionPoint[] = [
-    { band: "0-29", count: 0 },
-    { band: "30-59", count: 0 },
-    { band: "60-79", count: 0 },
-    { band: "80-100", count: 0 },
-  ];
-
-  for (const deal of deals) {
-    const snapshot = asMetricSnapshot(deal);
-    const score = clampPercent(toSafeNumber(snapshot.riskScore));
-
-    if (score < 30) {
-      bands[0].count += 1;
-    } else if (score < 60) {
-      bands[1].count += 1;
-    } else if (score < 80) {
-      bands[2].count += 1;
-    } else {
-      bands[3].count += 1;
-    }
-  }
-
-  return bands;
-}
-
-type MetricCardProps = {
+function MetricCard({
+  label,
+  value,
+  tone = "info",
+  helper,
+}: {
   label: string;
   value: string;
   tone?: "info" | "success" | "warning" | "danger";
-};
-
-function MetricCard({ label, value, tone = "info" }: MetricCardProps) {
+  helper?: string;
+}) {
   return (
     <Card>
       <p className="enterprise-metric-label">{label}</p>
       <h2 className="enterprise-metric-value">{value}</h2>
-      <div style={{ marginTop: 8 }}>
+      {helper ? <p style={{ margin: "8px 0 0", color: empireColors.textSecondary }}>{helper}</p> : null}
+      <div style={{ marginTop: 10 }}>
         <Badge tone={tone}>{label}</Badge>
       </div>
     </Card>
   );
 }
 
-function RadialMetric({
-  label,
-  value,
-  glowColor,
+function ComplianceStatusChart({
+  data,
 }: {
-  label: string;
-  value: number;
-  glowColor: string;
+  data: Array<{ status: string; count: number }>;
 }) {
-  const clamped = clampPercent(value);
-  const progress = `${clamped}%`;
+  const colors = [empireColors.success, empireColors.warning, empireColors.danger];
 
   return (
     <Card>
-      <p className="enterprise-metric-label">{label}</p>
-      <div
-        style={{
-          marginTop: 10,
-          width: 132,
-          height: 132,
-          borderRadius: "50%",
-          background: `conic-gradient(${glowColor} ${progress}, rgba(30,41,59,0.85) ${progress})`,
-          display: "grid",
-          placeItems: "center",
-          boxShadow: `0 0 16px ${glowColor}66`,
-        }}
-      >
-        <div
-          style={{
-            width: 94,
-            height: 94,
-            borderRadius: "50%",
-            background: empireColors.background,
-            border: `1px solid ${empireColors.border}`,
-            display: "grid",
-            placeItems: "center",
-          }}
-        >
-          <span style={{ fontSize: 24, fontWeight: 800, color: empireColors.textPrimary }}>
-            {clamped.toFixed(1)}%
-          </span>
-        </div>
+      <p style={{ margin: 0, fontSize: 12, letterSpacing: 0.5, color: "#b7ceef" }}>Compliance Status</p>
+      <div style={{ width: "100%", height: 280, marginTop: 12 }}>
+        <ResponsiveContainer>
+          <PieChart>
+            <Pie data={data} dataKey="count" nameKey="status" innerRadius={55} outerRadius={92} paddingAngle={4}>
+              {data.map((entry, index) => (
+                <Cell key={entry.status} fill={colors[index % colors.length]} />
+              ))}
+            </Pie>
+            <Tooltip
+              contentStyle={{
+                background: empireColors.surface,
+                border: `1px solid ${empireColors.border}`,
+                color: empireColors.textPrimary,
+              }}
+            />
+          </PieChart>
+        </ResponsiveContainer>
       </div>
     </Card>
   );
 }
 
-function DistributionChart({
-  title,
+function AuditProgressChart({
   data,
-  barColor,
 }: {
-  title: string;
-  data: DistributionPoint[];
-  barColor: string;
+  data: Array<{ title: string; progress: number; openTasks: number; findings: number }>;
 }) {
   return (
     <Card>
-      <p style={{ margin: 0, fontSize: 12, letterSpacing: 0.5, color: "#b7ceef" }}>{title}</p>
-      <div style={{ width: "100%", height: 260, marginTop: 10 }}>
+      <p style={{ margin: 0, fontSize: 12, letterSpacing: 0.5, color: "#b7ceef" }}>Audit Progress</p>
+      <div style={{ width: "100%", height: 300, marginTop: 12 }}>
         <ResponsiveContainer>
           <BarChart data={data}>
             <CartesianGrid stroke="rgba(30, 41, 59, 0.8)" strokeDasharray="3 3" />
-            <XAxis dataKey="band" stroke={empireColors.textSecondary} />
+            <XAxis dataKey="title" hide />
+            <YAxis stroke={empireColors.textSecondary} />
+            <Tooltip
+              contentStyle={{
+                background: empireColors.surface,
+                border: `1px solid ${empireColors.border}`,
+                color: empireColors.textPrimary,
+              }}
+            />
+            <Bar dataKey="progress" fill={empireColors.primary} radius={[6, 6, 0, 0]} />
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+      <div style={{ display: "grid", gap: 8 }}>
+        {data.map((item) => (
+          <div
+            key={item.title}
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              gap: 12,
+              color: empireColors.textSecondary,
+              fontSize: 13,
+            }}
+          >
+            <span style={{ color: empireColors.textPrimary }}>{item.title}</span>
+            <span>{item.progress}% complete</span>
+            <span>{item.openTasks} open tasks</span>
+            <span>{item.findings} findings</span>
+          </div>
+        ))}
+      </div>
+    </Card>
+  );
+}
+
+function RiskHeatmap({
+  data,
+}: {
+  data: Array<{ category: string; severity: string; count: number }>;
+}) {
+  const severities = ["Low", "Medium", "High", "Critical"];
+  const categories = Array.from(new Set(data.map((item) => item.category)));
+
+  return (
+    <Card>
+      <p style={{ margin: 0, fontSize: 12, letterSpacing: 0.5, color: "#b7ceef" }}>Risk Heatmap</p>
+      <div style={{ display: "grid", gap: 10, marginTop: 16 }}>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: `160px repeat(${severities.length}, minmax(60px, 1fr))`,
+            gap: 8,
+            color: empireColors.textSecondary,
+            fontSize: 12,
+          }}
+        >
+          <span />
+          {severities.map((severity) => (
+            <span key={severity}>{severity}</span>
+          ))}
+        </div>
+        {categories.map((category) => (
+          <div
+            key={category}
+            style={{
+              display: "grid",
+              gridTemplateColumns: `160px repeat(${severities.length}, minmax(60px, 1fr))`,
+              gap: 8,
+              alignItems: "center",
+            }}
+          >
+            <span style={{ color: empireColors.textPrimary, fontSize: 13 }}>{category}</span>
+            {severities.map((severity) => {
+              const point = data.find((item) => item.category === category && item.severity === severity);
+              const count = point?.count ?? 0;
+
+              return (
+                <div
+                  key={`${category}-${severity}`}
+                  style={{
+                    minHeight: 56,
+                    borderRadius: 14,
+                    display: "grid",
+                    placeItems: "center",
+                    background: getHeatColor(count),
+                    border: `1px solid ${empireColors.border}`,
+                    color: count > 0 ? "#05080F" : empireColors.textSecondary,
+                    fontWeight: 800,
+                  }}
+                >
+                  {count}
+                </div>
+              );
+            })}
+          </div>
+        ))}
+      </div>
+    </Card>
+  );
+}
+
+function VerificationSummary({
+  stats,
+}: {
+  stats: ExecutiveAnalyticsPayload["executiveMetrics"]["verificationStats"];
+}) {
+  const data = [
+    { status: "Verified", count: stats.verified },
+    { status: "Expiring", count: stats.expiringSoon },
+    { status: "Expired", count: stats.expired },
+    { status: "Invalid", count: stats.invalid },
+    { status: "Uploaded", count: stats.uploaded },
+  ];
+
+  return (
+    <Card>
+      <p className="enterprise-metric-label">Document Verification Stats</p>
+      <div className="compliance-summary" style={{ marginTop: 12 }}>
+        <div className="compliance-summary-item">
+          <p className="enterprise-metric-label">Total</p>
+          <p className="enterprise-metric-value">{stats.totalDocuments}</p>
+        </div>
+        <div className="compliance-summary-item">
+          <p className="enterprise-metric-label">Verified</p>
+          <p className="enterprise-metric-value">{stats.verified}</p>
+        </div>
+        <div className="compliance-summary-item">
+          <p className="enterprise-metric-label">Confidence</p>
+          <p className="enterprise-metric-value">{clampPercent(stats.averageConfidenceScore * 100)}%</p>
+        </div>
+      </div>
+      <div style={{ width: "100%", height: 240, marginTop: 12 }}>
+        <ResponsiveContainer>
+          <BarChart data={data}>
+            <CartesianGrid stroke="rgba(30, 41, 59, 0.8)" strokeDasharray="3 3" />
+            <XAxis dataKey="status" stroke={empireColors.textSecondary} />
             <YAxis allowDecimals={false} stroke={empireColors.textSecondary} />
             <Tooltip
               contentStyle={{
@@ -199,7 +277,22 @@ function DistributionChart({
                 color: empireColors.textPrimary,
               }}
             />
-            <Bar dataKey="count" fill={barColor} radius={[5, 5, 0, 0]} />
+            <Bar dataKey="count" radius={[6, 6, 0, 0]}>
+              {data.map((entry) => (
+                <Cell
+                  key={entry.status}
+                  fill={
+                    entry.status === "Verified"
+                      ? empireColors.success
+                      : entry.status === "Expiring"
+                        ? empireColors.warning
+                        : entry.status === "Expired" || entry.status === "Invalid"
+                          ? empireColors.danger
+                          : empireColors.primary
+                  }
+                />
+              ))}
+            </Bar>
           </BarChart>
         </ResponsiveContainer>
       </div>
@@ -209,127 +302,97 @@ function DistributionChart({
 
 export default function ExecutiveDashboard() {
   const router = useRouter();
-  const [deals, setDeals] = useState<Deal[]>([]);
+  const [analytics, setAnalytics] = useState<ExecutiveAnalyticsPayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    async function loadDeals() {
+    async function loadAnalytics() {
       try {
-        const res = await authFetch(API_ROUTES.DEALS);
+        const res = await authFetch(API_ROUTES.DASHBOARD_ANALYTICS);
         if (!res.ok) {
           if (res.status === 401 || res.status === 403) {
             setError("Session expired. Please login again.");
             router.push("/login");
             return;
           }
-          throw new Error(`Failed to fetch deals: ${res.status}`);
+          throw new Error(`Failed to fetch analytics: ${res.status}`);
         }
-        const payload = (await res.json()) as unknown;
-        setDeals(parseDeals(payload));
+
+        setAnalytics((await res.json()) as ExecutiveAnalyticsPayload);
       } catch (err) {
         console.error(err);
-        setError("Unable to load executive portfolio data");
+        setError("Unable to load executive analytics");
       } finally {
         setLoading(false);
       }
     }
 
-    loadDeals();
+    loadAnalytics();
   }, [router]);
 
-  const portfolio = useMemo(() => calculatePortfolioIntelligence(deals), [deals]);
-  const wpiDistribution = useMemo(() => buildWpiDistribution(deals), [deals]);
-  const riskDistribution = useMemo(() => buildRiskDistribution(deals), [deals]);
+  const metrics = useMemo(() => analytics?.executiveMetrics, [analytics]);
 
   return (
     <div className="enterprise-page enterprise-grid">
       <Card>
         <IdentityCardHeader
-          title="Executive Analytics Suite"
-          subtitle="Portfolio-level intelligence aggregation"
+          title="Executive Command Dashboard"
+          subtitle="Audit, risk, compliance, and verification oversight"
         >
-          <Badge tone="info">Deals {deals.length}</Badge>
-          <Badge tone={portfolio.criticalRiskCount > 0 ? "danger" : "success"}>
-            Critical Risk {portfolio.criticalRiskCount}
+          <Badge tone="info">Executive View</Badge>
+          <Badge tone={(analytics?.riskSummary.highPriorityRisks ?? 0) > 0 ? "warning" : "success"}>
+            High Priority Risks {analytics?.riskSummary.highPriorityRisks ?? 0}
           </Badge>
         </IdentityCardHeader>
-        {!loading && !error && (
-          <p style={{ margin: "12px 0 0", color: empireColors.textSecondary }}>
-            {portfolio.executiveSummary}
-          </p>
-        )}
+        {!loading && !error && analytics ? (
+          <p style={{ margin: "12px 0 0", color: empireColors.textSecondary }}>{analytics.executiveSummary}</p>
+        ) : null}
       </Card>
 
       {loading ? (
         <Card>
           <p style={{ margin: 0 }}>Loading executive analytics...</p>
         </Card>
-      ) : error ? (
+      ) : error || !analytics || !metrics ? (
         <Card>
-          <p style={{ margin: 0, color: empireColors.danger }}>{error}</p>
+          <p style={{ margin: 0, color: empireColors.danger }}>{error ?? "Executive analytics unavailable."}</p>
         </Card>
       ) : (
         <>
           <div className="enterprise-grid-metrics">
-            <RadialMetric
-              label="Average Win Probability"
-              value={portfolio.avgWinProbability}
-              glowColor={empireColors.primary}
+            <MetricCard
+              label="Active Audits"
+              value={String(metrics.cards.activeAudits)}
+              tone={metrics.cards.activeAudits > 0 ? "info" : "warning"}
             />
             <MetricCard
-              label="Portfolio Risk Index"
-              value={portfolio.avgRiskScore.toFixed(1)}
-              tone={portfolio.avgRiskScore > 60 ? "warning" : "success"}
+              label="Unresolved Risks"
+              value={String(metrics.cards.unresolvedRisks)}
+              tone={metrics.cards.unresolvedRisks > 0 ? "warning" : "success"}
             />
             <MetricCard
-              label="Submission Readiness %"
-              value={`${portfolio.readinessRatio.toFixed(1)}%`}
-              tone={portfolio.readinessRatio >= 65 ? "success" : "warning"}
+              label="Compliance Score"
+              value={`${metrics.complianceSummary.averageComplianceScore}%`}
+              tone={metrics.complianceSummary.averageComplianceScore >= 80 ? "success" : "warning"}
+              helper={`${metrics.cards.complianceAlerts} active expiry alert(s)`}
+            />
+            <MetricCard
+              label="Verified Documents"
+              value={String(metrics.cards.verifiedDocuments)}
+              tone="success"
+              helper={`${metrics.verificationStats.totalDocuments} verification records`}
             />
           </div>
 
-          <div className="enterprise-grid-metrics">
-            <MetricCard
-              label="High Risk Deals"
-              value={String(portfolio.highRiskCount)}
-              tone={portfolio.highRiskCount > 0 ? "warning" : "success"}
-            />
-            <MetricCard
-              label="Critical Risk Deals"
-              value={String(portfolio.criticalRiskCount)}
-              tone={portfolio.criticalRiskCount > 0 ? "danger" : "success"}
-            />
-            <Card>
-              <p className="enterprise-metric-label">Momentum Summary</p>
-              <div className="compliance-summary" style={{ marginTop: 10 }}>
-                <div className="compliance-summary-item">
-                  <p className="enterprise-metric-label">Up</p>
-                  <p className="enterprise-metric-value">{portfolio.improvingCount}</p>
-                </div>
-                <div className="compliance-summary-item">
-                  <p className="enterprise-metric-label">Down</p>
-                  <p className="enterprise-metric-value">{portfolio.decliningCount}</p>
-                </div>
-                <div className="compliance-summary-item">
-                  <p className="enterprise-metric-label">Flat</p>
-                  <p className="enterprise-metric-value">{portfolio.stableCount}</p>
-                </div>
-              </div>
-            </Card>
+          <div className="enterprise-grid-metrics" style={{ alignItems: "stretch" }}>
+            <RiskHeatmap data={metrics.riskHeatmap} />
+            <ComplianceStatusChart data={metrics.complianceSummary.statusBreakdown} />
           </div>
 
-          <div className="enterprise-grid-metrics">
-            <DistributionChart
-              title="WPI Distribution"
-              data={wpiDistribution}
-              barColor={empireColors.primary}
-            />
-            <DistributionChart
-              title="Risk Distribution"
-              data={riskDistribution}
-              barColor={empireColors.warning}
-            />
+          <div className="enterprise-grid-metrics" style={{ alignItems: "stretch" }}>
+            <AuditProgressChart data={metrics.auditProgress} />
+            <VerificationSummary stats={metrics.verificationStats} />
           </div>
         </>
       )}

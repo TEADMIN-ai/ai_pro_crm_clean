@@ -29,6 +29,7 @@ function normalizeContractorDocument(id: string, source: Record<string, unknown>
         : typeof source.docType === "string"
           ? source.docType
           : undefined,
+    complianceType: typeof source.complianceType === "string" ? source.complianceType : undefined,
     docType: typeof source.docType === "string" ? source.docType : undefined,
     fileUrl:
       typeof source.fileUrl === "string"
@@ -58,7 +59,14 @@ function normalizeContractorDocument(id: string, source: Record<string, unknown>
     updatedAt: toMillis(source.updatedAt),
     extractedAt: toMillis(source.extractedAt),
     expiresAt: typeof source.expiresAt === "number" ? source.expiresAt : toMillis(source.expiresAt),
+    expiryDate: typeof source.expiryDate === "number" ? source.expiryDate : toMillis(source.expiryDate),
+    expiryAlert:
+      source.expiryAlert === "expired" || source.expiryAlert === "expiringSoon" || source.expiryAlert === "none"
+        ? source.expiryAlert
+        : undefined,
+    expiryAlertMessage: typeof source.expiryAlertMessage === "string" ? source.expiryAlertMessage : undefined,
     confidenceScore: typeof source.confidenceScore === "number" ? source.confidenceScore : undefined,
+    complianceScore: typeof source.complianceScore === "number" ? source.complianceScore : undefined,
     extractedData:
       source.extractedData && typeof source.extractedData === "object"
         ? (source.extractedData as Record<string, string | null>)
@@ -92,6 +100,10 @@ export async function recalculateContractorCompliance(db: Firestore, contractorI
       docsMissing: summary.docsMissing,
       tenderLockStatus: summary.tenderLockStatus,
       isTenderLocked: summary.isTenderLocked,
+      complianceStatusScore: summary.complianceStatusScore,
+      expiredDocumentCount: summary.expiredDocumentCount,
+      expiringSoonCount: summary.expiringSoonCount,
+      activeComplianceAlerts: summary.activeAlerts,
       missingDocumentTypes: summary.missingDocumentTypes,
       readinessUpdatedAt,
       updatedAt: readinessUpdatedAt,

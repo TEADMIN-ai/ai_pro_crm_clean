@@ -1,15 +1,21 @@
 import { type SupportedDocumentType } from "@/lib/compliance/contractorCompliance";
+import { computeComplianceScore, resolveComplianceExpiryAlert, type ComplianceExpiryAlertState } from "@/lib/compliance/complianceScoring";
 
 export type ComplianceDocumentStatus = "uploaded" | "verified" | "invalid" | "expired" | "expiringSoon";
 
 export type ComplianceAnalysisResult = {
   documentType: SupportedDocumentType;
+  complianceType: SupportedDocumentType;
   verified: boolean;
   expiresAt: number | null;
+  expiryDate: number | null;
+  expiryAlert: ComplianceExpiryAlertState;
+  expiryAlertMessage: string | null;
   extractedFields: Record<string, string | null>;
   missingFields: string[];
   validationErrors: string[];
   confidenceScore: number;
+  complianceScore: number;
   validationError: string | null;
   status: ComplianceDocumentStatus;
 };
@@ -80,15 +86,24 @@ function buildResult(params: {
     validationError,
     now,
   });
+  const expiryAlert = resolveComplianceExpiryAlert(expiresAt, now);
 
   return {
     documentType: params.documentType,
+    complianceType: params.documentType,
     verified: params.verified,
     expiresAt,
+    expiryDate: expiresAt,
+    expiryAlert: expiryAlert.state,
+    expiryAlertMessage: expiryAlert.message,
     extractedFields: params.extractedFields,
     missingFields: params.missingFields ?? [],
     validationErrors: params.validationErrors ?? (validationError ? [validationError] : []),
     confidenceScore: params.confidenceScore,
+    complianceScore: computeComplianceScore({
+      status,
+      confidenceScore: params.confidenceScore,
+    }),
     validationError,
     status,
   };

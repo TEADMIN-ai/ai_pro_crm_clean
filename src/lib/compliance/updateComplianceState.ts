@@ -55,6 +55,7 @@ export async function updateComplianceState(
   await db.collection("contractors").doc(contractorId).collection("complianceData").doc(analysis.documentType).set(
     {
       documentType: analysis.documentType,
+      complianceType: analysis.complianceType,
       extractedAt: now,
       extractedData,
       extractedFields: extractedData,
@@ -62,7 +63,11 @@ export async function updateComplianceState(
       validationErrors: analysis.validationErrors,
       analysisTimestamp: now.getTime(),
       confidenceScore: analysis.confidenceScore,
+      complianceScore: analysis.complianceScore,
       expiresAt: analysis.expiresAt,
+      expiryDate: analysis.expiryDate,
+      expiryAlert: analysis.expiryAlert,
+      expiryAlertMessage: analysis.expiryAlertMessage,
       verified: analysis.verified,
       verifiedAt,
       validationError: analysis.validationError,
@@ -75,13 +80,18 @@ export async function updateComplianceState(
   await db.collection("contractors").doc(contractorId).collection("documents").doc(analysis.documentType).set(
     {
       extractedAt: now,
+      complianceType: analysis.complianceType,
       extractedData,
       extractedFields: extractedData,
       missingFields: analysis.missingFields,
       validationErrors: analysis.validationErrors,
       analysisTimestamp: now.getTime(),
       confidenceScore: analysis.confidenceScore,
+      complianceScore: analysis.complianceScore,
       expiresAt: analysis.expiresAt,
+      expiryDate: analysis.expiryDate,
+      expiryAlert: analysis.expiryAlert,
+      expiryAlertMessage: analysis.expiryAlertMessage,
       verified: analysis.verified,
       verifiedAt,
       validationError: analysis.validationError,

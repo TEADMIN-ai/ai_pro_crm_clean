@@ -1,4 +1,4 @@
-export type UserRole = "admin" | "manager" | "staff" | "contractor" | "guest";
+export type UserRole = "admin" | "manager" | "staff" | "contractor" | "auditor" | "viewer" | "guest";
 
 export function canUpload(role?: UserRole): boolean {
   return role === "admin" || role === "manager" || role === "staff" || role === "contractor";

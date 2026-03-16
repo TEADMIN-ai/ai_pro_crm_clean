@@ -12,10 +12,14 @@ export type SupportedDocumentType = (typeof SUPPORTED_DOCUMENT_TYPES)[number];
 
 export type ContractorComplianceSummary = {
   readinessScore: number;
+  complianceStatusScore: number;
   docsMissing: number;
   missingDocumentTypes: SupportedDocumentType[];
   tenderLockStatus: "READY" | "RISK" | "BLOCKED";
   isTenderLocked: boolean;
+  expiredDocumentCount: number;
+  expiringSoonCount: number;
+  activeAlerts: number;
 };
 
 export type ContractorDocumentStatus = "missing" | "uploaded" | "verified" | "invalid" | "expired" | "expiringSoon";
@@ -107,6 +111,9 @@ export function resolveContractorDocumentStatus(
 export function calculateContractorCompliance(documents: ContractorDocument[]): ContractorComplianceSummary {
   const verifiedTypes = new Set<SupportedDocumentType>();
   const now = Date.now();
+  let expiredDocumentCount = 0;
+  let expiringSoonCount = 0;
+  let complianceScoreTotal = 0;
 
   for (const document of documents) {
     const type = document.documentType ?? document.docType;
@@ -118,18 +125,40 @@ export function calculateContractorCompliance(documents: ContractorDocument[]): 
     if (status === "verified" || status === "expiringSoon") {
       verifiedTypes.add(type);
     }
+    if (status === "expired") {
+      expiredDocumentCount += 1;
+    }
+    if (status === "expiringSoon") {
+      expiringSoonCount += 1;
+    }
+
+    complianceScoreTotal +=
+      typeof document.complianceScore === "number" && Number.isFinite(document.complianceScore)
+        ? document.complianceScore
+        : status === "verified"
+          ? 100
+          : status === "expiringSoon"
+            ? 75
+            : status === "uploaded"
+              ? 25
+              : 0;
   }
 
   const missingDocumentTypes = SUPPORTED_DOCUMENT_TYPES.filter((type) => !verifiedTypes.has(type));
   const docsMissing = missingDocumentTypes.length;
   const readinessScore = Math.round((verifiedTypes.size / SUPPORTED_DOCUMENT_TYPES.length) * 100);
+  const complianceStatusScore = Math.round(complianceScoreTotal / SUPPORTED_DOCUMENT_TYPES.length);
   const tenderLockStatus = docsMissing > 0 ? "BLOCKED" : resolveTenderLockStatusFromScore(readinessScore);
 
   return {
     readinessScore,
+    complianceStatusScore,
     docsMissing,
     missingDocumentTypes,
     tenderLockStatus,
     isTenderLocked: tenderLockStatus === "BLOCKED",
+    expiredDocumentCount,
+    expiringSoonCount,
+    activeAlerts: expiredDocumentCount + expiringSoonCount,
   };
 }

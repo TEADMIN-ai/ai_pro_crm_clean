@@ -54,6 +54,7 @@ export interface ContractorDocument {
    */
   docType?: string;
   documentType?: string;
+  complianceType?: string;
 
   /**
    * Canonical display name for compliance documents
@@ -73,6 +74,8 @@ export interface ContractorDocument {
    */
   expiresAt?: number;
   expiryDate?: number;
+  expiryAlert?: "none" | "expiringSoon" | "expired";
+  expiryAlertMessage?: string;
 
   /**
    * Creation timestamp
@@ -87,6 +90,7 @@ export interface ContractorDocument {
 
   extractedAt?: number;
   confidenceScore?: number;
+  complianceScore?: number;
   extractedData?: Record<string, string | null>;
   extractedFields?: Record<string, string | null>;
   missingFields?: string[];

@@ -17,6 +17,17 @@ export const API_ROUTES = {
   TENDER_PACK_GENERATE: "/api/tender-pack/generate",
   DEALS: "/api/deals",
   DEAL_DETAIL: (dealId: string) => `/api/deals/${encodeURIComponent(dealId)}`,
+  RISKS: "/api/risks",
+  RISK_DETAIL: (riskId: string) => `/api/risks/${encodeURIComponent(riskId)}`,
+  AUDIT_LOGS: "/api/audit-logs",
+  AUDIT_PROJECTS: "/api/audits/projects",
+  AUDIT_PROJECT_DETAIL: (projectId: string) => `/api/audits/projects/${encodeURIComponent(projectId)}`,
+  AUDIT_PROJECT_TASKS: (projectId: string) => `/api/audits/projects/${encodeURIComponent(projectId)}/tasks`,
+  AUDIT_PROJECT_TASK_DETAIL: (projectId: string, taskId: string) =>
+    `/api/audits/projects/${encodeURIComponent(projectId)}/tasks/${encodeURIComponent(taskId)}`,
+  AUDIT_PROJECT_FINDINGS: (projectId: string) => `/api/audits/projects/${encodeURIComponent(projectId)}/findings`,
+  AUDIT_PROJECT_FINDING_DETAIL: (projectId: string, findingId: string) =>
+    `/api/audits/projects/${encodeURIComponent(projectId)}/findings/${encodeURIComponent(findingId)}`,
   DEAL_DOCUMENTS: (dealId: string) => `/api/deals/${encodeURIComponent(dealId)}/documents`,
   DEAL_ACTIVITY: (dealId: string) => `/api/deals/${encodeURIComponent(dealId)}/activity`,
   DEAL_ANALYTICS: (dealId: string) => `/api/deals/${encodeURIComponent(dealId)}/analytics`,

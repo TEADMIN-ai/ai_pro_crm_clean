@@ -22,13 +22,32 @@ function sanitizeFilename(name: string) {
   return cleaned.length > 0 ? cleaned : "document.pdf";
 }
 
+async function resolveDealId(context: { params: Promise<{ dealId: string }> }) {
+  const { dealId: rawDealId } = await context.params;
+  return decodeURIComponent(rawDealId ?? "").trim();
+}
+
+function hasRequiredMetadata(metadata: {
+  dealId?: string;
+  fileName?: string;
+  uploadedBy?: string;
+  createdAt?: string;
+}) {
+  return Boolean(metadata.dealId && metadata.fileName && metadata.uploadedBy && metadata.createdAt);
+}
+
 export async function GET(
   request: NextRequest,
   context: { params: Promise<{ dealId: string }> },
 ) {
   try {
     const actor = await requireAuthorizedUser(request);
-    const { dealId } = await context.params;
+    const dealId = await resolveDealId(context);
+
+    if (!dealId) {
+      return NextResponse.json({ error: "Missing dealId" }, { status: 400 });
+    }
+
     const deal = await getDealById(dealId);
 
     if (!deal) {
@@ -57,10 +76,23 @@ export async function POST(
 ) {
   try {
     const actor = await requireAuthorizedUser(request);
-    const { dealId } = await context.params;
+    const dealId = await resolveDealId(context);
+
+    console.log("[deal-documents][POST] request received", {
+      actorUid: actor.uid,
+      actorRole: actor.role,
+      dealId,
+    });
+
+    if (!dealId) {
+      console.error("[deal-documents][POST] missing dealId in route params");
+      return NextResponse.json({ success: false, error: "Missing dealId" }, { status: 400 });
+    }
+
     const deal = await getDealById(dealId);
 
     if (!deal) {
+      console.error("[deal-documents][POST] deal not found", { dealId });
       return NextResponse.json({ error: "Deal not found" }, { status: 404 });
     }
 
@@ -71,16 +103,28 @@ export async function POST(
     const contentType = request.headers.get("content-type") ?? "";
 
     if (contentType.includes("multipart/form-data")) {
+      console.log("[deal-documents][POST] parsing multipart form data", { dealId });
       const formData = await request.formData();
       const uploadedFile = formData.get("file");
 
       if (!(uploadedFile instanceof File)) {
+        console.error("[deal-documents][POST] multipart request missing file", { dealId });
         return NextResponse.json({ success: false, error: "Missing PDF file" }, { status: 400 });
       }
 
       if (!uploadedFile.name.toLowerCase().endsWith(".pdf")) {
+        console.error("[deal-documents][POST] rejected non-pdf upload", {
+          dealId,
+          fileName: uploadedFile.name,
+        });
         return NextResponse.json({ success: false, error: "Only PDF files are allowed" }, { status: 400 });
       }
+
+      console.log("[deal-documents][POST] uploading file to storage", {
+        dealId,
+        fileName: uploadedFile.name,
+        size: uploadedFile.size,
+      });
 
       const fileBuffer = Buffer.from(await uploadedFile.arrayBuffer());
       const timestamp = Date.now();
@@ -96,7 +140,7 @@ export async function POST(
         },
       });
 
-      console.log(`File uploaded: ${filePath}`);
+      console.log("[deal-documents][POST] file uploaded to storage", { dealId, filePath });
 
       const [downloadURL] = await file.getSignedUrl({
         action: "read",
@@ -109,18 +153,27 @@ export async function POST(
 
       try {
         extractedText = await extractTextFromPdf(fileBuffer);
-        console.log(`PDF text length: ${extractedText.length}`);
+        console.log("[deal-documents][POST] pdf text extracted", {
+          dealId,
+          fileName: uploadedFile.name,
+          textLength: extractedText.length,
+        });
       } catch (error) {
         extractionError = "PDF extraction failed";
-        console.error("PDF extraction failed:", error);
+        console.error("[deal-documents][POST] pdf extraction failed", {
+          dealId,
+          fileName: uploadedFile.name,
+          error,
+        });
       }
 
       const db = getFirebaseAdmin();
       const metadataRef = db.collection("deals").doc(dealId).collection("documents").doc();
-
-      await metadataRef.set({
+      const createdAt = new Date().toISOString();
+      const metadata = {
         id: metadataRef.id,
         dealId,
+        fileName: uploadedFile.name,
         name: uploadedFile.name,
         originalName: uploadedFile.name,
         contentType: uploadedFile.type || "application/pdf",
@@ -128,17 +181,47 @@ export async function POST(
         storagePath: filePath,
         filePath,
         downloadURL,
+        uploadedBy: actor.email ?? actor.uid,
         uploadedByUid: actor.uid,
         uploadedByRole: actor.role,
+        createdAt,
         uploadedAt,
         updatedAt: uploadedAt,
         status: "pending",
         version: 1,
         extractedText,
         textLength: extractedText.length,
-      });
+      };
 
-      console.log("Document stored in Firestore");
+      if (!hasRequiredMetadata(metadata)) {
+        console.error("[deal-documents][POST] metadata validation failed", {
+          dealId: metadata.dealId,
+          fileName: metadata.fileName,
+          uploadedBy: metadata.uploadedBy,
+          createdAt: metadata.createdAt,
+        });
+        return NextResponse.json(
+          { error: "Failed to store deal document metadata" },
+          { status: 500 },
+        );
+      }
+
+      console.log("Uploading deal document metadata:", metadata);
+
+      try {
+        await metadataRef.set(metadata);
+      } catch (error) {
+        console.error("Deal document metadata write failed:", error);
+        return NextResponse.json(
+          { error: "Failed to store deal document metadata" },
+          { status: 500 },
+        );
+      }
+
+      console.log("[deal-documents][POST] metadata stored in firestore", {
+        dealId,
+        documentId: metadataRef.id,
+      });
 
       const snapshot = await metadataRef.get();
       const document = {
@@ -152,7 +235,7 @@ export async function POST(
           document,
           ...(extractionError ? { extraction: { success: false, error: extractionError } } : {}),
         },
-        { status: 201 },
+        { status: 200 },
       );
     }
 
@@ -185,7 +268,12 @@ export async function PATCH(
 ) {
   try {
     const actor = await requireAuthorizedUser(request);
-    const { dealId } = await context.params;
+    const dealId = await resolveDealId(context);
+
+    if (!dealId) {
+      return NextResponse.json({ error: "Missing dealId" }, { status: 400 });
+    }
+
     const body = (await request.json()) as Record<string, unknown>;
     const documentId = typeof body.documentId === "string" ? body.documentId : "";
     const status = body.status === "approved" || body.status === "rejected" ? body.status : null;
@@ -228,7 +316,12 @@ export async function DELETE(
 ) {
   try {
     const actor = await requireAuthorizedUser(request);
-    const { dealId } = await context.params;
+    const dealId = await resolveDealId(context);
+
+    if (!dealId) {
+      return NextResponse.json({ error: "Missing dealId" }, { status: 400 });
+    }
+
     const documentId = request.nextUrl.searchParams.get("documentId") ?? "";
     const deal = await getDealById(dealId);
 

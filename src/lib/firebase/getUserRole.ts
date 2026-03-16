@@ -3,7 +3,7 @@ import { db } from "@/lib/firebase";
 
 export async function getUserRole(
   uid: string
-): Promise<"admin" | "manager" | "staff" | "contractor" | null> {
+): Promise<"admin" | "manager" | "staff" | "contractor" | "auditor" | "viewer" | null> {
   const ref = doc(db, "users", uid);
   const snap = await getDoc(ref);
   if (!snap.exists()) return null;
@@ -12,7 +12,9 @@ export async function getUserRole(
     role === "admin" ||
     role === "manager" ||
     role === "staff" ||
-    role === "contractor"
+    role === "contractor" ||
+    role === "auditor" ||
+    role === "viewer"
   ) {
     return role;
   }
