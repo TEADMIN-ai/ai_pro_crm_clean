@@ -146,7 +146,21 @@ export async function listContractorDocuments(contractorId: string) {
       downloadURL: asString(data.downloadURL) ?? asString(data.fileUrl),
       verified: data.verified === true || hasTimestamp(data.verifiedAt),
       verifiedAt: toMillis(data.verifiedAt),
+      validationStatus:
+        data.validationStatus === "PASS" || data.validationStatus === "REVIEW" || data.validationStatus === "FAIL"
+          ? data.validationStatus
+          : undefined,
       validationError: asString(data.validationError),
+      reviewReason: asString(data.reviewReason),
+      reviewedBy: asString(data.reviewedBy),
+      reviewedAt: toMillis(data.reviewedAt),
+      manualDecisionAvailable: data.manualDecisionAvailable === true,
+      confidenceNotes: Array.isArray(data.confidenceNotes)
+        ? data.confidenceNotes.filter((value): value is string => typeof value === "string")
+        : undefined,
+      suggestions: Array.isArray(data.suggestions)
+        ? data.suggestions.filter((value): value is string => typeof value === "string")
+        : undefined,
       uploadedAt: toMillis(data.uploadedAt),
       createdAt: toMillis(data.createdAt),
       updatedAt: toMillis(data.updatedAt),
@@ -154,16 +168,10 @@ export async function listContractorDocuments(contractorId: string) {
       expiresAt: typeof data.expiresAt === "number" ? data.expiresAt : undefined,
       expiryDate: typeof data.expiryDate === "number" ? data.expiryDate : undefined,
       confidenceScore: typeof data.confidenceScore === "number" ? data.confidenceScore : undefined,
-      extractedData:
-        data.extractedData && typeof data.extractedData === "object"
-          ? (data.extractedData as Record<string, string | null>)
-          : undefined,
       extractedFields:
         data.extractedFields && typeof data.extractedFields === "object"
           ? (data.extractedFields as Record<string, string | null>)
-          : data.extractedData && typeof data.extractedData === "object"
-            ? (data.extractedData as Record<string, string | null>)
-            : undefined,
+          : undefined,
       missingFields: Array.isArray(data.missingFields)
         ? data.missingFields.filter((value): value is string => typeof value === "string")
         : undefined,

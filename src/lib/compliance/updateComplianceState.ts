@@ -47,7 +47,7 @@ export async function updateComplianceState(
 ): Promise<void> {
   const now = new Date();
   const verifiedAt = analysis.verified ? FieldValue.serverTimestamp() : null;
-  const extractedData = {
+  const extractedFields = {
     detectedDocumentType: analysis.documentType,
     ...analysis.extractedFields,
   };
@@ -57,8 +57,7 @@ export async function updateComplianceState(
       documentType: analysis.documentType,
       complianceType: analysis.complianceType,
       extractedAt: now,
-      extractedData,
-      extractedFields: extractedData,
+      extractedFields,
       missingFields: analysis.missingFields,
       validationErrors: analysis.validationErrors,
       analysisTimestamp: now.getTime(),
@@ -81,8 +80,7 @@ export async function updateComplianceState(
     {
       extractedAt: now,
       complianceType: analysis.complianceType,
-      extractedData,
-      extractedFields: extractedData,
+      extractedFields,
       missingFields: analysis.missingFields,
       validationErrors: analysis.validationErrors,
       analysisTimestamp: now.getTime(),

@@ -43,6 +43,7 @@
 import OpenAI from "openai";
 import { cert, getApps, initializeApp } from "firebase-admin/app";
 import { getStorage } from "firebase-admin/storage";
+import { runOCR } from "@/server/services/ocrService";
 
 /**
  * ExtractedDocumentData
@@ -181,46 +182,14 @@ function normalizeTimestamp(value: unknown): number | null {
 }
 
 async function extractTextWithOpenAI(args: {
-  client: OpenAI;
   bytes: Uint8Array;
   filename: string;
+  mimeType?: string;
 }): Promise<string> {
-  const uploadedFile = await args.client.files.create({
-    file: await OpenAI.toFile(args.bytes, args.filename),
-    purpose: "user_data",
+  return runOCR(Buffer.from(args.bytes), {
+    filename: args.filename,
+    mimeType: args.mimeType,
   });
-
-  try {
-    const response = await args.client.responses.create({
-      model: DEFAULT_OPENAI_MODEL,
-      input: [
-        {
-          role: "user",
-          content: [
-            {
-              type: "input_file",
-              file_id: uploadedFile.id,
-            },
-            {
-              type: "input_text",
-              text: "Extract all readable text from this document. Return only extracted text.",
-            },
-          ],
-        },
-      ],
-    });
-
-    return typeof response.output_text === "string" ? response.output_text : "";
-  } finally {
-    try {
-      await args.client.files.delete(uploadedFile.id);
-    } catch (cleanupError) {
-      console.warn("OpenAI file cleanup failed", {
-        fileId: uploadedFile.id,
-        cleanupError,
-      });
-    }
-  }
 }
 
 async function extractExpiryWithOpenAI(args: {
@@ -366,9 +335,9 @@ export async function extractDocumentData(args: {
 
     try {
       const text = await extractTextWithOpenAI({
-        client,
         bytes,
         filename: args.filename?.trim() || "document",
+        mimeType,
       });
       return { text, mimeType };
     } catch (openAiError) {

@@ -1,16 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
 import { getStorage } from "firebase-admin/storage";
-import { PDFParse } from "pdf-parse";
 
 import { getFirebaseAdmin } from "@/lib/firebase/admin";
+import { extractTextFromPdf } from "@/lib/pdf/extractTextFromPdf";
 import {
   AuthorizationError,
   assertCanAccessContractor,
   requireAuthorizedUser,
 } from "@/lib/server/authz";
 import { getDealById } from "@/server/services/dealService";
-import { extractTextOCR } from "@/server/services/ocrService";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -261,20 +260,7 @@ export async function POST(
 
     const bucket = getStorage().bucket();
     const [buffer] = await bucket.file(storagePath).download();
-    const parser = new PDFParse({ data: Buffer.from(buffer) });
-    let text = "";
-
-    try {
-      const parsed = await parser.getText();
-      text = parsed.text.trim();
-    } finally {
-      await parser.destroy();
-    }
-
-    if (!text || text.length < 100) {
-      console.log("FALLBACK: OCR triggered");
-      text = await extractTextOCR(Buffer.from(buffer));
-    }
+    const text = await extractTextFromPdf(Buffer.from(buffer));
 
     const analysis = await extractStructuredAnalysis(text);
     const analyzedAt = new Date().toISOString();

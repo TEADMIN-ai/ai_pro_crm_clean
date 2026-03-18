@@ -67,15 +67,9 @@ function normalizeContractorDocument(id: string, source: Record<string, unknown>
     expiryAlertMessage: typeof source.expiryAlertMessage === "string" ? source.expiryAlertMessage : undefined,
     confidenceScore: typeof source.confidenceScore === "number" ? source.confidenceScore : undefined,
     complianceScore: typeof source.complianceScore === "number" ? source.complianceScore : undefined,
-    extractedData:
-      source.extractedData && typeof source.extractedData === "object"
-        ? (source.extractedData as Record<string, string | null>)
-        : undefined,
     extractedFields:
       source.extractedFields && typeof source.extractedFields === "object"
         ? (source.extractedFields as Record<string, string | null>)
-        : source.extractedData && typeof source.extractedData === "object"
-          ? (source.extractedData as Record<string, string | null>)
         : undefined,
     status: typeof source.status === "string" ? source.status : undefined,
   };

@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getStorage } from "firebase-admin/storage";
 
 import {
   AuthorizationError,
   assertCanAccessContractor,
   requireAuthorizedUser,
 } from "@/lib/server/authz";
-import { getFirebaseAdmin } from "@/lib/firebase/admin";
+import { getAdminApp, getFirebaseAdmin } from "@/lib/firebase/admin";
 import {
   isSupportedDocumentType,
   type SupportedDocumentType,
@@ -67,6 +68,28 @@ function normalizeExtractedFields(fields: Record<string, string | null> | undefi
   return extractedFields;
 }
 
+function buildVerificationPersistence(result: Awaited<ReturnType<typeof verifyStoredContractorDocument>>) {
+  return {
+    validationStatus: result.status,
+    confidenceScore: result.score,
+    missingFields: result.missingFields,
+    confidenceNotes: result.confidenceNotes ?? [],
+    suggestions: result.suggestions,
+    reviewReason: result.reason ?? null,
+    validationError: result.status === "FAIL" ? result.reason ?? "Automatic verification failed" : null,
+    manualDecisionAvailable: result.status === "REVIEW",
+    verified: result.verified,
+    verifiedAt: result.verified ? new Date() : null,
+    status: result.status === "PASS" ? "verified" : result.status === "FAIL" ? "invalid" : "uploaded",
+  };
+}
+
+async function downloadContractorDocumentBuffer(storagePath: string): Promise<Buffer> {
+  const storage = getStorage(getAdminApp());
+  const [buffer] = await storage.bucket().file(storagePath).download();
+  return Buffer.from(buffer);
+}
+
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ contractorId: string; documentType: string }> }
@@ -118,18 +141,11 @@ export async function POST(
 
     let result: Awaited<ReturnType<typeof verifyStoredContractorDocument>>;
     try {
-      result = await verifyStoredContractorDocument({
-        contractorId,
-        documentId: documentType,
-        documentType: documentType as SupportedDocumentType,
-        storagePath,
-        fileName:
-          asString(metadata.fileName) ??
-          asString(metadata.filename) ??
-          asString(metadata.originalName) ??
-          asString(metadata.documentName) ??
-          documentType,
-      });
+      const buffer = await downloadContractorDocumentBuffer(storagePath);
+      result = await verifyStoredContractorDocument(
+        buffer,
+        (documentType as SupportedDocumentType) || "cipc"
+      );
     } catch (error) {
       if (error instanceof Error && error.message === "pdf_extraction_failed") {
         console.error("PDF EXTRACTION FAILED", error);
@@ -139,13 +155,13 @@ export async function POST(
       throw error;
     }
     console.log("AI ANALYSIS RESULT");
-    console.log(JSON.stringify(result.extractedData ?? {}, null, 2));
+    console.log(JSON.stringify(result.extractedFields ?? {}, null, 2));
     console.log("VALIDATION RESULT");
     console.log(
       JSON.stringify(
         {
           status: result.status,
-          verifiedAt: result.verifiedAt,
+          verified: result.verified,
         },
         null,
         2
@@ -153,13 +169,13 @@ export async function POST(
     );
 
     const extractedFields = normalizeExtractedFields(
-      result.extractedData as Record<string, string | null> | undefined
+      result.extractedFields as Record<string, string | null> | undefined
     );
     const analysisTimestamp = Date.now();
 
     await documentRef.set(
       {
-        validationStatus: result.status,
+        ...buildVerificationPersistence(result),
         extractedFields,
         analysisTimestamp,
         updatedAt: new Date(),

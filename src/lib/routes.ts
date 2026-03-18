@@ -12,6 +12,8 @@ export const API_ROUTES = {
     `/api/contractors/${encodeURIComponent(contractorId)}`,
   CONTRACTOR_DOCUMENTS: (contractorId: string) =>
     `/api/contractors/${encodeURIComponent(contractorId)}/documents`,
+  CONTRACTOR_DOCUMENT_REVIEW: (contractorId: string, documentType: string) =>
+    `/api/contractor-documents/${encodeURIComponent(contractorId)}/${encodeURIComponent(documentType)}/review`,
   DOCUMENT_EXECUTE: (documentId: string) =>
     `/api/documents/${documentId}/execute`,
   TENDER_PACK_GENERATE: "/api/tender-pack/generate",

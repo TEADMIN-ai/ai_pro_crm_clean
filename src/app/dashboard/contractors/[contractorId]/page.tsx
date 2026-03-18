@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import ContractorDocumentUploader from "@/components/contractors/ContractorDocumentUploader";
+import DocumentVerificationReviewPanel from "@/components/contractors/DocumentVerificationReviewPanel";
 import ComplianceRadar from "@/components/intelligence/ComplianceRadar";
 import DocumentExecutionPanel from "@/components/documents/DocumentExecutionPanel";
 import TenderPackGeneratorPanel from "@/components/documents/TenderPackGeneratorPanel";
@@ -10,6 +11,7 @@ import Badge from "@/components/ui/Badge";
 import Card, { IdentityCardHeader } from "@/components/ui/Card";
 import Table from "@/components/ui/Table";
 import { useAuth } from "@/context/AuthContext";
+import { canReview } from "@/lib/auth/roleUtils";
 import { calculateContractorCompliance } from "@/lib/compliance/contractorCompliance";
 import { authFetch } from "@/lib/client/authFetch";
 import { getContractorDocuments } from "@/lib/contractors/getContractorDocuments";
@@ -28,7 +30,19 @@ function formatDate(value?: number): string {
   return typeof value === "number" ? new Date(value).toLocaleDateString() : "-";
 }
 
-function resolveDocumentStatus(document: ContractorDocument): "Uploaded" | "Verified" | "Expired" | "Invalid" | "Missing" {
+function resolveDocumentStatus(document: ContractorDocument): "Uploaded" | "Verified" | "Expired" | "Invalid" | "Missing" | "Needs Review" {
+  if (document.validationStatus === "PASS") {
+    return "Verified";
+  }
+
+  if (document.validationStatus === "REVIEW") {
+    return "Needs Review";
+  }
+
+  if (document.validationStatus === "FAIL") {
+    return "Invalid";
+  }
+
   if (!document.fileUrl) {
     return "Missing";
   }
@@ -65,7 +79,7 @@ function renderMissingFields(document: ContractorDocument): string {
 }
 
 function renderExtractedData(document: ContractorDocument): string {
-  const fields = document.extractedFields ?? document.extractedData;
+  const fields = document.extractedFields;
   if (!fields) {
     return "-";
   }
@@ -270,6 +284,13 @@ export default function ContractorDetailPage() {
           </tbody>
         </Table>
       </Card>
+
+      <DocumentVerificationReviewPanel
+        contractorId={contractorId}
+        documents={documents}
+        canReview={canReview(role)}
+        onUpdatedAction={() => loadPage(contractorId)}
+      />
 
       <TenderPackGeneratorPanel />
       <DocumentExecutionPanel />

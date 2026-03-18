@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getFirebaseAdmin } from "@/lib/firebase/admin";
+import { getStorage } from "firebase-admin/storage";
+import { getAdminApp, getFirebaseAdmin } from "@/lib/firebase/admin";
 import {
   getDocumentTypeLabel,
   resolveContractorDocumentStatus,
@@ -83,7 +84,21 @@ function normalizeDocument(id: string, data: Record<string, unknown>): Contracto
           : undefined,
     verified: data.verified === true || hasTimestamp(data.verifiedAt),
     verifiedAt: toMillis(data.verifiedAt),
+    validationStatus:
+      data.validationStatus === "PASS" || data.validationStatus === "REVIEW" || data.validationStatus === "FAIL"
+        ? data.validationStatus
+        : undefined,
     validationError: typeof data.validationError === "string" ? data.validationError : undefined,
+    reviewReason: typeof data.reviewReason === "string" ? data.reviewReason : undefined,
+    reviewedBy: typeof data.reviewedBy === "string" ? data.reviewedBy : undefined,
+    reviewedAt: toMillis(data.reviewedAt),
+    manualDecisionAvailable: data.manualDecisionAvailable === true,
+    confidenceNotes: Array.isArray(data.confidenceNotes)
+      ? data.confidenceNotes.filter((value): value is string => typeof value === "string")
+      : undefined,
+    suggestions: Array.isArray(data.suggestions)
+      ? data.suggestions.filter((value): value is string => typeof value === "string")
+      : undefined,
     uploadedAt: toMillis(data.uploadedAt),
     createdAt: toMillis(data.createdAt),
     updatedAt: toMillis(data.updatedAt),
@@ -91,16 +106,10 @@ function normalizeDocument(id: string, data: Record<string, unknown>): Contracto
     expiresAt: typeof data.expiresAt === "number" ? data.expiresAt : undefined,
     expiryDate: typeof data.expiryDate === "number" ? data.expiryDate : undefined,
     confidenceScore: typeof data.confidenceScore === "number" ? data.confidenceScore : undefined,
-    extractedData:
-      data.extractedData && typeof data.extractedData === "object"
-        ? (data.extractedData as Record<string, string | null>)
-        : undefined,
     extractedFields:
       data.extractedFields && typeof data.extractedFields === "object"
         ? (data.extractedFields as Record<string, string | null>)
-        : data.extractedData && typeof data.extractedData === "object"
-          ? (data.extractedData as Record<string, string | null>)
-          : undefined,
+        : undefined,
     missingFields: Array.isArray(data.missingFields)
       ? data.missingFields.filter((value): value is string => typeof value === "string")
       : undefined,
@@ -123,6 +132,25 @@ function normalizeDocument(id: string, data: Record<string, unknown>): Contracto
   };
 }
 
+function buildVerificationPersistence(result: Awaited<ReturnType<typeof verifyStoredContractorDocument>>) {
+  return {
+    validationStatus: result.status,
+    confidenceScore: result.score,
+    missingFields: result.missingFields,
+    extractedFields: result.extractedFields,
+    confidenceNotes: result.confidenceNotes ?? [],
+    suggestions: result.suggestions,
+    reviewReason: result.reason ?? null,
+    validationError: result.status === "FAIL" ? result.reason ?? "Automatic verification failed" : null,
+    manualDecisionAvailable: result.status === "REVIEW",
+    verified: result.verified,
+    verifiedAt: result.verified ? new Date() : null,
+    status: result.status === "PASS" ? "verified" : result.status === "FAIL" ? "invalid" : "uploaded",
+    analysisTimestamp: Date.now(),
+    updatedAt: new Date(),
+  };
+}
+
 function parseDocumentType(value: unknown): SupportedDocumentType | null {
   const type = getString(value);
   return isSupportedDocumentType(type) ? type : null;
@@ -130,6 +158,12 @@ function parseDocumentType(value: unknown): SupportedDocumentType | null {
 
 function isValidStoragePath(contractorId: string, documentType: SupportedDocumentType, storagePath: string): boolean {
   return storagePath === `contractors/${contractorId}/${documentType}.pdf`;
+}
+
+async function downloadContractorDocumentBuffer(storagePath: string): Promise<Buffer> {
+  const storage = getStorage(getAdminApp());
+  const [buffer] = await storage.bucket().file(storagePath).download();
+  return Buffer.from(buffer);
 }
 
 export async function GET(
@@ -242,13 +276,9 @@ export async function POST(
         documentType,
       });
 
-      await verifyStoredContractorDocument({
-        contractorId,
-        documentId: documentType,
-        documentType,
-        storagePath,
-        fileName: documentName || `${documentType}.pdf`,
-      });
+      const buffer = await downloadContractorDocumentBuffer(storagePath);
+      const verificationResult = await verifyStoredContractorDocument(buffer, documentType);
+      await upsertContractorDocument(contractorId, documentType, buildVerificationPersistence(verificationResult));
     } catch (error) {
       console.error("Document verification failed", error);
     }

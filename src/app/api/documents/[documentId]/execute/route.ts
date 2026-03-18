@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getStorage } from "firebase-admin/storage";
-import { PDFParse } from "pdf-parse";
 
 import { analyzeUploadedDocument } from "@/lib/intelligence/documentIntelligenceEngine";
+import { extractTextFromPdf } from "@/lib/pdf/extractTextFromPdf";
 import {
   DocumentExecutionError,
   guardDocumentExecution,
@@ -14,7 +14,6 @@ import { GuardianMonitor } from "@/lib/guardian/GuardianMonitor";
 import { AuthorizationError, canAccessContractor, requireAuthorizedUser } from "@/lib/server/authz";
 import { getContractorDocumentSnapshot } from "@/server/services/documentExecutionService";
 import { analyzeTenderDocument } from "@/server/services/tenderAnalysisService";
-import { extractTextOCR } from "@/server/services/ocrService";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -265,15 +264,7 @@ export async function POST(
       try {
         const [buffer] = await bucket.file(targetStoragePath).download();
         analyses = [toDocumentAnalysis(analyzeUploadedDocument(buffer, fileName))];
-        const parser = new PDFParse({ data: Buffer.from(buffer) });
-        let text = "";
-
-        try {
-          const data = await parser.getText();
-          text = data.text.trim();
-        } finally {
-          await parser.destroy();
-        }
+        const text = await extractTextFromPdf(Buffer.from(buffer));
 
         console.log("----- DOCUMENT DEBUG -----");
         console.log("Document ID:", documentId);
@@ -285,11 +276,6 @@ export async function POST(
           console.log("No text extracted");
         }
         console.log("--------------------------");
-
-        if (!text || text.length < 100) {
-          console.log("FALLBACK: OCR triggered");
-          text = await extractTextOCR(Buffer.from(buffer));
-        }
 
         tenderAnalysis = await analyzeTenderDocument({
           contractorId,

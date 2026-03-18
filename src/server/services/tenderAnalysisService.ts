@@ -1,9 +1,8 @@
 import OpenAI from "openai";
 import { getStorage } from "firebase-admin/storage";
-import { PDFParse } from "pdf-parse";
 import { getAdminApp, getFirebaseAdmin } from "@/lib/firebase/admin";
+import { extractTextFromPdf } from "@/lib/pdf/extractTextFromPdf";
 import { listContractorDocuments } from "@/server/services/contractorService";
-import { extractTextOCR } from "@/server/services/ocrService";
 
 type TenderDocumentType = "tender" | "rfq" | "rfp" | "quotation" | "unknown";
 type TenderRiskLevel = "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
@@ -123,21 +122,7 @@ async function downloadPdfBuffer(documentPath: string): Promise<Buffer> {
 
 async function extractPdfText(documentPath: string): Promise<string> {
   const fileBuffer = await downloadPdfBuffer(documentPath);
-  const parser = new PDFParse({ data: fileBuffer });
-
-  try {
-    const parsed = await parser.getText();
-    const text = parsed.text.trim();
-
-    if (!text || text.length < 100) {
-      console.log("FALLBACK: OCR triggered");
-      return extractTextOCR(fileBuffer);
-    }
-
-    return text;
-  } finally {
-    await parser.destroy();
-  }
+  return extractTextFromPdf(fileBuffer);
 }
 
 function fallbackExtraction(text: string): TenderStructuredExtraction {

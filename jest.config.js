@@ -6,7 +6,8 @@ module.exports = {
   roots: ["<rootDir>/src"],
 
   testMatch: [
-    "**/__tests__/**/*.test.ts"
+    "**/__tests__/**/*.test.ts",
+    "**/__tests__/**/*.test.tsx"
   ],
 
   moduleNameMapper: {
@@ -14,7 +15,7 @@ module.exports = {
   },
 
   transform: {
-    "^.+\\.ts$": "ts-jest"
+    "^.+\\.tsx?$": "ts-jest"
   },
 
   workerThreads: true,

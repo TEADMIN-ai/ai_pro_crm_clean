@@ -65,9 +65,16 @@ export interface ContractorDocument {
    * Compliance status
    */
   status?: string;
+  validationStatus?: "PASS" | "REVIEW" | "FAIL";
   verified?: boolean;
   verifiedAt?: number;
   validationError?: string;
+  reviewReason?: string;
+  reviewedBy?: string;
+  reviewedAt?: number;
+  manualDecisionAvailable?: boolean;
+  confidenceNotes?: string[];
+  suggestions?: string[];
 
   /**
    * Expiry timestamp (Unix milliseconds)
@@ -91,7 +98,6 @@ export interface ContractorDocument {
   extractedAt?: number;
   confidenceScore?: number;
   complianceScore?: number;
-  extractedData?: Record<string, string | null>;
   extractedFields?: Record<string, string | null>;
   missingFields?: string[];
   validationErrors?: string[];
