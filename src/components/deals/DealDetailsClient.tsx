@@ -1,16 +1,17 @@
 "use client";
 
-import type { DocumentAnalysis } from "@/types/tenderAudit";
-import { evaluateTenderReadiness } from "@/lib/tender/evaluateTenderReadiness";
-import TenderReadinessPanel from "./TenderReadinessPanel";
-import DocumentIntelligence from "./DocumentIntelligence";
+import React from "react";
+import DocumentVerificationReviewPanel from "./DocumentVerificationReviewPanel";
+
+type DocumentAnalysis = {
+  finalStatus?: "PASS" | "FAIL";
+};
 
 type Deal = {
-  id: string;
+  id?: string;
   title?: string;
   status?: string;
   createdAt?: string;
-  readinessUpdatedAt?: string;
   documentAnalysis?: DocumentAnalysis;
 };
 
@@ -19,23 +20,41 @@ interface Props {
 }
 
 export default function DealDetailsClient({ deal }: Props) {
-  const readiness = evaluateTenderReadiness(deal.documentAnalysis);
-
   return (
     <div className="space-y-6">
-      <div className="rounded-xl border border-slate-700 bg-slate-900 p-6">
-        <h1 className="text-xl font-bold text-white">{deal.title ?? "Deal"}</h1>
+      {/* HEADER */}
+      <div className="rounded-xl border border-slate-700 bg-slate-900 p-4">
+        <h1 className="text-xl font-bold text-white">
+          {deal?.title || "Deal"}
+        </h1>
 
-        <p className="text-sm text-gray-400">Status: {deal.status ?? "Unknown"}</p>
+        <p className="text-sm text-gray-400">
+          Status: {deal?.status || "unknown"}
+        </p>
 
-        {deal.createdAt && <p className="mt-1 text-xs text-gray-500">Created: {deal.createdAt}</p>}
+        {deal?.createdAt && (
+          <p className="mt-1 text-xs text-gray-400">
+            Created: {new Date(deal.createdAt).toLocaleString()}
+          </p>
+        )}
       </div>
 
-      <TenderReadinessPanel
-        evaluation={readiness}
-        readinessUpdatedAt={deal.readinessUpdatedAt}
-      />
-      <DocumentIntelligence analysis={deal.documentAnalysis ?? null} />
+      {/* MAIN GRID */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* LEFT COLUMN */}
+        <div className="lg:col-span-2">
+          <div className="rounded-xl border border-slate-700 bg-slate-900 p-4 text-gray-300">
+            Deal content goes here...
+          </div>
+        </div>
+
+        {/* RIGHT COLUMN — VERIFICATION */}
+        <div className="lg:col-span-1">
+          {deal?.id && (
+            <DocumentVerificationReviewPanel dealId={deal.id} />
+          )}
+        </div>
+      </div>
     </div>
   );
 }

@@ -30,16 +30,20 @@ function formatDate(value?: number): string {
   return typeof value === "number" ? new Date(value).toLocaleDateString() : "-";
 }
 
-function resolveDocumentStatus(document: ContractorDocument): "Uploaded" | "Verified" | "Expired" | "Invalid" | "Missing" | "Needs Review" {
-  if (document.validationStatus === "PASS") {
+function resolveDocumentStatus(
+  document: ContractorDocument,
+): "Uploaded" | "Verified" | "AI Processed" | "Expired" | "Invalid" | "Missing" | "Needs Review" {
+  const finalStatus = document.finalStatus ?? document.validationStatus;
+
+  if (finalStatus === "PASS") {
     return "Verified";
   }
 
-  if (document.validationStatus === "REVIEW") {
+  if (finalStatus === "REVIEW") {
     return "Needs Review";
   }
 
-  if (document.validationStatus === "FAIL") {
+  if (finalStatus === "FAIL") {
     return "Invalid";
   }
 
@@ -55,7 +59,11 @@ function resolveDocumentStatus(document: ContractorDocument): "Uploaded" | "Veri
     return "Expired";
   }
 
-  if (document.verified || document.status === "verified") {
+  if (document.verified) {
+    return "AI Processed";
+  }
+
+  if (document.status === "verified") {
     return "Verified";
   }
 

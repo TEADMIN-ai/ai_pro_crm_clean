@@ -164,6 +164,7 @@ export async function createDealDocumentMetadata(input: {
     uploadedAt: now,
     updatedAt: now,
     status: "pending",
+    reviewedAt: null,
     version: 1,
   });
 

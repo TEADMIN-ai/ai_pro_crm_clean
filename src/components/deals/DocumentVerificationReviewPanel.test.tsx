@@ -1,5 +1,5 @@
 import { renderToStaticMarkup } from "react-dom/server";
-import DocumentVerificationReviewPanel from "@/components/contractors/DocumentVerificationReviewPanel";
+import DocumentVerificationReviewPanel from "@/components/deals/DocumentVerificationReviewPanel";
 import type { ContractorDocument } from "@/types/document";
 
 jest.mock("@/lib/client/authFetch", () => ({

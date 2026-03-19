@@ -188,6 +188,7 @@ export async function POST(
         uploadedAt,
         updatedAt: uploadedAt,
         status: "pending",
+        reviewedAt: null,
         version: 1,
         extractedText,
         textLength: extractedText.length,

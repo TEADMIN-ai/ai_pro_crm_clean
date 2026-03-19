@@ -5,7 +5,6 @@ import {
   getDocumentTypeLabel,
   resolveContractorDocumentStatus,
   isSupportedDocumentType,
-  SUPPORTED_DOCUMENT_TYPES,
   type SupportedDocumentType,
 } from "@/lib/compliance/contractorCompliance";
 import {
@@ -180,22 +179,7 @@ export async function GET(
 
     assertCanAccessContractor(user, contractorId);
 
-    const existingDocuments = await listContractorDocuments(contractorId);
-    const docsById = new Map(existingDocuments.map((doc) => [doc.id, doc]));
-    const documents = SUPPORTED_DOCUMENT_TYPES.map((type) => {
-      const existing = docsById.get(type);
-      return (
-        existing ?? {
-          id: type,
-          contractorId,
-          documentType: type,
-          docType: type,
-          documentName: `${getDocumentTypeLabel(type)}.pdf`,
-          status: "missing",
-          verified: false,
-        }
-      );
-    });
+    const documents = await listContractorDocuments(contractorId);
 
     return NextResponse.json({ documents }, { status: 200 });
   } catch (error: unknown) {

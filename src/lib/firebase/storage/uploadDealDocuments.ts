@@ -23,7 +23,7 @@ export interface DocumentRecord {
   status: DocumentStatus;
   reviewedByUid?: string;
   reviewedByRole?: DocumentReviewRole;
-  reviewedAt?: Timestamp;
+  reviewedAt?: Timestamp | null;
   rejectionReason?: string;
   version?: number;
 }

@@ -65,6 +65,7 @@ export interface ContractorDocument {
    * Compliance status
    */
   status?: string;
+  finalStatus?: "PASS" | "REVIEW" | "FAIL";
   validationStatus?: "PASS" | "REVIEW" | "FAIL";
   verified?: boolean;
   verifiedAt?: number;

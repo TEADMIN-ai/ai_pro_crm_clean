@@ -91,11 +91,19 @@ export async function extractTextFromPdf(
     console.log("Running PDF extraction...");
     const extractedText = await extractEmbeddedText(binary);
 
-    if (extractedText.length > 0) {
+    const hasUsefulContent =
+      extractedText &&
+      extractedText.length > 100 &&
+      extractedText.toLowerCase().includes("certificate");
+
+    if (hasUsefulContent) {
       console.log("PDF embedded text length:", extractedText.length);
       console.log("Final verification text preview:", extractedText.slice(0, 500));
       return extractedText;
     }
+
+    // FORCE OCR fallback
+    return runOcrFallback(binary);
   } catch (error) {
     console.error("PDF text extraction failed:", error);
   }

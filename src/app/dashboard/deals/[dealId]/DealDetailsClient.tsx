@@ -24,9 +24,11 @@ import { calculateImpactAttribution } from "@/lib/intelligence/impactAttribution
 import { type DocumentIntelligenceResult } from "@/lib/intelligence/documentIntelligenceEngine";
 import { generateAutoFillPreview } from "@/lib/pdf/autoFillPreviewEngine";
 import DocumentIntelligence from "@/components/deals/DocumentIntelligence";
+import DocumentVerificationReviewPanel from "@/components/contractors/DocumentVerificationReviewPanel";
 import { evaluateTenderReadiness } from "@/lib/tender/evaluateTenderReadiness";
 import { API_ROUTES } from "@/lib/routes";
 import type { DocumentAnalysis } from "@/types/tenderAudit";
+import type { Deal } from "@/types/deal";
 import { authFetch } from "@/lib/client/authFetch";
 
 type DealDocument = {
@@ -43,6 +45,18 @@ type DealDocument = {
   reviewedAt?: string;
 };
 
+function getDocumentStatusBadgeClass(status?: DealDocument["status"]) {
+  if (status === "approved") {
+    return "bg-green-500 text-white";
+  }
+
+  if (status === "rejected") {
+    return "bg-red-500 text-white";
+  }
+
+  return "bg-yellow-500 text-black";
+}
+
 export default function DealDetailsClient({ dealId }: { dealId: string }) {
   const { user, role, loading } = useAuth();
   const router = useRouter();
@@ -50,6 +64,7 @@ export default function DealDetailsClient({ dealId }: { dealId: string }) {
   const routeDealId = Array.isArray(params.dealId) ? params.dealId[0] : params.dealId;
   const resolvedDealId = decodeURIComponent(routeDealId ?? dealId);
 
+  const [deal, setDeal] = useState<Deal | null>(null);
   const [documents, setDocuments] = useState<DealDocument[]>([]);
   const [isLoadingDocs, setIsLoadingDocs] = useState(true);
   const [busyDocumentId, setBusyDocumentId] = useState<string | null>(null);
@@ -77,6 +92,7 @@ export default function DealDetailsClient({ dealId }: { dealId: string }) {
 
         if (dealResponse.ok) {
           const dealPayload = (await dealResponse.json()) as {
+            deal?: Deal;
             analytics?: {
               readinessUpdatedAt?: string;
               previousWpi?: WpiHistoryPoint | null;
@@ -84,6 +100,7 @@ export default function DealDetailsClient({ dealId }: { dealId: string }) {
           };
 
           if (active) {
+            setDeal(dealPayload.deal ?? null);
             setReadinessUpdatedAt(dealPayload.analytics?.readinessUpdatedAt);
             setPreviousWpi(dealPayload.analytics?.previousWpi ?? null);
           }
@@ -115,19 +132,20 @@ export default function DealDetailsClient({ dealId }: { dealId: string }) {
     };
   }, [resolvedDealId]);
 
-  const handleStatusUpdate = async (documentId: string, newStatus: "approved" | "rejected") => {
+  const updateStatus = async (documentId: string, status: "approved" | "rejected") => {
     if (!user || !canReview(role)) return;
 
     setBusyDocumentId(documentId);
     try {
-      const response = await authFetch(API_ROUTES.DEAL_DOCUMENTS(resolvedDealId), {
+      console.log("Sending documentId:", documentId);
+
+      const response = await authFetch(`/api/documents/${encodeURIComponent(documentId)}/status`, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          documentId,
-          status: newStatus,
+          status,
         }),
       });
 
@@ -138,11 +156,19 @@ export default function DealDetailsClient({ dealId }: { dealId: string }) {
       const payload = (await response.json()) as { document?: DealDocument };
       if (payload.document) {
         setDocuments((current) =>
-          current.map((item) => (item.id === payload.document?.id ? payload.document : item)),
+          current.map((item) =>
+            item.id === payload.document?.id
+              ? {
+                  ...item,
+                  ...payload.document,
+                  status: payload.document.status ?? "pending",
+                }
+              : item,
+          ),
         );
       }
     } catch (error) {
-      console.error("Status update failed:", error);
+      console.error("Status update error:", error);
     } finally {
       setBusyDocumentId(null);
     }
@@ -416,12 +442,14 @@ export default function DealDetailsClient({ dealId }: { dealId: string }) {
     };
   }, [autoFillPreview, documentIntelligence]);
 
-  const deal = useMemo(
-    () => ({
-      documentAnalysis: documentIntelligence,
-    }),
-    [documentIntelligence],
-  );
+  const reviewDocuments = useMemo(() => {
+    return documents.map((item) => ({
+      id: item.id,
+      fileName: item.name,
+      type: "Deal document",
+      status: item.status,
+    }));
+  }, [documents]);
 
   useEffect(() => {
     if (!resolvedDealId || !documentIntelligence) return;
@@ -448,9 +476,23 @@ export default function DealDetailsClient({ dealId }: { dealId: string }) {
   if (!user) return null;
 
   return (
-    <div style={{ padding: 40 }}>
-      <h1>Deal Documents</h1>
-      <p style={{ opacity: 0.6 }}>Deal ID: {resolvedDealId}</p>
+    <div className="space-y-6" style={{ padding: 40 }}>
+      <div className="rounded-xl border border-slate-700 bg-slate-900 p-4">
+        <h1 className="text-xl font-bold text-white">
+          {deal?.title || "Deal"}
+        </h1>
+
+        <p className="text-sm text-gray-400">
+          Status: {deal?.status || "unknown"}
+        </p>
+
+        {deal?.createdAt && (
+          <p className="mt-1 text-xs text-gray-400">
+            Created: {new Date(deal.createdAt).toLocaleString()}
+          </p>
+        )}
+      </div>
+
       <TenderProjectionPanel categoryScores={categoryScores} />
       <TenderRiskPanel risk={riskRadar} />
       <WinProbabilityPanel result={winProbability} />
@@ -471,7 +513,7 @@ export default function DealDetailsClient({ dealId }: { dealId: string }) {
         <p style={{ marginTop: 0, opacity: 0.7 }}>
           Heuristic extraction and preview mapping for SBD auto-fill.
         </p>
-        <DocumentIntelligence analysis={deal.documentAnalysis} />
+        <DocumentIntelligence analysis={documentIntelligence} />
       </section>
 
       {canUpload(role) && (
@@ -493,110 +535,128 @@ export default function DealDetailsClient({ dealId }: { dealId: string }) {
         </div>
       )}
 
-      {documents.length === 0 ? (
-        <p>No documents uploaded yet.</p>
-      ) : (
-        <table
-          style={{
-            width: "100%",
-            borderCollapse: "collapse",
-            marginTop: 20,
-          }}
-        >
-          <thead>
-            <tr style={{ textAlign: "left" }}>
-              <th>Name</th>
-              <th>Status</th>
-              <th>Uploaded</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {documents.map((docItem) => {
-              const canDeleteThisDoc = canDelete(role, docItem.uploadedByUid, user.uid);
-              const isBusy = busyDocumentId === docItem.id;
+      <section style={{ marginTop: 20 }}>
+        <h2 style={{ marginBottom: 8 }}>Document Register</h2>
+        {documents.length === 0 ? (
+          <p>No documents uploaded yet.</p>
+        ) : (
+          <table
+            style={{
+              width: "100%",
+              borderCollapse: "collapse",
+              marginTop: 20,
+            }}
+          >
+            <thead>
+              <tr style={{ textAlign: "left" }}>
+                <th>Name</th>
+                <th>Status</th>
+                <th>Uploaded</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {documents.map((docItem) => {
+                const canDeleteThisDoc = canDelete(role, docItem.uploadedByUid, user.uid);
+                const isBusy = busyDocumentId === docItem.id;
+                const status = docItem.status ?? "pending";
 
-              return (
-                <tr key={docItem.id}>
-                  <td>{docItem.name}</td>
-                  <td>{docItem.status ?? "pending"}</td>
-                  <td>{docItem.uploadedAt ? new Date(docItem.uploadedAt).toLocaleString() : "-"}</td>
-                  <td>
-                    <button
-                      onClick={() => window.open(docItem.downloadURL, "_blank", "noopener,noreferrer")}
-                      style={{
-                        marginRight: 8,
-                        padding: "6px 12px",
-                        borderRadius: 6,
-                        border: "none",
-                        cursor: "pointer",
-                      }}
-                    >
-                      View
-                    </button>
-
-                    {canReview(role) && (
-                      <>
-                        <button
-                          onClick={() => handleStatusUpdate(docItem.id, "approved")}
-                          disabled={isBusy}
-                          style={{
-                            marginRight: 8,
-                            background: "#16a34a",
-                            color: "white",
-                            border: "none",
-                            padding: "6px 12px",
-                            borderRadius: 6,
-                            cursor: "pointer",
-                            opacity: isBusy ? 0.65 : 1,
-                          }}
-                        >
-                          Approve
-                        </button>
-
-                        <button
-                          onClick={() => handleStatusUpdate(docItem.id, "rejected")}
-                          disabled={isBusy}
-                          style={{
-                            marginRight: 8,
-                            background: "#f97316",
-                            color: "white",
-                            border: "none",
-                            padding: "6px 12px",
-                            borderRadius: 6,
-                            cursor: "pointer",
-                            opacity: isBusy ? 0.65 : 1,
-                          }}
-                        >
-                          Reject
-                        </button>
-                      </>
-                    )}
-
-                    {canDeleteThisDoc && (
+                return (
+                  <tr key={docItem.id}>
+                    <td>{docItem.name}</td>
+                    <td>
+                      <span
+                        className={`px-2 py-1 rounded text-xs ${getDocumentStatusBadgeClass(status)}`}
+                      >
+                        {status}
+                      </span>
+                    </td>
+                    <td>{docItem.uploadedAt ? new Date(docItem.uploadedAt).toLocaleString() : "-"}</td>
+                    <td>
                       <button
-                        onClick={() => handleDelete(docItem)}
-                        disabled={isBusy}
+                        onClick={() => window.open(docItem.downloadURL, "_blank", "noopener,noreferrer")}
                         style={{
-                          background: "#dc2626",
-                          color: "white",
-                          border: "none",
+                          marginRight: 8,
                           padding: "6px 12px",
                           borderRadius: 6,
+                          border: "none",
                           cursor: "pointer",
-                          opacity: isBusy ? 0.65 : 1,
                         }}
                       >
-                        Delete
+                        View
                       </button>
-                    )}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      )}
+
+                      {canReview(role) && (
+                        <>
+                          <button
+                            onClick={() => updateStatus(docItem.id, "approved")}
+                            disabled={isBusy}
+                            style={{
+                              marginRight: 8,
+                              background: "#16a34a",
+                              color: "white",
+                              border: "none",
+                              padding: "6px 12px",
+                              borderRadius: 6,
+                              cursor: "pointer",
+                              opacity: isBusy ? 0.65 : 1,
+                            }}
+                          >
+                            Approve
+                          </button>
+
+                          <button
+                            onClick={() => updateStatus(docItem.id, "rejected")}
+                            disabled={isBusy}
+                            style={{
+                              marginRight: 8,
+                              background: "#dc2626",
+                              color: "white",
+                              border: "none",
+                              padding: "6px 12px",
+                              borderRadius: 6,
+                              cursor: "pointer",
+                              opacity: isBusy ? 0.65 : 1,
+                            }}
+                          >
+                            Reject
+                          </button>
+                        </>
+                      )}
+
+                      {canDeleteThisDoc && (
+                        <button
+                          onClick={() => handleDelete(docItem)}
+                          disabled={isBusy}
+                          style={{
+                            background: "#dc2626",
+                            color: "white",
+                            border: "none",
+                            padding: "6px 12px",
+                            borderRadius: 6,
+                            cursor: "pointer",
+                            opacity: isBusy ? 0.65 : 1,
+                          }}
+                        >
+                          Delete
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        )}
+      </section>
+
+      <div style={{ marginTop: 30 }}>
+        <DocumentVerificationReviewPanel
+          dealId={resolvedDealId}
+          documents={reviewDocuments}
+          canReview={canReview(role)}
+        />
+      </div>
     </div>
   );
 }

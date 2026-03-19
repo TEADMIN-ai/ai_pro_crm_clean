@@ -121,7 +121,7 @@ export default function ContractorDocumentUploader({
               </div>
 
               <div style={{ fontSize: 13, opacity: 0.8 }}>
-                Status: {currentDocument?.verified ? "Verified" : currentDocument?.fileUrl ? "Uploaded" : "Not uploaded"}
+                Status: {currentDocument?.verified ? "AI Processed" : currentDocument?.fileUrl ? "Uploaded" : "Not uploaded"}
               </div>
             </div>
           );
