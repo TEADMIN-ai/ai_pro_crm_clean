@@ -1,5 +1,5 @@
-import fs from "node:fs/promises";
-import path from "node:path";
+import fs from "fs";
+import path from "path";
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 
 import { getFirebaseAdmin } from "@/lib/firebase/admin";
@@ -33,16 +33,23 @@ export type TenderFillError = {
 
 export type TenderFillResult = TenderFillSuccess | TenderFillError;
 
-function resolveTemplatePaths(templateKey: SbdFormKey): string[] {
-  const registryEntry = TEMPLATE_REGISTRY[templateKey];
-  if (!registryEntry) {
-    return [];
+function resolveTemplatePath(templateKey: SbdFormKey): string {
+  return path.join(
+    process.cwd(),
+    "src/lib/pdfs/templates/tender-packs",
+    `${templateKey}.pdf`
+  );
+}
+
+function loadTemplateBytes(templateKey: SbdFormKey): { templateBytes: Buffer; templatePath: string } {
+  const templatePath = resolveTemplatePath(templateKey);
+
+  if (!fs.existsSync(templatePath)) {
+    throw new Error(`Template file not found for key: ${templateKey}`);
   }
 
-  return [
-    path.join(process.cwd(), registryEntry.pdfRelativePath),
-    path.join(process.cwd(), "templates", "tender-packs", `${templateKey}.pdf`),
-  ];
+  const templateBytes = fs.readFileSync(templatePath);
+  return { templateBytes, templatePath };
 }
 
 async function writeAuditTrail(data: {
@@ -150,42 +157,41 @@ export async function fillTenderPack(params: FillTenderPackParams): Promise<Tend
     ? buildMappedFieldMap(profile, registryEntry.fieldMap)
     : fallbackFieldMap;
   const warnings = getRequiredMissingWarnings(templateKey, profile);
+  const pdfData = {
+    templateKey,
+    contractorId: profile.contractorId,
+    outputMode,
+    fieldMapUsed,
+    fallbackFieldMap,
+  };
+  console.log("PDF Input:", pdfData);
+
+  const requiredDiagnosticFields = {
+    companyName: fallbackFieldMap.companyName,
+    vatNumber: fallbackFieldMap.vatNumber,
+    taxPin: fallbackFieldMap.taxPin,
+    csdNumber: fallbackFieldMap.csdNumber,
+    telephone: fallbackFieldMap.phone,
+    email: fallbackFieldMap.email,
+  };
+
+  for (const [fieldName, value] of Object.entries(requiredDiagnosticFields)) {
+    if (!value) {
+      console.warn("Missing field:", fieldName);
+    }
+  }
 
   let templateBytes: Buffer;
   let templatePath = "";
-  const candidatePaths = resolveTemplatePaths(templateKey);
-
-  if (candidatePaths.length === 0) {
-    return {
-      ok: false,
-      error: `Template path could not be resolved for key '${templateKey}'`,
-      warnings,
-      fieldMapUsed,
-    };
-  }
 
   try {
-    let loaded = false;
-    templateBytes = Buffer.alloc(0);
-
-    for (const candidatePath of candidatePaths) {
-      try {
-        templateBytes = await fs.readFile(candidatePath);
-        templatePath = candidatePath;
-        loaded = true;
-        break;
-      } catch {
-        // try next candidate
-      }
-    }
-
-    if (!loaded) {
-      throw new Error("template not found in any configured path");
-    }
-  } catch {
+    const loadedTemplate = loadTemplateBytes(templateKey);
+    templateBytes = loadedTemplate.templateBytes;
+    templatePath = loadedTemplate.templatePath;
+  } catch (error) {
     return {
       ok: false,
-      error: `Template file not found for key '${templateKey}' at ${candidatePaths.join(" or ")}`,
+      error: error instanceof Error ? error.message : `Template file not found for key: ${templateKey}`,
       warnings,
       fieldMapUsed,
     };
@@ -196,6 +202,12 @@ export async function fillTenderPack(params: FillTenderPackParams): Promise<Tend
     const form = pdfDoc.getForm();
 
     const fields = form.getFields();
+    console.log("PDF Field Diagnostics:", {
+      templateKey,
+      fieldCount: fields.length,
+      fieldNames: fields.map((field) => field.getName()),
+      hasOverlayMap: Boolean(registryEntry.overlayMap),
+    });
     if (fields.length > 0) {
       for (const field of fields) {
         const name = field.getName();
@@ -217,6 +229,7 @@ export async function fillTenderPack(params: FillTenderPackParams): Promise<Tend
         warnings,
       });
     } else {
+      warnings.push(`SBD data breakpoint: no AcroForm fields found for '${templateKey}' and no overlay mapping is configured`);
       warnings.push(`No AcroForm fields found and no overlay mapping configured for '${templateKey}'`);
     }
 

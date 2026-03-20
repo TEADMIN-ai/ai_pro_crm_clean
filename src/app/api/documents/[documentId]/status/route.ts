@@ -3,7 +3,9 @@ import { getFirebaseAdmin } from "@/lib/firebase/admin";
 
 export async function PATCH(request: NextRequest) {
   try {
-    // 🔥 BULLETPROOF PARAM EXTRACTION
+    const userId = request.headers.get("x-user-id") || "system";
+
+    // BULLETPROOF PARAM EXTRACTION
     const url = new URL(request.url);
     const documentId = url.pathname.split("/")[3];
 
@@ -28,6 +30,7 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
+    const existing = docSnap.data();
     const body = await request.json();
     const { status } = body;
 
@@ -41,6 +44,21 @@ export async function PATCH(request: NextRequest) {
     await docRef.update({
       status,
       updatedAt: new Date().toISOString(),
+
+      // LAST ACTION (for UI display)
+      lastActionBy: userId,
+      lastActionAt: new Date().toISOString(),
+      lastActionType: status,
+
+      // FULL AUDIT TRAIL (append only)
+      auditTrail: [
+        ...(existing?.auditTrail || []),
+        {
+          action: status,
+          by: userId,
+          at: new Date().toISOString(),
+        },
+      ],
     });
 
     return new Response(

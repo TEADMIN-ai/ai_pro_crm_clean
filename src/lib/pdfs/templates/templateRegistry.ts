@@ -81,11 +81,87 @@ const SBD8_OVERLAY_MAP: TemplateOverlayMap = {
   },
 };
 
+const SBD1_OVERLAY_MAP: TemplateOverlayMap = {
+  companyName: {
+    profileKey: "companyName",
+    page: 0,
+    x: 148,
+    y: 431.2,
+    size: 10,
+    maxWidth: 415.5,
+  },
+  postalAddress: {
+    profileKey: "address",
+    page: 0,
+    x: 148,
+    y: 413.7,
+    size: 10,
+    maxWidth: 415.5,
+  },
+  streetAddress: {
+    profileKey: "address",
+    page: 0,
+    x: 148,
+    y: 396.2,
+    size: 10,
+    maxWidth: 415.5,
+  },
+  telephone: {
+    profileKey: "phone",
+    page: 0,
+    x: 239,
+    y: 380.7,
+    size: 10,
+    maxWidth: 207,
+  },
+  cellphone: {
+    profileKey: "phone",
+    page: 0,
+    x: 148,
+    y: 337,
+    size: 10,
+    maxWidth: 415.5,
+  },
+  email: {
+    profileKey: "email",
+    page: 0,
+    x: 149,
+    y: 290,
+    size: 10,
+    maxWidth: 415.5,
+  },
+  vatNumber: {
+    profileKey: "vatNumber",
+    page: 0,
+    x: 148,
+    y: 258,
+    size: 10,
+    maxWidth: 415.5,
+  },
+  taxPin: {
+    profileKey: "taxPin",
+    page: 0,
+    x: 238,
+    y: 186.8,
+    size: 10,
+    maxWidth: 62,
+  },
+  csdNumber: {
+    profileKey: "csdNumber",
+    page: 0,
+    x: 436,
+    y: 185.8,
+    size: 10,
+    maxWidth: 131,
+  },
+};
+
 export const TEMPLATE_REGISTRY: Record<SbdFormKey, TemplateRegistryEntry> = {
   sbd1: {
     templateKey: "sbd1",
     pdfRelativePath: "src/lib/pdfs/templates/tender-packs/sbd1.pdf",
     fieldMap: COMMON_FIELD_MAP,
+    overlayMap: SBD1_OVERLAY_MAP,
   },
   sbd2: {
     templateKey: "sbd2",

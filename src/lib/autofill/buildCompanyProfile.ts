@@ -71,6 +71,15 @@ function readDocumentExtract(data: Record<string, unknown>): DocumentExtract {
   };
 }
 
+const REQUIRED_DIAGNOSTIC_FIELDS = [
+  { name: "companyName", resolve: (profile: Omit<CompanyProfile, "missingFields" | "sourceAttribution">) => profile.companyName },
+  { name: "vatNumber", resolve: (profile: Omit<CompanyProfile, "missingFields" | "sourceAttribution">) => profile.vatNumber },
+  { name: "taxPin", resolve: (profile: Omit<CompanyProfile, "missingFields" | "sourceAttribution">) => profile.taxPin },
+  { name: "csdNumber", resolve: (profile: Omit<CompanyProfile, "missingFields" | "sourceAttribution">) => profile.csdNumber },
+  { name: "telephone", resolve: (profile: Omit<CompanyProfile, "missingFields" | "sourceAttribution">) => profile.phone },
+  { name: "email", resolve: (profile: Omit<CompanyProfile, "missingFields" | "sourceAttribution">) => profile.email },
+] as const;
+
 export async function buildCompanyProfile(contractorId: string): Promise<CompanyProfile> {
   const db = getFirebaseAdmin();
 
@@ -143,15 +152,34 @@ export async function buildCompanyProfile(contractorId: string): Promise<Company
     }
   }
 
-  const missingFields = (Object.keys(SBD_FIELD_DEFINITIONS) as SbdFieldKey[]).filter((key) => !profile[key]);
+  const mapped = {
+    ...profile,
+  };
+
+  const missingFields = (Object.keys(SBD_FIELD_DEFINITIONS) as SbdFieldKey[]).filter((key) => !mapped[key]);
 
   for (const key of missingFields) {
     sourceAttribution[key] = "default";
-    profile[key] = "";
+    mapped[key] = "";
+  }
+
+  console.log("Mapped Data:", {
+    contractorId,
+    contractorData,
+    documentCount: documentData.length,
+    mappedData: mapped,
+    sourceAttribution,
+    missingFields,
+  });
+
+  for (const field of REQUIRED_DIAGNOSTIC_FIELDS) {
+    if (!field.resolve(mapped)) {
+      console.warn("Missing field:", field.name);
+    }
   }
 
   return {
-    ...profile,
+    ...mapped,
     missingFields,
     sourceAttribution,
   };

@@ -27,6 +27,8 @@ type DocumentItem = {
   analysisStatus?: string;
   fileUrl?: string;
   downloadURL?: string;
+  lastActionAt?: string | number | Date;
+  lastActionType?: string;
 };
 
 function getAiFinalStatus(item: DocumentItem): "PASS" | "REVIEW" | "FAIL" | undefined {
@@ -197,16 +199,16 @@ export default function DocumentVerificationReviewPanel({
         <p style={{ color: "#94a3b8" }}>No documents to review</p>
       )}
 
-      {documentList.map((item) => {
-        const aiFinalStatus = getAiFinalStatus(item);
+      {documentList.map((doc) => {
+        const aiFinalStatus = getAiFinalStatus(doc);
         const isPass = aiFinalStatus === "PASS";
         const isFail = aiFinalStatus === "FAIL";
         const isReview = aiFinalStatus === "REVIEW";
-        const isProcessed = item?.verified === true;
-        const hasManualDecision = item.status === "approved" || item.status === "rejected";
+        const isProcessed = doc?.verified === true;
+        const hasManualDecision = doc.status === "approved" || doc.status === "rejected";
         const normalizedStatus =
           hasManualDecision
-            ? item.status
+            ? doc.status
             : isPass
             ? "approved"
             : isFail
@@ -214,7 +216,7 @@ export default function DocumentVerificationReviewPanel({
               : "pending";
         const statusLabel =
           hasManualDecision
-            ? item.status === "approved"
+            ? doc.status === "approved"
               ? "Approved"
               : "Rejected"
             : isPass
@@ -227,26 +229,26 @@ export default function DocumentVerificationReviewPanel({
                   ? "AI Processed"
                   : normalizedStatus;
         const isExtractionFailed =
-          (typeof item?.extractedText === "string" && item.extractedText.trim().length === 0) ||
-          item?.analysisStatus === "failed" ||
-          item?.extractedTextLength === 0;
+          (typeof doc?.extractedText === "string" && doc.extractedText.trim().length === 0) ||
+          doc?.analysisStatus === "failed" ||
+          doc?.extractedTextLength === 0;
         const needsManualReview = isFail || isReview || isExtractionFailed;
-        const missingFields = item?.missingFields || [];
-        const suggestions = item?.suggestions || [];
-        const confidenceNotes = item?.confidenceNotes || [];
+        const missingFields = doc?.missingFields || [];
+        const suggestions = doc?.suggestions || [];
+        const confidenceNotes = doc?.confidenceNotes || [];
         const displayName =
-          item.fileName ||
-          item.documentName ||
-          item.name ||
-          item.type ||
-          item.documentType ||
-          item.docType ||
+          doc.fileName ||
+          doc.documentName ||
+          doc.name ||
+          doc.type ||
+          doc.documentType ||
+          doc.docType ||
           "Document";
-        const documentType = item.type || item.documentType || item.docType || "unknown";
+        const documentType = doc.type || doc.documentType || doc.docType || "unknown";
 
         return (
           <div
-            key={item.id}
+            key={doc.id}
             style={{
               border: "1px solid #1f2937",
               borderRadius: 10,
@@ -290,7 +292,7 @@ export default function DocumentVerificationReviewPanel({
             {/* CONFIDENCE */}
             <div style={{ marginTop: 10 }}>
               <strong>Confidence Score:</strong>{" "}
-              {item.confidenceScore ?? 0}/100
+              {doc.confidenceScore ?? 0}/100
             </div>
 
             {/* MISSING FIELDS */}
@@ -306,10 +308,10 @@ export default function DocumentVerificationReviewPanel({
             )}
 
             {/* REASON */}
-            {(item.reason || item.reviewReason) && (
+            {(doc.reason || doc.reviewReason) && (
               <div style={{ marginTop: 10 }}>
                 <strong>Reason:</strong>
-                <p>{item.reason || item.reviewReason}</p>
+                <p>{doc.reason || doc.reviewReason}</p>
               </div>
             )}
 
@@ -356,17 +358,24 @@ export default function DocumentVerificationReviewPanel({
                     : "Review the extracted data and confirm the final decision."}
                 </p>
 
+                {doc?.lastActionAt && (
+                  <div className="text-xs text-gray-400 mt-1">
+                    Last action: {doc?.lastActionType || "updated"} at{" "}
+                    {new Date(doc.lastActionAt).toLocaleString()}
+                  </div>
+                )}
+
                 {canReview && !hasManualDecision && (
                   <div className="mt-4 flex gap-2">
                     <button
-                      onClick={() => handleManualApprove(item)}
+                      onClick={() => handleManualApprove(doc)}
                       className="rounded bg-green-600 px-3 py-1 text-xs text-white"
                     >
                       Approve
                     </button>
 
                     <button
-                      onClick={() => handleManualReject(item)}
+                      onClick={() => handleManualReject(doc)}
                       className="rounded bg-red-600 px-3 py-1 text-xs text-white"
                     >
                       Reject
@@ -385,7 +394,7 @@ export default function DocumentVerificationReviewPanel({
                 }}
               >
                 <button
-                  onClick={() => handleManualReject(item)}
+                  onClick={() => handleManualReject(doc)}
                   style={{
                     background: "#475569",
                     padding: "8px 14px",

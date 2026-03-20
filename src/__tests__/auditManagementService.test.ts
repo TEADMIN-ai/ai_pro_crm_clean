@@ -4,7 +4,7 @@ import type { AuditFinding, AuditTask } from "@/types/audit";
 describe("buildAuditProjectSummary", () => {
   test("summarizes audit tasks and findings", () => {
     const tasks: AuditTask[] = [
-      { id: "1", auditProjectId: "p1", title: "Plan scope", description: "", assignee: "Lead", dueDate: "2026-03-01", status: "todo" },
+      { id: "1", auditProjectId: "p1", title: "Plan scope", description: "", assignedTo: "system", assignee: "Lead", dueDate: "2026-03-01", status: "todo" },
       { id: "2", auditProjectId: "p1", title: "Collect evidence", description: "", assignedTo: "Lead", assignee: "Lead", dueDate: "2026-03-02", status: "in_progress" },
       { id: "3", auditProjectId: "p1", title: "Close workpaper", description: "", assignedTo: "Lead", assignee: "Lead", dueDate: "2026-03-03", status: "done" },
     ];

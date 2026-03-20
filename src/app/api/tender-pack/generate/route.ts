@@ -5,6 +5,7 @@ import { getStorage } from "firebase-admin/storage";
 import { buildCompanyProfile } from "@/lib/autofill/buildCompanyProfile";
 import { fillTenderPack } from "@/lib/pdfs/empirePdfFill";
 import { SBD_TEMPLATE_KEYS, type SbdFormKey } from "@/lib/pdfs/templates/sbdSchema";
+import { CRITICAL_TENDER_FIELD_LABELS, getCriticalTenderMissingFields } from "@/lib/tender/criticalTenderFields";
 import { createTenderPackRecord } from "@/server/services/tenderPackService";
 
 export const runtime = "nodejs";
@@ -44,6 +45,7 @@ export async function POST(request: NextRequest) {
   try {
     const { uid } = await requireRole(request);
     const body = (await request.json()) as GenerateBody;
+    console.log("API Body:", body);
 
     const contractorId = typeof body.contractorId === "string" ? body.contractorId.trim() : "";
     const templateKey = typeof body.templateKey === "string" ? body.templateKey.trim() : "";
@@ -57,6 +59,19 @@ export async function POST(request: NextRequest) {
     }
 
     const profile = await buildCompanyProfile(contractorId);
+    const criticalMissingFields = getCriticalTenderMissingFields(profile.missingFields);
+    if (criticalMissingFields.length > 0) {
+      return NextResponse.json(
+        {
+          error: "Missing critical contractor fields",
+          missingFields: criticalMissingFields,
+          warnings: criticalMissingFields.map((field) => `Missing ${CRITICAL_TENDER_FIELD_LABELS[field]}`),
+        },
+        { status: 422 }
+      );
+    }
+
+    console.log("Mapped Data:", profile);
     const fillResult = await fillTenderPack({
       templateKey: templateKey as SbdFormKey,
       profile,
