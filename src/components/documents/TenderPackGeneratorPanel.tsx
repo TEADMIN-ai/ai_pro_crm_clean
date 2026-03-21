@@ -7,6 +7,11 @@ import Card from "@/components/ui/Card";
 import { useAuth } from "@/context/AuthContext";
 import { authFetch } from "@/lib/client/authFetch";
 import {
+  generateTenderPackWithValidation,
+  type GenerateTenderPackInput,
+} from "@/lib/pdf/tenderPack";
+import type { SBD1ValidationResult } from "@/lib/pdf/sbd1AutoFill";
+import {
   CRITICAL_TENDER_FIELD_LABELS,
   type CriticalTenderField,
 } from "@/lib/tender/criticalTenderFields";
@@ -14,6 +19,7 @@ import { API_ROUTES } from "@/lib/routes";
 import { SBD_TEMPLATE_KEYS, type SbdFormKey } from "@/lib/pdfs/templates/sbdSchema";
 import { downloadTenderReport } from "@/lib/reports/downloadTenderReport";
 import { generateTenderReport } from "@/lib/reports/generateTenderReport";
+import { generateSBD4Overlay } from "@/lib/pdf/sbd4Overlay";
 
 type GenerateResponse = {
   packId: string;
@@ -31,6 +37,84 @@ type ContractorDetailResponse = Record<string, unknown> & {
   error?: string;
 };
 
+function getString(value: unknown): string {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function buildInitials(value: string): string {
+  const parts = value
+    .split(/\s+/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  return parts
+    .slice(0, 3)
+    .map((part) => part[0]?.toUpperCase() ?? "")
+    .join("");
+}
+
+function buildTenderPackData(contractor: ContractorDetailResponse): GenerateTenderPackInput {
+  const companyName = getString(contractor.companyName) || getString(contractor.name);
+  const address =
+    getString(contractor.streetAddress) ||
+    getString(contractor.address) ||
+    getString(contractor.physicalAddress) ||
+    getString(contractor.postalAddress);
+  const phone =
+    getString(contractor.phone) ||
+    getString(contractor.contactPhone) ||
+    getString(contractor.telephone);
+  const contactPerson =
+    getString(contractor.contactPerson) ||
+    getString(contractor.contactName) ||
+    companyName;
+
+  return {
+    sbd1: {
+      companyName,
+      postalAddress: getString(contractor.postalAddress) || address,
+      streetAddress: getString(contractor.streetAddress) || address,
+      telephone: phone,
+      cellphone: getString(contractor.cellphone) || phone,
+      email: getString(contractor.email) || getString(contractor.contactEmail),
+      vatNumber: getString(contractor.vatNumber) || getString(contractor.vat),
+      taxPin: getString(contractor.taxPin) || getString(contractor.taxNumber),
+      csdNumber: getString(contractor.csdNumber) || getString(contractor.csd),
+    },
+    sbd4: {
+      bidder: {
+        companyName,
+      },
+      declarations: {
+        isEmployee: false,
+        isDirector: false,
+        relatedToStateEmployee: false,
+        details: "",
+      },
+      signoff: {
+        name: contactPerson,
+        capacity: getString(contractor.capacity) || "Authorized Signatory",
+        initials: buildInitials(contactPerson || companyName),
+      },
+    },
+  };
+}
+
+function downloadPdfBytes(pdfBytes: Uint8Array) {
+  const normalizedBytes = new Uint8Array(pdfBytes.byteLength);
+  normalizedBytes.set(pdfBytes);
+
+  const blob = new Blob([normalizedBytes], { type: "application/pdf" });
+  const url = URL.createObjectURL(blob);
+
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = "TenderPack.pdf";
+  anchor.click();
+
+  URL.revokeObjectURL(url);
+}
+
 export default function TenderPackGeneratorPanel() {
   const params = useParams();
   const { user } = useAuth();
@@ -41,6 +125,7 @@ export default function TenderPackGeneratorPanel() {
   const [savingMissingFields, setSavingMissingFields] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<GenerateResponse | null>(null);
+  const [validation, setValidation] = useState<SBD1ValidationResult | null>(null);
   const [missingFieldsModalOpen, setMissingFieldsModalOpen] = useState(false);
   const [criticalMissingFields, setCriticalMissingFields] = useState<CriticalTenderField[]>([]);
   const [form, setForm] = useState<Partial<Record<CriticalTenderField, string>>>({});
@@ -73,6 +158,27 @@ export default function TenderPackGeneratorPanel() {
   }
 
   async function loadContractorFormValues(fields: CriticalTenderField[]) {
+    const payload = await fetchContractorDetail();
+    const nextForm: Partial<Record<CriticalTenderField, string>> = {};
+
+    for (const field of fields) {
+      if (field === "address") {
+        nextForm[field] =
+          getString(payload.address) ||
+          getString(payload.streetAddress) ||
+          getString(payload.physicalAddress) ||
+          getString(payload.postalAddress);
+        continue;
+      }
+
+      const rawValue = payload[field];
+      nextForm[field] = typeof rawValue === "string" ? rawValue : "";
+    }
+
+    setForm(nextForm);
+  }
+
+  async function fetchContractorDetail(): Promise<ContractorDetailResponse> {
     const response = await authFetch(API_ROUTES.CONTRACTOR_DETAIL(contractorId));
     const payload = (await response.json()) as ContractorDetailResponse;
 
@@ -80,13 +186,7 @@ export default function TenderPackGeneratorPanel() {
       throw new Error(payload.error ?? "Failed to load contractor");
     }
 
-    const nextForm: Partial<Record<CriticalTenderField, string>> = {};
-    for (const field of fields) {
-      const rawValue = payload[field];
-      nextForm[field] = typeof rawValue === "string" ? rawValue : "";
-    }
-
-    setForm(nextForm);
+    return payload;
   }
 
   async function openMissingFieldsModal(fields: CriticalTenderField[]) {
@@ -120,25 +220,39 @@ export default function TenderPackGeneratorPanel() {
     });
   }
 
+  async function handleGeneratePack() {
+    if (!user) {
+      throw new Error("User not authenticated");
+    }
+    if (!contractorId) {
+      throw new Error("Missing contractorId");
+    }
+
+    const missingFields = await fetchCriticalMissingFields();
+    if (missingFields.length > 0) {
+      await openMissingFieldsModal(missingFields);
+      return;
+    }
+
+    const contractor = await fetchContractorDetail();
+    const localResult = await generateTenderPackWithValidation(buildTenderPackData(contractor));
+
+    setValidation(localResult.validation?.sbd1 ?? null);
+    if (!localResult.validation?.sbd1.isValid) {
+      return;
+    }
+
+    await requestGeneration();
+    downloadPdfBytes(localResult.pdfBytes);
+  }
+
   async function handleGenerate() {
     try {
-      if (!user) {
-        throw new Error("User not authenticated");
-      }
-      if (!contractorId) {
-        throw new Error("Missing contractorId");
-      }
-
       setLoading(true);
       setError(null);
       setResult(null);
-      const missingFields = await fetchCriticalMissingFields();
-      if (missingFields.length > 0) {
-        await openMissingFieldsModal(missingFields);
-        return;
-      }
-
-      await requestGeneration();
+      setValidation(null);
+      await handleGeneratePack();
     } catch (generateError) {
       console.error(generateError);
       setError(generateError instanceof Error ? generateError.message : "Failed to generate tender pack");
@@ -182,7 +296,8 @@ export default function TenderPackGeneratorPanel() {
 
       setMissingFieldsModalOpen(false);
       setCriticalMissingFields([]);
-      await requestGeneration();
+      setValidation(null);
+      await handleGeneratePack();
     } catch (saveError) {
       console.error(saveError);
       setError(saveError instanceof Error ? saveError.message : "Failed to save missing fields");
@@ -211,6 +326,35 @@ export default function TenderPackGeneratorPanel() {
       alert("Error generating report");
     }
   }
+
+  const handleGenerateSBD4 = async () => {
+    const pdfBytes = await generateSBD4Overlay({
+      directors: [
+        {
+          name: "Chadwin Karanie",
+          id: "9001011234087",
+          entity: "Torque Empire Pty Ltd",
+        },
+        {
+          name: "Shane Karanie",
+          id: "9202025678087",
+          entity: "Torque Empire Pty Ltd",
+        },
+      ],
+      hasRelationship: "NO",
+      declarationName: "Chadwin Karanie",
+    });
+
+    if (!pdfBytes) return;
+
+    const normalizedBytes = new Uint8Array(pdfBytes.byteLength);
+    normalizedBytes.set(pdfBytes);
+
+    const blob = new Blob([normalizedBytes], { type: "application/pdf" });
+    const url = URL.createObjectURL(blob);
+
+    window.open(url);
+  };
 
   return (
     <Card>
@@ -241,8 +385,25 @@ export default function TenderPackGeneratorPanel() {
       >
         Generate Report
       </button>
+      <button
+        onClick={handleGenerateSBD4}
+        className="bg-blue-600 text-white px-4 py-2 rounded"
+      >
+        Generate SBD4
+      </button>
 
       {error && <p style={{ marginTop: "12px" }}>{error}</p>}
+
+      {validation && !validation.isValid && (
+        <div style={{ marginTop: "12px" }}>
+          <h3 style={{ marginBottom: "8px" }}>Missing Fields:</h3>
+          <ul>
+            {validation.missingLabels.map((field) => (
+              <li key={field}>{field}</li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {missingFieldsModalOpen && (
         <div

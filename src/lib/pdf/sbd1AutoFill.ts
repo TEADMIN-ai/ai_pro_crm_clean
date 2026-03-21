@@ -26,6 +26,19 @@ type ResolvedSbd1FieldKey =
   | "taxPin"
   | "csdNumber";
 
+type Sbd1SourceKey =
+  | "companyName"
+  | "postalAddress"
+  | "streetAddress"
+  | "telephone"
+  | "telNumber"
+  | "cellphone"
+  | "cellNumber"
+  | "email"
+  | "vatNumber"
+  | "taxPin"
+  | "csdNumber";
+
 type FieldPlacement = {
   boxX: number;
   boxY: number;
@@ -35,6 +48,12 @@ type FieldPlacement = {
   y: number;
   maxWidth: number;
   size?: number;
+};
+
+type Sbd1ResolvedField = {
+  value: string;
+  sources: Sbd1SourceKey[];
+  isPlaceholder?: boolean;
 };
 
 type RequiredSbd1FieldKey =
@@ -116,6 +135,8 @@ const FIELD_LABELS: Record<RequiredSbd1FieldKey, string> = {
   tax_pin: "Tax Compliance PIN",
   csd_number: "CSD Number",
 };
+
+const SBD1_PLACEHOLDER_TEXT = "N/A";
 
 const SBD1_COORDINATE_MAP: Record<ResolvedSbd1FieldKey, FieldPlacement> = {
   companyName: {
@@ -220,6 +241,38 @@ const SBD1_COORDINATE_MAP: Record<ResolvedSbd1FieldKey, FieldPlacement> = {
   },
 };
 
+async function loadTemplateSafe(url: string): Promise<Uint8Array | null> {
+  try {
+    const res = await fetch(url);
+
+    if (!res.ok) {
+      console.error(`Template not found: ${url}`);
+      return null;
+    }
+
+    return new Uint8Array(await res.arrayBuffer());
+  } catch (err) {
+    console.error("Template load failed:", err);
+    return null;
+  }
+}
+
+async function createSBD1Document(templateBytes?: Uint8Array | null): Promise<PDFDocument> {
+  let pdfDoc: PDFDocument;
+
+  if (!templateBytes) {
+    console.warn("Using fallback blank PDF template");
+    console.warn("Missing template. Place SBD1.pdf or SBD4.pdf in /public/templates/");
+
+    pdfDoc = await PDFDocument.create();
+    pdfDoc.addPage([595, 842]);
+  } else {
+    pdfDoc = await PDFDocument.load(templateBytes);
+  }
+
+  return pdfDoc;
+}
+
 function getRequiredSBD1Fields(data: ContractorData): Record<RequiredSbd1FieldKey, string> {
   return {
     bidder_name: data.companyName,
@@ -229,6 +282,127 @@ function getRequiredSBD1Fields(data: ContractorData): Record<RequiredSbd1FieldKe
     tax_pin: data.taxPin,
     csd_number: data.csdNumber ?? "",
   };
+}
+
+function pickFirstPopulatedField(
+  data: ContractorData,
+  sources: readonly Sbd1SourceKey[],
+  fallbackValue = ""
+): Sbd1ResolvedField {
+  for (const source of sources) {
+    const value = cleanText(data[source]);
+    if (value) {
+      return {
+        value,
+        sources: [source],
+      };
+    }
+  }
+
+  return {
+    value: fallbackValue,
+    sources: [...sources],
+    isPlaceholder: Boolean(cleanText(fallbackValue)),
+  };
+}
+
+function resolveSBD1Fields(data: ContractorData): Record<ResolvedSbd1FieldKey, Sbd1ResolvedField> {
+  const addressFallback = pickFirstPopulatedField(data, ["streetAddress", "postalAddress"], SBD1_PLACEHOLDER_TEXT);
+  const postalAddress = pickFirstPopulatedField(
+    data,
+    ["postalAddress", "streetAddress"],
+    addressFallback.value || SBD1_PLACEHOLDER_TEXT
+  );
+  const streetAddress = pickFirstPopulatedField(
+    data,
+    ["streetAddress", "postalAddress"],
+    addressFallback.value || SBD1_PLACEHOLDER_TEXT
+  );
+  const telephoneValue = pickFirstPopulatedField(
+    data,
+    ["telNumber", "telephone", "cellNumber", "cellphone"],
+    SBD1_PLACEHOLDER_TEXT
+  );
+  const cellphoneValue = pickFirstPopulatedField(
+    data,
+    ["cellNumber", "cellphone", "telNumber", "telephone"],
+    telephoneValue.value || SBD1_PLACEHOLDER_TEXT
+  );
+  const telephoneParts = splitPhoneNumber(telephoneValue.value);
+  const telephoneCodeValue = cleanText(telephoneParts.code) || cleanText(telephoneValue.value) || SBD1_PLACEHOLDER_TEXT;
+  const telephoneNumberValue =
+    cleanText(telephoneParts.number) || cleanText(telephoneValue.value) || SBD1_PLACEHOLDER_TEXT;
+
+  return {
+    companyName: pickFirstPopulatedField(data, ["companyName"], SBD1_PLACEHOLDER_TEXT),
+    postalAddress,
+    streetAddress,
+    telephoneCode: {
+      value: telephoneCodeValue,
+      sources: [...telephoneValue.sources],
+      isPlaceholder: telephoneCodeValue === SBD1_PLACEHOLDER_TEXT,
+    },
+    telephoneNumber: {
+      value: telephoneNumberValue,
+      sources: [...telephoneValue.sources],
+      isPlaceholder: telephoneNumberValue === SBD1_PLACEHOLDER_TEXT,
+    },
+    cellphone: {
+      value: cellphoneValue.value || SBD1_PLACEHOLDER_TEXT,
+      sources: [...cellphoneValue.sources],
+      isPlaceholder: (cellphoneValue.value || SBD1_PLACEHOLDER_TEXT) === SBD1_PLACEHOLDER_TEXT,
+    },
+    email: pickFirstPopulatedField(data, ["email"], SBD1_PLACEHOLDER_TEXT),
+    vatNumber: pickFirstPopulatedField(data, ["vatNumber"], SBD1_PLACEHOLDER_TEXT),
+    taxPin: pickFirstPopulatedField(data, ["taxPin"], SBD1_PLACEHOLDER_TEXT),
+    csdNumber: pickFirstPopulatedField(data, ["csdNumber"], SBD1_PLACEHOLDER_TEXT),
+  };
+}
+
+function logSBD1FieldAudit(
+  data: ContractorData,
+  resolvedFields: Record<ResolvedSbd1FieldKey, Sbd1ResolvedField>,
+  validation: SBD1ValidationResult
+) {
+  const inputSnapshot = {
+    companyName: cleanText(data.companyName),
+    postalAddress: cleanText(data.postalAddress),
+    streetAddress: cleanText(data.streetAddress),
+    telephone: cleanText(data.telephone),
+    telNumber: cleanText(data.telNumber),
+    cellphone: cleanText(data.cellphone),
+    cellNumber: cleanText(data.cellNumber),
+    email: cleanText(data.email),
+    vatNumber: cleanText(data.vatNumber),
+    taxPin: cleanText(data.taxPin),
+    csdNumber: cleanText(data.csdNumber),
+  };
+
+  const mappingTrace = Object.fromEntries(
+    (Object.entries(resolvedFields) as Array<[ResolvedSbd1FieldKey, Sbd1ResolvedField]>).map(([key, resolved]) => [
+      key,
+      {
+        value: resolved.value,
+        sources: resolved.sources,
+        placeholder: resolved.isPlaceholder === true,
+      },
+    ])
+  );
+
+  console.info("SBD1 input snapshot:", inputSnapshot);
+  console.info("SBD1 field mapping trace:", mappingTrace);
+
+  const missingResolvedKeys = (Object.entries(resolvedFields) as Array<[ResolvedSbd1FieldKey, Sbd1ResolvedField]>)
+    .filter(([, resolved]) => !cleanText(resolved.value) || resolved.isPlaceholder)
+    .map(([key]) => key);
+
+  if (missingResolvedKeys.length > 0) {
+    console.warn("SBD1 autofill used placeholders for keys:", missingResolvedKeys);
+  }
+
+  if (!validation.isValid) {
+    console.warn("SBD1 validation missing keys:", validation.missingFields);
+  }
 }
 
 function cleanText(value: any): string {
@@ -620,17 +794,18 @@ function drawDeclarationOverlay(lastPage: PDFPage, font: PDFFont) {
 }
 
 export async function loadSBD1Template(): Promise<Uint8Array> {
-  const response = await fetch(SBD1_TEMPLATE_PATH);
+  const templateBytes = await loadTemplateSafe(SBD1_TEMPLATE_PATH);
 
-  if (!response.ok) {
-    throw new Error(`Failed to load SBD1 template (${response.status})`);
+  if (templateBytes) {
+    return templateBytes;
   }
 
-  return new Uint8Array(await response.arrayBuffer());
+  const pdfDoc = await createSBD1Document(null);
+  return pdfDoc.save();
 }
 
 export async function generateSBD1(
-  templateBytes: Uint8Array,
+  templateBytes: Uint8Array | null | undefined,
   data: ContractorData
 ): Promise<Uint8Array> {
   const { pdfBytes } = await generateSBD1WithValidation(templateBytes, data);
@@ -639,7 +814,7 @@ export async function generateSBD1(
 }
 
 export async function generateSBD1WithValidation(
-  templateBytes: Uint8Array,
+  templateBytes: Uint8Array | null | undefined,
   data: ContractorData
 ): Promise<GenerateSBD1Result> {
   const validation = validateSBD1(data);
@@ -648,7 +823,7 @@ export async function generateSBD1WithValidation(
     console.warn("Missing required SBD1 fields:", validation.missingFields);
   }
 
-  const pdfDoc = await PDFDocument.load(templateBytes);
+  const pdfDoc = await createSBD1Document(templateBytes);
   const form = pdfDoc.getForm();
   const fields = form.getFields();
 
@@ -666,29 +841,33 @@ export async function generateSBD1WithValidation(
   }
 
   const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
-  drawControlledFieldOverlay(firstPage, font, data);
-  drawDeclarationOverlay(lastPage, font);
-  const telephoneValue = data.telNumber ?? data.telephone;
-  const cellphoneValue = data.cellNumber ?? data.cellphone;
-  const telephoneParts = splitPhoneNumber(telephoneValue);
+  const resolvedFields = resolveSBD1Fields(data);
+  logSBD1FieldAudit(data, resolvedFields, validation);
 
-  const resolvedFields: Record<ResolvedSbd1FieldKey, string> = {
-    companyName: data.companyName,
-    postalAddress: data.postalAddress,
-    streetAddress: data.streetAddress,
-    telephoneCode: telephoneParts.code,
-    telephoneNumber: telephoneParts.number,
-    cellphone: cellphoneValue,
-    email: data.email,
-    vatNumber: data.vatNumber,
-    taxPin: data.taxPin,
-    csdNumber: data.csdNumber ?? "",
+  const overlayData: ContractorData = {
+    ...data,
+    companyName: resolvedFields.companyName.value,
+    postalAddress: resolvedFields.postalAddress.value,
+    streetAddress: resolvedFields.streetAddress.value,
+    telephone: resolvedFields.telephoneNumber.value,
+    telNumber: [resolvedFields.telephoneCode.value, resolvedFields.telephoneNumber.value]
+      .filter((part) => cleanText(part) && part !== SBD1_PLACEHOLDER_TEXT)
+      .join(" "),
+    cellphone: resolvedFields.cellphone.value,
+    cellNumber: resolvedFields.cellphone.value,
+    email: resolvedFields.email.value,
+    vatNumber: resolvedFields.vatNumber.value,
+    taxPin: resolvedFields.taxPin.value,
+    csdNumber: resolvedFields.csdNumber.value,
   };
+
+  drawControlledFieldOverlay(firstPage, font, overlayData);
+  drawDeclarationOverlay(lastPage, font);
 
   for (const [fieldKey, placement] of Object.entries(SBD1_COORDINATE_MAP) as Array<
     [ResolvedSbd1FieldKey, FieldPlacement]
   >) {
-    drawField(firstPage, font, resolvedFields[fieldKey], placement);
+    drawField(firstPage, font, resolvedFields[fieldKey].value, placement);
   }
 
   drawComplianceWarning(firstPage, font, getMissingComplianceFieldLabels(data));

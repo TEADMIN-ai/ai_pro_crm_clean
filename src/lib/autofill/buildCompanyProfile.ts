@@ -1,5 +1,6 @@
 import { getFirebaseAdmin } from "@/lib/firebase/admin";
 import { SBD_FIELD_DEFINITIONS, type SbdFieldKey } from "@/lib/pdfs/templates/sbdSchema";
+import { resolveSbd1AutofillData } from "@/lib/autofill/sbd1DecisionEngine";
 
 type SourceTag = "contractor" | "document-ai" | "default";
 
@@ -152,6 +153,42 @@ export async function buildCompanyProfile(contractorId: string): Promise<Company
     }
   }
 
+  const sbd1Decision = resolveSbd1AutofillData({
+    ...contractorData,
+    ...profile,
+    address: pickFirst(profile.address, contractorData.address, contractorData.physicalAddress),
+    postalAddress: pickFirst(contractorData.postalAddress, profile.address),
+    streetAddress: pickFirst(contractorData.streetAddress, contractorData.physicalAddress, profile.address),
+    telephone: pickFirst(contractorData.telephone, contractorData.telNumber, profile.phone),
+    cellphone: pickFirst(contractorData.cellphone, contractorData.cellNumber, profile.phone),
+    contactEmail: pickFirst(contractorData.contactEmail),
+    contactPhone: pickFirst(contractorData.contactPhone),
+    taxNumber: pickFirst(contractorData.taxNumber),
+    vat: pickFirst(contractorData.vat),
+    csd: pickFirst(contractorData.csd),
+  });
+
+  profile.companyName =
+    sbd1Decision.resolvedData.companyName === null ? "" : String(sbd1Decision.resolvedData.companyName);
+  profile.regNumber =
+    sbd1Decision.resolvedData.regNumber === null ? "" : String(sbd1Decision.resolvedData.regNumber);
+  profile.vatNumber =
+    sbd1Decision.resolvedData.vatNumber === null ? "" : String(sbd1Decision.resolvedData.vatNumber);
+  profile.taxPin =
+    sbd1Decision.resolvedData.taxPin === null ? "" : String(sbd1Decision.resolvedData.taxPin);
+  profile.csdNumber =
+    sbd1Decision.resolvedData.csdNumber === null ? "" : String(sbd1Decision.resolvedData.csdNumber);
+  profile.address = pickFirst(
+    sbd1Decision.resolvedData.streetAddress,
+    sbd1Decision.resolvedData.postalAddress
+  );
+  profile.email =
+    sbd1Decision.resolvedData.email === null ? "" : String(sbd1Decision.resolvedData.email);
+  profile.phone = pickFirst(
+    sbd1Decision.resolvedData.telephone,
+    sbd1Decision.resolvedData.cellphone
+  );
+
   const mapped = {
     ...profile,
   };
@@ -170,6 +207,16 @@ export async function buildCompanyProfile(contractorId: string): Promise<Company
     mappedData: mapped,
     sourceAttribution,
     missingFields,
+  });
+
+  console.info("SBD1 decision engine output:", {
+    contractorId,
+    resolvedData: sbd1Decision.resolvedData,
+    blockedFields: sbd1Decision.blockedFields,
+    invalidFields: sbd1Decision.invalidFields,
+    usedFallbacks: sbd1Decision.usedFallbacks,
+    placeholdersUsed: sbd1Decision.placeholdersUsed,
+    auditTrail: sbd1Decision.auditTrail,
   });
 
   for (const field of REQUIRED_DIAGNOSTIC_FIELDS) {

@@ -55,6 +55,38 @@ const SBD4_POSITIONS = {
   },
 } as const;
 
+async function loadTemplateSafe(url: string): Promise<Uint8Array | null> {
+  try {
+    const res = await fetch(url);
+
+    if (!res.ok) {
+      console.error(`Template not found: ${url}`);
+      return null;
+    }
+
+    return new Uint8Array(await res.arrayBuffer());
+  } catch (err) {
+    console.error("Template load failed:", err);
+    return null;
+  }
+}
+
+async function createSBD4Document(templateBytes?: Uint8Array | null): Promise<PDFDocument> {
+  let pdfDoc: PDFDocument;
+
+  if (!templateBytes) {
+    console.warn("Using fallback blank PDF template");
+    console.warn("Missing template. Place SBD1.pdf or SBD4.pdf in /public/templates/");
+
+    pdfDoc = await PDFDocument.create();
+    pdfDoc.addPage([595, 842]);
+  } else {
+    pdfDoc = await PDFDocument.load(templateBytes);
+  }
+
+  return pdfDoc;
+}
+
 function cleanText(value: unknown): string {
   if (!value) return "";
 
@@ -161,20 +193,21 @@ function drawSBD4Overlay(page: PDFPage, font: PDFFont, data: SBD4Data) {
 }
 
 export async function loadSBD4Template(): Promise<Uint8Array> {
-  const response = await fetch(SBD4_TEMPLATE_PATH);
+  const templateBytes = await loadTemplateSafe(SBD4_TEMPLATE_PATH);
 
-  if (!response.ok) {
-    throw new Error(`Failed to load SBD4 template (${response.status})`);
+  if (templateBytes) {
+    return templateBytes;
   }
 
-  return new Uint8Array(await response.arrayBuffer());
+  const pdfDoc = await createSBD4Document(null);
+  return pdfDoc.save();
 }
 
 export async function generateSBD4(
-  templateBytes: Uint8Array,
+  templateBytes: Uint8Array | null | undefined,
   data: SBD4Data
 ): Promise<Uint8Array> {
-  const pdfDoc = await PDFDocument.load(templateBytes);
+  const pdfDoc = await createSBD4Document(templateBytes);
   const pages = pdfDoc.getPages();
   const page = pages[0];
 

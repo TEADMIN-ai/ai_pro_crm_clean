@@ -1,9 +1,11 @@
 "use client";
 
 import React from "react";
+import ContractorDocumentVerificationReviewPanel from "@/components/contractors/DocumentVerificationReviewPanel";
 import { generateTenderReport } from "@/lib/reports/generateTenderReport";
+import type { ContractorDocument } from "@/types/document";
 
-type Doc = {
+type LegacyDoc = {
   id?: string;
   name?: string;
   finalStatus?: string;
@@ -13,106 +15,93 @@ type Doc = {
   suggestions?: string[];
 };
 
+type ReviewPanelDocument = ContractorDocument & {
+  extractedText?: string;
+  lastActionAt?: string;
+  lastActionType?: string;
+};
+
+type Props = {
+  contractorId?: string;
+  dealId?: string;
+  documents?: ReviewPanelDocument[];
+  safeDocs?: LegacyDoc[];
+  canReview?: boolean;
+  onUpdatedAction?: () => void | Promise<void>;
+};
+
+function mapLegacyDocToContractorDocument(doc: LegacyDoc, index: number): ReviewPanelDocument {
+  const normalizedStatus =
+    doc.finalStatus === "PASS" || doc.finalStatus === "REVIEW" || doc.finalStatus === "FAIL"
+      ? doc.finalStatus
+      : undefined;
+
+  return {
+    id: doc.id ?? `legacy-doc-${index}`,
+    contractorId: "",
+    documentName: doc.name ?? "Document",
+    finalStatus: normalizedStatus,
+    validationStatus: normalizedStatus,
+    suggestions: Array.isArray(doc.suggestions) ? doc.suggestions : [],
+    extractedText: doc.extractedText,
+    lastActionAt: doc.lastActionAt,
+    lastActionType: doc.lastActionType,
+  };
+}
+
+function normalizeDocuments(documents: ReviewPanelDocument[] | undefined, safeDocs: LegacyDoc[] | undefined) {
+  if (Array.isArray(documents) && documents.length > 0) {
+    return documents;
+  }
+
+  if (Array.isArray(safeDocs) && safeDocs.length > 0) {
+    return safeDocs.map(mapLegacyDocToContractorDocument);
+  }
+
+  return [];
+}
+
 export default function DocumentVerificationReviewPanel({
-  safeDocs = [],
-}: {
-  safeDocs: Doc[];
-}) {
+  contractorId,
+  dealId,
+  documents,
+  safeDocs,
+  canReview = true,
+  onUpdatedAction,
+}: Props) {
+  const normalizedDocuments = normalizeDocuments(documents, safeDocs);
+
   return (
     <div>
-      {safeDocs.length === 0 && (
-        <p className="text-xs text-gray-400">No documents found</p>
+      <ContractorDocumentVerificationReviewPanel
+        contractorId={contractorId}
+        dealId={dealId}
+        documents={normalizedDocuments}
+        canReview={canReview}
+        onUpdatedAction={onUpdatedAction}
+      />
+
+      {Array.isArray(safeDocs) && safeDocs.length > 0 && (
+        <button
+          onClick={() => {
+            const report = generateTenderReport({
+              clientName: "Test Client",
+              documents: safeDocs.map((doc) => ({
+                name: doc.name,
+                status: doc.lastActionType,
+              })),
+              complianceScore: 100,
+              approvedBy: "Torque Empire",
+            });
+
+            console.log(report);
+            alert("Report generated! Check console.");
+          }}
+          className="mt-4 rounded bg-blue-600 px-4 py-2 text-sm text-white"
+        >
+          Generate Report
+        </button>
       )}
-
-      {safeDocs.map((doc, index) => {
-        const isPass = doc?.finalStatus === "PASS";
-        const isFail = doc?.finalStatus === "FAIL";
-        const isUnknown = !doc?.finalStatus;
-
-        const isExtractionFailed =
-          !doc?.extractedText || doc?.extractedText.trim().length === 0;
-
-        const needsManualReview =
-          isFail || isExtractionFailed || isUnknown;
-
-        const suggestions = doc?.suggestions || [];
-
-        const docId = doc?.id || index;
-
-        return (
-          <div
-            key={docId}
-            className="mb-4 rounded-lg border border-slate-700 p-3"
-          >
-            <p className="text-xs text-gray-300 font-semibold">
-              {doc?.name || "Document"}
-            </p>
-
-            {/* ✅ STATUS DISPLAY */}
-            {isPass && (
-              <p className="text-green-400 text-xs mt-1">
-                Document verified successfully
-              </p>
-            )}
-
-            {isFail && (
-              <p className="text-yellow-300 text-xs mt-1">
-                Document failed automated verification
-              </p>
-            )}
-
-            {/* ✅ SUGGESTIONS */}
-            {suggestions.length > 0 && (
-              <ul className="mt-2 text-xs text-gray-300">
-                {suggestions.map((s, i) => (
-                  <li key={i}>• {s}</li>
-                ))}
-              </ul>
-            )}
-
-            {/* ✅ AUDIT DISPLAY */}
-            {doc?.lastActionAt && (
-              <div className="text-xs text-gray-400 mt-1">
-                Last action: {doc?.lastActionType || "updated"} at{" "}
-                {new Date(doc.lastActionAt).toLocaleString()}
-              </div>
-            )}
-
-            {/* ✅ ACTION BUTTONS (PLACEHOLDER SAFE) */}
-            {needsManualReview && (
-              <div className="mt-2 flex gap-2">
-                <button className="px-3 py-1 rounded bg-green-600 text-white text-xs">
-                  Approve
-                </button>
-                <button className="px-3 py-1 rounded bg-red-600 text-white text-xs">
-                  Reject
-                </button>
-              </div>
-            )}
-          </div>
-        );
-      })}
-
-      {/* 🔥 REPORT BUTTON — CORRECTLY OUTSIDE LOOP */}
-      <button
-        onClick={() => {
-          const report = generateTenderReport({
-            clientName: "Test Client",
-            documents: safeDocs.map((doc) => ({
-              name: doc.name,
-              status: doc.lastActionType,
-            })),
-            complianceScore: 100,
-            approvedBy: "Torque Empire",
-          });
-
-          console.log(report);
-          alert("Report generated! Check console.");
-        }}
-        className="px-4 py-2 rounded bg-blue-600 text-white text-sm mt-4"
-      >
-        Generate Report
-      </button>
     </div>
   );
 }
