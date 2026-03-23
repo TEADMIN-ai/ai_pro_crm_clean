@@ -33,6 +33,13 @@ export type TenderFillError = {
 
 export type TenderFillResult = TenderFillSuccess | TenderFillError;
 
+function safeGet(value: any, fallback: string = "") {
+  if (value === null || value === undefined || value === "") {
+    return fallback;
+  }
+  return value;
+}
+
 function resolveTemplatePath(templateKey: SbdFormKey): string {
   return path.join(
     process.cwd(),
@@ -68,18 +75,18 @@ async function writeAuditTrail(data: {
 
 function buildFieldMap(profile: CompanyProfile): Record<string, string> {
   return {
-    companyName: profile.companyName,
-    regNumber: profile.regNumber,
-    vatNumber: profile.vatNumber,
-    taxPin: profile.taxPin,
-    cidb: profile.cidb,
-    csdNumber: profile.csdNumber,
-    bankingDetails: profile.bankingDetails,
-    directors: profile.directors,
-    address: profile.address,
-    contactPerson: profile.contactPerson,
-    email: profile.email,
-    phone: profile.phone,
+    companyName: safeGet(profile.companyName),
+    regNumber: safeGet(profile.regNumber),
+    vatNumber: safeGet(profile.vatNumber),
+    taxPin: safeGet(profile.taxPin),
+    cidb: safeGet(profile.cidb),
+    csdNumber: safeGet(profile.csdNumber),
+    bankingDetails: safeGet(profile.bankingDetails),
+    directors: safeGet(profile.directors),
+    address: safeGet(profile.address),
+    contactPerson: safeGet(profile.contactPerson),
+    email: safeGet(profile.email),
+    phone: safeGet(profile.phone),
   };
 }
 
@@ -87,17 +94,36 @@ function buildMappedFieldMap(profile: CompanyProfile, mapping: TemplateFieldMap)
   const result: Record<string, string> = {};
 
   for (const [pdfFieldName, profileKey] of Object.entries(mapping)) {
-    const value = profileKey ? profile[profileKey] : "";
-    result[pdfFieldName] = typeof value === "string" ? value : "";
+    const value = profileKey ? safeGet(profile[profileKey]) : "";
+    result[pdfFieldName] = typeof value === "string" ? value : safeGet(value);
   }
 
   return result;
 }
 
+function logMissingMappedFields(templateKey: SbdFormKey, mapping: TemplateFieldMap | undefined, profile: CompanyProfile) {
+  if (!mapping) {
+    return;
+  }
+
+  for (const [, profileKey] of Object.entries(mapping)) {
+    if (!profileKey) {
+      continue;
+    }
+
+    if (!safeGet(profile[profileKey])) {
+      console.warn(`Missing field: ${String(profileKey)}`);
+      console.warn(
+        `Autofill fallback engaged for template '${templateKey}' because profile field '${String(profileKey)}' is empty`
+      );
+    }
+  }
+}
+
 function getRequiredMissingWarnings(templateKey: SbdFormKey, profile: CompanyProfile): string[] {
   const required = SBD_SCHEMA[templateKey]?.requiredFields ?? [];
   return required
-    .filter((field) => !profile[field as SbdFieldKey])
+    .filter((field) => !safeGet(profile[field as SbdFieldKey]))
     .map((field) => `Missing required field for ${templateKey}: ${field}`);
 }
 
@@ -121,11 +147,7 @@ async function drawOverlayFields(params: {
       continue;
     }
 
-    const value =
-      fieldMapUsed[overlayFieldName] ?? fallbackFieldMap[overlayField.profileKey] ?? "";
-    if (!value) {
-      continue;
-    }
+    const value = safeGet(fieldMapUsed[overlayFieldName], safeGet(fallbackFieldMap[overlayField.profileKey]));
 
     targetPage.drawText(value, {
       x: overlayField.x,
@@ -153,10 +175,13 @@ export async function fillTenderPack(params: FillTenderPackParams): Promise<Tend
   }
 
   const fallbackFieldMap = buildFieldMap(profile);
-  const fieldMapUsed = registryEntry.fieldMap
-    ? buildMappedFieldMap(profile, registryEntry.fieldMap)
-    : fallbackFieldMap;
+  const mappedFieldMap = registryEntry.fieldMap ? buildMappedFieldMap(profile, registryEntry.fieldMap) : {};
+  const fieldMapUsed = {
+    ...fallbackFieldMap,
+    ...mappedFieldMap,
+  };
   const warnings = getRequiredMissingWarnings(templateKey, profile);
+  logMissingMappedFields(templateKey, registryEntry.fieldMap, profile);
   const pdfData = {
     templateKey,
     contractorId: profile.contractorId,
@@ -176,7 +201,7 @@ export async function fillTenderPack(params: FillTenderPackParams): Promise<Tend
   };
 
   for (const [fieldName, value] of Object.entries(requiredDiagnosticFields)) {
-    if (!value) {
+    if (!safeGet(value)) {
       console.warn("Missing field:", fieldName);
     }
   }
@@ -211,13 +236,17 @@ export async function fillTenderPack(params: FillTenderPackParams): Promise<Tend
     if (fields.length > 0) {
       for (const field of fields) {
         const name = field.getName();
-        const value = fieldMapUsed[name] ?? fallbackFieldMap[name] ?? "";
+        const value = safeGet(fieldMapUsed[name], safeGet(fallbackFieldMap[name]));
+        if (!(name in fieldMapUsed) && !(name in fallbackFieldMap)) {
+          console.warn(`No autofill mapping resolved for PDF field '${name}' on template '${templateKey}'`);
+        }
         try {
           if ("setText" in field && typeof (field as { setText?: unknown }).setText === "function") {
             (field as { setText: (v: string) => void }).setText(value);
           }
         } catch {
           warnings.push(`Unable to set field '${name}'`);
+          console.warn(`Unable to set field '${name}' on template '${templateKey}'`);
         }
       }
     } else if (registryEntry.overlayMap) {

@@ -6,6 +6,7 @@ import { useParams } from "next/navigation";
 import Card from "@/components/ui/Card";
 import { useAuth } from "@/context/AuthContext";
 import { getContractorDocuments } from "@/lib/contractors/getContractorDocuments";
+import { API_ROUTES } from "@/lib/routes";
 import type { ContractorDocument } from "@/types/document";
 
 type ExecutionPayload = {
@@ -93,7 +94,7 @@ export default function DocumentExecutionPanel() {
       contractorId: targetContractorId,
       documentType,
     });
-    const response = await fetch(`/api/documents/${documentId}/execute?${query.toString()}`, {
+    const response = await fetch(`${API_ROUTES.DOCUMENT_EXECUTE(documentId)}?${query.toString()}`, {
       method: "GET",
       headers: {
         Authorization: `Bearer ${token}`,

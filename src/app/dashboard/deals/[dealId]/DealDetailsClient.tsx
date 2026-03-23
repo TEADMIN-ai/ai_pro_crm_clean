@@ -30,6 +30,7 @@ import { API_ROUTES } from "@/lib/routes";
 import type { DocumentAnalysis } from "@/types/tenderAudit";
 import type { Deal } from "@/types/deal";
 import { authFetch } from "@/lib/client/authFetch";
+import { calculateComplianceScore } from "@/lib/compliance/calculateComplianceScore";
 
 type DealDocument = {
   id: string;
@@ -44,6 +45,12 @@ type DealDocument = {
   updatedAt?: string;
   reviewedAt?: string;
 };
+
+function getComplianceColor(score: number): string {
+  if (score >= 90) return "text-green-400";
+  if (score >= 70) return "text-yellow-400";
+  return "text-red-400";
+}
 
 function getDocumentStatusBadgeClass(status?: DealDocument["status"]) {
   if (status === "approved") {
@@ -218,6 +225,14 @@ export default function DealDetailsClient({ dealId }: { dealId: string }) {
         weight: 0.25,
       },
     };
+  }, [documents]);
+
+  const complianceStats = useMemo(() => {
+    return calculateComplianceScore(
+      documents.map((item) => ({
+        verified: item.status === "approved",
+      }))
+    );
   }, [documents]);
 
   const overallScore = useMemo(() => {
@@ -491,6 +506,27 @@ export default function DealDetailsClient({ dealId }: { dealId: string }) {
             Created: {new Date(deal.createdAt).toLocaleString()}
           </p>
         )}
+      </div>
+
+      <div className="rounded-xl border border-cyan-500/30 bg-slate-900 p-4 shadow-lg">
+        <h2 className="text-sm uppercase tracking-wide text-gray-400">Compliance Score</h2>
+
+        <div className="mt-2 flex items-center justify-between">
+          <p className={`text-3xl font-bold ${getComplianceColor(complianceStats.score)}`}>
+            {complianceStats.score}%
+          </p>
+
+          <span className="text-xs text-gray-400">
+            {complianceStats.verified}/{complianceStats.total} Verified
+          </span>
+        </div>
+
+        <div className="mt-3 h-2 w-full rounded-full bg-gray-800">
+          <div
+            className="h-2 rounded-full bg-cyan-400 transition-all"
+            style={{ width: `${complianceStats.score}%` }}
+          />
+        </div>
       </div>
 
       <TenderProjectionPanel categoryScores={categoryScores} />

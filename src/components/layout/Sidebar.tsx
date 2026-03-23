@@ -77,19 +77,19 @@ export default function Sidebar() {
         minHeight: "100vh",
         background: empireColors.surface,
         color: empireColors.textPrimary,
-        padding: "20px 15px",
+        padding: "24px 16px",
         display: "flex",
         flexDirection: "column",
         gap: 12,
         borderRight: `1px solid ${empireColors.border}`,
-        boxShadow: "inset -1px 0 0 rgba(0,240,255,0.08)",
+        boxShadow: "0 1px 2px rgba(15, 23, 42, 0.04)",
         position: "sticky",
         top: 0,
       }}
     >
-      <h2 style={{ marginBottom: 10 }}>Navigation</h2>
+      <h2 style={{ marginBottom: 8, fontSize: 20 }}>Workspace</h2>
 
-      <div style={{ fontSize: 14, opacity: 0.7 }}>Role: {role}</div>
+      <div style={{ fontSize: 14, color: empireColors.textSecondary }}>Role: {role}</div>
 
       {contractorLinks.map((item) => (
         <Link
@@ -117,12 +117,13 @@ export default function Sidebar() {
 }
 
 const linkStyle = (active: boolean): CSSProperties => ({
-  color: active ? empireColors.textPrimary : empireColors.textSecondary,
+  color: active ? "#2563EB" : empireColors.textSecondary,
   textDecoration: "none",
-  padding: "10px 12px",
-  borderRadius: 10,
-  border: `1px solid ${active ? "rgba(0,240,255,0.4)" : "transparent"}`,
-  background: active ? "rgba(0,240,255,0.08)" : "transparent",
-  boxShadow: active ? empireColors.primaryGlow : "none",
+  padding: "12px 14px",
+  borderRadius: 12,
+  border: `1px solid ${active ? "#DBEAFE" : "transparent"}`,
+  background: active ? "#EFF6FF" : "transparent",
+  boxShadow: "none",
+  fontWeight: active ? 600 : 500,
   transition: "all 0.25s ease",
 });

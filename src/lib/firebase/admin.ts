@@ -1,4 +1,4 @@
-import "server-only";
+import { createRequire } from "node:module";
 import { cert, getApp, getApps, initializeApp, type App } from "firebase-admin/app";
 import { getAuth, type Auth } from "firebase-admin/auth";
 import { getFirestore, type Firestore } from "firebase-admin/firestore";
@@ -11,6 +11,14 @@ interface FirebaseAdminServices {
   app: App;
   auth: Auth;
   db: Firestore;
+}
+
+const require = createRequire(import.meta.url);
+
+try {
+  require("server-only");
+} catch {
+  // Optional when the module is imported from standalone diagnostics.
 }
 
 export const SESSION_COOKIE_EXPIRES_IN_MS = 5 * 24 * 60 * 60 * 1000;

@@ -7,6 +7,11 @@ function toMillis(value: unknown): number | undefined {
     return value;
   }
 
+  if (typeof value === "string" && value.trim().length > 0) {
+    const parsed = Date.parse(value);
+    return Number.isNaN(parsed) ? undefined : parsed;
+  }
+
   if (value && typeof value === "object" && "toMillis" in value && typeof value.toMillis === "function") {
     return value.toMillis();
   }
@@ -146,6 +151,7 @@ export async function listContractorDocuments(contractorId: string) {
       downloadURL: asString(data.downloadURL) ?? asString(data.fileUrl),
       verified: data.verified === true || hasTimestamp(data.verifiedAt),
       verifiedAt: toMillis(data.verifiedAt),
+      verifiedBy: asString(data.verifiedBy),
       validationStatus:
         data.validationStatus === "PASS" || data.validationStatus === "REVIEW" || data.validationStatus === "FAIL"
           ? data.validationStatus

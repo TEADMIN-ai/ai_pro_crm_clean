@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { useParams } from "next/navigation";
 
-import Card from "@/components/ui/Card";
 import { useAuth } from "@/context/AuthContext";
 import { authFetch } from "@/lib/client/authFetch";
 import {
@@ -357,53 +356,130 @@ export default function TenderPackGeneratorPanel() {
   };
 
   return (
-    <Card>
-      <h2>Generate Tender Pack</h2>
-      <p>Generate an autofilled tender pack from contractor profile and document intelligence.</p>
-      <div style={{ display: "flex", alignItems: "center", gap: "8px", marginTop: "8px", flexWrap: "wrap" }}>
-        <label htmlFor="templateKey">Template</label>
-        <select
-          id="templateKey"
-          value={templateKey}
-          onChange={(event) => setTemplateKey(event.target.value as SbdFormKey)}
-          disabled={loading}
-        >
-          {SBD_TEMPLATE_KEYS.map((key) => (
-            <option key={key} value={key}>
-              {key.toUpperCase()}
-            </option>
-          ))}
-        </select>
+    <div className="p-6 bg-[#0B1220] min-h-screen text-white">
+      <div className="bg-[#111827] border border-[#1F2937] rounded-2xl p-6 shadow-xl space-y-6">
+        <div className="space-y-6">
+          <div className="space-y-2">
+            <h2 className="text-xl font-semibold text-white">Generate Tender Pack</h2>
+            <p className="text-gray-400">
+              Generate an autofilled tender pack from contractor profile and document intelligence.
+            </p>
+          </div>
 
-        <button onClick={handleGenerate} disabled={loading}>
-          {loading ? "Generating..." : "Generate Tender Pack"}
-        </button>
-      </div>
-      <button
-        onClick={handleGenerateReport}
-        className="mt-2 px-4 py-2 bg-green-600 text-white rounded"
-      >
-        Generate Report
-      </button>
-      <button
-        onClick={handleGenerateSBD4}
-        className="bg-blue-600 text-white px-4 py-2 rounded"
-      >
-        Generate SBD4
-      </button>
+          <div className="space-y-3">
+            <label htmlFor="templateKey" className="block text-sm font-medium text-gray-300">
+              Template
+            </label>
+            <select
+              id="templateKey"
+              value={templateKey}
+              onChange={(event) => setTemplateKey(event.target.value as SbdFormKey)}
+              disabled={loading}
+              className="w-full rounded-xl border border-[#374151] bg-[#0F172A] px-4 py-3 text-white outline-none transition focus:border-cyan-500"
+            >
+              {SBD_TEMPLATE_KEYS.map((key) => (
+                <option key={key} value={key}>
+                  {key.toUpperCase()}
+                </option>
+              ))}
+            </select>
 
-      {error && <p style={{ marginTop: "12px" }}>{error}</p>}
+            <button
+              onClick={handleGenerate}
+              disabled={loading}
+              className="w-full bg-gradient-to-r from-blue-600 to-cyan-500 text-white px-6 py-4 rounded-xl text-lg font-semibold shadow-lg hover:opacity-90 transition disabled:cursor-not-allowed disabled:opacity-70"
+            >
+              {loading ? "Generating..." : "Generate Tender Pack"}
+            </button>
+          </div>
 
-      {validation && !validation.isValid && (
-        <div style={{ marginTop: "12px" }}>
-          <h3 style={{ marginBottom: "8px" }}>Missing Fields:</h3>
-          <ul>
-            {validation.missingLabels.map((field) => (
-              <li key={field}>{field}</li>
-            ))}
-          </ul>
+          <details className="text-sm text-gray-400">
+            <summary className="cursor-pointer hover:text-white">View Individual Documents</summary>
+            <div className="flex gap-3 mt-3 flex-wrap">
+              <button
+                onClick={handleGenerateReport}
+                className="bg-[#1F2937] px-4 py-2 rounded-lg hover:bg-[#374151] text-white transition"
+              >
+                Generate SBD1
+              </button>
+
+              <button
+                onClick={handleGenerateSBD4}
+                className="bg-[#1F2937] px-4 py-2 rounded-lg hover:bg-[#374151] text-white transition"
+              >
+                Generate SBD4
+              </button>
+            </div>
+          </details>
+
+          {error && (
+            <p className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+              {error}
+            </p>
+          )}
+
+          <details className="text-sm text-gray-400" open={Boolean(validation && !validation.isValid) || Boolean(result)}>
+            <summary className="cursor-pointer hover:text-white">View Compliance Status</summary>
+            <div className="mt-3 space-y-4">
+              {validation && !validation.isValid && (
+                <div className="rounded-xl border border-amber-500/25 bg-amber-500/10 p-4">
+                  <h3 className="text-base font-semibold text-white">Missing Fields</h3>
+                  <ul className="mt-2 list-disc space-y-1 pl-5 text-gray-300">
+                    {validation.missingLabels.map((field) => (
+                      <li key={field}>{field}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {result && (
+                <div className="space-y-4 rounded-xl border border-[#1F2937] bg-[#0F172A] p-4">
+                  <div className="space-y-1">
+                    <p className="text-gray-400">Pack ID</p>
+                    <p className="text-white">{result.packId}</p>
+                  </div>
+                  {result.downloadURL && (
+                    <p>
+                      <a
+                        href={result.downloadURL}
+                        target="_blank"
+                        rel="noreferrer noopener"
+                        className="text-cyan-400 hover:text-cyan-300"
+                      >
+                        Download Generated Tender Pack
+                      </a>
+                    </p>
+                  )}
+                  {result.missingFields.length > 0 && (
+                    <div className="space-y-2">
+                      <p className="text-gray-400">Missing fields</p>
+                      <ul className="list-disc space-y-1 pl-5 text-gray-300">
+                        {result.missingFields.map((field) => (
+                          <li key={field}>
+                            {field in CRITICAL_TENDER_FIELD_LABELS
+                              ? CRITICAL_TENDER_FIELD_LABELS[field as CriticalTenderField]
+                              : field}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {result.warnings.length > 0 && (
+                    <div className="space-y-2">
+                      <p className="text-gray-400">Warnings</p>
+                      <ul className="list-disc space-y-1 pl-5 text-gray-300">
+                        {result.warnings.map((warning) => (
+                          <li key={warning}>{warning}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </details>
         </div>
-      )}
+      </div>
 
       {missingFieldsModalOpen && (
         <div
@@ -422,88 +498,48 @@ export default function TenderPackGeneratorPanel() {
             role="dialog"
             aria-modal="true"
             aria-labelledby="missing-fields-title"
-            style={{
-              width: "100%",
-              maxWidth: "560px",
-              background: "#fff",
-              color: "#111827",
-              borderRadius: "16px",
-              padding: "24px",
-              boxShadow: "0 24px 60px rgba(15, 23, 42, 0.28)",
-            }}
+            className="w-full max-w-[560px] rounded-2xl border border-[#1F2937] bg-[#111827] p-6 text-white shadow-[0_24px_60px_rgba(15,23,42,0.28)]"
           >
-            <h3 id="missing-fields-title" style={{ margin: 0 }}>
+            <h3 id="missing-fields-title" className="text-xl font-semibold text-white">
               Complete contractor data
             </h3>
-            <p style={{ marginTop: "8px" }}>
+            <p className="mt-2 text-gray-400">
               Fill the missing contractor fields below to continue generating the tender pack.
             </p>
-            <div style={{ display: "grid", gap: "12px", marginTop: "16px" }}>
+            <div className="mt-4 grid gap-3">
               {criticalMissingFields.map((field) => (
-                <label key={field} style={{ display: "grid", gap: "6px" }}>
-                  <span>{CRITICAL_TENDER_FIELD_LABELS[field]}</span>
+                <label key={field} className="grid gap-2">
+                  <span className="text-sm text-gray-300">{CRITICAL_TENDER_FIELD_LABELS[field]}</span>
                   <input
                     value={form[field] ?? ""}
                     onChange={(event) => updateField(field, event.target.value)}
                     disabled={savingMissingFields}
-                    style={{
-                      border: "1px solid #cbd5e1",
-                      borderRadius: "10px",
-                      padding: "10px 12px",
-                      font: "inherit",
-                    }}
+                    className="rounded-xl border border-[#374151] bg-[#0F172A] px-4 py-3 text-white outline-none transition focus:border-cyan-500"
                   />
                 </label>
               ))}
             </div>
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: "12px", marginTop: "20px" }}>
+            <div className="mt-5 flex justify-end gap-3">
               <button
                 type="button"
                 onClick={() => setMissingFieldsModalOpen(false)}
                 disabled={savingMissingFields}
+                className="rounded-lg bg-[#1F2937] px-4 py-2 text-white transition hover:bg-[#374151] disabled:opacity-70"
               >
                 Cancel
               </button>
-              <button type="button" onClick={handleMissingFieldsSubmit} disabled={savingMissingFields}>
+              <button
+                type="button"
+                onClick={handleMissingFieldsSubmit}
+                disabled={savingMissingFields}
+                className="rounded-lg bg-gradient-to-r from-blue-600 to-cyan-500 px-4 py-2 text-white transition hover:opacity-90 disabled:opacity-70"
+              >
                 {savingMissingFields ? "Saving..." : "Save and Generate"}
               </button>
             </div>
           </div>
         </div>
       )}
-
-      {result && (
-        <div style={{ marginTop: "12px" }}>
-          <p>Pack ID: {result.packId}</p>
-          {result.downloadURL && (
-            <p>
-              <a href={result.downloadURL} target="_blank" rel="noreferrer noopener">
-                Download Generated Tender Pack
-              </a>
-            </p>
-          )}
-          {result.missingFields.length > 0 && (
-            <div>
-              <p>Missing fields:</p>
-              <ul>
-                {result.missingFields.map((field) => (
-                  <li key={field}>{field in CRITICAL_TENDER_FIELD_LABELS ? CRITICAL_TENDER_FIELD_LABELS[field as CriticalTenderField] : field}</li>
-                ))}
-              </ul>
-            </div>
-          )}
-          {result.warnings.length > 0 && (
-            <div>
-              <p>Warnings:</p>
-              <ul>
-                {result.warnings.map((warning) => (
-                  <li key={warning}>{warning}</li>
-                ))}
-              </ul>
-            </div>
-          )}
-        </div>
-      )}
-    </Card>
+    </div>
   );
 }

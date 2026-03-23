@@ -16,6 +16,11 @@ function toMillis(value: unknown): number | undefined {
     return value;
   }
 
+  if (typeof value === "string" && value.trim().length > 0) {
+    const parsed = Date.parse(value);
+    return Number.isNaN(parsed) ? undefined : parsed;
+  }
+
   if (value && typeof value === "object" && "toMillis" in value && typeof value.toMillis === "function") {
     return value.toMillis();
   }
@@ -42,6 +47,7 @@ function normalizeDocument(contractorId: string, documentId: string, data: Recor
     downloadURL: asString(data.downloadURL) ?? asString(data.fileUrl),
     verified: data.verified === true || typeof toMillis(data.verifiedAt) === "number",
     verifiedAt: toMillis(data.verifiedAt),
+    verifiedBy: asString(data.verifiedBy),
     validationStatus:
       data.validationStatus === "PASS" || data.validationStatus === "REVIEW" || data.validationStatus === "FAIL"
         ? data.validationStatus
@@ -97,13 +103,20 @@ function resolveAuditAction(action: ManualVerificationAction): AuditLogAction {
 
 function buildReviewUpdate(action: ManualVerificationAction, reviewReason: string | undefined, actor: AuthorizedUser) {
   const now = new Date();
+  const nowIso = now.toISOString();
   const reviewedBy = actor.email?.trim() || actor.uid;
+  const verificationAuditEntry = {
+    action: "verified",
+    by: actor.email?.trim() || "unknown",
+    at: nowIso,
+  };
 
   switch (action) {
     case "approve":
       return {
         verified: true,
-        verifiedAt: now,
+        verifiedAt: nowIso,
+        verifiedBy: actor.email?.trim() || "unknown",
         validationStatus: "PASS" as const,
         status: "verified",
         validationError: null,
@@ -111,11 +124,13 @@ function buildReviewUpdate(action: ManualVerificationAction, reviewReason: strin
         reviewedBy,
         reviewedAt: now,
         manualDecisionAvailable: false,
+        auditTrail: [verificationAuditEntry],
       };
     case "reject":
       return {
         verified: false,
         verifiedAt: null,
+        verifiedBy: null,
         validationStatus: "FAIL" as const,
         status: "invalid",
         validationError: reviewReason ?? "Manual verification rejected",
@@ -128,6 +143,7 @@ function buildReviewUpdate(action: ManualVerificationAction, reviewReason: strin
       return {
         verified: false,
         verifiedAt: null,
+        verifiedBy: null,
         validationStatus: "REVIEW" as const,
         status: "uploaded",
         validationError: reviewReason ?? "Manual reviewer requested a new upload",
@@ -159,8 +175,13 @@ export async function applyManualDocumentVerification(params: {
         ? current.status
         : "uploaded";
 
+  const reviewUpdate = buildReviewUpdate(params.action, params.reviewReason?.trim() || undefined, params.actor);
   const payload = {
-    ...buildReviewUpdate(params.action, params.reviewReason?.trim() || undefined, params.actor),
+    ...reviewUpdate,
+    auditTrail: [
+      ...((Array.isArray(current.auditTrail) ? current.auditTrail : []) as Record<string, unknown>[]),
+      ...(reviewUpdate.auditTrail ?? []),
+    ],
     updatedAt: new Date(),
   };
 

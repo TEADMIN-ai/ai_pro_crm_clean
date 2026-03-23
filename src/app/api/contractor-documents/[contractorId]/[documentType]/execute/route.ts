@@ -69,6 +69,7 @@ function normalizeExtractedFields(fields: Record<string, string | null> | undefi
 }
 
 function buildVerificationPersistence(result: Awaited<ReturnType<typeof verifyStoredContractorDocument>>) {
+  const verifiedAt = result.verified ? new Date().toISOString() : null;
   return {
     validationStatus: result.status,
     confidenceScore: result.score,
@@ -79,7 +80,8 @@ function buildVerificationPersistence(result: Awaited<ReturnType<typeof verifySt
     validationError: result.status === "FAIL" ? result.reason ?? "Automatic verification failed" : null,
     manualDecisionAvailable: result.status === "REVIEW",
     verified: result.verified,
-    verifiedAt: result.verified ? new Date() : null,
+    verifiedAt,
+    verifiedBy: result.verified ? "unknown" : null,
     status: result.status === "PASS" ? "verified" : result.status === "FAIL" ? "invalid" : "uploaded",
   };
 }
@@ -173,9 +175,21 @@ export async function POST(
     );
     const analysisTimestamp = Date.now();
 
+    const verificationPersistence = buildVerificationPersistence(result);
     await documentRef.set(
       {
-        ...buildVerificationPersistence(result),
+        ...verificationPersistence,
+        auditTrail: result.verified
+          ? [
+              ...(Array.isArray(metadata.auditTrail) ? metadata.auditTrail : []),
+              {
+                action: "verified",
+                by: user.email?.trim() || "unknown",
+                at: verificationPersistence.verifiedAt,
+              },
+            ]
+          : metadata.auditTrail,
+        verifiedBy: result.verified ? user.email?.trim() || "unknown" : null,
         extractedFields,
         analysisTimestamp,
         updatedAt: new Date(),

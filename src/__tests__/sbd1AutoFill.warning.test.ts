@@ -35,6 +35,7 @@ describe("sbd1AutoFill compliance warning", () => {
       drawText: jest.fn(),
     };
     const embeddedFont = makeEmbeddedFont();
+    const warnSpy = jest.spyOn(console, "warn").mockImplementation(() => undefined);
 
     (PDFDocument.load as jest.Mock).mockResolvedValue({
       getForm: jest.fn(() => makeForm()),
@@ -74,6 +75,11 @@ describe("sbd1AutoFill compliance warning", () => {
       "* CSD Number",
       expect.objectContaining({ color: { r: 1, g: 0, b: 0 } })
     );
+    expect(warnSpy).toHaveBeenCalledWith("Missing field: vatNumber");
+    expect(warnSpy).toHaveBeenCalledWith("Missing field: taxPin");
+    expect(warnSpy).toHaveBeenCalledWith("Missing field: csdNumber");
+
+    warnSpy.mockRestore();
   });
 
   test("does not render the warning block when compliance fields are present", async () => {

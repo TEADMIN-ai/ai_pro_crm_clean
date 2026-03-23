@@ -8,22 +8,22 @@
 }
 
 :root {
-  --empire-bg-0: #05080f;
-  --empire-bg-1: #0b1220;
-  --empire-bg-2: #111c31;
-  --empire-surface: #0b1220;
-  --empire-card: #0f172a;
-  --empire-border: #1e293b;
-  --empire-primary: #00f0ff;
-  --empire-accent: #7c3aed;
-  --empire-text-main: #e2e8f0;
-  --empire-text-muted: #94a3b8;
+  --empire-bg-0: #f8fafc;
+  --empire-bg-1: #f8fafc;
+  --empire-bg-2: #eef2ff;
+  --empire-surface: #ffffff;
+  --empire-card: #ffffff;
+  --empire-border: #e5e7eb;
+  --empire-primary: #2563eb;
+  --empire-accent: #1d4ed8;
+  --empire-text-main: #111827;
+  --empire-text-muted: #6b7280;
 
-  --enterprise-card-bg: rgba(15, 23, 42, 0.88);
-  --enterprise-card-border: #1e293b;
-  --enterprise-text-main: #e2e8f0;
-  --enterprise-text-muted: #94a3b8;
-  --enterprise-table-head: rgba(30, 41, 59, 0.65);
+  --enterprise-card-bg: #ffffff;
+  --enterprise-card-border: #e5e7eb;
+  --enterprise-text-main: #111827;
+  --enterprise-text-muted: #6b7280;
+  --enterprise-table-head: #f8fafc;
 }
 
 html,
@@ -33,9 +33,7 @@ body {
   min-height: 100%;
   font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Ubuntu, Cantarell, "Helvetica Neue", Arial, sans-serif;
   color: var(--empire-text-main);
-  background: radial-gradient(circle at 12% 0%, rgba(124, 58, 237, 0.14), transparent 34%),
-    radial-gradient(circle at 86% 6%, rgba(0, 240, 255, 0.1), transparent 40%),
-    linear-gradient(165deg, var(--empire-bg-0) 0%, #081121 48%, var(--empire-bg-1) 100%);
+  background: #f8fafc;
 }
 
 body {
@@ -46,13 +44,13 @@ body::before {
   content: "";
   position: fixed;
   inset: 0;
-  background: radial-gradient(circle at top center, rgba(0, 240, 255, 0.09), transparent 56%);
+  background: radial-gradient(circle at top center, rgba(37, 99, 235, 0.08), transparent 56%);
   pointer-events: none;
   z-index: 0;
 }
 
 a {
-  color: #67e8f9;
+  color: #2563eb;
 }
 
 /* ===============================
@@ -70,18 +68,17 @@ a {
    =============================== */
 .sidebar {
   width: 240px;
-  background: rgba(11, 18, 32, 0.82);
-  backdrop-filter: blur(10px);
-  border-right: 1px solid rgba(0, 240, 255, 0.12);
+  background: #ffffff;
+  border-right: 1px solid #e5e7eb;
 }
 
 .empire-sidebar-link:hover {
-  background: rgba(0, 240, 255, 0.08) !important;
-  color: var(--empire-text-main) !important;
+  background: #eff6ff !important;
+  color: #2563eb !important;
 }
 
 .empire-sidebar-link-active {
-  box-shadow: 0 0 12px rgba(0, 240, 255, 0.6) !important;
+  box-shadow: none !important;
 }
 
 /* ===============================
@@ -96,15 +93,15 @@ a {
    CARDS (ALL DASHBOARDS)
    =============================== */
 .card {
-  background: rgba(15, 23, 42, 0.88);
-  border-radius: 14px;
-  padding: 20px;
-  border: 1px solid rgba(30, 41, 59, 0.95);
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+  background: #ffffff;
+  border-radius: 16px;
+  padding: 24px;
+  border: 1px solid #e5e7eb;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
 }
 
 .empire-kpi-card:hover {
-  box-shadow: 0 0 12px rgba(0, 240, 255, 0.6);
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
   transform: translateY(-1px);
 }
 
@@ -114,19 +111,19 @@ a {
 h1,
 h2,
 h3 {
-  color: #ffffff;
+  color: #111827;
   margin: 0 0 8px 0;
 }
 
 p {
-  color: var(--empire-text-muted);
+  color: #6b7280;
 }
 
 /* ===============================
    BUTTONS
    =============================== */
 button {
-  background: #0ea5e9;
+  background: #2563eb;
   color: #ffffff;
   border: none;
   padding: 10px 16px;
@@ -136,7 +133,7 @@ button {
 }
 
 button:hover {
-  background: #0284c7;
+  background: #1d4ed8;
 }
 
 /* === HEADER LAYER FIX === */
@@ -152,9 +149,8 @@ button:hover {
 }
 
 .kpi-card {
-  background: rgba(15, 23, 42, 0.6);
-  backdrop-filter: blur(14px);
-  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.08), 0 10px 30px rgba(0, 0, 0, 0.35);
+  background: #ffffff;
+  box-shadow: 0 12px 24px rgba(15, 23, 42, 0.06);
 }
 
 .enterprise-page {
@@ -162,25 +158,26 @@ button:hover {
   z-index: 1;
   padding: 24px;
   color: var(--enterprise-text-main);
+  background: #f8fafc;
 }
 
 .enterprise-grid {
   display: grid;
-  gap: 16px;
+  gap: 24px;
 }
 
 .enterprise-grid-metrics {
   display: grid;
-  gap: 12px;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 24px;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
 }
 
 .enterprise-card {
   background: var(--enterprise-card-bg);
   border: 1px solid var(--enterprise-card-border);
-  border-radius: 16px;
-  padding: 18px;
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.26);
+  border-radius: 24px;
+  padding: 24px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
 }
 
 .identity-card-header {
@@ -194,7 +191,7 @@ button:hover {
 .identity-title {
   margin: 0;
   color: var(--enterprise-text-main);
-  font-size: 28px;
+  font-size: 30px;
 }
 
 .identity-subtitle {
@@ -235,33 +232,33 @@ button:hover {
 }
 
 .tone-neutral {
-  background: rgba(148, 163, 184, 0.16);
-  color: #dbeafe;
-  border-color: rgba(148, 163, 184, 0.4);
+  background: #f3f4f6;
+  color: #4b5563;
+  border-color: #e5e7eb;
 }
 
 .tone-success {
-  background: rgba(0, 255, 157, 0.16);
-  color: #86efac;
-  border-color: rgba(0, 255, 157, 0.38);
+  background: #ecfdf3;
+  color: #15803d;
+  border-color: #bbf7d0;
 }
 
 .tone-warning {
-  background: rgba(250, 204, 21, 0.18);
-  color: #fef08a;
-  border-color: rgba(250, 204, 21, 0.38);
+  background: #fffbeb;
+  color: #a16207;
+  border-color: #fde68a;
 }
 
 .tone-danger {
-  background: rgba(255, 77, 77, 0.17);
-  color: #fecaca;
-  border-color: rgba(255, 77, 77, 0.38);
+  background: #fef2f2;
+  color: #b91c1c;
+  border-color: #fecaca;
 }
 
 .tone-info {
-  background: rgba(0, 240, 255, 0.15);
-  color: #a5f3fc;
-  border-color: rgba(0, 240, 255, 0.36);
+  background: #eff6ff;
+  color: #2563eb;
+  border-color: #bfdbfe;
 }
 
 .enterprise-table-wrap {
@@ -269,6 +266,7 @@ button:hover {
   overflow-x: auto;
   border: 1px solid var(--enterprise-card-border);
   border-radius: 12px;
+  background: #ffffff;
 }
 
 .enterprise-table {
@@ -285,14 +283,14 @@ button:hover {
 
 .enterprise-table th {
   background: var(--enterprise-table-head);
-  color: #c7d2fe;
+  color: #6b7280;
   font-size: 12px;
   text-transform: uppercase;
   letter-spacing: 0.3px;
 }
 
 .enterprise-table td {
-  border-top: 1px solid rgba(30, 41, 59, 0.9);
+  border-top: 1px solid #e5e7eb;
   color: var(--enterprise-text-main);
 }
 
@@ -305,8 +303,8 @@ button:hover {
 .compliance-summary-item {
   padding: 12px;
   border-radius: 12px;
-  background: rgba(15, 23, 42, 0.82);
-  border: 1px solid rgba(30, 41, 59, 0.9);
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
 }
 
 .enterprise-modal-backdrop {
@@ -316,16 +314,16 @@ button:hover {
   display: grid;
   place-items: center;
   padding: 24px;
-  background: rgba(2, 6, 23, 0.72);
-  backdrop-filter: blur(10px);
+  background: rgba(15, 23, 42, 0.18);
+  backdrop-filter: blur(6px);
 }
 
 .enterprise-modal {
   width: min(100%, 640px);
   border-radius: 18px;
-  border: 1px solid rgba(0, 240, 255, 0.18);
-  background: linear-gradient(180deg, rgba(11, 18, 32, 0.96), rgba(15, 23, 42, 0.94));
-  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
+  border: 1px solid #e5e7eb;
+  background: #ffffff;
+  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.18);
   padding: 20px;
 }
 
@@ -356,9 +354,9 @@ button:hover {
 
 .enterprise-input {
   width: 100%;
-  border: 1px solid rgba(71, 85, 105, 0.9);
+  border: 1px solid #d1d5db;
   border-radius: 12px;
-  background: rgba(15, 23, 42, 0.9);
+  background: #ffffff;
   color: var(--enterprise-text-main);
   padding: 12px 14px;
   outline: none;
@@ -366,8 +364,8 @@ button:hover {
 }
 
 .enterprise-input:focus {
-  border-color: rgba(0, 240, 255, 0.68);
-  box-shadow: 0 0 0 3px rgba(0, 240, 255, 0.12);
+  border-color: rgba(37, 99, 235, 0.68);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
 }
 
 .enterprise-input::placeholder {
@@ -376,7 +374,7 @@ button:hover {
 
 .enterprise-form-error {
   margin: 0;
-  color: #fca5a5;
+  color: #dc2626;
 }
 
 .enterprise-form-actions {
@@ -387,13 +385,13 @@ button:hover {
 }
 
 .enterprise-button-secondary {
-  background: rgba(30, 41, 59, 0.9);
+  background: #ffffff;
   color: var(--enterprise-text-main);
-  border: 1px solid rgba(71, 85, 105, 0.9);
+  border: 1px solid #d1d5db;
 }
 
 .enterprise-button-secondary:hover {
-  background: rgba(51, 65, 85, 0.95);
+  background: #f9fafb;
 }
 
 @keyframes tender-risk-pulse {

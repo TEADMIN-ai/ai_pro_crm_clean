@@ -14,8 +14,7 @@ export default function EmpireShell({ children }: EmpireShellProps) {
         display: "flex",
         minHeight: "100vh",
         position: "relative",
-        background:
-          "radial-gradient(circle at 15% 0%, rgba(124,58,237,0.14), transparent 35%), radial-gradient(circle at 85% 5%, rgba(0,240,255,0.12), transparent 40%), linear-gradient(165deg, #05080F 0%, #070E1A 42%, #0B1220 100%)",
+        background: "#F8FAFC",
         color: empireColors.textPrimary,
       }}
     >
@@ -29,11 +28,12 @@ export default function EmpireShell({ children }: EmpireShellProps) {
           justifyContent: "center",
           fontSize: "8rem",
           fontWeight: 700,
-          color: "rgba(0, 240, 255, 0.03)",
+          color: "rgba(37, 99, 235, 0.1)",
           letterSpacing: 6,
           pointerEvents: "none",
           userSelect: "none",
           zIndex: 0,
+          textTransform: "uppercase",
         }}
       >
         Torque Empire PTY Ltd

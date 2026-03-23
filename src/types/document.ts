@@ -69,6 +69,7 @@ export interface ContractorDocument {
   validationStatus?: "PASS" | "REVIEW" | "FAIL";
   verified?: boolean;
   verifiedAt?: number;
+  verifiedBy?: string;
   validationError?: string;
   reviewReason?: string;
   reviewedBy?: string;

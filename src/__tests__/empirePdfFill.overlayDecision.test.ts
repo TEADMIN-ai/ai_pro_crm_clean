@@ -1,8 +1,26 @@
-import fs from "node:fs/promises";
+import fs from "fs";
 import { PDFDocument } from "pdf-lib";
 
 import type { CompanyProfile } from "@/lib/autofill/buildCompanyProfile";
 import { fillTenderPack } from "@/lib/pdfs/empirePdfFill";
+
+jest.mock("@/lib/firebase/admin", () => ({
+  getFirebaseAdmin: jest.fn(() => ({
+    collection: jest.fn(() => ({
+      add: jest.fn(),
+    })),
+  })),
+}));
+
+jest.mock("fs", () => ({
+  __esModule: true,
+  default: {
+    existsSync: jest.fn(),
+    readFileSync: jest.fn(),
+  },
+  existsSync: jest.fn(),
+  readFileSync: jest.fn(),
+}));
 
 jest.mock("node:fs/promises", () => ({
   __esModule: true,
@@ -45,7 +63,8 @@ function makeProfile(overrides: Partial<CompanyProfile> = {}): CompanyProfile {
 describe("empirePdfFill overlay fallback decision", () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    (fs.readFile as jest.Mock).mockResolvedValue(Buffer.from("mock-pdf"));
+    (fs.existsSync as jest.Mock).mockReturnValue(true);
+    (fs.readFileSync as jest.Mock).mockReturnValue(Buffer.from("mock-pdf"));
   });
 
   test("uses overlay rendering when no AcroForm fields exist", async () => {
@@ -105,5 +124,35 @@ describe("empirePdfFill overlay fallback decision", () => {
     expect(drawText).not.toHaveBeenCalled();
     expect(embedFont).not.toHaveBeenCalled();
   });
-});
 
+  test("sets empty strings for mapped AcroForm fields and logs missing fields", async () => {
+    const setText = jest.fn();
+    const warnSpy = jest.spyOn(console, "warn").mockImplementation(() => undefined);
+
+    (PDFDocument.load as jest.Mock).mockResolvedValue({
+      getForm: () => ({
+        getFields: () => [
+          {
+            getName: () => "companyName",
+            setText,
+          },
+        ],
+      }),
+      getPages: () => [{ drawText: jest.fn() }],
+      embedFont: jest.fn().mockResolvedValue("mock-font"),
+      save: jest.fn().mockResolvedValue(Uint8Array.from([1, 2, 3])),
+    });
+
+    const result = await fillTenderPack({
+      templateKey: "sbd8",
+      profile: makeProfile({ companyName: "" }),
+      outputMode: "preview",
+    });
+
+    expect(result.ok).toBe(true);
+    expect(setText).toHaveBeenCalledWith("");
+    expect(warnSpy).toHaveBeenCalledWith("Missing field: companyName");
+
+    warnSpy.mockRestore();
+  });
+});

@@ -17,7 +17,11 @@ export const API_ROUTES = {
     `/api/contractor-documents/${encodeURIComponent(contractorId)}/${encodeURIComponent(documentType)}/review`,
   DOCUMENT_EXECUTE: (documentId: string) =>
     `/api/documents/${documentId}/execute`,
+  DOCUMENT_STATUS: (documentId: string) =>
+    `/api/documents/${encodeURIComponent(documentId)}/status`,
+  DOCUMENT_UPLOAD: "/api/documents/upload",
   TENDER_PACK_GENERATE: "/api/tender-pack/generate",
+  SBD4_GENERATE: "/api/sbd4/generate",
   DEALS: "/api/deals",
   DEAL_DETAIL: (dealId: string) => `/api/deals/${encodeURIComponent(dealId)}`,
   RISKS: "/api/risks",

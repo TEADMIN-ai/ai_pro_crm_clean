@@ -75,6 +75,13 @@ export type GenerateSBD1Result = {
   validation: SBD1ValidationResult;
 };
 
+function safeGet(value: any, fallback: string = "") {
+  if (value === null || value === undefined || value === "") {
+    return fallback;
+  }
+  return value;
+}
+
 const SBD1_TEMPLATE_PATH = "/templates/SBD1.pdf";
 
 const FIELD_FONT_SIZE = 10;
@@ -275,12 +282,12 @@ async function createSBD1Document(templateBytes?: Uint8Array | null): Promise<PD
 
 function getRequiredSBD1Fields(data: ContractorData): Record<RequiredSbd1FieldKey, string> {
   return {
-    bidder_name: data.companyName,
-    address: data.streetAddress || data.postalAddress,
-    email: data.email,
-    telephone: data.telNumber ?? data.telephone,
-    tax_pin: data.taxPin,
-    csd_number: data.csdNumber ?? "",
+    bidder_name: safeGet(data.companyName),
+    address: safeGet(data.streetAddress, safeGet(data.postalAddress)),
+    email: safeGet(data.email),
+    telephone: safeGet(data.telNumber, safeGet(data.telephone)),
+    tax_pin: safeGet(data.taxPin),
+    csd_number: safeGet(data.csdNumber),
   };
 }
 
@@ -290,7 +297,7 @@ function pickFirstPopulatedField(
   fallbackValue = ""
 ): Sbd1ResolvedField {
   for (const source of sources) {
-    const value = cleanText(data[source]);
+    const value = cleanText(safeGet(data[source]));
     if (value) {
       return {
         value,
@@ -300,7 +307,7 @@ function pickFirstPopulatedField(
   }
 
   return {
-    value: fallbackValue,
+    value: safeGet(fallbackValue),
     sources: [...sources],
     isPlaceholder: Boolean(cleanText(fallbackValue)),
   };
@@ -365,17 +372,17 @@ function logSBD1FieldAudit(
   validation: SBD1ValidationResult
 ) {
   const inputSnapshot = {
-    companyName: cleanText(data.companyName),
-    postalAddress: cleanText(data.postalAddress),
-    streetAddress: cleanText(data.streetAddress),
-    telephone: cleanText(data.telephone),
-    telNumber: cleanText(data.telNumber),
-    cellphone: cleanText(data.cellphone),
-    cellNumber: cleanText(data.cellNumber),
-    email: cleanText(data.email),
-    vatNumber: cleanText(data.vatNumber),
-    taxPin: cleanText(data.taxPin),
-    csdNumber: cleanText(data.csdNumber),
+    companyName: cleanText(safeGet(data.companyName)),
+    postalAddress: cleanText(safeGet(data.postalAddress)),
+    streetAddress: cleanText(safeGet(data.streetAddress)),
+    telephone: cleanText(safeGet(data.telephone)),
+    telNumber: cleanText(safeGet(data.telNumber)),
+    cellphone: cleanText(safeGet(data.cellphone)),
+    cellNumber: cleanText(safeGet(data.cellNumber)),
+    email: cleanText(safeGet(data.email)),
+    vatNumber: cleanText(safeGet(data.vatNumber)),
+    taxPin: cleanText(safeGet(data.taxPin)),
+    csdNumber: cleanText(safeGet(data.csdNumber)),
   };
 
   const mappingTrace = Object.fromEntries(
@@ -392,6 +399,12 @@ function logSBD1FieldAudit(
   console.info("SBD1 input snapshot:", inputSnapshot);
   console.info("SBD1 field mapping trace:", mappingTrace);
 
+  for (const [fieldName, value] of Object.entries(inputSnapshot)) {
+    if (!safeGet(value)) {
+      console.warn(`Missing field: ${fieldName}`);
+    }
+  }
+
   const missingResolvedKeys = (Object.entries(resolvedFields) as Array<[ResolvedSbd1FieldKey, Sbd1ResolvedField]>)
     .filter(([, resolved]) => !cleanText(resolved.value) || resolved.isPlaceholder)
     .map(([key]) => key);
@@ -406,8 +419,9 @@ function logSBD1FieldAudit(
 }
 
 function cleanText(value: any): string {
-  if (!value) return "";
-  return String(value)
+  const normalized = safeGet(value);
+  if (!normalized) return "";
+  return String(normalized)
     .replace(/&/g, "")
     .replace(/[^a-zA-Z0-9\s:%.,-]/g, "")
     .replace(/\s+/g, " ")

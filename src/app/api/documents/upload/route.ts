@@ -2,28 +2,31 @@ import { NextRequest, NextResponse } from "next/server";
 import { getStorage } from "firebase-admin/storage";
 import { getAdminApp, getFirebaseAdmin } from "@/lib/firebase/admin";
 import {
-  getDocumentTypeLabel,
-  resolveContractorDocumentStatus,
-  isSupportedDocumentType,
-  type SupportedDocumentType,
-} from "@/lib/compliance/contractorCompliance";
-import {
   AuthorizationError,
   assertCanAccessContractor,
-  assertPrivilegedRole,
   requireAuthorizedUser,
 } from "@/lib/server/authz";
+import {
+  getDocumentTypeLabel,
+  isSupportedDocumentType,
+  resolveContractorDocumentStatus,
+  type SupportedDocumentType,
+} from "@/lib/compliance/contractorCompliance";
 import { recalculateContractorCompliance } from "@/lib/server/recalculateContractorCompliance";
 import { verifyStoredContractorDocument } from "@/server/services/documentVerificationService";
 import {
   getContractorDocument,
-  listContractorDocuments,
   upsertContractorDocument,
 } from "@/server/services/contractorService";
 import type { ContractorDocument } from "@/types/document";
 
 function jsonError(message: string, status = 500) {
   return NextResponse.json({ error: message }, { status });
+}
+
+function sanitizeFilename(name: string) {
+  const cleaned = name.replace(/[^a-zA-Z0-9._-]/g, "_");
+  return cleaned.length > 0 ? cleaned : "document.pdf";
 }
 
 function getString(value: unknown): string {
@@ -139,15 +142,15 @@ function normalizeDocument(id: string, data: Record<string, unknown>): Contracto
 
 function buildVerificationPersistence(
   result: Awaited<ReturnType<typeof verifyStoredContractorDocument>>,
-  currentUser?: { email?: string },
+  user: { email?: string },
   existingDocument?: Record<string, unknown>
 ) {
   const verifiedAt = result.verified ? new Date().toISOString() : null;
-  const verifiedBy = result.verified ? currentUser?.email?.trim() || "unknown" : null;
+  const verifiedBy = result.verified ? user.email?.trim() || "unknown" : null;
   const auditTrailEntry = result.verified
     ? {
         action: "verified",
-        by: currentUser?.email?.trim() || "unknown",
+        by: user.email?.trim() || "unknown",
         at: verifiedAt,
       }
     : null;
@@ -174,28 +177,29 @@ function buildVerificationPersistence(
   };
 }
 
-function parseDocumentType(value: unknown): SupportedDocumentType | null {
-  const type = getString(value);
-  return isSupportedDocumentType(type) ? type : null;
+function inferDocumentType(fileName: string): SupportedDocumentType | null {
+  const value = fileName.toLowerCase();
+
+  if (value.includes("cipc") || value.includes("registration")) return "cipc";
+  if (value.includes("bbbee") || value.includes("b-bbee") || value.includes("bee")) return "bbbee";
+  if (value.includes("tax")) return "taxClearance";
+  if (value.includes("coida") || value.includes("compensation")) return "coida";
+  if (value.includes("bank")) return "bankConfirmation";
+
+  return null;
 }
 
-function isValidStoragePath(contractorId: string, documentType: SupportedDocumentType, storagePath: string): boolean {
-  return storagePath === `contractors/${contractorId}/${documentType}.pdf`;
-}
-
-async function downloadContractorDocumentBuffer(storagePath: string): Promise<Buffer> {
-  const storage = getStorage(getAdminApp());
-  const [buffer] = await storage.bucket().file(storagePath).download();
-  return Buffer.from(buffer);
-}
-
-export async function GET(
-  request: NextRequest,
-  context: { params: Promise<{ contractorId: string }> }
-) {
+export async function POST(request: NextRequest) {
   try {
     const user = await requireAuthorizedUser(request);
-    const { contractorId } = await context.params;
+    const formData = await request.formData();
+    const uploadedFile = formData.get("file");
+    const contractorId = getString(formData.get("contractorId"));
+    const rawDocumentType = getString(formData.get("documentType"));
+
+    if (!(uploadedFile instanceof File)) {
+      return jsonError("Missing file", 400);
+    }
 
     if (!contractorId) {
       return jsonError("Missing contractorId", 400);
@@ -203,182 +207,101 @@ export async function GET(
 
     assertCanAccessContractor(user, contractorId);
 
-    const documents = await listContractorDocuments(contractorId);
-
-    return NextResponse.json({ documents }, { status: 200 });
-  } catch (error: unknown) {
-    if (error instanceof AuthorizationError) {
-      return jsonError(error.message, error.status);
+    if (!uploadedFile.name.toLowerCase().endsWith(".pdf")) {
+      return jsonError("Only PDF files are allowed", 400);
     }
 
-    console.error(error);
-    return jsonError(error instanceof Error ? error.message : "Failed to fetch documents", 500);
-  }
-}
-
-export async function POST(
-  request: NextRequest,
-  context: { params: Promise<{ contractorId: string }> }
-) {
-  try {
-    const user = await requireAuthorizedUser(request);
-    const { contractorId } = await context.params;
-
-    if (!contractorId) {
-      return jsonError("Missing contractorId", 400);
+    if (uploadedFile.type && uploadedFile.type !== "application/pdf") {
+      return jsonError("Invalid file type. Upload a PDF document.", 400);
     }
 
-    assertCanAccessContractor(user, contractorId);
-
-    const body = (await request.json()) as Record<string, unknown>;
-    const documentType = parseDocumentType(body.documentType);
-    const documentName = getString(body.documentName);
-    const storagePath = getString(body.storagePath);
-    const fileUrl = getString(body.fileUrl || body.downloadURL || body.url);
+    const documentType = isSupportedDocumentType(rawDocumentType)
+      ? rawDocumentType
+      : inferDocumentType(uploadedFile.name);
 
     if (!documentType) {
-      return jsonError("Unsupported documentType", 400);
+      return jsonError("Unsupported or missing documentType", 400);
     }
 
-    if (!storagePath || !fileUrl) {
-      return jsonError("Missing storagePath or fileUrl", 400);
-    }
+    const fileBuffer = Buffer.from(await uploadedFile.arrayBuffer());
+    const storagePath = `contractors/${contractorId}/${documentType}.pdf`;
+    const bucket = getStorage(getAdminApp()).bucket();
+    const file = bucket.file(storagePath);
 
-    if (!isValidStoragePath(contractorId, documentType, storagePath)) {
-      return jsonError("Invalid storagePath", 400);
-    }
+    await file.save(fileBuffer, {
+      metadata: {
+        contentType: uploadedFile.type || "application/pdf",
+        metadata: {
+          contractorId,
+          documentType,
+          originalName: sanitizeFilename(uploadedFile.name),
+          uploadedByUid: user.uid,
+        },
+      },
+      resumable: false,
+    });
 
-    if (!/^https?:\/\//i.test(fileUrl)) {
-      return jsonError("Invalid fileUrl", 400);
-    }
+    const [fileUrl] = await file.getSignedUrl({
+      action: "read",
+      expires: "2100-01-01",
+    });
 
     const now = new Date();
-    await upsertContractorDocument(
+    const documentName = uploadedFile.name || `${getDocumentTypeLabel(documentType)}.pdf`;
+
+    await upsertContractorDocument(contractorId, documentType, {
       contractorId,
       documentType,
-      {
-        contractorId,
-        documentType,
-        docType: documentType,
-        documentName: documentName || `${getDocumentTypeLabel(documentType)}.pdf`,
-        fileName: documentName || `${documentType}.pdf`,
-        originalName: documentName || `${documentType}.pdf`,
-        filename: `${documentType}.pdf`,
-        storagePath,
-        fileUrl,
-        downloadURL: fileUrl,
-        url: fileUrl,
-        uploadedAt: now,
-        createdAt: now,
-        updatedAt: now,
-        verified: false,
-        verifiedAt: null,
-        validationError: null,
-        status: "uploaded",
-      },
-    );
+      docType: documentType,
+      documentName,
+      fileName: documentName,
+      originalName: uploadedFile.name,
+      filename: `${documentType}.pdf`,
+      storagePath,
+      fileUrl,
+      downloadURL: fileUrl,
+      url: fileUrl,
+      uploadedAt: now,
+      createdAt: now,
+      updatedAt: now,
+      verified: false,
+      verifiedAt: null,
+      validationError: null,
+      status: "uploaded",
+    });
 
     try {
-      console.log("Document verification running", {
-        contractorId,
-        documentType,
-      });
+      const verificationResult = await verifyStoredContractorDocument(fileBuffer, documentType);
+      const existingDocument = (await getContractorDocument(contractorId, documentType)).data() as
+        | Record<string, unknown>
+        | undefined;
 
-      const buffer = await downloadContractorDocumentBuffer(storagePath);
-      const verificationResult = await verifyStoredContractorDocument(buffer, documentType);
-      const existingDocument = (
-        await getContractorDocument(contractorId, documentType)
-      ).data() as Record<string, unknown> | undefined;
       await upsertContractorDocument(
         contractorId,
         documentType,
         buildVerificationPersistence(verificationResult, user, existingDocument)
       );
-    } catch (error) {
-      console.error("Document verification failed", error);
+    } catch (verificationError) {
+      console.error("Document verification failed", verificationError);
     }
 
-    const summary = await recalculateContractorCompliance(getFirebaseAdmin(), contractorId);
+    const compliance = await recalculateContractorCompliance(getFirebaseAdmin(), contractorId);
     const savedDoc = await getContractorDocument(contractorId, documentType);
 
     return NextResponse.json(
       {
+        success: true,
         document: normalizeDocument(savedDoc.id, (savedDoc.data() ?? {}) as Record<string, unknown>),
-        compliance: summary,
+        compliance,
       },
       { status: 200 }
     );
-  } catch (error: unknown) {
+  } catch (error) {
     if (error instanceof AuthorizationError) {
       return jsonError(error.message, error.status);
     }
 
-    console.error(error);
-    return jsonError(error instanceof Error ? error.message : "Failed to save document", 500);
-  }
-}
-
-export async function PATCH(
-  request: NextRequest,
-  context: { params: Promise<{ contractorId: string }> }
-) {
-  try {
-    const user = await requireAuthorizedUser(request);
-    const db = getFirebaseAdmin();
-    const { contractorId } = await context.params;
-
-    if (!contractorId) {
-      return jsonError("Missing contractorId", 400);
-    }
-
-    assertPrivilegedRole(user);
-
-    const body = (await request.json()) as Record<string, unknown>;
-    const documentType = parseDocumentType(body.documentType ?? body.documentId);
-
-    if (!documentType) {
-      return jsonError("Unsupported documentType", 400);
-    }
-
-    const snap = await getContractorDocument(contractorId, documentType);
-
-    if (!snap.exists) {
-      return jsonError("Document not found", 404);
-    }
-
-    const updates: Record<string, unknown> = {
-      updatedAt: new Date(),
-    };
-
-    if (typeof body.verified === "boolean") {
-      updates.verified = body.verified;
-      updates.verifiedAt = body.verified ? new Date().toISOString() : null;
-      updates.verifiedBy = body.verified ? user.email?.trim() || "unknown" : null;
-    }
-
-    if (typeof body.documentName === "string" && body.documentName.trim()) {
-      updates.documentName = body.documentName.trim();
-      updates.fileName = body.documentName.trim();
-      updates.originalName = body.documentName.trim();
-    }
-
-    await upsertContractorDocument(contractorId, documentType, updates);
-    const summary = await recalculateContractorCompliance(db, contractorId);
-    const updated = await getContractorDocument(contractorId, documentType);
-
-    return NextResponse.json(
-      {
-        document: normalizeDocument(updated.id, (updated.data() ?? {}) as Record<string, unknown>),
-        compliance: summary,
-      },
-      { status: 200 }
-    );
-  } catch (error: unknown) {
-    if (error instanceof AuthorizationError) {
-      return jsonError(error.message, error.status);
-    }
-
-    console.error(error);
-    return jsonError(error instanceof Error ? error.message : "Failed to update document", 500);
+    console.error("Document upload failed", error);
+    return jsonError(error instanceof Error ? error.message : "Upload failed", 500);
   }
 }

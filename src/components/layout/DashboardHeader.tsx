@@ -18,17 +18,24 @@ export default function DashboardHeader() {
   };
 
   return (
-    <div style={{ display: "flex", justifyContent: "flex-end" }}>
+    <div
+      style={{
+        display: "flex",
+        justifyContent: "flex-end",
+        padding: "24px 24px 0",
+      }}
+    >
       <button
         onClick={handleLogout}
         style={{
           padding: "10px 16px",
-          borderRadius: 10,
+          borderRadius: 12,
           background: "#2563eb",
           color: "white",
-          border: "none",
+          border: "1px solid #2563eb",
           cursor: "pointer",
           fontWeight: 700,
+          boxShadow: "0 1px 2px rgba(15, 23, 42, 0.08)",
         }}
       >
         Logout

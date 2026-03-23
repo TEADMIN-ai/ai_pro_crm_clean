@@ -57,6 +57,7 @@ describe("manualDocumentVerificationService", () => {
           validationStatus: "REVIEW",
           status: "uploaded",
           fileUrl: "https://example.com/doc.pdf",
+          auditTrail: [{ action: "uploaded", by: "system", at: "2026-03-20T10:00:00.000Z" }],
         }),
       })
       .mockResolvedValueOnce({
@@ -67,6 +68,8 @@ describe("manualDocumentVerificationService", () => {
           validationStatus: "PASS",
           status: "verified",
           verified: true,
+          verifiedAt: "2026-03-23T10:00:00.000Z",
+          verifiedBy: actor.email,
           reviewedBy: actor.email,
           fileUrl: "https://example.com/doc.pdf",
         }),
@@ -89,7 +92,13 @@ describe("manualDocumentVerificationService", () => {
         validationStatus: "PASS",
         status: "verified",
         verified: true,
+        verifiedBy: actor.email,
+        verifiedAt: expect.any(String),
         manualDecisionAvailable: false,
+        auditTrail: expect.arrayContaining([
+          expect.objectContaining({ action: "uploaded", by: "system" }),
+          expect.objectContaining({ action: "verified", by: actor.email }),
+        ]),
       })
     );
     expect(recordAuditLog).toHaveBeenCalledWith(
@@ -108,6 +117,7 @@ describe("manualDocumentVerificationService", () => {
     expect(recalculateContractorCompliance).toHaveBeenCalled();
     expect(document.validationStatus).toBe("PASS");
     expect(document.verified).toBe(true);
+    expect(document.verifiedBy).toBe(actor.email);
   });
 
   test("REVIEW document can be manually rejected and audit logged", async () => {

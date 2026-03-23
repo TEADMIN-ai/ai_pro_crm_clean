@@ -1,8 +1,26 @@
-import fs from "node:fs/promises";
+import fs from "fs";
 import { PDFDocument } from "pdf-lib";
 
 import type { CompanyProfile } from "@/lib/autofill/buildCompanyProfile";
 import { fillTenderPack } from "@/lib/pdfs/empirePdfFill";
+
+jest.mock("@/lib/firebase/admin", () => ({
+  getFirebaseAdmin: jest.fn(() => ({
+    collection: jest.fn(() => ({
+      add: jest.fn(),
+    })),
+  })),
+}));
+
+jest.mock("fs", () => ({
+  __esModule: true,
+  default: {
+    existsSync: jest.fn(),
+    readFileSync: jest.fn(),
+  },
+  existsSync: jest.fn(),
+  readFileSync: jest.fn(),
+}));
 
 jest.mock("node:fs/promises", () => ({
   __esModule: true,
@@ -63,7 +81,8 @@ function makeProfile(overrides: Partial<CompanyProfile> = {}): CompanyProfile {
 describe("empirePdfFill overlay rendering", () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    (fs.readFile as jest.Mock).mockResolvedValue(Buffer.from("mock-pdf"));
+    (fs.existsSync as jest.Mock).mockReturnValue(true);
+    (fs.readFileSync as jest.Mock).mockReturnValue(Buffer.from("mock-pdf"));
   });
 
   test("draws mapped value on the configured page and coordinates", async () => {
@@ -101,4 +120,3 @@ describe("empirePdfFill overlay rendering", () => {
     expect(page2.drawText).not.toHaveBeenCalled();
   });
 });
-

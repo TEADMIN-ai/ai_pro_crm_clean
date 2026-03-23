@@ -75,7 +75,7 @@ export default function DocumentVerificationReviewPanel({
       setLoadError(null);
 
       try {
-        const response = await fetch(`/api/deals/${encodeURIComponent(resolvedDealId)}/documents`, {
+        const response = await fetch(API_ROUTES.DEAL_DOCUMENTS(resolvedDealId), {
           method: "GET",
         });
 
@@ -114,6 +114,13 @@ export default function DocumentVerificationReviewPanel({
     return fetchedDocuments;
   }, [documents, fetchedDocuments]);
 
+  const filteredDocs = useMemo(() => {
+    const sourceDocuments = Array.isArray(documentList) ? documentList : [];
+    const verifiedCount = sourceDocuments.filter((doc) => doc?.verified === true).length;
+    console.log("Filtered verified docs:", verifiedCount);
+    return sourceDocuments.filter((doc) => doc?.verified !== true);
+  }, [documentList]);
+
   const updateStatus = async (
     item: DocumentItem,
     status: "approved" | "rejected"
@@ -126,7 +133,7 @@ export default function DocumentVerificationReviewPanel({
       const documentType = item.type || item.documentType || item.docType || "";
 
       const res = dealId
-        ? await authFetch(`/api/deals/${encodeURIComponent(dealId)}/documents`, {
+        ? await authFetch(API_ROUTES.DEAL_DOCUMENTS(dealId), {
             method: "PATCH",
             headers: {
               "Content-Type": "application/json",
@@ -147,16 +154,16 @@ export default function DocumentVerificationReviewPanel({
                 documentId: item.id,
               }),
             })
-          : await authFetch(`/api/documents/${encodeURIComponent(item.id)}/status`, {
-            method: "PATCH",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              status,
-              reviewedAt: new Date(),
-            }),
-          });
+          : await authFetch(API_ROUTES.DOCUMENT_STATUS(item.id), {
+              method: "PATCH",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                status,
+                reviewedAt: new Date(),
+              }),
+            });
 
       if (!res.ok) {
         throw new Error("Failed to update document status");
@@ -195,11 +202,11 @@ export default function DocumentVerificationReviewPanel({
         <p style={{ color: "#94a3b8" }}>{loadError}</p>
       )}
 
-      {documentList.length === 0 && !isLoading && (
-        <p style={{ color: "#94a3b8" }}>No documents to review</p>
+      {filteredDocs.length === 0 && !isLoading && (
+        <p className="text-gray-400" style={{ color: "#94a3b8" }}>No pending documents</p>
       )}
 
-      {documentList.map((doc) => {
+      {filteredDocs.map((doc) => {
         const aiFinalStatus = getAiFinalStatus(doc);
         const isPass = aiFinalStatus === "PASS";
         const isFail = aiFinalStatus === "FAIL";

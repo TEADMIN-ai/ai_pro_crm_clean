@@ -1,19 +1,19 @@
 export const empireColors = {
-  background: "#05080F",
-  surface: "#0B1220",
-  card: "#0F172A",
-  border: "#1E293B",
+  background: "#F8FAFC",
+  surface: "#FFFFFF",
+  card: "#FFFFFF",
+  border: "#E5E7EB",
 
-  primary: "#00F0FF",
-  primaryGlow: "0 0 12px rgba(0,240,255,0.6)",
+  primary: "#2563EB",
+  primaryGlow: "0 8px 20px rgba(37,99,235,0.16)",
 
-  accent: "#7C3AED",
-  accentGlow: "0 0 10px rgba(124,58,237,0.6)",
+  accent: "#1D4ED8",
+  accentGlow: "0 8px 18px rgba(29,78,216,0.14)",
 
-  success: "#00FF9D",
-  warning: "#FACC15",
-  danger: "#FF4D4D",
+  success: "#16A34A",
+  warning: "#CA8A04",
+  danger: "#DC2626",
 
-  textPrimary: "#E2E8F0",
-  textSecondary: "#94A3B8",
+  textPrimary: "#111827",
+  textSecondary: "#6B7280",
 };

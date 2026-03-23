@@ -7,6 +7,11 @@ function toMillis(value: unknown): number | undefined {
     return value;
   }
 
+  if (typeof value === "string" && value.trim().length > 0) {
+    const parsed = Date.parse(value);
+    return Number.isNaN(parsed) ? undefined : parsed;
+  }
+
   if (value && typeof value === "object" && "toMillis" in value && typeof value.toMillis === "function") {
     return value.toMillis();
   }
@@ -54,6 +59,7 @@ function normalizeContractorDocument(id: string, source: Record<string, unknown>
           : undefined,
     verified: source.verified === true || hasTimestamp(source.verifiedAt),
     verifiedAt: toMillis(source.verifiedAt),
+    verifiedBy: typeof source.verifiedBy === "string" ? source.verifiedBy : undefined,
     validationError: typeof source.validationError === "string" ? source.validationError : undefined,
     uploadedAt: toMillis(source.uploadedAt),
     updatedAt: toMillis(source.updatedAt),
