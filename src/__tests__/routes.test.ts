@@ -9,6 +9,10 @@ describe("API_ROUTES integrity", () => {
     expect(API_ROUTES.DEALS).toBe("/api/deals");
   });
 
+  test("USERS_CREATE route is correct", () => {
+    expect(API_ROUTES.USERS_CREATE).toBe("/api/users/create");
+  });
+
   test("RISKS route is correct", () => {
     expect(API_ROUTES.RISKS).toBe("/api/risks");
   });

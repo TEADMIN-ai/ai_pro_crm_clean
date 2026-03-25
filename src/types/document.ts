@@ -16,6 +16,17 @@
  */
 
 export interface ContractorDocument {
+  aiData?: {
+    companyName?: string | null;
+    registrationNumber?: string | null;
+    documentType?: string | null;
+    expiryDate?: string | null;
+    riskLevel?: "low" | "medium" | "high" | "unknown";
+    issues?: string[];
+    error?: string;
+  };
+  riskLevel?: "low" | "medium" | "high" | "unknown";
+  aiIssues?: string[];
 
   /**
    * Firestore document ID
@@ -102,9 +113,11 @@ export interface ContractorDocument {
   complianceScore?: number;
   extractedFields?: Record<string, string | null>;
   missingFields?: string[];
+  issues?: string[];
   validationErrors?: string[];
   analysisTimestamp?: number;
   extractionMethod?: "pdf-parse" | "ocr";
+  extractedText?: string;
   extractedTextLength?: number;
 
   /**

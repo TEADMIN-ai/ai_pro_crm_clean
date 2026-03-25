@@ -7,6 +7,6 @@ export interface AppUser {
   contractorId?: string;
   status?: string;
   name?: string;
-  createdAt: any; // Firestore Timestamp
+  createdAt: number;
 }
 

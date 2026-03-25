@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { getAuth, signInWithEmailAndPassword } from "firebase/auth";
 import { API_ROUTES } from "@/lib/routes";
 
+const POST_LOGIN_BOOT_KEY = "show_ai_boot";
+
 export default function LoginForm() {
   const router = useRouter();
   const auth = getAuth();
@@ -35,6 +37,7 @@ export default function LoginForm() {
         throw new Error("Failed to create server session");
       }
 
+      window.sessionStorage.setItem(POST_LOGIN_BOOT_KEY, "true");
       router.replace("/dashboard");
     } catch (err: any) {
       console.error("Login failed:", err);

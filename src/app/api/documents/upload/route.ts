@@ -12,6 +12,9 @@ import {
   resolveContractorDocumentStatus,
   type SupportedDocumentType,
 } from "@/lib/compliance/contractorCompliance";
+import { aiExtractDocument } from "@/lib/verification/aiExtract";
+import { extractDocumentData } from "@/lib/verification/extractData";
+import { validateDocument } from "@/lib/verification/validateDocument";
 import { recalculateContractorCompliance } from "@/lib/server/recalculateContractorCompliance";
 import { verifyStoredContractorDocument } from "@/server/services/documentVerificationService";
 import {
@@ -56,6 +59,20 @@ function hasTimestamp(value: unknown): boolean {
 
 function normalizeDocument(id: string, data: Record<string, unknown>): ContractorDocument {
   const document: ContractorDocument = {
+    aiData:
+      data.aiData && typeof data.aiData === "object"
+        ? (data.aiData as ContractorDocument["aiData"])
+        : undefined,
+    riskLevel:
+      data.riskLevel === "low" ||
+      data.riskLevel === "medium" ||
+      data.riskLevel === "high" ||
+      data.riskLevel === "unknown"
+        ? data.riskLevel
+        : undefined,
+    aiIssues: Array.isArray(data.aiIssues)
+      ? data.aiIssues.filter((value): value is string => typeof value === "string")
+      : undefined,
     id,
     contractorId: typeof data.contractorId === "string" ? data.contractorId : "",
     documentName:
@@ -121,6 +138,9 @@ function normalizeDocument(id: string, data: Record<string, unknown>): Contracto
     missingFields: Array.isArray(data.missingFields)
       ? data.missingFields.filter((value): value is string => typeof value === "string")
       : undefined,
+    issues: Array.isArray(data.issues)
+      ? data.issues.filter((value): value is string => typeof value === "string")
+      : undefined,
     validationErrors: Array.isArray(data.validationErrors)
       ? data.validationErrors.filter((value): value is string => typeof value === "string")
       : undefined,
@@ -129,6 +149,7 @@ function normalizeDocument(id: string, data: Record<string, unknown>): Contracto
       data.extractionMethod === "pdf-parse" || data.extractionMethod === "ocr"
         ? data.extractionMethod
         : undefined,
+    extractedText: typeof data.extractedText === "string" ? data.extractedText : undefined,
     extractedTextLength:
       typeof data.extractedTextLength === "number" ? data.extractedTextLength : undefined,
     status: typeof data.status === "string" ? data.status : undefined,
@@ -248,6 +269,32 @@ export async function POST(request: NextRequest) {
 
     const now = new Date();
     const documentName = uploadedFile.name || `${getDocumentTypeLabel(documentType)}.pdf`;
+    const extracted = await extractDocumentData(fileBuffer);
+    const aiResult = await aiExtractDocument(extracted.rawText);
+    const validation = validateDocument(extracted, documentType);
+    const isExpired =
+      aiResult.expiryDate &&
+      new Date(aiResult.expiryDate) < new Date();
+
+    const finalVerified =
+      validation.isValid &&
+      aiResult.riskLevel !== "high" &&
+      !isExpired &&
+      aiResult?.issues?.length === 0;
+
+    console.log("SYSTEM CHECK:", {
+      verified: finalVerified,
+      risk: aiResult?.riskLevel,
+      issues: aiResult?.issues,
+    });
+
+    console.log("FINAL VERDICT:", {
+      isValid: validation.isValid,
+      risk: aiResult.riskLevel,
+      expired: isExpired,
+      issues: aiResult.issues,
+      finalVerified,
+    });
 
     await upsertContractorDocument(contractorId, documentType, {
       contractorId,
@@ -264,9 +311,16 @@ export async function POST(request: NextRequest) {
       uploadedAt: now,
       createdAt: now,
       updatedAt: now,
-      verified: false,
+      verified: finalVerified,
       verifiedAt: null,
       validationError: null,
+      issues: validation.issues,
+      aiData: aiResult,
+      riskLevel: aiResult.riskLevel || "unknown",
+      aiIssues: aiResult.issues || [],
+      expiryDate: aiResult.expiryDate ? Date.parse(aiResult.expiryDate) || null : null,
+      extractedText: extracted.rawText,
+      extractedTextLength: extracted.rawText.length,
       status: "uploaded",
     });
 
@@ -279,7 +333,17 @@ export async function POST(request: NextRequest) {
       await upsertContractorDocument(
         contractorId,
         documentType,
-        buildVerificationPersistence(verificationResult, user, existingDocument)
+        {
+          ...buildVerificationPersistence(verificationResult, user, existingDocument),
+          verified: finalVerified && verificationResult.verified,
+          issues: validation.issues,
+          aiData: aiResult,
+          riskLevel: aiResult.riskLevel || "unknown",
+          aiIssues: aiResult.issues || [],
+          expiryDate: aiResult.expiryDate ? Date.parse(aiResult.expiryDate) || null : null,
+          extractedText: extracted.rawText,
+          extractedTextLength: extracted.rawText.length,
+        }
       );
     } catch (verificationError) {
       console.error("Document verification failed", verificationError);

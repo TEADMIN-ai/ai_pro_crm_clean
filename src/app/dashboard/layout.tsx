@@ -7,6 +7,7 @@ import { useAuth } from "@/context/AuthContext";
 import Sidebar from "@/components/layout/Sidebar";
 import DashboardHeader from "@/components/layout/DashboardHeader";
 import EmpireShell from "@/components/layout/EmpireShell";
+import PostLoginBootGate from "@/components/system/PostLoginBootGate";
 
 export default function DashboardLayout({
   children,
@@ -20,7 +21,7 @@ export default function DashboardLayout({
     if (!loading && !user) {
       router.replace("/login");
     }
-  }, [user, loading, router]);
+  }, [loading, router, user]);
 
   if (loading) {
     return <div>Loading...</div>;
@@ -32,13 +33,15 @@ export default function DashboardLayout({
 
   return (
     <AuthGuard>
-      <EmpireShell>
-        <Sidebar />
-        <div style={{ flex: 1 }}>
-          <DashboardHeader />
-          {children}
-        </div>
-      </EmpireShell>
+      <PostLoginBootGate>
+        <EmpireShell>
+          <Sidebar />
+          <div style={{ flex: 1 }}>
+            <DashboardHeader />
+            {children}
+          </div>
+        </EmpireShell>
+      </PostLoginBootGate>
     </AuthGuard>
   );
 }

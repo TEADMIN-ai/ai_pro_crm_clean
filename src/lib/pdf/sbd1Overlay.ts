@@ -1,116 +1,58 @@
-import { PDFDocument, StandardFonts } from "pdf-lib";
+import {
+  mapLegacyTenderToTenderData,
+  type LegacyTenderSource,
+} from "@/lib/tender/mappers/tender.mapper";
+import { generateSBD1OverlayDocument } from "@/lib/pdf/sbd1-overlay/service";
+import type { SBD1OverlayInput } from "@/lib/pdf/sbd1-overlay/types";
+import type { TenderData } from "@/types/tender.types";
 
-const SBD1_TEMPLATE_PATH = "/templates/SBD1.pdf";
-const FIELD_FONT_SIZE = 9;
-const CHECKBOX_FONT_SIZE = 12;
-const startX = 140;
-const gap = 15;
-const yesX = 320;
-const noX = 360;
-const checkboxY = 335;
+export type { SBD1OverlayInput } from "@/lib/pdf/sbd1-overlay/types";
 
-function cleanText(value: unknown): string {
-  if (!value) {
-    return "";
-  }
+type SBD1OverlayBoundaryInput = TenderData | LegacyTenderSource | SBD1OverlayInput;
 
-  return String(value).replace(/\s+/g, " ").trim();
+function isCanonicalTenderData(data: SBD1OverlayBoundaryInput): data is TenderData {
+  return (
+    typeof data === "object" &&
+    data !== null &&
+    "schemaFamily" in data &&
+    data.schemaFamily === "TenderData" &&
+    "schemaVersion" in data
+  );
 }
 
-async function loadTemplateSafe(url: string): Promise<Uint8Array | null> {
-  try {
-    const response = await fetch(url);
-
-    if (!response.ok) {
-      console.error(`Template not found: ${url}`);
-      return null;
-    }
-
-    return new Uint8Array(await response.arrayBuffer());
-  } catch (error) {
-    console.error("Template load failed:", error);
-    return null;
-  }
+function isSBD1OverlayInput(data: SBD1OverlayBoundaryInput): data is SBD1OverlayInput {
+  return (
+    !isCanonicalTenderData(data) &&
+    ("generatedAt" in data || "companyAddressLine1" in data || "companyAddressLine2" in data)
+  );
 }
 
-export async function generateSBD1Overlay(data: any) {
-  const templateBytes = await loadTemplateSafe(SBD1_TEMPLATE_PATH);
+function mapSBD1OverlayInputToLegacyTenderSource(data: SBD1OverlayInput): LegacyTenderSource {
+  return {
+    tenderTitle: data.companyName ?? "SBD1 Overlay",
+    companyName: data.companyName ?? undefined,
+    companyAddressLine1: data.companyAddressLine1 ?? undefined,
+    companyAddressLine2: data.companyAddressLine2 ?? undefined,
+    contactNumber: data.contactNumber ?? undefined,
+    email: data.email ?? undefined,
+    vatNumber: data.vatNumber ?? undefined,
+    bbbee: data.bbbee ?? undefined,
+    updatedAt: data.generatedAt,
+  };
+}
 
-  if (!templateBytes) {
-    return null;
+function resolveTenderData(data: SBD1OverlayBoundaryInput): TenderData {
+  if (isCanonicalTenderData(data)) {
+    return data;
   }
 
-  const pdfDoc = await PDFDocument.load(templateBytes);
-  const page = pdfDoc.getPages()[0];
-
-  if (!page) {
-    return null;
+  if (isSBD1OverlayInput(data)) {
+    return mapLegacyTenderToTenderData(mapSBD1OverlayInputToLegacyTenderSource(data));
   }
 
-  const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
-  const safeCompanyName = cleanText(data.companyName || "").slice(0, 40) || "Torque Empire Pty Ltd";
-  let currentY = 455;
+  return mapLegacyTenderToTenderData(data);
+}
 
-  page.drawText(safeCompanyName, {
-    x: startX,
-    y: currentY,
-    size: FIELD_FONT_SIZE,
-    font,
-  });
-  currentY -= gap;
-
-  page.drawText("33 Banberry Drive Eldorado Park Ext 3", {
-    x: startX,
-    y: currentY,
-    size: FIELD_FONT_SIZE,
-    font,
-  });
-  currentY -= gap;
-
-  page.drawText("33 Banberry Drive Eldorado Park Ext 3", {
-    x: startX,
-    y: currentY,
-    size: FIELD_FONT_SIZE,
-    font,
-  });
-  currentY -= gap;
-
-  page.drawText(cleanText(data.contactNumber) || "0695024909", {
-    x: startX,
-    y: currentY,
-    size: FIELD_FONT_SIZE,
-    font,
-  });
-  currentY -= gap;
-
-  page.drawText(cleanText(data.email) || "torqueempiresa@gmail.com", {
-    x: startX,
-    y: currentY,
-    size: FIELD_FONT_SIZE,
-    font,
-  });
-  currentY -= gap;
-
-  page.drawText(cleanText(data.vatNumber) || "N/A", {
-    x: startX,
-    y: currentY,
-    size: FIELD_FONT_SIZE,
-    font,
-  });
-
-  page.drawText("X", {
-    x: cleanText(data.bbbee).toUpperCase() === "YES" ? yesX : noX,
-    y: checkboxY,
-    size: CHECKBOX_FONT_SIZE,
-    font,
-  });
-
-  page.drawText(new Date().toLocaleDateString(), {
-    x: 420,
-    y: 100,
-    size: FIELD_FONT_SIZE,
-    font,
-  });
-
-  return pdfDoc.save();
+export async function generateSBD1Overlay(data: SBD1OverlayBoundaryInput) {
+  return generateSBD1OverlayDocument(resolveTenderData(data));
 }

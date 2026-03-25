@@ -138,6 +138,20 @@ export async function listContractorDocuments(contractorId: string) {
   return snapshot.docs.map((doc) => {
     const data = (doc.data() ?? {}) as Record<string, unknown>;
     const document: ContractorDocument = {
+      aiData:
+        data.aiData && typeof data.aiData === "object"
+          ? (data.aiData as ContractorDocument["aiData"])
+          : undefined,
+      riskLevel:
+        data.riskLevel === "low" ||
+        data.riskLevel === "medium" ||
+        data.riskLevel === "high" ||
+        data.riskLevel === "unknown"
+          ? data.riskLevel
+          : undefined,
+      aiIssues: Array.isArray(data.aiIssues)
+        ? data.aiIssues.filter((value): value is string => typeof value === "string")
+        : undefined,
       id: doc.id,
       contractorId: asString(data.contractorId) ?? contractorId,
       documentName: asString(data.documentName) ?? asString(data.fileName),
@@ -181,6 +195,9 @@ export async function listContractorDocuments(contractorId: string) {
       missingFields: Array.isArray(data.missingFields)
         ? data.missingFields.filter((value): value is string => typeof value === "string")
         : undefined,
+      issues: Array.isArray(data.issues)
+        ? data.issues.filter((value): value is string => typeof value === "string")
+        : undefined,
       validationErrors: Array.isArray(data.validationErrors)
         ? data.validationErrors.filter((value): value is string => typeof value === "string")
         : undefined,
@@ -189,6 +206,7 @@ export async function listContractorDocuments(contractorId: string) {
         data.extractionMethod === "pdf-parse" || data.extractionMethod === "ocr"
           ? data.extractionMethod
           : undefined,
+      extractedText: asString(data.extractedText),
       extractedTextLength:
         typeof data.extractedTextLength === "number" ? data.extractedTextLength : undefined,
       status: asString(data.status),

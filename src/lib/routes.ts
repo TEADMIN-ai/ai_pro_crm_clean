@@ -4,6 +4,7 @@ export const API_ROUTES = {
   AUTH_LOGOUT: "/api/auth/logout",
   AUTH_DEBUG: "/api/auth/debug",
   USERS: "/api/users",
+  USERS_CREATE: "/api/users/create",
   USER_DETAIL: (uid: string) => `/api/users/${encodeURIComponent(uid)}`,
   CONTRACTORS: "/api/contractors",
   CONTRACTOR_DETAIL: (contractorId: string) =>

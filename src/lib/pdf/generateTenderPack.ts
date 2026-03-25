@@ -1,31 +1,42 @@
 import { PDFDocument } from "pdf-lib";
-import { generateSBD1Overlay } from "@/lib/pdf/sbd1Overlay";
-import { generateSBD4Overlay } from "@/lib/pdf/sbd4Overlay";
+import {
+  isTenderData,
+  mapLegacyTenderToTenderData,
+  type TenderDataSource,
+} from "@/lib/tender/mappers/tender.mapper";
+import { generateSBD1OverlayDocument } from "@/lib/pdf/sbd1-overlay/service";
+import { generateSBD4OverlayDocument } from "@/lib/pdf/sbd4-overlay/service";
+import { hydrateTenderDataPricing } from "@/lib/pricing/services/price.service";
+import type { TenderData } from "@/types/tender.types";
 
-export async function generateTenderPack(data: any) {
+async function generateTenderPackDocument(tenderData: TenderData) {
+  const sbd1Bytes = await generateSBD1OverlayDocument(tenderData);
+  const sbd4Bytes = await generateSBD4OverlayDocument(tenderData);
+
+  if (!sbd1Bytes || !sbd4Bytes) {
+    console.error("Failed to generate individual documents");
+    return null;
+  }
+
+  const mergedPdf = await PDFDocument.create();
+
+  const sbd1Doc = await PDFDocument.load(sbd1Bytes);
+  const sbd4Doc = await PDFDocument.load(sbd4Bytes);
+
+  const sbd1Pages = await mergedPdf.copyPages(sbd1Doc, sbd1Doc.getPageIndices());
+  const sbd4Pages = await mergedPdf.copyPages(sbd4Doc, sbd4Doc.getPageIndices());
+
+  sbd1Pages.forEach((page) => mergedPdf.addPage(page));
+  sbd4Pages.forEach((page) => mergedPdf.addPage(page));
+
+  return mergedPdf.save();
+}
+
+export async function generateTenderPack(data: TenderDataSource) {
   try {
-    const sbd1Bytes = await generateSBD1Overlay(data);
-    const sbd4Bytes = await generateSBD4Overlay(data);
-
-    if (!sbd1Bytes || !sbd4Bytes) {
-      console.error("Failed to generate individual documents");
-      return null;
-    }
-
-    const mergedPdf = await PDFDocument.create();
-
-    const sbd1Doc = await PDFDocument.load(sbd1Bytes);
-    const sbd4Doc = await PDFDocument.load(sbd4Bytes);
-
-    const sbd1Pages = await mergedPdf.copyPages(sbd1Doc, sbd1Doc.getPageIndices());
-    const sbd4Pages = await mergedPdf.copyPages(sbd4Doc, sbd4Doc.getPageIndices());
-
-    sbd1Pages.forEach((page) => mergedPdf.addPage(page));
-    sbd4Pages.forEach((page) => mergedPdf.addPage(page));
-
-    const finalPdf = await mergedPdf.save();
-
-    return finalPdf;
+    const mappedTenderData = isTenderData(data) ? data : mapLegacyTenderToTenderData(data);
+    const tenderData = await hydrateTenderDataPricing(mappedTenderData);
+    return await generateTenderPackDocument(tenderData);
   } catch (error) {
     console.error("Tender Pack Error:", error);
     return null;
