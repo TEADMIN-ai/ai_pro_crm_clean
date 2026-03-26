@@ -17,10 +17,6 @@ import { extractDocumentData } from "@/lib/verification/extractData";
 import { validateDocument } from "@/lib/verification/validateDocument";
 import { recalculateContractorCompliance } from "@/lib/server/recalculateContractorCompliance";
 import { verifyStoredContractorDocument } from "@/server/services/documentVerificationService";
-import {
-  getContractorDocument,
-  upsertContractorDocument,
-} from "@/server/services/contractorService";
 import type { ContractorDocument } from "@/types/document";
 
 function jsonError(message: string, status = 500) {
@@ -267,6 +263,13 @@ export async function POST(request: NextRequest) {
       expires: "2100-01-01",
     });
 
+    const db = getFirebaseAdmin();
+    const documentRef = db
+      .collection("contractors")
+      .doc(contractorId)
+      .collection("documents")
+      .doc();
+    const documentId = documentRef.id;
     const now = new Date();
     const documentName = uploadedFile.name || `${getDocumentTypeLabel(documentType)}.pdf`;
     const extracted = await extractDocumentData(fileBuffer);
@@ -296,7 +299,8 @@ export async function POST(request: NextRequest) {
       finalVerified,
     });
 
-    await upsertContractorDocument(contractorId, documentType, {
+    await documentRef.set({
+      id: documentId,
       contractorId,
       documentType,
       docType: documentType,
@@ -326,13 +330,11 @@ export async function POST(request: NextRequest) {
 
     try {
       const verificationResult = await verifyStoredContractorDocument(fileBuffer, documentType);
-      const existingDocument = (await getContractorDocument(contractorId, documentType)).data() as
+      const existingDocument = (await documentRef.get()).data() as
         | Record<string, unknown>
         | undefined;
 
-      await upsertContractorDocument(
-        contractorId,
-        documentType,
+      await documentRef.set(
         {
           ...buildVerificationPersistence(verificationResult, user, existingDocument),
           verified: finalVerified && verificationResult.verified,
@@ -343,18 +345,20 @@ export async function POST(request: NextRequest) {
           expiryDate: aiResult.expiryDate ? Date.parse(aiResult.expiryDate) || null : null,
           extractedText: extracted.rawText,
           extractedTextLength: extracted.rawText.length,
-        }
+        },
+        { merge: true }
       );
     } catch (verificationError) {
       console.error("Document verification failed", verificationError);
     }
 
     const compliance = await recalculateContractorCompliance(getFirebaseAdmin(), contractorId);
-    const savedDoc = await getContractorDocument(contractorId, documentType);
+    const savedDoc = await documentRef.get();
 
     return NextResponse.json(
       {
         success: true,
+        documentId: documentRef.id,
         document: normalizeDocument(savedDoc.id, (savedDoc.data() ?? {}) as Record<string, unknown>),
         compliance,
       },

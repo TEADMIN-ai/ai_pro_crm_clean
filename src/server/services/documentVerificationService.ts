@@ -7,6 +7,7 @@ export type VerificationResult = {
   verified: boolean;
   score: number;
   status: VerificationStatus;
+  isExpired?: boolean;
   reason?: string;
   confidenceNotes?: string[];
   missingFields: string[];
@@ -201,6 +202,11 @@ function buildLegacyVerificationResult(
     (compliance.hasTaxClearance ? 25 : 0) +
     (compliance.hasCOIDA ? 25 : 0);
   let status: VerificationStatus = "FAIL";
+  const expiryDate = extractDocumentExpiryDate(text);
+
+  if (expiryDate) {
+    extractedFields.expiryDate = expiryDate;
+  }
 
   switch (documentType) {
     case "bbbee":
@@ -238,6 +244,23 @@ function buildLegacyVerificationResult(
 
   status = score >= 75 ? "PASS" : "FAIL";
 
+  const today = new Date();
+  let isExpired = false;
+
+  if (extractedFields.expiryDate) {
+    const expiry = new Date(extractedFields.expiryDate);
+
+    if (!Number.isNaN(expiry.getTime()) && expiry < today) {
+      isExpired = true;
+    }
+  }
+
+  if (isExpired) {
+    verified = false;
+    status = "FAIL";
+    suggestions.push("Document is expired and must be renewed");
+  }
+
   if (!compliance.hasCIPC && documentType !== "cipc") {
     suggestions.push("Provide valid CIPC registration document");
   }
@@ -255,6 +278,7 @@ function buildLegacyVerificationResult(
     verified,
     score,
     status,
+    isExpired,
     confidenceNotes,
     missingFields,
     extractedFields,
@@ -381,6 +405,29 @@ function clampScore(score: number): number {
 function extractBBBEELevel(text: string): string | null {
   const match = text.match(/level\s?\d/i);
   return match ? match[0] : null;
+}
+
+function extractDocumentExpiryDate(text: string): string | null {
+  const labelledMatch =
+    text.match(
+      /(?:expiry date|expiry|valid until|valid to|period ending)[:\s]+(\d{4}-\d{2}-\d{2}|\d{2}\/\d{2}\/\d{4})/i
+    ) ?? text.match(/\b(\d{4}-\d{2}-\d{2}|\d{2}\/\d{2}\/\d{4})\b/);
+
+  const rawDate = labelledMatch?.[1];
+  if (!rawDate) {
+    return null;
+  }
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(rawDate)) {
+    return rawDate;
+  }
+
+  const [day, month, year] = rawDate.split("/");
+  if (!day || !month || !year) {
+    return null;
+  }
+
+  return `${year}-${month}-${day}`;
 }
 
 function logVerificationDecision(params: {

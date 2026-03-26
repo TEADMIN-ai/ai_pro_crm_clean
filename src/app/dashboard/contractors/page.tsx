@@ -19,6 +19,7 @@ interface Contractor {
   companyRegistrationNumber?: string | null;
   email?: string | null;
   phone?: string | null;
+  readinessScore?: number | null;
   status?: string | null;
 }
 
@@ -173,29 +174,55 @@ export default function ContractorsPage() {
                 <th>Registration Number</th>
                 <th>Contact Email</th>
                 <th>Contact Phone</th>
+                <th>READINESS</th>
                 <th>Status</th>
                 <th>Workspace</th>
               </tr>
             </thead>
             <tbody>
-              {contractors.map((contractor) => (
-                <tr key={contractor.id}>
-                  <td>{contractor.companyName ?? "-"}</td>
-                  <td>{contractor.companyRegistrationNumber ?? "-"}</td>
-                  <td>{contractor.email ?? "-"}</td>
-                  <td>{contractor.phone ?? "-"}</td>
-                  <td>
-                    <Badge tone={resolveBadgeTone(contractor.status)}>
-                      {contractor.status ?? "pending"}
-                    </Badge>
-                  </td>
-                  <td>
-                    <Link href={`/dashboard/contractors/${encodeURIComponent(contractor.id)}`}>
-                      Open workspace
-                    </Link>
-                  </td>
-                </tr>
-              ))}
+              {contractors.map((contractor) => {
+                const readinessScore = contractor.readinessScore ?? 0;
+
+                let readinessLabel = "BLOCKED";
+
+                if (readinessScore >= 80) {
+                  readinessLabel = "READY";
+                } else if (readinessScore >= 60) {
+                  readinessLabel = "RISK";
+                }
+
+                return (
+                  <tr key={contractor.id}>
+                    <td>{contractor.companyName ?? "-"}</td>
+                    <td>{contractor.companyRegistrationNumber ?? "-"}</td>
+                    <td>{contractor.email ?? "-"}</td>
+                    <td>{contractor.phone ?? "-"}</td>
+                    <td>
+                      <span
+                        className={`px-3 py-1 rounded-full text-xs font-semibold tracking-wide ${
+                          readinessLabel === "READY"
+                            ? "bg-green-500/20 text-green-400 border border-green-500/30"
+                            : readinessLabel === "RISK"
+                              ? "bg-yellow-500/20 text-yellow-400 border border-yellow-500/30"
+                              : "bg-red-500/20 text-red-400 border border-red-500/30"
+                        }`}
+                      >
+                        {readinessLabel} {readinessScore}%
+                      </span>
+                    </td>
+                    <td>
+                      <Badge tone={resolveBadgeTone(contractor.status)}>
+                        {contractor.status ?? "pending"}
+                      </Badge>
+                    </td>
+                    <td>
+                      <Link href={`/dashboard/contractors/${encodeURIComponent(contractor.id)}`}>
+                        Open workspace
+                      </Link>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </Table>
         )}

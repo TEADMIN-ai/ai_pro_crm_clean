@@ -1,0 +1,14 @@
+
+> ai_pro_crm@1.0.0 dev
+> next dev
+
+⚠ Port 3000 is in use by an unknown process, using available port 3001 instead.
+▲ Next.js 16.1.7 (Turbopack)
+- Local:         http://localhost:3001
+- Network:       http://192.168.8.168:3001
+- Environments: .env.local
+
+✓ Starting...
+⨯ Unable to acquire lock at C:\Users\user\Desktop\ai_pro_crm_clean\.next\dev\lock, is another instance of next dev running?
+  Suggestion: If you intended to restart next dev, terminate the other process, and then try again.
+[?25h

@@ -1,9 +1,10 @@
 import { redirect } from "next/navigation";
 import GenerateSBD4Button from "./GenerateSBD4Button";
+import ContractorDocumentsSection from "./ContractorDocumentsSection";
 import UploadDocument from "@/components/upload/UploadDocument";
-import { generateFixSuggestions } from "@/lib/ai/generateFixSuggestions";
 import { normalizeContractorId, normalizeRole } from "@/lib/auth/userProfile";
 import { calculateComplianceScore } from "@/lib/compliance/calculateComplianceScore";
+import { getLatestDocumentsByType } from "@/lib/compliance/contractorCompliance";
 import {
   AuthorizationError,
   assertCanAccessContractor,
@@ -15,7 +16,6 @@ import {
   getContractorById,
   listContractorDocuments,
 } from "@/server/services/contractorService";
-import type { ContractorDocument } from "@/types/document";
 
 type PageProps = {
   params: Promise<{ contractorId: string }>;
@@ -47,18 +47,6 @@ async function getAuthorizedUser(): Promise<AuthorizedUser | null> {
     role: normalizeRole(profile?.role ?? session.role),
     contractorId: normalizeContractorId(profile?.contractorId ?? session.contractorId),
   };
-}
-
-function getDocumentLabel(document: ContractorDocument): string {
-  return (
-    document.documentName ||
-    document.fileName ||
-    document.originalName ||
-    document.filename ||
-    document.documentType ||
-    document.docType ||
-    "Document"
-  );
 }
 
 async function getContractorWorkspace(contractorId: string) {
@@ -102,8 +90,10 @@ export default async function ContractorPage({ params }: PageProps) {
   }
 
   const documents = data.documents || [];
-  const stats = calculateComplianceScore(documents);
-  const suggestions = generateFixSuggestions(documents);
+  const latestDocuments = getLatestDocumentsByType(documents);
+  const validDocs = latestDocuments.filter((doc) => doc?.status === "APPROVED").length;
+  const stats = calculateComplianceScore(latestDocuments);
+  const hasDocumentsNeedingReview = latestDocuments.some((doc) => doc?.status !== "APPROVED");
 
   return (
     <div style={{ padding: "20px", display: "grid", gap: "24px" }}>
@@ -139,38 +129,29 @@ export default async function ContractorPage({ params }: PageProps) {
           {stats.score}%
         </p>
         <p style={{ marginTop: "8px" }}>
-          {stats.verified} verified / {stats.total} total
+          {validDocs} approved / {latestDocuments.length} total
         </p>
       </div>
 
       <div>
         <h2 style={{ marginBottom: "12px" }}>Documents</h2>
-
-        {documents.length === 0 ? (
-          <p>No documents uploaded</p>
-        ) : (
-          <ul style={{ paddingLeft: "20px", margin: 0 }}>
-            {documents.map((doc) => (
-              <li key={doc.id} style={{ marginBottom: "8px" }}>
-                {getDocumentLabel(doc)} {doc.verified ? " Verified" : " Pending"}
-              </li>
-            ))}
-          </ul>
-        )}
+        <ContractorDocumentsSection contractorId={contractorId} documents={latestDocuments} />
       </div>
 
       <div>
         <h2 style={{ marginBottom: "12px" }}>Fix Suggestions</h2>
 
-        {suggestions.length === 0 ? (
-          <p>All documents verified</p>
+        {!hasDocumentsNeedingReview ? (
+          <p>No fixes needed</p>
         ) : (
           <ul style={{ paddingLeft: "20px", margin: 0 }}>
-            {suggestions.map((item) => (
-              <li key={item.id} style={{ marginBottom: "8px" }}>
-                {item.suggestion}
-              </li>
-            ))}
+            {latestDocuments
+              .filter((doc) => doc.status !== "APPROVED")
+              .flatMap((doc) => (doc.suggestions ?? doc.aiAnalysis?.suggestions ?? []).map((suggestion, index) => (
+                <li key={`${doc.id}-page-suggestion-${index}`} style={{ marginBottom: "8px" }}>
+                  {suggestion}
+                </li>
+              )))}
           </ul>
         )}
       </div>

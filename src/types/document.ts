@@ -16,6 +16,11 @@
  */
 
 export interface ContractorDocument {
+  aiAnalysis?: {
+    finalStatus?: "PASS" | "REVIEW" | "FAIL";
+    suggestions?: string[];
+    extractedFields?: Record<string, string | null>;
+  };
   aiData?: {
     companyName?: string | null;
     registrationNumber?: string | null;
@@ -96,6 +101,7 @@ export interface ContractorDocument {
   expiryDate?: number;
   expiryAlert?: "none" | "expiringSoon" | "expired";
   expiryAlertMessage?: string;
+  isExpired?: boolean;
 
   /**
    * Creation timestamp
@@ -107,6 +113,7 @@ export interface ContractorDocument {
    * Last updated timestamp
    */
   updatedAt?: number;
+  isSuperseded?: boolean;
 
   extractedAt?: number;
   confidenceScore?: number;

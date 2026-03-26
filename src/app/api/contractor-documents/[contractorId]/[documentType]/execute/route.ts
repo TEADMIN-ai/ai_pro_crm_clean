@@ -70,6 +70,10 @@ function normalizeExtractedFields(fields: Record<string, string | null> | undefi
 
 function buildVerificationPersistence(result: Awaited<ReturnType<typeof verifyStoredContractorDocument>>) {
   const verifiedAt = result.verified ? new Date().toISOString() : null;
+  const expiryTime =
+    typeof result.extractedFields?.expiryDate === "string"
+      ? Date.parse(result.extractedFields.expiryDate)
+      : Number.NaN;
   return {
     validationStatus: result.status,
     confidenceScore: result.score,
@@ -80,9 +84,12 @@ function buildVerificationPersistence(result: Awaited<ReturnType<typeof verifySt
     validationError: result.status === "FAIL" ? result.reason ?? "Automatic verification failed" : null,
     manualDecisionAvailable: result.status === "REVIEW",
     verified: result.verified,
+    isExpired: result.isExpired === true,
     verifiedAt,
     verifiedBy: result.verified ? "unknown" : null,
-    status: result.status === "PASS" ? "verified" : result.status === "FAIL" ? "invalid" : "uploaded",
+    expiresAt: Number.isNaN(expiryTime) ? null : expiryTime,
+    expiryDate: Number.isNaN(expiryTime) ? null : expiryTime,
+    status: result.isExpired === true ? "expired" : result.status === "PASS" ? "verified" : result.status === "FAIL" ? "invalid" : "uploaded",
   };
 }
 

@@ -18,6 +18,8 @@ export const API_ROUTES = {
     `/api/contractor-documents/${encodeURIComponent(contractorId)}/${encodeURIComponent(documentType)}/review`,
   DOCUMENT_EXECUTE: (documentId: string) =>
     `/api/documents/${documentId}/execute`,
+  DOCUMENT_VERIFY: (documentId: string) =>
+    `/api/documents/${encodeURIComponent(documentId)}/verify`,
   DOCUMENT_STATUS: (documentId: string) =>
     `/api/documents/${encodeURIComponent(documentId)}/status`,
   DOCUMENT_UPLOAD: "/api/documents/upload",

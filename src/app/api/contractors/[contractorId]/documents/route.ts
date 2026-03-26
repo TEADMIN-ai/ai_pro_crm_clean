@@ -110,6 +110,7 @@ function normalizeDocument(id: string, data: Record<string, unknown>): Contracto
     extractedAt: toMillis(data.extractedAt),
     expiresAt: typeof data.expiresAt === "number" ? data.expiresAt : undefined,
     expiryDate: typeof data.expiryDate === "number" ? data.expiryDate : undefined,
+    isExpired: data.isExpired === true,
     confidenceScore: typeof data.confidenceScore === "number" ? data.confidenceScore : undefined,
     extractedFields:
       data.extractedFields && typeof data.extractedFields === "object"
@@ -144,6 +145,10 @@ function buildVerificationPersistence(
 ) {
   const verifiedAt = result.verified ? new Date().toISOString() : null;
   const verifiedBy = result.verified ? currentUser?.email?.trim() || "unknown" : null;
+  const expiryTime =
+    typeof result.extractedFields?.expiryDate === "string"
+      ? Date.parse(result.extractedFields.expiryDate)
+      : Number.NaN;
   const auditTrailEntry = result.verified
     ? {
         action: "verified",
@@ -163,12 +168,15 @@ function buildVerificationPersistence(
     validationError: result.status === "FAIL" ? result.reason ?? "Automatic verification failed" : null,
     manualDecisionAvailable: result.status === "REVIEW",
     verified: result.verified,
+    isExpired: result.isExpired === true,
     verifiedAt,
     verifiedBy,
+    expiresAt: Number.isNaN(expiryTime) ? existingDocument?.expiresAt ?? null : expiryTime,
+    expiryDate: Number.isNaN(expiryTime) ? existingDocument?.expiryDate ?? null : expiryTime,
     auditTrail: auditTrailEntry
       ? [...(Array.isArray(existingDocument?.auditTrail) ? existingDocument.auditTrail : []), auditTrailEntry]
       : existingDocument?.auditTrail,
-    status: result.status === "PASS" ? "verified" : result.status === "FAIL" ? "invalid" : "uploaded",
+    status: result.isExpired === true ? "expired" : result.status === "PASS" ? "verified" : result.status === "FAIL" ? "invalid" : "uploaded",
     analysisTimestamp: Date.now(),
     updatedAt: new Date(),
   };

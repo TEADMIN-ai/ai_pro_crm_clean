@@ -69,6 +69,7 @@ function normalizeDocument(contractorId: string, documentId: string, data: Recor
     extractedAt: toMillis(data.extractedAt),
     expiresAt: typeof data.expiresAt === "number" ? data.expiresAt : undefined,
     expiryDate: typeof data.expiryDate === "number" ? data.expiryDate : undefined,
+    isExpired: data.isExpired === true,
     confidenceScore: typeof data.confidenceScore === "number" ? data.confidenceScore : undefined,
     extractedFields:
       data.extractedFields && typeof data.extractedFields === "object"

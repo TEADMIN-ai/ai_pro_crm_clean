@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { authFetch } from "@/lib/client/authFetch";
 import { API_ROUTES } from "@/lib/routes";
 
 type SupportedDocumentType =
@@ -28,6 +29,32 @@ export default function UploadDocument({ contractorId }: Props) {
   const [file, setFile] = useState<File | null>(null);
   const [documentType, setDocumentType] = useState<SupportedDocumentType>("cipc");
   const [loading, setLoading] = useState(false);
+  const refreshTimeoutRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (refreshTimeoutRef.current !== null) {
+        window.clearTimeout(refreshTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  async function refreshContractor() {
+    const response = await authFetch(
+      `${API_ROUTES.CONTRACTOR_DETAIL(contractorId)}?refresh=${Date.now()}`,
+      {
+        method: "GET",
+        cache: "no-store",
+      }
+    );
+
+    if (!response.ok) {
+      const payload = (await response.json().catch(() => null)) as { error?: string } | null;
+      throw new Error(payload?.error ?? "Failed to refresh contractor");
+    }
+
+    router.refresh();
+  }
 
   async function handleUpload() {
     if (!file) {
@@ -53,8 +80,39 @@ export default function UploadDocument({ contractorId }: Props) {
         throw new Error(payload?.error ?? "Upload failed");
       }
 
+      const payload = (await res.json().catch(() => null)) as
+        | {
+            error?: string;
+            documentId?: string;
+            document?: { id?: string };
+          }
+        | null;
+
+      const documentId = payload?.documentId ?? payload?.document?.id;
+
+      if (!documentId) {
+        throw new Error("Upload succeeded but no documentId was returned");
+      }
+
+      const executeRes = await fetch(API_ROUTES.DOCUMENT_EXECUTE(documentId), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ contractorId }),
+      });
+
+      if (!executeRes.ok) {
+        const executePayload = (await executeRes.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(executePayload?.error ?? "Document execution failed");
+      }
+
+      await refreshContractor();
+      refreshTimeoutRef.current = window.setTimeout(() => {
+        void refreshContractor().catch((error) => {
+          console.error("Delayed contractor refresh failed", error);
+        });
+      }, 1000);
+
       alert("Upload successful");
-      router.refresh();
     } catch (error) {
       alert(error instanceof Error ? error.message : "Upload failed");
     } finally {

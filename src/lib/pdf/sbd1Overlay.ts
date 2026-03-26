@@ -3,10 +3,10 @@ import {
   type LegacyTenderSource,
 } from "@/lib/tender/mappers/tender.mapper";
 import { generateSBD1OverlayDocument } from "@/lib/pdf/sbd1-overlay/service";
-import type { SBD1OverlayInput } from "@/lib/pdf/sbd1-overlay/types";
+import type { SBD1OverlayInput } from "@/types/sbd";
 import type { TenderData } from "@/types/tender.types";
 
-export type { SBD1OverlayInput } from "@/lib/pdf/sbd1-overlay/types";
+export type { SBD1OverlayInput } from "@/types/sbd";
 
 type SBD1OverlayBoundaryInput = TenderData | LegacyTenderSource | SBD1OverlayInput;
 

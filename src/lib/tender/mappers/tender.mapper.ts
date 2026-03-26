@@ -15,7 +15,7 @@ import type {
   TenderRiskLevel,
   TenderValueMoney,
 } from "@/types/tender.types";
-import type { SBD1OverlayInput } from "@/lib/pdf/sbd1-overlay/types";
+import type { SBD1OverlayInput } from "@/types/sbd";
 
 type LegacyRequirementInput =
   | string

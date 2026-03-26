@@ -152,6 +152,10 @@ export async function listContractorDocuments(contractorId: string) {
       aiIssues: Array.isArray(data.aiIssues)
         ? data.aiIssues.filter((value): value is string => typeof value === "string")
         : undefined,
+      aiAnalysis:
+        data.aiAnalysis && typeof data.aiAnalysis === "object"
+          ? (data.aiAnalysis as ContractorDocument["aiAnalysis"])
+          : undefined,
       id: doc.id,
       contractorId: asString(data.contractorId) ?? contractorId,
       documentName: asString(data.documentName) ?? asString(data.fileName),
@@ -180,6 +184,12 @@ export async function listContractorDocuments(contractorId: string) {
         : undefined,
       suggestions: Array.isArray(data.suggestions)
         ? data.suggestions.filter((value): value is string => typeof value === "string")
+        : data.aiAnalysis &&
+            typeof data.aiAnalysis === "object" &&
+            Array.isArray((data.aiAnalysis as { suggestions?: unknown[] }).suggestions)
+          ? (data.aiAnalysis as { suggestions: unknown[] }).suggestions.filter(
+              (value): value is string => typeof value === "string"
+            )
         : undefined,
       uploadedAt: toMillis(data.uploadedAt),
       createdAt: toMillis(data.createdAt),
@@ -187,6 +197,7 @@ export async function listContractorDocuments(contractorId: string) {
       extractedAt: toMillis(data.extractedAt),
       expiresAt: typeof data.expiresAt === "number" ? data.expiresAt : undefined,
       expiryDate: typeof data.expiryDate === "number" ? data.expiryDate : undefined,
+      isExpired: data.isExpired === true,
       confidenceScore: typeof data.confidenceScore === "number" ? data.confidenceScore : undefined,
       extractedFields:
         data.extractedFields && typeof data.extractedFields === "object"

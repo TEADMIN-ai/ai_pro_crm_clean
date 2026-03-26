@@ -1,5 +1,10 @@
 import type { Firestore } from "firebase-admin/firestore";
-import { calculateContractorCompliance, resolveContractorDocumentStatus } from "@/lib/compliance/contractorCompliance";
+import {
+  calculateContractorCompliance,
+  getLatestDocumentsByType,
+  isSupersededDocument,
+  resolveContractorDocumentStatus,
+} from "@/lib/compliance/contractorCompliance";
 import type { ContractorDocument } from "@/types/document";
 
 function toMillis(value: unknown): number | undefined {
@@ -66,6 +71,7 @@ function normalizeContractorDocument(id: string, source: Record<string, unknown>
     extractedAt: toMillis(source.extractedAt),
     expiresAt: typeof source.expiresAt === "number" ? source.expiresAt : toMillis(source.expiresAt),
     expiryDate: typeof source.expiryDate === "number" ? source.expiryDate : toMillis(source.expiryDate),
+    isExpired: source.isExpired === true,
     expiryAlert:
       source.expiryAlert === "expired" || source.expiryAlert === "expiringSoon" || source.expiryAlert === "none"
         ? source.expiryAlert
@@ -91,8 +97,28 @@ export async function recalculateContractorCompliance(db: Firestore, contractorI
   const documents = documentsSnapshot.docs.map((doc) =>
     normalizeContractorDocument(doc.id, (doc.data() ?? {}) as Record<string, unknown>)
   );
+  const latestDocuments = getLatestDocumentsByType(documents);
   const summary = calculateContractorCompliance(documents);
   const readinessUpdatedAt = new Date().toISOString();
+  const supersededUpdates = documentsSnapshot.docs
+    .map((doc) => {
+      const normalized = documents.find((document) => document.id === doc.id);
+      if (!normalized) {
+        return null;
+      }
+
+      const isSuperseded = isSupersededDocument(normalized, latestDocuments);
+      return { ref: doc.ref, isSuperseded };
+    })
+    .filter((entry): entry is { ref: FirebaseFirestore.DocumentReference; isSuperseded: boolean } => entry !== null);
+
+  if (supersededUpdates.length > 0) {
+    const supersededBatch = db.batch();
+    for (const entry of supersededUpdates) {
+      supersededBatch.set(entry.ref, { isSuperseded: entry.isSuperseded }, { merge: true });
+    }
+    await supersededBatch.commit();
+  }
 
   await db.collection("contractors").doc(contractorId).set(
     {

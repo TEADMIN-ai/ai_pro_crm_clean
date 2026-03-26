@@ -94,4 +94,22 @@ describe("documentVerificationService", () => {
     expect(result.reason).toBe("Document text extraction failed");
     expect(result.suggestions).toContain("Please verify registration number manually");
   });
+
+  test("fails expired BBBEE documents and adds the expiry suggestion", async () => {
+    extractTextFromPdf.mockResolvedValue(
+      [
+        "B-BBEE Verification Certificate",
+        "Level 1 Contributor",
+        "Expiry Date: 01/01/2020",
+      ].join("\n")
+    );
+
+    const result = await verifyStoredContractorDocument(Buffer.from("pdf"), "bbbee");
+
+    expect(result.verified).toBe(false);
+    expect(result.status).toBe("FAIL");
+    expect(result.isExpired).toBe(true);
+    expect(result.extractedFields.expiryDate).toBe("2020-01-01");
+    expect(result.suggestions).toContain("Document is expired and must be renewed");
+  });
 });

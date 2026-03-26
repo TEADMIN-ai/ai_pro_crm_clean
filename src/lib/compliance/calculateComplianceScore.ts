@@ -1,4 +1,5 @@
 type ComplianceScoreDocument = {
+  status?: string;
   verified?: boolean;
 };
 
@@ -23,7 +24,9 @@ export function calculateComplianceScore(
     };
   }
 
-  const verified = documents.filter((d) => d?.verified === true).length;
+  const verified = documents.filter(
+    (d) => d?.status === "APPROVED" || (typeof d?.status !== "string" && d?.verified === true)
+  ).length;
   const pending = total - verified;
 
   const score = Number(((verified / total) * 100).toFixed(1));
