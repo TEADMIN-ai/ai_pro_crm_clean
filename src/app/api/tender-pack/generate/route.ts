@@ -1,12 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAuth } from "firebase-admin/auth";
-import { getStorage } from "firebase-admin/storage";
 
 import { buildCompanyProfile } from "@/lib/autofill/buildCompanyProfile";
 import { fillTenderPack } from "@/lib/pdfs/empirePdfFill";
 import { SBD_TEMPLATE_KEYS, type SbdFormKey } from "@/lib/pdfs/templates/sbdSchema";
 import { CRITICAL_TENDER_FIELD_LABELS, getCriticalTenderMissingFields } from "@/lib/tender/criticalTenderFields";
-import { createTenderPackRecord } from "@/server/services/tenderPackService";
+import { persistTenderPackPdf } from "@/server/services/tenderPackService";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -89,30 +88,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const timestamp = Date.now();
-    const storagePath = `tender-packs/${contractorId}/${timestamp}-${templateKey}.pdf`;
-    const bucket = getStorage().bucket();
-    const file = bucket.file(storagePath);
-
-    await file.save(fillResult.filledPdfBuffer, {
-      contentType: "application/pdf",
-      metadata: {
-        cacheControl: "private, max-age=300",
-      },
-    });
-
-    const [downloadURL] = await file.getSignedUrl({
-      action: "read",
-      expires: "2035-01-01",
-    });
-
-    const packId = await createTenderPackRecord({
-      storagePath,
-      downloadURL,
-      createdAt: timestamp,
+    const persistedPack = await persistTenderPackPdf({
       createdBy: uid,
       contractorId,
       templateKey,
+      pdfBytes: fillResult.filledPdfBuffer,
       missingFields: profile.missingFields,
       warnings: fillResult.warnings,
       fieldMapUsed: fillResult.fieldMapUsed,
@@ -120,8 +100,8 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(
       {
-        packId,
-        downloadURL,
+        packId: persistedPack.packId,
+        downloadURL: persistedPack.downloadURL,
         missingFields: profile.missingFields,
         warnings: fillResult.warnings,
       },
