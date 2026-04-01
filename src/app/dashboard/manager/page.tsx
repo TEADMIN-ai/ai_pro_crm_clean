@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import HeroBanner from "@/components/hero/HeroBanner";
 import PipelineChart from "@/components/charts/PipelineChart";
-import RevenueKpiRow from "@/components/kpi/RevenueKpiRow";
+import RevenueKpiRow from "@/components/Kpi/RevenueKpiRow";
 import { getHeroImage } from "@/config/heroRules";
 import { useRevenueKpis } from "@/hooks/useRevenueKpis";
 import type { Deal } from "@/types/deal";

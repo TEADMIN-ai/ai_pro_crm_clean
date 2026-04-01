@@ -48,8 +48,57 @@ export async function GET(request: NextRequest) {
     }
 
     const deals = await listDealsForUser(user);
+    const db = getFirebaseAdmin();
 
-    return NextResponse.json({ deals }, { status: 200 });
+    const contractorIds = Array.from(
+      new Set(
+        deals
+          .map((deal) => deal.contractorId)
+          .filter((id): id is string => typeof id === "string" && id.length > 0)
+      )
+    );
+
+    const contractorMap: Record<string, Record<string, unknown>> = {};
+
+    await Promise.all(
+      contractorIds.map(async (id) => {
+        try {
+          const doc = await db.collection("contractors").doc(id).get();
+          if (doc.exists) {
+            contractorMap[id] = doc.data() as Record<string, unknown>;
+          }
+        } catch (err) {
+          console.error("Contractor fetch failed:", id, err);
+        }
+      })
+    );
+
+    const enrichedDeals = deals.map((deal) => {
+      const contractor =
+        typeof deal.contractorId === "string" ? contractorMap[deal.contractorId] : undefined;
+
+      return {
+        ...deal,
+        contractor: contractor
+          ? {
+              companyName:
+                typeof contractor.companyName === "string"
+                  ? contractor.companyName
+                  : typeof contractor.name === "string"
+                    ? contractor.name
+                    : null,
+              registrationNumber:
+                typeof contractor.registrationNumber === "string"
+                  ? contractor.registrationNumber
+                  : typeof contractor.companyRegistrationNumber === "string"
+                    ? contractor.companyRegistrationNumber
+                    : null,
+            }
+          : null,
+      };
+    });
+
+    return NextResponse.json({ deals: enrichedDeals }, { status: 200 });
   } catch (error) {
     if (error instanceof AuthorizationError) {
       return NextResponse.json({ error: error.message }, { status: error.status });
