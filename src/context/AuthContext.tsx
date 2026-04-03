@@ -1,6 +1,6 @@
 "use client";
 
-import { onAuthStateChanged, signOut, User as FirebaseUser } from "firebase/auth";
+import { getIdToken, onAuthStateChanged, signOut, User as FirebaseUser } from "firebase/auth";
 import { createContext, useContext, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { auth } from "@/lib/firebase";
@@ -16,6 +16,7 @@ import { API_ROUTES } from "@/lib/routes";
 interface AuthContextType {
   user: AuthUser | null;
   role: UserRole;
+  contractorId?: string;
   loading: boolean;
   logout: () => Promise<void>;
 }
@@ -23,6 +24,7 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType>({
   user: null,
   role: "guest",
+  contractorId: undefined,
   loading: true,
   logout: async () => {},
 });
@@ -35,17 +37,6 @@ function mergeFirebaseUser(firebaseUser: FirebaseUser, profile: UserProfile): Au
   merged.name = profile.name ?? firebaseUser.displayName ?? undefined;
   merged.createdAt = profile.createdAt;
   return merged;
-}
-
-function sanitizeProfile(profile: UserProfile): UserProfile {
-  if (profile.role === "contractor" && !profile.contractorId) {
-    return {
-      ...profile,
-      role: "guest",
-    };
-  }
-
-  return profile;
 }
 
 async function syncServerSession(token: string): Promise<void> {
@@ -68,44 +59,6 @@ async function clearServerSession(): Promise<void> {
     method: "POST",
     credentials: "include",
   });
-}
-
-async function fetchBootstrapProfile(token: string): Promise<UserProfile | null> {
-  const response = await fetch(API_ROUTES.AUTH_BOOTSTRAP, {
-    method: "GET",
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-    credentials: "include",
-  });
-
-  if (!response.ok) {
-    return null;
-  }
-
-  const payload = (await response.json()) as {
-    user?: {
-      name?: string;
-      email?: string;
-      role?: unknown;
-      status?: string;
-      contractorId?: unknown;
-      createdAt?: unknown;
-    } | null;
-  };
-
-  if (!payload.user) {
-    return null;
-  }
-
-  return {
-    name: payload.user.name,
-    email: payload.user.email,
-    role: normalizeRole(payload.user.role),
-    status: payload.user.status,
-    contractorId: normalizeContractorId(payload.user.contractorId),
-    createdAt: payload.user.createdAt,
-  };
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -139,59 +92,50 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
+      let name = firebaseUser.displayName ?? undefined;
+
       try {
-        const token = await firebaseUser.getIdToken();
+        const refreshedToken = await getIdToken(firebaseUser, true);
+        await syncServerSession(refreshedToken).catch((error) => {
+          console.error("Auth session sync failed:", error);
+        });
 
-        await fetch(API_ROUTES.SYNC_ROLE, {
+        const res = await fetch(API_ROUTES.SYNC_ROLE, {
           method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
+          credentials: "include",
         });
 
-        const refreshedToken = await firebaseUser.getIdToken(true);
-        await syncServerSession(refreshedToken);
+        if (!res.ok) {
+          throw new Error(`Role sync failed with status ${res.status}`);
+        }
 
-        const tokenResult = await firebaseUser.getIdTokenResult();
-        const bootstrapProfile = await fetchBootstrapProfile(refreshedToken);
-        const profile = sanitizeProfile({
-          name: bootstrapProfile?.name ?? firebaseUser.displayName ?? undefined,
-          email: bootstrapProfile?.email ?? firebaseUser.email ?? undefined,
-          role: bootstrapProfile?.role ?? normalizeRole(tokenResult.claims.role),
-          status: bootstrapProfile?.status,
-          contractorId:
-            bootstrapProfile?.contractorId ?? normalizeContractorId(tokenResult.claims.contractorId),
-          createdAt: bootstrapProfile?.createdAt,
-        });
+        const data = await res.json();
 
         if (!isActive) {
           return;
         }
+
+        const profile: UserProfile = {
+          email: firebaseUser.email ?? undefined,
+          name,
+          role: normalizeRole(data.role || "guest"),
+          contractorId: normalizeContractorId(data.contractorId || null),
+        };
 
         const mergedUser = mergeFirebaseUser(firebaseUser, profile);
         setUser(mergedUser);
         setRole(profile.role);
-      } catch (error) {
-        console.error("Auth role resolution error:", error);
-        const tokenResult = await firebaseUser.getIdTokenResult().catch(() => null);
-        const fallbackProfile = sanitizeProfile({
-          email: firebaseUser.email ?? undefined,
-          name: firebaseUser.displayName ?? undefined,
-          role: normalizeRole(tokenResult?.claims.role),
-          contractorId: normalizeContractorId(tokenResult?.claims.contractorId),
-        });
+        setLoading(false);
+      } catch (err) {
+        console.error("Session role sync failed:", err);
 
         if (!isActive) {
           return;
         }
 
-        const mergedUser = mergeFirebaseUser(firebaseUser, fallbackProfile);
-        setUser(mergedUser);
-        setRole(fallbackProfile.role);
-      } finally {
-        if (isActive) {
-          setLoading(false);
-        }
+        setUser(null);
+        setRole("guest");
+        setLoading(false);
       }
     });
 
@@ -213,7 +157,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  return <AuthContext.Provider value={{ user, role, loading, logout }}>{children}</AuthContext.Provider>;
+  if (loading) {
+    return null;
+  }
+
+  return (
+    <AuthContext.Provider value={{ user, role, contractorId: user?.contractorId, loading, logout }}>
+      {children}
+    </AuthContext.Provider>
+  );
 }
 
 export const useAuth = () => useContext(AuthContext);

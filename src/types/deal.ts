@@ -73,6 +73,8 @@ export interface TenderAnalysisSnapshot {
 
 export interface Deal {
   id: string;
+  type?: string;
+  templateOverride?: string[] | null;
 
   // Core Identity
   title: string;

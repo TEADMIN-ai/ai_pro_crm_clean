@@ -115,6 +115,11 @@ export function normalizeDeal(id: string, source: Record<string, unknown>): Deal
 
   return {
     id,
+    type: normalizeOptionalString(source.type),
+    templateOverride:
+      source.templateOverride === null
+        ? null
+        : normalizeStringArray(source.templateOverride),
     title: normalizeOptionalString(source.title) ?? "Untitled",
     companyId: normalizeOptionalString(source.companyId) ?? contractorId ?? "unknown",
     contractorId,

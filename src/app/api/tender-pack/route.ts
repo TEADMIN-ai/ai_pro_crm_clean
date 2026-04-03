@@ -2,17 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAuth } from "firebase-admin/auth";
 
 import { adminDb } from "@/lib/firebaseAdmin";
-import { generateSimplePack } from "@/lib/pdf/generateSimplePack";
+import { generateMergedPack, getMergedPackTemplateIds } from "@/lib/pdf/mergeTenderPack";
 import { persistTenderPackPdf } from "@/server/services/tenderPackService";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const ALLOWED_ROLES = new Set(["admin", "manager", "staff"]);
-
-type GenerateBody = {
-  dealId?: string;
-};
 
 async function requireRole(request: NextRequest): Promise<{ uid: string; role: string }> {
   const authHeader = request.headers.get("authorization") ?? "";
@@ -33,11 +29,10 @@ async function requireRole(request: NextRequest): Promise<{ uid: string; role: s
   return { uid: decoded.uid, role };
 }
 
-export async function POST(request: NextRequest) {
+export async function GET(request: NextRequest) {
   try {
     const { uid } = await requireRole(request);
-    const body = (await request.json()) as GenerateBody;
-    const dealId = typeof body.dealId === "string" ? body.dealId.trim() : "";
+    const dealId = request.nextUrl.searchParams.get("dealId")?.trim() ?? "";
 
     if (!dealId) {
       throw new Error("Missing dealId");
@@ -77,67 +72,37 @@ export async function POST(request: NextRequest) {
       contractorId: contractor.id,
     });
 
-    const pdfBytes = await generateSimplePack(
-      {
-        id: deal.id,
-        title: typeof deal.title === "string" ? deal.title : undefined,
-        status: typeof deal.status === "string" ? deal.status : undefined,
-        contractorId,
-      },
-      {
-        id: contractor.id,
-        name: typeof contractor.name === "string" ? contractor.name : undefined,
-        companyName: typeof contractor.companyName === "string" ? contractor.companyName : undefined,
-        email:
-          typeof contractor.email === "string"
-            ? contractor.email
-            : typeof contractor.contactEmail === "string"
-              ? contractor.contactEmail
-              : undefined,
-        phone:
-          typeof contractor.phone === "string"
-            ? contractor.phone
-            : typeof contractor.contactPhone === "string"
-              ? contractor.contactPhone
-              : undefined,
-        registrationNumber:
-          typeof contractor.registrationNumber === "string"
-            ? contractor.registrationNumber
-            : typeof contractor.companyRegistrationNumber === "string"
-              ? contractor.companyRegistrationNumber
-              : undefined,
-      }
-    );
+    const templateIds = getMergedPackTemplateIds(deal);
+    const pdfBytes = await generateMergedPack(deal, contractor);
 
     const persistedPack = await persistTenderPackPdf({
       createdBy: uid,
       contractorId: contractor.id,
-      templateKey: "simple",
+      templateKey: templateIds.join("-"),
       pdfBytes,
       missingFields: [],
       warnings: [],
       fieldMapUsed: {
         dealId: deal.id,
         contractorId: contractor.id,
+        templateIds: templateIds.join(","),
       },
     });
 
-    return NextResponse.json({
-      success: true,
-      base64: Buffer.from(pdfBytes).toString("base64"),
-      packId: persistedPack.packId,
-      downloadURL: persistedPack.downloadURL,
-      missingFields: [],
-      warnings: [],
+    return new NextResponse(Buffer.from(pdfBytes), {
+      status: 200,
+      headers: {
+        "Content-Type": "application/pdf",
+        "Content-Disposition": `attachment; filename=${deal.id}-tender-pack.pdf`,
+        "X-Tender-Pack-Id": persistedPack.packId,
+        "X-Tender-Pack-Url": persistedPack.downloadURL,
+      },
     });
   } catch (error) {
     console.error("Tender pack generation failed:", error);
     return NextResponse.json(
       {
-        error:
-          error instanceof Error
-            ? error.message
-            : "Tender pack generation failed  no fallback allowed",
+        error: error instanceof Error ? error.message : "Tender pack generation failed",
       },
       { status: 500 }
     );

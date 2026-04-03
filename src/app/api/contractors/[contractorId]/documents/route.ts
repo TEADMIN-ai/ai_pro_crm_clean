@@ -53,6 +53,11 @@ function hasTimestamp(value: unknown): boolean {
 
 function normalizeDocument(id: string, data: Record<string, unknown>): ContractorDocument {
   const document: ContractorDocument = {
+    aiStatus:
+      data.aiStatus === "valid" || data.aiStatus === "warning" || data.aiStatus === "invalid"
+        ? data.aiStatus
+        : undefined,
+    aiSuggestion: typeof data.aiSuggestion === "string" ? data.aiSuggestion : undefined,
     id,
     contractorId: typeof data.contractorId === "string" ? data.contractorId : "",
     documentName:

@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import ContractorDocumentVerificationReviewPanel from "@/components/contractors/DocumentVerificationReviewPanel";
+import { API_ROUTES } from "@/lib/apiRoutes";
 import { generateTenderReport } from "@/lib/reports/generateTenderReport";
 import type { ContractorDocument } from "@/types/document";
 
@@ -25,7 +26,7 @@ export default function DocumentVerificationReviewPanel({
   useEffect(() => {
     const fetchDocs = async () => {
       try {
-        const res = await fetch(`/api/documents?dealId=${dealId}`);
+        const res = await fetch(`${API_ROUTES.DOCUMENTS}?dealId=${dealId}`);
         const data = (await res.json()) as { documents?: ReviewPanelDocument[] };
         setSafeDocs(Array.isArray(data.documents) ? data.documents : []);
       } catch (err) {

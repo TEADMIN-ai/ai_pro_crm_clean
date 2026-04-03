@@ -83,6 +83,11 @@ service cloud.firestore {
       }
     }
 
+    match /documents/{docId} {
+      allow read: if isSignedIn();
+      allow write: if false;
+    }
+
     match /users/{docId} {
       allow read: if isSignedIn() && (request.auth.uid == docId || isPrivileged());
       allow write: if isSignedIn() && (request.auth.uid == docId || role() == "admin");

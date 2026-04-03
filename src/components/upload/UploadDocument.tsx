@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { authFetch } from "@/lib/client/authFetch";
 import { API_ROUTES } from "@/lib/routes";
 
 type SupportedDocumentType =
@@ -43,7 +44,7 @@ export default function UploadDocument({ contractorId }: Props) {
       formData.append("contractorId", contractorId);
       formData.append("documentType", documentType);
 
-      const res = await fetch(API_ROUTES.DOCUMENT_UPLOAD, {
+      const res = await authFetch(API_ROUTES.DOCUMENT_UPLOAD, {
         method: "POST",
         body: formData,
       });

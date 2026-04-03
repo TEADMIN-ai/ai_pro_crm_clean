@@ -13,9 +13,16 @@ export const API_ROUTES = {
     `/api/contractors/${encodeURIComponent(contractorId)}`,
   CONTRACTOR_DOCUMENTS: (contractorId: string) =>
     `/api/contractors/${encodeURIComponent(contractorId)}/documents`,
+  TENDER_PACK: (dealId: string) => `/api/tender-pack?dealId=${encodeURIComponent(dealId)}`,
+  TENDER_PACK_PREVIEW: (dealId: string) => `/api/tender-pack/preview?dealId=${encodeURIComponent(dealId)}`,
+  TENDER_PACK_PREVIEW_PDF: (dealId: string) =>
+    `/api/tender-pack/preview-pdf?dealId=${encodeURIComponent(dealId)}`,
   TENDER_PACK_VALIDATE: "/api/tender-pack/validate",
   CONTRACTOR_DOCUMENT_REVIEW: (contractorId: string, documentType: string) =>
     `/api/contractor-documents/${encodeURIComponent(contractorId)}/${encodeURIComponent(documentType)}/review`,
+  DOCUMENTS: "/api/documents",
+  DOCUMENT_DETAIL: (documentId: string) =>
+    `/api/documents/${encodeURIComponent(documentId)}`,
   DOCUMENT_EXECUTE: (documentId: string) =>
     `/api/documents/${documentId}/execute`,
   DOCUMENT_STATUS: (documentId: string) =>
@@ -25,6 +32,7 @@ export const API_ROUTES = {
   SBD4_GENERATE: "/api/sbd4/generate",
   DEALS: "/api/deals",
   DEAL_DETAIL: (dealId: string) => `/api/deals/${encodeURIComponent(dealId)}`,
+  DEAL_TEMPLATES: (dealId: string) => `/api/deals/${encodeURIComponent(dealId)}/templates`,
   RISKS: "/api/risks",
   RISK_DETAIL: (riskId: string) => `/api/risks/${encodeURIComponent(riskId)}`,
   AUDIT_LOGS: "/api/audit-logs",

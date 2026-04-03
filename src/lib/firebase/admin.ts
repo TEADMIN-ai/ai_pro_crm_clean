@@ -2,6 +2,7 @@ import { createRequire } from "node:module";
 import { cert, getApp, getApps, initializeApp, type App } from "firebase-admin/app";
 import { getAuth, type Auth } from "firebase-admin/auth";
 import { getFirestore, type Firestore } from "firebase-admin/firestore";
+import { getStorage, type Storage } from "firebase-admin/storage";
 import {
   validateFirebaseEnv,
   type FirebaseEnvValidationResult,
@@ -11,6 +12,7 @@ interface FirebaseAdminServices {
   app: App;
   auth: Auth;
   db: Firestore;
+  storage: Storage;
 }
 
 const require = createRequire(import.meta.url);
@@ -103,6 +105,7 @@ function createFirebaseAdminServices(): FirebaseAdminServices {
     app,
     auth: getAuth(app),
     db: getFirestore(app),
+    storage: getStorage(app),
   };
 }
 
@@ -125,4 +128,8 @@ export function getAdminAuth() {
 
 export function getAdminApp() {
   return getFirebaseAdminServices().app;
+}
+
+export function getAdminStorage() {
+  return getFirebaseAdminServices().storage;
 }

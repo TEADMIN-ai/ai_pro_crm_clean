@@ -6,33 +6,9 @@ service firebase.storage {
       return request.auth != null;
     }
 
-    function role() {
-      return isSignedIn() && request.auth.token.role is string
-        ? request.auth.token.role
-        : "guest";
-    }
-
-    function contractorId() {
-      return isSignedIn() && request.auth.token.contractorId is string
-        ? request.auth.token.contractorId
-        : null;
-    }
-
-    function isPrivileged() {
-      return role() in ["admin", "manager", "staff"];
-    }
-
-    function isSupportedComplianceFile(fileName) {
-      return fileName.matches("^(cipc|bbbee|taxClearance|coida|bankConfirmation)\\.pdf$");
-    }
-
-    match /contractors/{targetContractorId}/{fileName} {
-      allow read, write: if isSignedIn()
-        && isSupportedComplianceFile(fileName)
-        && (
-          isPrivileged()
-          || (role() == "contractor" && contractorId() == targetContractorId)
-        );
+    match /contractors/{contractorId}/documents/{fileName} {
+      allow read: if isSignedIn();
+      allow write: if false;
     }
 
     match /{allPaths=**} {

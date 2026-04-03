@@ -1,11 +1,6 @@
-import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
 import { authFetch } from "@/lib/client/authFetch";
-import {
-  getDocumentTypeLabel,
-  type SupportedDocumentType,
-} from "@/lib/compliance/contractorCompliance";
-import { storage } from "@/lib/firebase";
 import { API_ROUTES } from "@/lib/routes";
+import type { SupportedDocumentType } from "@/lib/compliance/contractorCompliance";
 import type { ContractorDocument } from "@/types/document";
 
 type UploadResponse = {
@@ -30,33 +25,19 @@ export async function uploadContractorDocument(
     throw new Error("Invalid file type. Upload a PDF document.");
   }
 
-  const storagePath = `contractors/${contractorId}/${documentType}.pdf`;
-  const storageRef = ref(storage, storagePath);
+  const formData = new FormData();
+  formData.append("file", file);
+  formData.append("contractorId", contractorId);
+  formData.append("documentType", documentType);
 
-  await uploadBytes(storageRef, file, {
-    contentType: file.type || "application/pdf",
-  });
-
-  const fileUrl = await getDownloadURL(storageRef);
-  const documentName = `${getDocumentTypeLabel(documentType)}.pdf`;
-
-  // The server route persists metadata and runs the compliance scanner before returning.
-  const response = await authFetch(API_ROUTES.CONTRACTOR_DOCUMENTS(contractorId), {
+  const response = await authFetch(API_ROUTES.DOCUMENT_UPLOAD, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      documentType,
-      documentName,
-      storagePath,
-      fileUrl,
-    }),
+    body: formData,
   });
 
   if (!response.ok) {
-    const text = await response.text();
-    throw new Error(text || `Upload metadata failed with ${response.status}`);
+    const payload = (await response.json().catch(() => null)) as UploadResponse | null;
+    throw new Error(payload?.error ?? `Upload failed with ${response.status}`);
   }
 
   const payload = (await response.json()) as UploadResponse;

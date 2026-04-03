@@ -16,6 +16,8 @@
  */
 
 export interface ContractorDocument {
+  aiStatus?: "valid" | "warning" | "invalid";
+  aiSuggestion?: string;
   aiData?: {
     companyName?: string | null;
     registrationNumber?: string | null;

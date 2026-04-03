@@ -34,10 +34,6 @@ export default function DashboardHome() {
     () => deals.filter((deal) => deal.status === "submitted" || deal.stage === "submitted").length,
     [deals]
   );
-  const tenderPackHref =
-    role === "contractor" && user?.contractorId
-      ? `/dashboard/contractors/${encodeURIComponent(user.contractorId)}`
-      : "/dashboard/contractors";
 
   const dashboardContent =
     role === "guest" ? (
@@ -79,7 +75,7 @@ export default function DashboardHome() {
             <p>{readyCount} ready deals available for submission preparation.</p>
             <button
               className="bg-blue-600 text-white px-6 py-3 rounded-xl shadow hover:bg-blue-700"
-              onClick={() => router.push(tenderPackHref)}
+              onClick={() => router.push("/dashboard/deals")}
               type="button"
             >
               Generate Tender Pack
@@ -151,7 +147,7 @@ export default function DashboardHome() {
               </p>
               <button
                 className="bg-blue-600 text-white px-6 py-3 rounded-xl shadow hover:bg-blue-700"
-                onClick={() => router.push(tenderPackHref)}
+                onClick={() => router.push("/dashboard/deals")}
                 type="button"
               >
                 Generate Tender Pack

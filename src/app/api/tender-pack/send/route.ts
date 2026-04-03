@@ -1,60 +1,46 @@
-import { NextResponse } from "next/server";
-import nodemailer from "nodemailer";
+import { NextRequest, NextResponse } from "next/server";
+import { Resend } from "resend";
 
-export async function POST(req: Request) {
+console.log("RESEND KEY:", process.env.RESEND_API_KEY);
+
+const resend = new Resend(process.env.RESEND_API_KEY);
+
+export async function POST(req: NextRequest) {
   try {
-    const { email, pdfBase64 } = (await req.json()) as {
-      email?: string;
-      pdfBase64?: string;
-    };
+    const { email, pdfBase64 } = await req.json();
 
     if (!email || !pdfBase64) {
-      return NextResponse.json({ error: "Missing data" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Missing email or PDF" },
+        { status: 400 }
+      );
     }
 
-    const transporter = nodemailer.createTransport({
-      service: "gmail",
-      auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS,
-      },
-    });
-
-    await transporter
-      .verify()
-      .then(() => console.log("SMTP READY"))
-      .catch((err) => console.error("SMTP ERROR:", err));
-
-    const info = await transporter.sendMail({
-      from: process.env.EMAIL_USER,
-      to: email,
-      subject: "Your Tender Pack  Torque Empire",
-      text: "Attached is your generated tender pack.",
+    const response = await resend.emails.send({
+      from: "Torque Empire <admin@torqueempire.net>",
+      to: [email],
+      subject: "Your Tender Pack – Torque Empire",
+      html: `<p>Your tender pack is attached.</p>`,
       attachments: [
         {
           filename: "tender-pack.pdf",
-          content: Buffer.from(pdfBase64, "base64"),
+          content: pdfBase64,
         },
       ],
     });
 
-    console.log("EMAIL RESPONSE:", {
-      accepted: info.accepted,
-      rejected: info.rejected,
-      response: info.response,
-      messageId: info.messageId,
-    });
+    console.log("RESEND RESPONSE:", response);
 
     return NextResponse.json({
       success: true,
-      debug: {
-        accepted: info.accepted,
-        rejected: info.rejected,
-        response: info.response,
-      },
+      response,
     });
-  } catch (err) {
-    console.error(err);
-    return NextResponse.json({ error: "Email failed" }, { status: 500 });
+  } catch (error) {
+    console.error("RESEND ERROR:", error);
+
+    return NextResponse.json(
+      { error: "Failed to send email" },
+      { status: 500 }
+    );
   }
 }

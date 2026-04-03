@@ -1,20 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getStorage } from "firebase-admin/storage";
-import { getAdminApp, getFirebaseAdmin } from "@/lib/firebase/admin";
-import {
-  AuthorizationError,
-  assertCanAccessContractor,
-  requireAuthorizedUser,
-} from "@/lib/server/authz";
 import {
   getDocumentTypeLabel,
   isSupportedDocumentType,
   resolveContractorDocumentStatus,
   type SupportedDocumentType,
 } from "@/lib/compliance/contractorCompliance";
+import { adminAuth, adminDb, adminStorage } from "@/lib/firebaseAdmin";
+import { validateDocument as validateAiDocument } from "@/lib/services/aiValidationService";
+import { extractText } from "@/lib/services/pdfService";
 import { aiExtractDocument } from "@/lib/verification/aiExtract";
 import { extractDocumentData } from "@/lib/verification/extractData";
-import { validateDocument } from "@/lib/verification/validateDocument";
+import { validateDocument as validateExtractedDocument } from "@/lib/verification/validateDocument";
 import { recalculateContractorCompliance } from "@/lib/server/recalculateContractorCompliance";
 import { verifyStoredContractorDocument } from "@/server/services/documentVerificationService";
 import {
@@ -22,6 +18,24 @@ import {
   upsertContractorDocument,
 } from "@/server/services/contractorService";
 import type { ContractorDocument } from "@/types/document";
+
+export const runtime = "nodejs";
+
+type AppUserRecord = {
+  contractorId?: unknown;
+  email?: unknown;
+  role?: unknown;
+};
+
+class UploadAuthorizationError extends Error {
+  constructor(
+    message: string,
+    readonly status: number
+  ) {
+    super(message);
+    this.name = "UploadAuthorizationError";
+  }
+}
 
 function jsonError(message: string, status = 500) {
   return NextResponse.json({ error: message }, { status });
@@ -59,6 +73,11 @@ function hasTimestamp(value: unknown): boolean {
 
 function normalizeDocument(id: string, data: Record<string, unknown>): ContractorDocument {
   const document: ContractorDocument = {
+    aiStatus:
+      data.aiStatus === "valid" || data.aiStatus === "warning" || data.aiStatus === "invalid"
+        ? data.aiStatus
+        : undefined,
+    aiSuggestion: typeof data.aiSuggestion === "string" ? data.aiSuggestion : undefined,
     aiData:
       data.aiData && typeof data.aiData === "object"
         ? (data.aiData as ContractorDocument["aiData"])
@@ -210,23 +229,84 @@ function inferDocumentType(fileName: string): SupportedDocumentType | null {
   return null;
 }
 
+async function authenticateRequest(request: NextRequest) {
+  const authHeader = request.headers.get("authorization") ?? "";
+
+  if (!authHeader.startsWith("Bearer ")) {
+    throw new UploadAuthorizationError("Unauthorized", 401);
+  }
+
+  const token = authHeader.slice("Bearer ".length).trim();
+  if (!token) {
+    throw new UploadAuthorizationError("Unauthorized", 401);
+  }
+
+  let decoded;
+
+  try {
+    decoded = await adminAuth.verifyIdToken(token);
+  } catch {
+    throw new UploadAuthorizationError("Unauthorized", 401);
+  }
+
+  const userDoc = await adminDb.collection("users").doc(decoded.uid).get();
+
+  if (!userDoc.exists) {
+    throw new UploadAuthorizationError("User not found", 404);
+  }
+
+  const userData = (userDoc.data() ?? {}) as AppUserRecord;
+  return {
+    uid: decoded.uid,
+    email:
+      typeof decoded.email === "string"
+        ? decoded.email
+        : typeof userData.email === "string"
+          ? userData.email
+          : undefined,
+    role: typeof userData.role === "string" ? userData.role.trim().toLowerCase() : "guest",
+    contractorId: getString(userData.contractorId),
+  };
+}
+
+function resolveTargetContractorId(
+  user: { contractorId?: string; role: string },
+  requestedContractorId: string
+) {
+  const isPrivileged = user.role === "admin" || user.role === "manager" || user.role === "staff";
+
+  if (isPrivileged) {
+    return requestedContractorId || user.contractorId || "";
+  }
+
+  if (!user.contractorId) {
+    return "";
+  }
+
+  if (requestedContractorId && requestedContractorId !== user.contractorId) {
+    throw new UploadAuthorizationError("You cannot upload documents for another contractor", 403);
+  }
+
+  return user.contractorId;
+}
+
 export async function POST(request: NextRequest) {
   try {
-    const user = await requireAuthorizedUser(request);
+    const user = await authenticateRequest(request);
     const formData = await request.formData();
     const uploadedFile = formData.get("file");
-    const contractorId = getString(formData.get("contractorId"));
+    const requestedContractorId = getString(formData.get("contractorId"));
     const rawDocumentType = getString(formData.get("documentType"));
 
     if (!(uploadedFile instanceof File)) {
-      return jsonError("Missing file", 400);
+      return jsonError("No file provided", 400);
     }
+
+    const contractorId = resolveTargetContractorId(user, requestedContractorId);
 
     if (!contractorId) {
-      return jsonError("Missing contractorId", 400);
+      return jsonError("No contractor linked", 403);
     }
-
-    assertCanAccessContractor(user, contractorId);
 
     if (!uploadedFile.name.toLowerCase().endsWith(".pdf")) {
       return jsonError("Only PDF files are allowed", 400);
@@ -245,36 +325,41 @@ export async function POST(request: NextRequest) {
     }
 
     const fileBuffer = Buffer.from(await uploadedFile.arrayBuffer());
-    const storagePath = `contractors/${contractorId}/${documentType}.pdf`;
-    const bucket = getStorage(getAdminApp()).bucket();
-    const file = bucket.file(storagePath);
+    const safeOriginalName = sanitizeFilename(uploadedFile.name);
+    const fileName = `${Date.now()}-${safeOriginalName}`;
+    const filePath = `contractors/${contractorId}/documents/${fileName}`;
+    const storageFile = adminStorage.bucket().file(filePath);
 
-    await file.save(fileBuffer, {
+    await storageFile.save(fileBuffer, {
       metadata: {
         contentType: uploadedFile.type || "application/pdf",
         metadata: {
           contractorId,
           documentType,
-          originalName: sanitizeFilename(uploadedFile.name),
+          originalName: safeOriginalName,
           uploadedByUid: user.uid,
         },
       },
       resumable: false,
     });
 
-    const [fileUrl] = await file.getSignedUrl({
+    const [fileUrl] = await storageFile.getSignedUrl({
       action: "read",
       expires: "2100-01-01",
     });
 
     const now = new Date();
     const documentName = uploadedFile.name || `${getDocumentTypeLabel(documentType)}.pdf`;
+    const extractedText = await extractText(fileBuffer);
+    const aiValidation = await validateAiDocument(extractedText, documentType);
     const extracted = await extractDocumentData(fileBuffer);
     const aiResult = await aiExtractDocument(extracted.rawText);
-    const validation = validateDocument(extracted, documentType);
-    const isExpired =
-      aiResult.expiryDate &&
-      new Date(aiResult.expiryDate) < new Date();
+    const validation = validateExtractedDocument(extracted, documentType);
+    const isExpired = aiResult.expiryDate ? new Date(aiResult.expiryDate) < new Date() : false;
+    const normalizedExtractedText = extractedText || extracted.rawText;
+    const combinedAiIssues = Array.from(
+      new Set([...(aiValidation.issues || []), ...(aiResult.issues || [])])
+    );
 
     const finalVerified =
       validation.isValid &&
@@ -282,18 +367,21 @@ export async function POST(request: NextRequest) {
       !isExpired &&
       aiResult?.issues?.length === 0;
 
-    console.log("SYSTEM CHECK:", {
-      verified: finalVerified,
-      risk: aiResult?.riskLevel,
-      issues: aiResult?.issues,
-    });
-
-    console.log("FINAL VERDICT:", {
-      isValid: validation.isValid,
-      risk: aiResult.riskLevel,
-      expired: isExpired,
-      issues: aiResult.issues,
-      finalVerified,
+    await adminDb.collection("documents").add({
+      contractorId,
+      documentType,
+      documentName,
+      fileName,
+      filePath,
+      storagePath: filePath,
+      contentType: uploadedFile.type || "application/pdf",
+      size: uploadedFile.size,
+      uploadedAt: Date.now(),
+      uploadedBy: user.uid,
+      status: "pending",
+      aiStatus: aiValidation.status,
+      aiIssues: aiValidation.issues,
+      aiSuggestion: aiValidation.suggestion,
     });
 
     await upsertContractorDocument(contractorId, documentType, {
@@ -303,8 +391,9 @@ export async function POST(request: NextRequest) {
       documentName,
       fileName: documentName,
       originalName: uploadedFile.name,
-      filename: `${documentType}.pdf`,
-      storagePath,
+      filename: fileName,
+      storagePath: filePath,
+      filePath,
       fileUrl,
       downloadURL: fileUrl,
       url: fileUrl,
@@ -315,12 +404,14 @@ export async function POST(request: NextRequest) {
       verifiedAt: null,
       validationError: null,
       issues: validation.issues,
+      aiStatus: aiValidation.status,
       aiData: aiResult,
       riskLevel: aiResult.riskLevel || "unknown",
-      aiIssues: aiResult.issues || [],
+      aiIssues: combinedAiIssues,
+      aiSuggestion: aiValidation.suggestion,
       expiryDate: aiResult.expiryDate ? Date.parse(aiResult.expiryDate) || null : null,
-      extractedText: extracted.rawText,
-      extractedTextLength: extracted.rawText.length,
+      extractedText: normalizedExtractedText,
+      extractedTextLength: normalizedExtractedText.length,
       status: "uploaded",
     });
 
@@ -337,31 +428,34 @@ export async function POST(request: NextRequest) {
           ...buildVerificationPersistence(verificationResult, user, existingDocument),
           verified: finalVerified && verificationResult.verified,
           issues: validation.issues,
+          aiStatus: aiValidation.status,
           aiData: aiResult,
           riskLevel: aiResult.riskLevel || "unknown",
-          aiIssues: aiResult.issues || [],
+          aiIssues: combinedAiIssues,
+          aiSuggestion: aiValidation.suggestion,
           expiryDate: aiResult.expiryDate ? Date.parse(aiResult.expiryDate) || null : null,
-          extractedText: extracted.rawText,
-          extractedTextLength: extracted.rawText.length,
+          extractedText: normalizedExtractedText,
+          extractedTextLength: normalizedExtractedText.length,
         }
       );
     } catch (verificationError) {
       console.error("Document verification failed", verificationError);
     }
 
-    const compliance = await recalculateContractorCompliance(getFirebaseAdmin(), contractorId);
+    const compliance = await recalculateContractorCompliance(adminDb, contractorId);
     const savedDoc = await getContractorDocument(contractorId, documentType);
 
     return NextResponse.json(
       {
         success: true,
+        filePath,
         document: normalizeDocument(savedDoc.id, (savedDoc.data() ?? {}) as Record<string, unknown>),
         compliance,
       },
       { status: 200 }
     );
   } catch (error) {
-    if (error instanceof AuthorizationError) {
+    if (error instanceof UploadAuthorizationError) {
       return jsonError(error.message, error.status);
     }
 

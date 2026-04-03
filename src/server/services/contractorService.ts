@@ -138,6 +138,11 @@ export async function listContractorDocuments(contractorId: string) {
   return snapshot.docs.map((doc) => {
     const data = (doc.data() ?? {}) as Record<string, unknown>;
     const document: ContractorDocument = {
+      aiStatus:
+        data.aiStatus === "valid" || data.aiStatus === "warning" || data.aiStatus === "invalid"
+          ? data.aiStatus
+          : undefined,
+      aiSuggestion: asString(data.aiSuggestion),
       aiData:
         data.aiData && typeof data.aiData === "object"
           ? (data.aiData as ContractorDocument["aiData"])

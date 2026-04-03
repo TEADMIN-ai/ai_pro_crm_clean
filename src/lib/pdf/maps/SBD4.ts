@@ -11,6 +11,44 @@ export type SBD4DirectorFieldRow = {
   entity: SBD4FieldBox;
 };
 
+export const SBD4_FIELDS = {
+  companyName: {
+    x: 140,
+    y: 510,
+    maxWidth: 320,
+  },
+
+  registrationNumber: {
+    x: 140,
+    y: 490,
+    maxWidth: 220,
+  },
+
+  directorName: {
+    x: 140,
+    y: 430,
+    maxWidth: 300,
+  },
+
+  directorId: {
+    x: 140,
+    y: 410,
+    maxWidth: 220,
+  },
+
+  signatureName: {
+    x: 140,
+    y: 220,
+    maxWidth: 300,
+  },
+
+  date: {
+    x: 420,
+    y: 220,
+    maxWidth: 120,
+  },
+} as const;
+
 export const SBD4_FIELD_MAP = {
   directors: [
     {
