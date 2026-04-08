@@ -1,28 +1,25 @@
-import type { RevenueKpis } from "@/lib/kpis/revenueKpis";
+import React from "react";
 
-type RevenueKpiRowProps = {
-  kpis: RevenueKpis;
+type RevenueKpis = {
+totalRevenue?: number;
+dealsCount?: number;
+conversionRate?: number;
 };
 
-export default function RevenueKpiRow({ kpis }: RevenueKpiRowProps) {
-  return (
-    <div className="grid gap-4 md:grid-cols-3">
-      <div className="rounded-lg bg-white p-4 shadow">
-        <h3 className="text-sm font-semibold text-gray-600">Total Revenue</h3>
-        <p className="text-2xl font-semibold text-gray-900">
-          ZAR {kpis.totalRevenue.toLocaleString("en-ZA")}
-        </p>
-      </div>
-      <div className="rounded-lg bg-white p-4 shadow">
-        <h3 className="text-sm font-semibold text-gray-600">Won Deals</h3>
-        <p className="text-2xl font-semibold text-gray-900">{kpis.wonDeals}</p>
-      </div>
-      <div className="rounded-lg bg-white p-4 shadow">
-        <h3 className="text-sm font-semibold text-gray-600">Average Deal Size</h3>
-        <p className="text-2xl font-semibold text-gray-900">
-          ZAR {kpis.avgDealSize.toLocaleString("en-ZA")}
-        </p>
-      </div>
-    </div>
-  );
+type Props = {
+kpis: RevenueKpis;
+};
+
+export default function RevenueKpiRow({ kpis }: Props) {
+return (
+<div className="p-4 rounded-lg bg-white shadow">
+  <h3 className="text-lg font-semibold">Revenue KPI</h3>
+
+  <div className="text-sm text-gray-600 mt-2">
+    <p>Total Revenue: {kpis?.totalRevenue ?? 0}</p>
+    <p>Deals: {kpis?.dealsCount ?? 0}</p>
+    <p>Conversion: {kpis?.conversionRate ?? 0}%</p>
+  </div>
+</div>
+);
 }
