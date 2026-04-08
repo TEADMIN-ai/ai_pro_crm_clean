@@ -1,567 +1,438 @@
 "use client";
 
+export const dynamic = "force-dynamic";
+export const fetchCache = "force-no-store";
+
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import { getAuth } from "firebase/auth";
-import { DOCUMENT_LABELS } from "@/lib/constants/documentTypes";
-import { API_ROUTES } from "@/lib/routes";
+import { API_ROUTES } from "@/lib/apiRoutes";
+import { authFetch } from "@/lib/client/authFetch";
+import { useAuth } from "@/context/AuthContext";
+import { getPermissions } from "@/lib/permissions";
 
 type Deal = {
   id: string;
+  name?: string;
   title?: string;
-  type?: string;
   status?: string;
   contractorId?: string;
-  readinessStatus?: "READY" | "AT_RISK" | "LOCKED";
+  value?: number;
   readinessScore?: number;
   isTenderLocked?: boolean;
-  docsMissing?: string[];
-  templateOverride?: string[] | null;
+  missingDocs?: string[];
+  riskLevel?: "LOW" | "MEDIUM" | "HIGH";
+  suggestions?: string[];
+  aiInsights?: string | null;
+  analysis?: {
+    requirements?: Record<string, boolean>;
+    missing?: string[];
+    score?: number;
+    risk?: string;
+  };
 };
 
-type PreviewData = {
-  success?: boolean;
-  templates: string[];
-  templateCount?: number;
-  dealType?: string;
+type Contractor = {
+  id: string;
+  name?: string;
+  company?: string;
+  companyName?: string;
 };
 
-const TEMPLATE_OPTIONS = ["SBD1", "SBD4", "SBD6", "SBD8", "SBD9"] as const;
+type TenderAnalysisResult = {
+  requirements: {
+    taxClearance: boolean;
+    bbbee: boolean;
+    cipc: boolean;
+    coida: boolean;
+  };
+  missing: string[];
+  score: number;
+  risk: string;
+};
 
-function getTemplates(deal: Deal) {
-  if (Array.isArray(deal.templateOverride) && deal.templateOverride.length > 0) {
-    return deal.templateOverride;
-  }
-
-  if (deal.type === "private") {
-    return ["SBD1", "SBD4"];
-  }
-
-  return ["SBD1", "SBD4", "SBD6", "SBD8", "SBD9"];
+function getDealTitle(deal: Deal): string {
+  return deal.title || deal.name || deal.id;
 }
 
 export default function DealsPage() {
-  const router = useRouter();
+  const { role } = useAuth();
   const [deals, setDeals] = useState<Deal[]>([]);
+  const [contractors, setContractors] = useState<Contractor[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [role, setRole] = useState<string | null>(null);
-  const [updatingId, setUpdatingId] = useState<string | null>(null);
-  const [generatingId, setGeneratingId] = useState<string | null>(null);
-  const [previewOpen, setPreviewOpen] = useState(false);
-  const [previewData, setPreviewData] = useState<PreviewData | null>(null);
-  const [previewDealId, setPreviewDealId] = useState<string | null>(null);
+  const permissions = getPermissions(role);
 
-  // ============================
-  // 🔹 STATUS COLORS
-  // ============================
-  const getStatusStyle = (status?: string) => {
-    switch (status) {
-      case "approved":
-        return { background: "#d4edda", color: "#155724" };
-      case "rejected":
-        return { background: "#f8d7da", color: "#721c24" };
-      default:
-        return { background: "#fff3cd", color: "#856404" }; // draft
+  async function loadDeals() {
+    const dealsRes = await authFetch(API_ROUTES.DEALS);
+
+    if (!dealsRes.ok) {
+      throw new Error("Failed to fetch deals");
     }
-  };
 
-  const getReadinessStyle = (status?: string) => {
-    switch (status) {
-      case "READY":
-        return { background: "#d4edda", color: "#155724" };
-      case "AT_RISK":
-        return { background: "#fff3cd", color: "#856404" };
-      default:
-        return { background: "#f8d7da", color: "#721c24" };
-    }
-  };
+    const dealsData = await dealsRes.json();
+    const normalizedDeals: Deal[] = Array.isArray(dealsData)
+      ? dealsData
+      : Array.isArray(dealsData?.data)
+        ? dealsData.data
+        : Array.isArray(dealsData?.deals)
+          ? dealsData.deals
+          : [];
 
-  const downloadPdfBlob = (blob: Blob, fileName: string) => {
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = fileName;
-    anchor.click();
-    URL.revokeObjectURL(url);
-  };
+    setDeals(normalizedDeals);
+  }
 
-  // ============================
-  // 🔹 FETCH DEALS
-  // ============================
-  const fetchDeals = async () => {
-    try {
-      setLoading(true);
-      setError(null);
+  async function loadContractors() {
+    const contractorsRes = await authFetch(API_ROUTES.CONTRACTORS);
 
-      const auth = getAuth();
-      const user = auth.currentUser;
+    const contractorsData = await contractorsRes.json();
+    setContractors(Array.isArray(contractorsData) ? contractorsData : []);
+  }
 
-      if (!user) throw new Error("User not logged in");
-
-      const token = await user.getIdToken();
-
-      // TEMP role decode (dev only)
+  useEffect(() => {
+    const loadData = async () => {
       try {
-        const decoded = JSON.parse(atob(token.split(".")[1]));
-        setRole(decoded.role || null);
-      } catch {
-        setRole(null);
+        await Promise.all([loadDeals(), loadContractors()]);
+      } catch (err) {
+        console.error(" Error loading deals:", err);
+      } finally {
+        setLoading(false);
       }
+    };
 
-      const res = await fetch(API_ROUTES.DEALS, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
+    void loadData();
+  }, []);
 
-      if (!res.ok) {
-        const data = await res.json().catch(() => null);
-        throw new Error(data?.error || "Failed to fetch deals");
-      }
-
-      const data = await res.json();
-      setDeals(data.deals || []);
-    } catch (err: any) {
-      console.error(err);
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // ============================
-  // 🔹 UPDATE STATUS
-  // ============================
-  const updateStatus = async (dealId: string, status: string) => {
-    const confirmAction = confirm(
-      `Are you sure you want to ${status} this deal?`
-    );
-
-    if (!confirmAction) return;
-
+  async function createDeal(data: {
+    contractorId: string;
+    title: string;
+    value?: number;
+    tenderText?: string;
+  }) {
     try {
-      setUpdatingId(dealId);
-
-      const auth = getAuth();
-      const user = auth.currentUser;
-
-      if (!user) throw new Error("User not logged in");
-
-      const token = await user.getIdToken();
-
-      const res = await fetch(API_ROUTES.DEAL_DETAIL(dealId), {
-        method: "PATCH",
+      const res = await authFetch(API_ROUTES.DEALS, {
+        method: "POST",
         headers: {
-          Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ status }),
+        body: JSON.stringify(data),
       });
 
-      if (!res.ok) {
-        throw new Error("Failed to update status");
-      }
+      const newDeal = await res.json();
 
-      await fetchDeals();
+      setDeals((prev) => [newDeal, ...prev]);
     } catch (err) {
-      console.error(err);
-    } finally {
-      setUpdatingId(null);
+      console.error(" CREATE DEAL ERROR:", err);
     }
-  };
+  }
 
-  const generateTenderPack = async (deal: Deal) => {
-    if (deal.isTenderLocked) return;
-
+  async function analyzeTender(text: string): Promise<TenderAnalysisResult | undefined> {
     try {
-      setGeneratingId(deal.id);
-
-      const auth = getAuth();
-      const user = auth.currentUser;
-
-      if (!user) throw new Error("User not logged in");
-
-      const token = await user.getIdToken();
-      const res = await fetch(API_ROUTES.TENDER_PACK(deal.id), {
-        method: "GET",
+      const res = await authFetch(API_ROUTES.TENDER_ANALYZE, {
+        method: "POST",
         headers: {
-          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
         },
+        body: JSON.stringify({ text }),
       });
 
-      if (!res.ok) {
-        const data = await res.json().catch(() => null);
-        throw new Error(data?.error || "Failed to generate tender pack");
+      return await res.json();
+    } catch (err) {
+      console.error(" ANALYSIS ERROR:", err);
+      return undefined;
+    }
+  }
+
+  async function runDealAnalysis(dealId: string, text: string) {
+    try {
+      const analysis = await analyzeTender(text);
+
+      if (!analysis) {
+        throw new Error("Analysis failed");
       }
+
+      const response = await authFetch(API_ROUTES.DEAL_ANALYZE(dealId), {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(analysis),
+      });
+
+      void response;
+      await loadDeals();
+    } catch (err) {
+      console.error(" DEAL ANALYSIS FLOW ERROR:", err);
+    }
+  }
+
+  async function uploadAndAnalyze(dealId: string, file: File) {
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("dealId", dealId);
+
+      const res = await authFetch(API_ROUTES.DOCUMENT_UPLOAD_ANALYZE, {
+        method: "POST",
+        body: formData,
+      });
+
+      const result = await res.json();
+
+      console.log(result);
+
+      await loadDeals();
+    } catch (err) {
+      console.error(" PIPELINE ERROR:", err);
+    }
+  }
+
+  async function previewPack(dealId: string) {
+    try {
+      const res = await authFetch(API_ROUTES.TENDER_GENERATE, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ dealId }),
+      });
 
       const blob = await res.blob();
-      if (blob.size === 0) {
-        throw new Error("Tender pack was generated without a file payload");
+
+      if (blob.type !== "application/pdf") {
+        throw new Error("Invalid PDF response");
       }
 
-      downloadPdfBlob(blob, `${deal.title || "deal"}-tender-pack.pdf`);
-    } catch (err: any) {
-      console.error(err);
-      setError(err?.message || "Failed to generate tender pack");
-    } finally {
-      setGeneratingId(null);
+      const url = URL.createObjectURL(blob);
+
+      window.open(url, "_blank");
+    } catch (err) {
+      console.error(" PDF PREVIEW ERROR:", err);
+      alert("Failed to load PDF");
     }
-  };
+  }
 
-  const handleTemplateToggle = async (dealId: string, template: string, checked: boolean) => {
+  async function downloadPack(dealId: string) {
     try {
-      const auth = getAuth();
-      const user = auth.currentUser;
-
-      if (!user) {
-        throw new Error("User not logged in");
-      }
-
-      const token = await user.getIdToken();
-      const res = await fetch(API_ROUTES.DEAL_TEMPLATES(dealId), {
-        method: "PATCH",
+      const res = await authFetch(API_ROUTES.TENDER_GENERATE, {
+        method: "POST",
         headers: {
-          Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ template, checked }),
+        body: JSON.stringify({ dealId }),
       });
-
-      const payload = (await res.json().catch(() => null)) as { error?: string } | null;
-      if (!res.ok) {
-        throw new Error(payload?.error || "Failed to update templates");
-      }
-
-      await fetchDeals();
-    } catch (err: any) {
-      console.error(err);
-      setError(err?.message || "Failed to update templates");
-    }
-  };
-
-  const handlePreview = async (dealId: string) => {
-    try {
-      const auth = getAuth();
-      const user = auth.currentUser;
-
-      if (!user) {
-        throw new Error("User not logged in");
-      }
-
-      const token = await user.getIdToken();
-      const res = await fetch(API_ROUTES.TENDER_PACK_PREVIEW(dealId), {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      const data = (await res.json()) as PreviewData & { error?: string };
-      if (!res.ok) {
-        throw new Error(data.error || "Failed to load preview");
-      }
-
-      setPreviewData({
-        templates: data.templates ?? [],
-        templateCount: data.templateCount,
-        dealType: data.dealType,
-        success: data.success,
-      });
-      setPreviewDealId(dealId);
-      setPreviewOpen(true);
-    } catch (err: any) {
-      console.error(err);
-      setError(err?.message || "Failed to load preview");
-    }
-  };
-
-  const handlePreviewPDF = async (dealId: string) => {
-    try {
-      const auth = getAuth();
-      const user = auth.currentUser;
-
-      if (!user) {
-        throw new Error("User not logged in");
-      }
-
-      const token = await user.getIdToken();
-      const res = await fetch(API_ROUTES.TENDER_PACK_PREVIEW_PDF(dealId), {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      if (!res.ok) {
-        const text = await res.text();
-        throw new Error(text || "Failed to load preview PDF");
-      }
 
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
-      window.open(url);
+      const a = document.createElement("a");
+
+      a.href = url;
+      a.download = "tender-pack.pdf";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error(" DOWNLOAD ERROR:", err);
+      alert("Download failed");
+    }
+  }
+
+  async function emailPack(dealId: string) {
+    try {
+      const res = await authFetch(API_ROUTES.TENDER_EMAIL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ dealId }),
+      });
+
+      alert("Email triggered");
+    } catch (err) {
+      console.error(" EMAIL ERROR:", err);
+      alert("Email failed");
+    }
+  }
+
+  const handleGenerate = async (deal: Deal) => {
+    try {
+      if (!deal?.id) {
+        throw new Error("Missing deal ID");
+      }
+
+      const res = await authFetch(API_ROUTES.TENDER_GENERATE, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          dealId: deal.id,
+        }),
+      });
+
+      alert("Tender pack generated");
     } catch (err: any) {
-      console.error(err);
-      setError(err?.message || "Failed to load preview PDF");
+      console.error(" Generate Error:", err);
+      alert(err.message);
     }
   };
 
-  // ============================
-  // 🔹 LOAD PAGE
-  // ============================
-  useEffect(() => {
-    fetchDeals();
-  }, []);
+  const handlePreviewPDF = async (deal: Deal) => {
+    try {
+      if (!deal?.id) throw new Error("Missing deal ID");
+      await previewPack(deal.id);
+    } catch (err: any) {
+      console.error(" Preview Error:", err);
+      alert(err.message || "Preview failed");
+    }
+  };
 
-  // ============================
-  // 🔹 UI
-  // ============================
+  const firstContractorId = contractors[0]?.id ?? "";
+  if (loading) {
+    return <div className="p-6">Loading deals...</div>;
+  }
+
   return (
-    <div style={{ padding: "24px" }}>
-      <h1 style={{ fontSize: "24px", fontWeight: "bold" }}>
-        My Deals
-      </h1>
+    <div className="p-6 space-y-4">
+      <h1 className="text-2xl font-bold">My Deals</h1>
 
-      {error && (
-        <p style={{ color: "red", marginTop: "10px" }}>{error}</p>
+      {permissions.canEditDeal && (
+        <button
+          onClick={() => {
+            if (!firstContractorId) {
+              console.error(" CREATE DEAL ERROR: No contractor available");
+              return;
+            }
+
+            void createDeal({
+              contractorId: firstContractorId,
+              title: "RFQ - Electrical Maintenance",
+              value: 50000,
+            });
+          }}
+          className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
+        >
+          Add Test Deal
+        </button>
       )}
 
-      {loading ? (
-        <p>Loading deals...</p>
-      ) : deals.length === 0 ? (
-        <p>No deals found</p>
-      ) : (
-        <div style={{ marginTop: "20px" }}>
-          {deals.map((deal) => {
-            const isFinal =
-              deal.status === "approved" || deal.status === "rejected";
+      {deals.length === 0 && (
+        <div className="text-gray-500">No deals found</div>
+      )}
+
+      {deals.map((deal) => (
+        <div key={deal.id} className="border rounded-lg p-4 shadow-sm bg-white">
+          {(() => {
+            const readinessScore = typeof deal.readinessScore === "number" ? deal.readinessScore : 0;
+            const isLocked = deal.isTenderLocked ?? readinessScore < 60;
 
             return (
-              <div
-                key={deal.id}
-                style={{
-                  padding: "16px",
-                  marginBottom: "15px",
-                  border: "1px solid #ddd",
-                  borderRadius: "8px",
-                  background: "#fff",
-                }}
-              >
-                <strong>{deal.title || "Untitled Deal"}</strong>
+              <>
+          <h2 className="text-lg font-semibold">{getDealTitle(deal)}</h2>
 
-                <div style={{ marginTop: "6px" }}>
-                  <span
-                    style={{
-                      padding: "4px 10px",
-                      borderRadius: "20px",
-                      fontSize: "12px",
-                      ...getStatusStyle(deal.status),
-                    }}
-                  >
-                    {deal.status || "draft"}
-                  </span>
-                </div>
+          <p className="text-sm text-gray-500">
+            Status: {deal.status || "unknown"}
+          </p>
 
-                <div style={{ marginTop: "6px" }}>
-                  <span
-                    style={{
-                      padding: "4px 10px",
-                      borderRadius: "20px",
-                      fontSize: "12px",
-                      marginTop: "6px",
-                      ...getReadinessStyle(deal.readinessStatus),
-                    }}
-                  >
-                    {deal.readinessStatus || "LOCKED"}
-                    {typeof deal.readinessScore === "number" ? ` (${deal.readinessScore}%)` : ""}
-                  </span>
-                </div>
+          <p className="text-sm text-gray-500">
+            Readiness Score: {typeof deal.readinessScore === "number" ? `${deal.readinessScore}%` : "Pending"}
+          </p>
 
-                {deal.readinessStatus === "LOCKED" && (
-                  <p style={{ color: "red", marginTop: "6px" }}>
-                    Cannot submit - missing or rejected documents
-                  </p>
-                )}
+          <p className="text-sm text-gray-500">
+            Risk: {deal.riskLevel || "UNKNOWN"}
+          </p>
 
-                {deal.readinessStatus === "LOCKED" && (
-                  <p style={{ color: "red", marginTop: "6px" }}>
-                    Some documents were rejected. Please re-upload corrected versions.
-                  </p>
-                )}
-
-                {deal.readinessStatus === "LOCKED" && (deal.docsMissing?.length ?? 0) > 0 && (
-                  <div style={{ marginTop: "10px" }}>
-                    <strong style={{ color: "red" }}>Missing Documents:</strong>
-                    <p style={{ marginTop: "6px", marginBottom: "6px" }}>
-                      {deal.docsMissing?.length} documents required to unlock submission
-                    </p>
-                    <ul>
-                      {deal.docsMissing?.map((doc) => (
-                        <li key={doc}>🔴 {DOCUMENT_LABELS[doc] || doc}</li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-
-                {deal.readinessStatus === "AT_RISK" && (
-                  <p style={{ color: "#856404", marginTop: "6px" }}>
-                    Some documents are still under review
-                  </p>
-                )}
-
-                {deal.readinessStatus === "READY" && (
-                  <p style={{ color: "green", marginTop: "6px" }}>
-                    Ready for tender submission
-                  </p>
-                )}
-
-                <div style={{ marginTop: "10px" }}>
-                  <strong>Templates:</strong>
-                  <div style={{ marginTop: "6px" }}>{getTemplates(deal).join(", ")}</div>
-                </div>
-
-                <button
-                  type="button"
-                  disabled={deal.isTenderLocked || generatingId === deal.id}
-                  onClick={() => {
-                    if (deal.isTenderLocked) return;
-                    void generateTenderPack(deal);
-                  }}
-                  style={{
-                    marginTop: "10px",
-                    opacity: deal.isTenderLocked || generatingId === deal.id ? 0.5 : 1,
-                    cursor:
-                      deal.isTenderLocked || generatingId === deal.id ? "not-allowed" : "pointer",
-                  }}
-                >
-                  {generatingId === deal.id
-                    ? "Generating..."
-                    : deal.isTenderLocked
-                      ? "Locked - Fix Documents First"
-                      : "Generate Tender Pack"}
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => void handlePreview(deal.id)}
-                  style={{ marginTop: "10px", marginLeft: "10px" }}
-                >
-                  Preview Pack
-                </button>
-
-                {deal.readinessStatus === "LOCKED" && (
-                  <button
-                    type="button"
-                    onClick={() => router.push("/dashboard/documents")}
-                    style={{ marginTop: "10px", marginLeft: "10px" }}
-                  >
-                    Upload Required Documents
-                  </button>
-                )}
-
-                {role === "admin" && (
-                  <div style={{ marginTop: "12px" }}>
-                    <strong>Template Override</strong>
-                    {TEMPLATE_OPTIONS.map((tpl) => (
-                      <label key={tpl} style={{ display: "block", marginTop: "4px" }}>
-                        <input
-                          type="checkbox"
-                          checked={deal.templateOverride?.includes(tpl) || false}
-                          onChange={(event) =>
-                            void handleTemplateToggle(deal.id, tpl, event.target.checked)
-                          }
-                        />{" "}
-                        {tpl}
-                      </label>
-                    ))}
-                  </div>
-                )}
-
-                {/* ACTIONS */}
-                {!isFinal &&
-                  ["admin", "staff", "manager"].includes(role || "") && (
-                    <div style={{ marginTop: "10px" }}>
-                      <button
-                        onClick={() =>
-                          updateStatus(deal.id, "approved")
-                        }
-                        disabled={updatingId === deal.id}
-                        style={{
-                          marginRight: "10px",
-                          opacity:
-                            updatingId === deal.id ? 0.6 : 1,
-                        }}
-                      >
-                        {updatingId === deal.id
-                          ? "Processing..."
-                          : "Approve"}
-                      </button>
-
-                      <button
-                        onClick={() =>
-                          updateStatus(deal.id, "rejected")
-                        }
-                        disabled={updatingId === deal.id}
-                        style={{
-                          opacity:
-                            updatingId === deal.id ? 0.6 : 1,
-                        }}
-                      >
-                        Reject
-                      </button>
-                    </div>
-                  )}
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      {previewOpen && previewData && previewDealId && (
-        <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(0, 0, 0, 0.45)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: "24px",
-            zIndex: 1000,
-          }}
-        >
-          <div
-            style={{
-              background: "#fff",
-              borderRadius: "12px",
-              padding: "20px",
-              width: "100%",
-              maxWidth: "520px",
-              boxShadow: "0 12px 40px rgba(0,0,0,0.18)",
-            }}
-          >
-            <h3>Template Preview</h3>
-            <p>
-              <strong>Deal Type:</strong> {previewData.dealType || "unknown"}
-            </p>
-            <p>
-              <strong>Template Count:</strong> {previewData.templateCount ?? previewData.templates.length}
-            </p>
-            <ul>
-              {previewData.templates.map((tpl) => (
-                <li key={tpl}>{tpl}</li>
+          {Array.isArray(deal.missingDocs) && deal.missingDocs.length > 0 && (
+            <ul className="mt-2 list-disc pl-5 text-sm text-amber-700">
+              {deal.missingDocs.map((doc) => (
+                <li key={doc}>Missing: {doc}</li>
               ))}
             </ul>
-            <div style={{ marginTop: "16px", display: "flex", gap: "10px" }}>
-              <button type="button" onClick={() => void handlePreviewPDF(previewDealId)}>
-                View PDF Preview
-              </button>
-              <button type="button" onClick={() => setPreviewOpen(false)}>
-                Close
-              </button>
+          )}
+
+          {Array.isArray(deal.suggestions) && deal.suggestions.length > 0 && (
+            <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 p-3 text-amber-900">
+              <strong>Action Required:</strong>
+              <ul className="mt-2 list-disc pl-5 text-sm">
+                {deal.suggestions.map((suggestion, index) => (
+                  <li key={index}>{suggestion}</li>
+                ))}
+              </ul>
             </div>
+          )}
+
+          {deal.aiInsights ? (
+            <div className="mt-3 rounded-md border border-cyan-200 bg-cyan-50 p-3 text-cyan-900">
+              <strong>AI Insight:</strong>
+              <p className="mt-2 whitespace-pre-line text-sm">{deal.aiInsights}</p>
+            </div>
+          ) : null}
+
+          <div className="flex gap-3 mt-4">
+            {permissions.canGeneratePack && (
+              <button
+                onClick={() => handleGenerate(deal)}
+                disabled={isLocked}
+                className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+                title={isLocked ? "Generate Tender Pack unlocks at 60% readiness" : undefined}
+              >
+                Generate Tender Pack
+              </button>
+            )}
+
+            <button
+              onClick={() => handlePreviewPDF(deal)}
+              className="bg-gray-800 text-white px-4 py-2 rounded hover:bg-gray-900"
+            >
+              Preview Pack
+            </button>
+
+            <button
+              onClick={() => void downloadPack(deal.id)}
+              className="bg-slate-700 text-white px-4 py-2 rounded hover:bg-slate-800"
+            >
+              Download Pack
+            </button>
+
+            <button
+              onClick={() => void emailPack(deal.id)}
+              className="bg-violet-700 text-white px-4 py-2 rounded hover:bg-violet-800"
+            >
+              Email Pack
+            </button>
+
+            {permissions.canAnalyzeDeal && (
+              <button
+                onClick={() =>
+                  void runDealAnalysis(
+                    deal.id,
+                    "This tender requires tax clearance, BBBEE and COIDA."
+                  )
+                }
+                className="bg-amber-600 text-white px-4 py-2 rounded hover:bg-amber-700"
+              >
+                Analyze Deal
+              </button>
+            )}
+
+            {permissions.canUploadDocs && (
+              <input
+                type="file"
+                accept="application/pdf"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) {
+                    void uploadAndAnalyze(deal.id, file);
+                    e.currentTarget.value = "";
+                  }
+                }}
+                className="block text-sm"
+              />
+            )}
           </div>
+              </>
+            );
+          })()}
         </div>
-      )}
+      ))}
     </div>
   );
 }

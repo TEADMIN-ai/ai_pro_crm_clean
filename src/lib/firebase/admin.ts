@@ -51,7 +51,7 @@ function resolveStorageBucket(projectId: string | undefined) {
     return configuredBucket;
   }
 
-  return projectId ? `${projectId}.firebasestorage.app` : undefined;
+  return projectId ? `${projectId}.appspot.com` : undefined;
 }
 
 function emitBootLog(validation: FirebaseEnvValidationResult) {

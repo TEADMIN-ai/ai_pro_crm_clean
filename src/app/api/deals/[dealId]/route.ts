@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { AuthorizationError, assertCanAccessContractor, requireAuthorizedUser } from "@/lib/server/authz";
+import {
+  AuthorizationError,
+  assertCanAccessContractor,
+  assertPrivilegedRole,
+  requireAuthorizedUser,
+} from "@/lib/server/authz";
 import { getDealAnalyticsState, getDealById } from "@/server/services/dealService";
-import { adminAuth, adminDb } from "@/lib/firebaseAdmin";
+import { adminDb } from "@/lib/firebaseAdmin";
 
 export async function GET(
   request: NextRequest,
@@ -37,27 +42,8 @@ export async function PATCH(
   context: { params: Promise<{ dealId: string }> },
 ) {
   try {
-    const authHeader = req.headers.get("authorization");
-
-    if (!authHeader?.startsWith("Bearer ")) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const token = authHeader.split("Bearer ")[1];
-    const decoded = await adminAuth.verifyIdToken(token);
-    const uid = decoded.uid;
-
-    const userDoc = await adminDb.collection("users").doc(uid).get();
-
-    if (!userDoc.exists) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 });
-    }
-
-    const { role } = userDoc.data() || {};
-
-    if (!["admin", "staff", "manager"].includes(role)) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    }
+    const actor = await requireAuthorizedUser(req);
+    assertPrivilegedRole(actor);
 
     const { status } = await req.json();
 
@@ -74,6 +60,10 @@ export async function PATCH(
 
     return NextResponse.json({ success: true });
   } catch (err) {
+    if (err instanceof AuthorizationError) {
+      return NextResponse.json({ error: err.message }, { status: err.status });
+    }
+
     console.error("PATCH DEAL ERROR:", err);
     return NextResponse.json({ error: "Failed" }, { status: 500 });
   }

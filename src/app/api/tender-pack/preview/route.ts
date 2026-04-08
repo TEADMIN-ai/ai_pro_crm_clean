@@ -1,42 +1,49 @@
 import { NextRequest, NextResponse } from "next/server";
+import { AuthorizationError, requireAuthorizedUser } from "@/lib/server/authz";
 
-import { adminAuth, adminDb } from "@/lib/firebaseAdmin";
-import { getTemplates } from "@/lib/pdf/mergeTenderPack";
-
-export async function GET(req: NextRequest) {
+export async function POST(req: NextRequest) {
   try {
-    const authHeader = req.headers.get("authorization");
-    if (!authHeader?.startsWith("Bearer ")) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const user = await requireAuthorizedUser(req);
+
+    if (!user.role) {
+      return NextResponse.json({ error: "Invalid role" }, { status: 403 });
     }
 
-    const token = authHeader.split("Bearer ")[1];
-    await adminAuth.verifyIdToken(token);
+    const body = await req.json();
+    const { dealId, contractorId } = body;
 
-    const dealId = req.nextUrl.searchParams.get("dealId");
-    if (!dealId) {
-      return NextResponse.json({ error: "Missing dealId" }, { status: 400 });
+    if (!dealId || !contractorId) {
+      return new NextResponse("Missing deal or contractor data", {
+        status: 400,
+      });
     }
 
-    const dealSnap = await adminDb.collection("deals").doc(dealId).get();
-    if (!dealSnap.exists) {
-      return NextResponse.json({ error: "Deal not found" }, { status: 404 });
-    }
+    console.log("PREVIEW REQUEST:", { dealId, contractorId });
 
-    const deal = dealSnap.data() ?? {};
-    const templates = getTemplates(deal);
+    const pdfContent = `
+      Tender Preview
 
-    return NextResponse.json({
-      success: true,
-      templates,
-      templateCount: templates.length,
-      dealType: typeof deal.type === "string" && deal.type.trim().length > 0 ? deal.type : "unknown",
+      Deal ID: ${dealId}
+      Contractor ID: ${contractorId}
+
+      (PDF engine not yet connected)
+    `;
+
+    const buffer = Buffer.from(pdfContent, "utf-8");
+
+    return new NextResponse(buffer, {
+      headers: {
+        "Content-Type": "application/pdf",
+        "Content-Disposition": "inline; filename=preview.pdf",
+      },
     });
-  } catch (err: any) {
-    console.error("PREVIEW ERROR:", err);
-    return NextResponse.json(
-      { error: err?.message || "Preview failed" },
-      { status: 500 }
-    );
+  } catch (err) {
+    if (err instanceof AuthorizationError) {
+      return NextResponse.json({ error: err.message }, { status: err.status });
+    }
+
+    console.error("PREVIEW API ERROR:", err);
+
+    return new NextResponse("Server error", { status: 500 });
   }
 }

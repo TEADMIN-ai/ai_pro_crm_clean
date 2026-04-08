@@ -1,27 +1,33 @@
-import { auth } from "@/lib/firebase";
+import { getAuth } from "firebase/auth";
 
-function getStoredAuthToken(): string | null {
-  if (typeof window === "undefined" || typeof localStorage === "undefined") {
-    return null;
+export async function authFetch(url: string, options: RequestInit = {}) {
+  const auth = getAuth();
+  const user = auth.currentUser;
+
+  if (!user) {
+    throw new Error("User not authenticated");
   }
 
-  const token = localStorage.getItem("authToken");
-  return typeof token === "string" && token.trim() ? token.trim() : null;
-}
+  const token = await user.getIdToken(true);
+  const headers = new Headers(options.headers);
+  const hasContentType = headers.has("Content-Type");
+  const isFormDataBody = typeof FormData !== "undefined" && options.body instanceof FormData;
 
-export async function authFetch(
-  input: RequestInfo | URL,
-  init?: RequestInit
-): Promise<Response> {
-  const headers = new Headers(init?.headers ?? {});
-  const token = auth.currentUser ? await auth.currentUser.getIdToken(true) : getStoredAuthToken();
+  headers.set("Authorization", `Bearer ${token}`);
 
-  if (token) {
-    headers.set("Authorization", `Bearer ${token}`);
+  if (!hasContentType && !isFormDataBody) {
+    headers.set("Content-Type", "application/json");
   }
 
-  return fetch(input, {
-    ...init,
+  const res = await fetch(url, {
+    ...options,
     headers,
   });
+
+  if (!res.ok) {
+    const errorText = await res.text();
+    throw new Error(`API Error: ${errorText}`);
+  }
+
+  return res;
 }

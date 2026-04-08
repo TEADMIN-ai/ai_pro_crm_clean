@@ -1,9 +1,12 @@
 import { NextRequest } from "next/server";
 import { getFirebaseAdmin } from "@/lib/firebase/admin";
+import { AuthorizationError, assertPrivilegedRole, requireAuthorizedUser } from "@/lib/server/authz";
 
 export async function PATCH(request: NextRequest) {
   try {
-    const userId = request.headers.get("x-user-id") || "system";
+    const user = await requireAuthorizedUser(request);
+    assertPrivilegedRole(user);
+    const userId = user.uid;
 
     // BULLETPROOF PARAM EXTRACTION
     const url = new URL(request.url);
@@ -66,6 +69,10 @@ export async function PATCH(request: NextRequest) {
       { status: 200 }
     );
   } catch (error) {
+    if (error instanceof AuthorizationError) {
+      return new Response(JSON.stringify({ error: error.message }), { status: error.status });
+    }
+
     console.error("Status update failed:", error);
 
     return new Response(

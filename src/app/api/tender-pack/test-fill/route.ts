@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAuth } from "firebase-admin/auth";
 import { getStorage } from "firebase-admin/storage";
 
 import { getFirebaseAdmin } from "@/lib/firebase/admin";
+import { AuthorizationError, assertPrivilegedRole, requireAuthorizedUser } from "@/lib/server/authz";
 import { buildCompanyProfile } from "@/lib/autofill/buildCompanyProfile";
 import { fillTenderPack } from "@/lib/pdfs/empirePdfFill";
 import { SBD_TEMPLATE_KEYS, type SbdFormKey } from "@/lib/pdfs/templates/sbdSchema";
@@ -19,28 +19,10 @@ function jsonError(message: string, status: number) {
   return NextResponse.json({ error: message }, { status });
 }
 
-async function requireAdmin(request: NextRequest): Promise<{ uid: string }> {
-  const authHeader = request.headers.get("authorization") ?? "";
-  const token = authHeader.startsWith("Bearer ")
-    ? authHeader.slice("Bearer ".length).trim()
-    : "";
-
-  if (!token) {
-    throw new Error("Missing Authorization token");
-  }
-
-  const decoded = await getAuth().verifyIdToken(token);
-  const role = typeof decoded.role === "string" ? decoded.role : "";
-  if (role !== "admin") {
-    throw new Error("Forbidden");
-  }
-
-  return { uid: decoded.uid };
-}
-
 export async function POST(request: NextRequest) {
   try {
-    const { uid } = await requireAdmin(request);
+    const user = await requireAuthorizedUser(request);
+    assertPrivilegedRole(user);
     const body = (await request.json()) as TestFillBody;
 
     const contractorId = typeof body.contractorId === "string" ? body.contractorId.trim() : "";
@@ -95,22 +77,18 @@ export async function POST(request: NextRequest) {
         storagePath,
         contractorId,
         templateKey,
-        generatedBy: uid,
+        generatedBy: user.uid,
         missingFields: profile.missingFields,
         warnings: fillResult.warnings,
       },
       { status: 200 }
     );
   } catch (error) {
-    console.error("Tender pack test fill failed:", error);
+    if (error instanceof AuthorizationError) {
+      return jsonError(error.message, error.status);
+    }
 
-    const message = error instanceof Error ? error.message : "Internal server error";
-    if (message === "Missing Authorization token") {
-      return jsonError(message, 401);
-    }
-    if (message === "Forbidden") {
-      return jsonError(message, 403);
-    }
+    console.error("Tender pack test fill failed:", error);
 
     return jsonError("Failed to test-fill tender pack", 500);
   }

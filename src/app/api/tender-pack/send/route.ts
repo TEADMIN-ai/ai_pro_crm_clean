@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Resend } from "resend";
+import { AuthorizationError, requireAuthorizedUser } from "@/lib/server/authz";
 
 console.log("RESEND KEY:", process.env.RESEND_API_KEY);
 
@@ -7,6 +8,12 @@ const resend = new Resend(process.env.RESEND_API_KEY);
 
 export async function POST(req: NextRequest) {
   try {
+    const user = await requireAuthorizedUser(req);
+
+    if (!user.role) {
+      return NextResponse.json({ error: "Invalid role" }, { status: 403 });
+    }
+
     const { email, pdfBase64 } = await req.json();
 
     if (!email || !pdfBase64) {
@@ -36,6 +43,10 @@ export async function POST(req: NextRequest) {
       response,
     });
   } catch (error) {
+    if (error instanceof AuthorizationError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
+
     console.error("RESEND ERROR:", error);
 
     return NextResponse.json(

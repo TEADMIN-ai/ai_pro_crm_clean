@@ -1,59 +1,51 @@
-export type DealStatus =
-  | "draft"
-  | "submitted"
-  | "under_review"
-  | "awaiting_contractor_approval"
-  | "approved"
-  | "rejected"
-  | "archived";
+import type { DealStage } from "@/types/deal";
+import type { UserRole as AppUserRole } from "@/lib/auth/roleUtils";
 
-export type UserRole =
-  | "admin"
-  | "manager"
-  | "staff"
-  | "contractor";
+export type DealStatus = DealStage;
+export type UserRole = Extract<AppUserRole, "admin" | "manager" | "staff" | "contractor">;
 
 type TransitionMap = {
-  [role in UserRole]: {
-    [status in DealStatus]?: DealStatus[];
-  } | "ANY";
+  [role in UserRole]:
+    | Partial<Record<DealStage, DealStage[]>>
+    | "ANY";
 };
 
-export const dealStatusTransitions: TransitionMap = {
-  contractor: {
-    draft: ["submitted"],
-    rejected: ["draft"],
-    approved: ["archived"],
-    awaiting_contractor_approval: ["approved"]
-  },
-
-  staff: {
-    submitted: ["under_review"]
-  },
-
+export const dealStageTransitions: TransitionMap = {
+  admin: "ANY",
   manager: {
-    under_review: [
-      "awaiting_contractor_approval",
-      "rejected"
-    ]
+    draft: ["in_review", "submitted", "rejected"],
+    lead: ["pricing", "manager_review", "rejected"],
+    in_review: ["submitted", "awarded", "won", "rejected", "lost"],
+    pricing: ["manager_review", "submitted", "rejected"],
+    manager_review: ["submitted", "awarded", "won", "rejected", "lost"],
+    submitted: ["awarded", "won", "rejected", "lost", "closed"],
+    awarded: ["closed"],
+    won: ["closed"],
+    rejected: ["draft", "closed"],
+    lost: ["closed"],
   },
-
-  admin: "ANY"
+  staff: {
+    draft: ["in_review", "submitted"],
+    lead: ["pricing", "manager_review"],
+    in_review: ["submitted"],
+    pricing: ["manager_review", "submitted"],
+    manager_review: ["submitted"],
+    rejected: ["draft"],
+  },
+  contractor: {},
 };
 
 export function isValidTransition(
   role: UserRole,
-  currentStatus: DealStatus,
-  nextStatus: DealStatus
+  currentStage: DealStage,
+  nextStage: DealStage,
 ): boolean {
-  const roleRules = dealStatusTransitions[role];
+  const roleRules = dealStageTransitions[role];
 
-  if (roleRules === "ANY") return true;
+  if (roleRules === "ANY") {
+    return true;
+  }
 
-  const allowed = roleRules[currentStatus];
-
-  if (!allowed) return false;
-
-  return allowed.includes(nextStatus);
+  const allowed = roleRules[currentStage];
+  return Array.isArray(allowed) && allowed.includes(nextStage);
 }
-

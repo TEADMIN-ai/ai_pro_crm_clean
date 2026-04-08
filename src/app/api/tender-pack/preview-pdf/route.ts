@@ -1,18 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { adminAuth, adminDb } from "@/lib/firebaseAdmin";
+import { adminDb } from "@/lib/firebaseAdmin";
+import { AuthorizationError, assertPrivilegedRole, requireAuthorizedUser } from "@/lib/server/authz";
 import { generateMergedPack } from "@/lib/pdf/mergeTenderPack";
 
 export async function GET(req: NextRequest) {
   try {
-    const authHeader = req.headers.get("authorization");
-    const token = authHeader?.split("Bearer ")[1];
-
-    if (!token) {
-      return new NextResponse("Unauthorized", { status: 401 });
-    }
-
-    await adminAuth.verifyIdToken(token);
+    const user = await requireAuthorizedUser(req);
+    assertPrivilegedRole(user);
 
     const dealId = req.nextUrl.searchParams.get("dealId");
     if (!dealId) {
@@ -47,8 +42,13 @@ export async function GET(req: NextRequest) {
         "Content-Type": "application/pdf",
       },
     });
-  } catch (err: any) {
+  } catch (err: unknown) {
+    if (err instanceof AuthorizationError) {
+      return NextResponse.json({ error: err.message }, { status: err.status });
+    }
+
     console.error("PREVIEW PDF ERROR:", err);
-    return new NextResponse(err?.message || "Preview PDF failed", { status: 500 });
+    const message = err instanceof Error ? err.message : "Preview PDF failed";
+    return new NextResponse(message, { status: 500 });
   }
 }

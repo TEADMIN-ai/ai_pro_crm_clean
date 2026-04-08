@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 
 import Card from "@/components/ui/Card";
 import { useAuth } from "@/context/AuthContext";
+import { authFetch } from "@/lib/client/authFetch";
 import { getContractorDocuments } from "@/lib/contractors/getContractorDocuments";
 import { API_ROUTES } from "@/lib/routes";
 import type { ContractorDocument } from "@/types/document";
@@ -89,23 +90,16 @@ export default function DocumentExecutionPanel() {
     }
 
     console.log("Executing document analysis for ID:", documentId);
-    const token = await user.getIdToken(true);
     const query = new URLSearchParams({
       contractorId: targetContractorId,
       documentType,
     });
-    const response = await fetch(`${API_ROUTES.DOCUMENT_EXECUTE(documentId)}?${query.toString()}`, {
+    const response = await authFetch(`${API_ROUTES.DOCUMENT_EXECUTE(documentId)}?${query.toString()}`, {
       method: "GET",
       headers: {
-        Authorization: `Bearer ${token}`,
         Accept: "application/json",
       },
     });
-
-    if (!response.ok) {
-      const text = await response.text();
-      throw new Error(text || "Failed to prepare document execution");
-    }
 
     const payload = (await response.json()) as ExecutionPayload;
 

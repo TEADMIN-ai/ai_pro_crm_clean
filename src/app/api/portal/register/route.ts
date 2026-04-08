@@ -1,8 +1,15 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { createContractor } from "@/server/services/contractorService";
+import { AuthorizationError, requireAuthorizedUser } from "@/lib/server/authz";
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
   try {
+    const user = await requireAuthorizedUser(req);
+
+    if (!user.role) {
+      return NextResponse.json({ success: false, error: "Invalid role" }, { status: 403 });
+    }
+
     const body = await req.json();
 
     const contractor = {
@@ -21,6 +28,10 @@ export async function POST(req: Request) {
     });
 
   } catch (error) {
+    if (error instanceof AuthorizationError) {
+      return NextResponse.json({ success: false, error: error.message }, { status: error.status });
+    }
+
     return NextResponse.json({
       success: false,
       error: "Registration failed"

@@ -4,11 +4,15 @@ import type { Deal, DealStage } from "../../types/deal";
  * Revenue weighting model for Tender lifecycle.
  */
 export const STAGE_WEIGHTS: Record<DealStage, number> = {
+  draft: 0.05,
   lead: 0.1,
+  in_review: 0.4,
   pricing: 0.3,
   manager_review: 0.5,
   submitted: 0.7,
+  awarded: 1,
   won: 1,
+  rejected: 0,
   lost: 0,
   closed: 1,
 };

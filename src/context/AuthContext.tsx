@@ -5,6 +5,7 @@ import { createContext, useContext, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { auth } from "@/lib/firebase";
 import type { UserRole } from "@/lib/auth/roleUtils";
+import { authFetch } from "@/lib/client/authFetch";
 import {
   normalizeContractorId,
   normalizeRole,
@@ -40,7 +41,7 @@ function mergeFirebaseUser(firebaseUser: FirebaseUser, profile: UserProfile): Au
 }
 
 async function syncServerSession(token: string): Promise<void> {
-  const response = await fetch(API_ROUTES.AUTH_LOGIN, {
+  await authFetch(API_ROUTES.AUTH_LOGIN, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -48,14 +49,14 @@ async function syncServerSession(token: string): Promise<void> {
     credentials: "include",
     body: JSON.stringify({ idToken: token }),
   });
-
-  if (!response.ok) {
-    throw new Error(`Session sync failed with status ${response.status}`);
-  }
 }
 
 async function clearServerSession(): Promise<void> {
-  await fetch(API_ROUTES.AUTH_LOGOUT, {
+  if (!auth.currentUser) {
+    return;
+  }
+
+  await authFetch(API_ROUTES.AUTH_LOGOUT, {
     method: "POST",
     credentials: "include",
   });
@@ -78,10 +79,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setLoading(true);
 
       if (!firebaseUser) {
-        await clearServerSession().catch((error) => {
-          console.error("Server session clear failed:", error);
-        });
-
         if (!isActive) {
           return;
         }
@@ -100,14 +97,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           console.error("Auth session sync failed:", error);
         });
 
-        const res = await fetch(API_ROUTES.SYNC_ROLE, {
+        const res = await authFetch(API_ROUTES.SYNC_ROLE, {
           method: "POST",
           credentials: "include",
         });
-
-        if (!res.ok) {
-          throw new Error(`Role sync failed with status ${res.status}`);
-        }
 
         const data = await res.json();
 
@@ -147,8 +140,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = async () => {
     try {
-      await signOut(auth);
       await clearServerSession();
+      await signOut(auth);
     } finally {
       setUser(null);
       setRole("guest");

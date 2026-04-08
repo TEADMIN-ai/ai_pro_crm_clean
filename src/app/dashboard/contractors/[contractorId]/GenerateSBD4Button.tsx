@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { authFetch } from "@/lib/client/authFetch";
 import { API_ROUTES } from "@/lib/routes";
 
 type ContractorPayload = {
@@ -25,17 +26,13 @@ export default function GenerateSBD4Button({ contractor }: Props) {
     setIsGenerating(true);
 
     try {
-      const res = await fetch(API_ROUTES.SBD4_GENERATE, {
+      const res = await authFetch(API_ROUTES.SBD4_GENERATE, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify(data),
       });
-
-      if (!res.ok) {
-        throw new Error(`Failed to generate SBD4 (${res.status})`);
-      }
 
       const blob = await res.blob();
       const url = window.URL.createObjectURL(blob);

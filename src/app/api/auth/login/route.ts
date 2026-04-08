@@ -1,10 +1,13 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getAdminAuth, SESSION_COOKIE_EXPIRES_IN_MS } from "@/lib/firebase/admin";
+import { requireAuth } from "@/lib/server/requireAuth";
 
 export const runtime = "nodejs";
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   try {
+    await requireAuth(request);
+
     console.log("LOGIN START");
 
     const { idToken } = (await request.json()) as { idToken?: string };
@@ -45,13 +48,14 @@ export async function POST(request: Request) {
     console.error("LOGIN ERROR:", error);
 
     const details = error instanceof Error ? error.message : "Unknown error";
+    const status = details === "Unauthorized" || details === "Invalid token" ? 401 : 500;
 
     return NextResponse.json(
       {
         error: "Session creation failed",
         details,
       },
-      { status: 500 }
+      { status }
     );
   }
 }

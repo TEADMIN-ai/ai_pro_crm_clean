@@ -29,11 +29,15 @@ function normalizeOptionalNumber(value: unknown): number | undefined {
 
 function normalizeStage(stage: unknown): Deal["stage"] {
   const allowed: Deal["stage"][] = [
+    "draft",
     "lead",
+    "in_review",
     "pricing",
     "manager_review",
     "submitted",
+    "awarded",
     "won",
+    "rejected",
     "lost",
     "closed",
   ];

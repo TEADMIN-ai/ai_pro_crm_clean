@@ -1,15 +1,17 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getAuth } from "firebase/auth";
 import { API_ROUTES } from "@/lib/apiRoutes";
+import { authFetch } from "@/lib/client/authFetch";
 
 type Contractor = {
   id: string;
+  name?: string;
+  company?: string;
   companyName?: string;
-  companyRegistrationNumber?: string;
-  email?: string;
-  phone?: string;
+  companyRegistrationNumber?: string | null;
+  email?: string | null;
+  phone?: string | null;
   status?: string;
 };
 
@@ -18,43 +20,48 @@ export default function ContractorsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchContractors = async () => {
+  async function loadContractors() {
     try {
       setLoading(true);
       setError(null);
 
-      const auth = getAuth();
-      const user = auth.currentUser;
+      const res = await authFetch(API_ROUTES.CONTRACTORS);
 
-      if (!user) {
-        throw new Error("User not logged in");
-      }
-
-      const token = await user.getIdToken();
-
-      const res = await fetch(API_ROUTES.CONTRACTORS, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      if (!res.ok) {
-        const data = await res.json().catch(() => null);
-        throw new Error(data?.error || "Failed to fetch contractors");
-      }
-
-      const data = await res.json();
-      setContractors(data.contractors || []);
-    } catch (err: any) {
-      console.error("CONTRACTORS FETCH ERROR:", err);
-      setError(err.message);
+      const data = (await res.json()) as Contractor[];
+      setContractors(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error(" FRONTEND FETCH ERROR:", err);
+      setError(err instanceof Error ? err.message : "Failed to fetch contractors");
     } finally {
       setLoading(false);
     }
-  };
+  }
+
+  async function createContractor(data: {
+    name: string;
+    email: string;
+    phone?: string;
+    company?: string;
+  }) {
+    try {
+      const res = await authFetch(API_ROUTES.CONTRACTORS, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(data),
+      });
+
+      const newContractor = (await res.json()) as Contractor;
+
+      setContractors((prev) => [newContractor, ...prev]);
+    } catch (err) {
+      console.error(" CREATE CONTRACTOR ERROR:", err);
+    }
+  }
 
   useEffect(() => {
-    fetchContractors();
+    void loadContractors();
   }, []);
 
   return (
@@ -62,6 +69,18 @@ export default function ContractorsPage() {
       <h1 style={{ fontSize: "24px", fontWeight: "bold" }}>
         Contractors
       </h1>
+
+      <button
+        onClick={() =>
+          void createContractor({
+            name: "Test Contractor",
+            email: "test@demo.com",
+          })
+        }
+        style={{ marginTop: "12px", marginBottom: "12px" }}
+      >
+        Add Test Contractor
+      </button>
 
       {error && (
         <p style={{ color: "red", marginTop: "10px" }}>
@@ -77,7 +96,7 @@ export default function ContractorsPage() {
         <ul style={{ marginTop: "20px" }}>
           {contractors.map((contractor) => (
             <li key={contractor.id} style={{ marginBottom: "10px" }}>
-              <strong>{contractor.companyName || contractor.id}</strong> <br />
+              <strong>{contractor.companyName || contractor.company || contractor.name || contractor.id}</strong> <br />
               Registration: {contractor.companyRegistrationNumber || "-"} <br />
               Email: {contractor.email || "-"} <br />
               Phone: {contractor.phone || "-"} <br />

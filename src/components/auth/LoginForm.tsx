@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { getAuth, signInWithEmailAndPassword } from "firebase/auth";
+import { authFetch } from "@/lib/client/authFetch";
 import { API_ROUTES } from "@/lib/routes";
 
 const POST_LOGIN_BOOT_KEY = "show_ai_boot";
@@ -24,7 +25,7 @@ export default function LoginForm() {
     try {
       const credential = await signInWithEmailAndPassword(auth, email, password);
       const idToken = await credential.user.getIdToken(true);
-      const response = await fetch(API_ROUTES.AUTH_LOGIN, {
+      await authFetch(API_ROUTES.AUTH_LOGIN, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -32,10 +33,6 @@ export default function LoginForm() {
         credentials: "include",
         body: JSON.stringify({ idToken }),
       });
-
-      if (!response.ok) {
-        throw new Error("Failed to create server session");
-      }
 
       window.sessionStorage.setItem(POST_LOGIN_BOOT_KEY, "true");
       router.replace("/dashboard");

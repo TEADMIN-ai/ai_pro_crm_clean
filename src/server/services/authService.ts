@@ -79,13 +79,8 @@ export async function createSessionCookie(idToken: string) {
 }
 
 async function decodeBootstrapToken(input: {
-  bearerToken?: string;
   sessionCookie?: string;
 }): Promise<DecodedIdToken | null> {
-  if (input.bearerToken) {
-    return getAdminAuth().verifyIdToken(input.bearerToken);
-  }
-
   if (input.sessionCookie) {
     return verifySessionValue(input.sessionCookie);
   }
@@ -94,7 +89,6 @@ async function decodeBootstrapToken(input: {
 }
 
 export async function getBootstrapUser(input: {
-  bearerToken?: string;
   sessionCookie?: string;
 }): Promise<BootstrapUser | null> {
   const decoded = await decodeBootstrapToken(input);

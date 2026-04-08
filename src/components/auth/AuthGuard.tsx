@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
+import { authFetch } from "@/lib/client/authFetch";
 import { API_ROUTES } from "@/lib/routes";
 
 type SessionDebugResponse = {
@@ -32,7 +33,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
       }
 
       try {
-        const response = await fetch(API_ROUTES.AUTH_DEBUG, {
+        const response = await authFetch(API_ROUTES.AUTH_DEBUG, {
           method: "GET",
           cache: "no-store",
           credentials: "include",

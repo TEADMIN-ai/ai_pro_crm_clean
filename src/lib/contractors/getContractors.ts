@@ -1,4 +1,4 @@
-import { API_ROUTES } from "@/lib/routes";
+import { API_ROUTES } from "@/lib/apiRoutes";
 import { authFetch } from "@/lib/client/authFetch";
 import type { Contractor } from "@/types/contractor";
 
@@ -48,14 +48,18 @@ export async function getContractors(): Promise<Contractor[]> {
   }
 
   const payload: unknown = await response.json();
-  if (
-    typeof payload !== "object" ||
-    payload === null ||
-    !Array.isArray((payload as { contractors?: unknown[] }).contractors)
-  ) {
+  const source =
+    Array.isArray(payload)
+      ? payload
+      : typeof payload === "object" &&
+          payload !== null &&
+          Array.isArray((payload as { contractors?: unknown[] }).contractors)
+        ? (payload as { contractors: unknown[] }).contractors
+        : null;
+
+  if (!source) {
     throw new Error("Malformed contractor response");
   }
-  const source = (payload as { contractors: unknown[] }).contractors;
 
   return source.map((item: unknown) => {
     const id = getString(item, "id") ?? "";

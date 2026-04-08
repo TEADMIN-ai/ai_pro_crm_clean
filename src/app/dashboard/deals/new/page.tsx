@@ -26,15 +26,18 @@ export default function NewDealPage() {
         }
 
         const data = (await response.json()) as unknown;
-        if (
-          typeof data !== "object" ||
-          data === null ||
-          !Array.isArray((data as { contractors?: unknown[] }).contractors)
-        ) {
+        const source =
+          Array.isArray(data)
+            ? data
+            : typeof data === "object" &&
+                data !== null &&
+                Array.isArray((data as { contractors?: unknown[] }).contractors)
+              ? (data as { contractors: unknown[] }).contractors
+              : null;
+
+        if (!source) {
           throw new Error("Malformed contractor response");
         }
-
-        const source = (data as { contractors: unknown[] }).contractors;
         const normalized: ContractorOption[] = source
           .map((item) => ({
             id:

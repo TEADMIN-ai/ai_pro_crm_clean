@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { authFetch } from "@/lib/client/authFetch";
 import { API_ROUTES } from "@/lib/routes";
 
 type Step =
@@ -69,7 +70,7 @@ export default function CarSalesAssistantPage() {
         setLoading(true);
 
         try {
-          const response = await fetch(API_ROUTES.LEADS, {
+          const response = await authFetch(API_ROUTES.LEADS, {
             method: "POST",
             headers: {
               "Content-Type": "application/json",

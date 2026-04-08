@@ -14,8 +14,14 @@ export function normalizeDealStage(input: unknown): DealStage {
   const value = input.trim().toLowerCase();
 
   switch (value) {
+    case "draft":
+      return "draft";
+
     case "lead":
       return "lead";
+
+    case "in_review":
+      return "in_review";
 
     case "pricing":
       return "pricing";
@@ -26,8 +32,14 @@ export function normalizeDealStage(input: unknown): DealStage {
     case "submitted":
       return "submitted";
 
+    case "awarded":
+      return "awarded";
+
     case "won":
       return "won";
+
+    case "rejected":
+      return "rejected";
 
     case "lost":
       return "lost";

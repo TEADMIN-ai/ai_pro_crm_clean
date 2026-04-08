@@ -75,7 +75,7 @@ export default function DocumentVerificationReviewPanel({
       setLoadError(null);
 
       try {
-        const response = await fetch(API_ROUTES.DEAL_DOCUMENTS(resolvedDealId), {
+        const response = await authFetch(API_ROUTES.DEAL_DOCUMENTS(resolvedDealId), {
           method: "GET",
         });
 

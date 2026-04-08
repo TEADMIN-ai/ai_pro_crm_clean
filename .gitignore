@@ -18,3 +18,4 @@ pnpm-debug.log*
 
 # TypeScript cache
 tsconfig.tsbuildinfo
+.vercel

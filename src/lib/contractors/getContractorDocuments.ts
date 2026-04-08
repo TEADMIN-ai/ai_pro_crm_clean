@@ -1,5 +1,5 @@
-import { auth } from "@/lib/firebase";
-import { API_ROUTES } from "@/lib/routes";
+import { API_ROUTES } from "@/lib/apiRoutes";
+import { authFetch } from "@/lib/client/authFetch";
 import type { ContractorDocument } from "@/types/document";
 
 type DocumentsResponse = {
@@ -10,38 +10,19 @@ type DocumentsResponse = {
 export async function getContractorDocuments(
   contractorId: string
 ): Promise<ContractorDocument[]> {
-  const user = auth.currentUser;
-
-  if (!user) {
-    throw new Error("User not authenticated");
-  }
-
-  const token = await user.getIdToken(true);
-
-  const res = await fetch(
-    API_ROUTES.CONTRACTOR_DOCUMENTS(contractorId),
-    {
-      method: "GET",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        Accept: "application/json",
-      },
-    }
-  );
-
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(
-      `API Error ${res.status}: ${text.substring(0,200)}`
-    );
-  }
+  const res = await authFetch(API_ROUTES.CONTRACTOR_DOCUMENTS(contractorId), {
+    method: "GET",
+    headers: {
+      Accept: "application/json",
+    },
+  });
 
   const contentType = res.headers.get("content-type") ?? "";
 
   if (!contentType.includes("application/json")) {
     const text = await res.text();
     throw new Error(
-      `Non-JSON API response: ${text.substring(0,200)}`
+      `Non-JSON API response: ${text.substring(0, 200)}`
     );
   }
 

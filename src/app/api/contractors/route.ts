@@ -1,126 +1,94 @@
 import { NextRequest, NextResponse } from "next/server";
-import { adminAuth, adminDb } from "@/lib/firebaseAdmin";
+import { createContractor, getContractorById, listContractors } from "@/server/services/contractorService";
 import { AuthorizationError, assertPrivilegedRole, requireAuthorizedUser } from "@/lib/server/authz";
-import { createContractor } from "@/server/services/contractorService";
 
 function getString(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
 }
 
-export async function GET(req: NextRequest) {
-  try {
-    const authHeader = req.headers.get("authorization");
-
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      return NextResponse.json(
-        { error: "Unauthorized - missing token" },
-        { status: 401 }
-      );
-    }
-
-    const token = authHeader.split("Bearer ")[1];
-    const decoded = await adminAuth.verifyIdToken(token);
-    const uid = decoded.uid;
-
-    const userDoc = await adminDb.collection("users").doc(uid).get();
-
-    if (!userDoc.exists) {
-      return NextResponse.json(
-        { error: "User not found" },
-        { status: 404 }
-      );
-    }
-
-    const userData = userDoc.data();
-    const role = userData?.role;
-    const contractorId = userData?.contractorId;
-
-    if (role === "staff" || role === "admin") {
-      const snapshot = await adminDb.collection("contractors").get();
-
-      const contractors = snapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      }));
-
-      return NextResponse.json({ contractors });
-    }
-
-    if (!contractorId) {
-      return NextResponse.json(
-        { error: "No contractor linked to user" },
-        { status: 403 }
-      );
-    }
-
-    const contractorDoc = await adminDb
-      .collection("contractors")
-      .doc(contractorId)
-      .get();
-
-    if (!contractorDoc.exists) {
-      return NextResponse.json({ contractors: [] });
-    }
-
-    return NextResponse.json({
-      contractors: [
-        {
-          id: contractorDoc.id,
-          ...contractorDoc.data(),
-        },
-      ],
-    });
-  } catch (error) {
-    console.error("CONTRACTORS API ERROR:", error);
-
-    return NextResponse.json(
-      { error: "Unauthorized or invalid token" },
-      { status: 401 }
-    );
-  }
+function isValidEmail(value: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 }
 
-export async function POST(request: NextRequest) {
+// GET - Fetch contractors
+export async function GET(request: NextRequest) {
   try {
     const user = await requireAuthorizedUser(request);
     assertPrivilegedRole(user);
 
-    const body = (await request.json()) as Record<string, unknown>;
-    const companyName = getString(body.companyName);
-    const companyRegistrationNumber = getString(body.companyRegistrationNumber);
-    const email = getString(body.email);
-    const phone = getString(body.phone);
-    const status = getString(body.status) || "pending";
-
-    if (!companyName || !companyRegistrationNumber || !email || !phone) {
-      return NextResponse.json(
-        { error: "companyName, companyRegistrationNumber, email, and phone are required" },
-        { status: 400 },
-      );
-    }
-
-    const contractorId = await createContractor(
-      {
-        companyName,
-        companyRegistrationNumber,
-        email,
-        phone,
-        status,
-        readinessScore: 0,
-        docsMissing: 0,
-        tenderLockStatus: "BLOCKED",
-        isTenderLocked: true,
-      },
-      user,
-    );
-
-    return NextResponse.json({ success: true, contractorId }, { status: 201 });
-  } catch (error) {
+    const contractors = await listContractors();
+    return NextResponse.json(contractors);
+  } catch (error: any) {
     if (error instanceof AuthorizationError) {
       return NextResponse.json({ error: error.message }, { status: error.status });
     }
 
-    console.error("POST /api/contractors error:", error);
-    return NextResponse.json({ error: "Failed to create contractor" }, { status: 500 });
+    console.error(" CONTRACTORS FETCH ERROR:", error);
+
+    return NextResponse.json(
+      { error: "Failed to fetch contractors", details: error.message },
+      { status: 500 }
+    );
+  }
+}
+
+// POST - Create contractor
+export async function POST(req: NextRequest) {
+  try {
+    const user = await requireAuthorizedUser(req);
+    assertPrivilegedRole(user);
+
+    const body = (await req.json()) as Record<string, unknown>;
+    const name = getString(body.name);
+    const email = getString(body.email);
+    const phone = getString(body.phone);
+    const company = getString(body.company);
+
+    if (!name || !email) {
+      return NextResponse.json(
+        { error: "Name and email are required" },
+        { status: 400 }
+      );
+    }
+
+    if (!isValidEmail(email)) {
+      return NextResponse.json(
+        { error: "A valid email is required" },
+        { status: 400 }
+      );
+    }
+
+    const contractorId = await createContractor({
+      name,
+      email,
+      phone,
+      company,
+      companyName: company || name,
+      contactEmail: email,
+      contactPhone: phone,
+      createdAt: Date.now(),
+    });
+
+    const createdContractor = await getContractorById(contractorId);
+
+    if (!createdContractor) {
+      return NextResponse.json(
+        { error: "Failed to load created contractor" },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json(createdContractor, { status: 201 });
+  } catch (error: any) {
+    if (error instanceof AuthorizationError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
+
+    console.error(" CONTRACTOR CREATE ERROR:", error);
+
+    return NextResponse.json(
+      { error: "Failed to create contractor", details: error.message },
+      { status: 500 }
+    );
   }
 }

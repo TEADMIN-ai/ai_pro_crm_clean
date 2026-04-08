@@ -1,6 +1,6 @@
 import { FieldPath, FieldValue } from "firebase-admin/firestore";
 import { getStorage } from "firebase-admin/storage";
-import type { Deal } from "@/types/deal";
+import type { Deal, DealStage } from "@/types/deal";
 import { normalizeDeal, resolveTenderLockStatus } from "@/lib/deals/normalizeDeal";
 import { getFirebaseAdmin } from "@/lib/firebase/admin";
 import type { AuthorizedUser } from "@/lib/server/authz";
@@ -343,24 +343,55 @@ export async function updateDealStageForRole(input: {
   }
 
   const deal = (snap.data() ?? {}) as Record<string, unknown>;
-  const currentStage = asString(deal.stage) ?? "lead";
+  const currentStage = ((asString(deal.stage) ?? "lead") as DealStage);
   const pricingStatus = asString(deal.pricingStatus) ?? "not_started";
+  const nextStage = input.nextStage as DealStage;
 
-  if (!isValidTransition(input.role as never, currentStage as never, input.nextStage as never)) {
-    throw new Error(`Invalid transition from ${currentStage} to ${input.nextStage} for role ${input.role}`);
+  if (!isValidTransition(input.role as never, currentStage, nextStage)) {
+    throw new Error(`Invalid transition from ${currentStage} to ${nextStage} for role ${input.role}`);
   }
 
-  if (input.nextStage === "approved" && pricingStatus !== "contractor_signed_off") {
-    throw new Error("Deal cannot be approved until contractor signs off pricing.");
+  if ((nextStage === "manager_review" || nextStage === "submitted") && pricingStatus === "rejected") {
+    throw new Error("Rejected pricing cannot move forward in the workflow.");
   }
 
   await dealRef.set(
-    {
-      stage: input.nextStage,
-      updatedAt: new Date(),
-    },
+    buildDealStagePersistence(nextStage),
     { merge: true },
   );
+}
+
+function buildDealStagePersistence(stage: DealStage) {
+  const now = new Date();
+
+  if (stage === "submitted") {
+    return {
+      stage,
+      status: "submitted",
+      updatedAt: now,
+    };
+  }
+
+  if (stage === "awarded" || stage === "won") {
+    return {
+      stage,
+      status: "awarded",
+      updatedAt: now,
+    };
+  }
+
+  if (stage === "rejected" || stage === "lost") {
+    return {
+      stage,
+      updatedAt: now,
+    };
+  }
+
+  return {
+    stage,
+    status: "draft",
+    updatedAt: now,
+  };
 }
 
 export async function approveDealPricing(input: { dealId: string; managerUid: string }) {

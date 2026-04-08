@@ -1,18 +1,18 @@
-rules_version = "2";
-
+rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
-    function isSignedIn() {
-      return request.auth != null;
+
+    // 🔒 Contractor Isolation
+    match /contractors/{contractorId}/{allPaths=**} {
+      allow read, write: if request.auth != null
+        && request.auth.uid == contractorId;
     }
 
-    match /contractors/{contractorId}/documents/{fileName} {
-      allow read: if isSignedIn();
-      allow write: if false;
-    }
-
+    // 🧠 Admin Full Access
     match /{allPaths=**} {
-      allow read, write: if false;
+      allow read, write: if request.auth != null
+        && request.auth.token.admin == true;
     }
+
   }
 }

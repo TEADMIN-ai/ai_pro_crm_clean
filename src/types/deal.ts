@@ -7,11 +7,15 @@
 /* ---------------------------------- */
 
 export type DealStage =
+  | "draft"
   | "lead"
+  | "in_review"
   | "pricing"
   | "manager_review"
   | "submitted"
+  | "awarded"
   | "won"
+  | "rejected"
   | "lost"
   | "closed";
 

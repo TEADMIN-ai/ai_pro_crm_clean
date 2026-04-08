@@ -3,6 +3,7 @@ import { FieldValue } from "firebase-admin/firestore";
 import { getFirebaseAdmin } from "@/lib/firebase/admin";
 import { normalizeDocsMissingCount, resolveTenderLockStatusFromScore } from "@/lib/compliance/contractorCompliance";
 import { makeDealAuditEvent } from "@/lib/deals/recordDealAudit";
+import { canSubmit } from "@/lib/permissions/tierRules";
 import { validateTenderSubmission } from "@/lib/tender/tenderLock";
 import { recalculateContractorCompliance } from "@/lib/server/recalculateContractorCompliance";
 import { AuthorizationError, assertCanAccessContractor, requireAuthorizedUser } from "@/lib/server/authz";
@@ -47,6 +48,20 @@ export async function POST(req: NextRequest) {
     if (user.role === "contractor") {
       assertCanAccessContractor(user, contractorId);
     }
+
+    const contractorRef = contractorId ? db.collection("contractors").doc(contractorId) : null;
+    const contractorSnapshot = contractorRef ? await contractorRef.get() : null;
+    const contractor = (contractorSnapshot?.data() ?? null) as
+      | { submissionsUsed?: number; submissionsLimit?: number }
+      | null;
+
+    if (contractor && !canSubmit(contractor)) {
+      return NextResponse.json(
+        { error: "Submission limit reached" },
+        { status: 403 }
+      );
+    }
+
     const compliance = contractorId
       ? await recalculateContractorCompliance(db, contractorId)
       : {
@@ -104,6 +119,13 @@ export async function POST(req: NextRequest) {
       userUid: user.uid,
     });
 
+    if (contractorRef) {
+      await contractorRef.update({
+        submissionsUsed: FieldValue.increment(1),
+        updatedAt: new Date().toISOString(),
+      });
+    }
+
     return NextResponse.json({
       success: true,
       tenderLockStatus,
@@ -114,7 +136,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: error.status });
     }
 
-    console.error(error);
+    console.error("DEAL SUBMIT ERROR:", error);
     return NextResponse.json(
       { error: "Failed to update deal" },
       { status: 500 }

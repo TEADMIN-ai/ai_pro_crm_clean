@@ -5,13 +5,20 @@ import type { Deal } from "@/types/deal";
 import { empireColors } from "@/theme/empireTheme";
 
 const COLORS: Record<string, string> = {
+  draft: "#94A3B8",
   lead: "#00F0FF",
+  in_review: "#38BDF8",
   tender: "#22D3EE",
   proposal: "#7C3AED",
   negotiation: "#A855F7",
+  pricing: "#F59E0B",
+  manager_review: "#8B5CF6",
   won: "#00FF9D",
+  awarded: "#10B981",
   lost: "#FF4D4D",
+  rejected: "#DC2626",
   closed: "#64748B",
+  submitted: "#2563EB",
 };
 
 export default function DealStageCharts({ deals }: { deals: Deal[] }) {

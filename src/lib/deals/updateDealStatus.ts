@@ -46,7 +46,7 @@ export async function updateDealStatus({
   }
 
   // 2️⃣ Pricing gate
-  if (nextStatus === "approved") {
+  if (nextStatus === "awarded" || nextStatus === "won") {
     if (pricingStatus !== "contractor_signed_off") {
       throw new Error(
         "Deal cannot be approved until contractor signs off pricing."

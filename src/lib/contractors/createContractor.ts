@@ -1,6 +1,6 @@
 import { collection, doc, setDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import type { Contractor } from "@/types/contractor";
+import type { Contractor, ContractorTier } from "@/types/contractor";
 
 export interface CreateContractorInput {
   companyName: string;
@@ -8,6 +8,9 @@ export interface CreateContractorInput {
   email: string;
   phone: string;
   status?: Contractor["status"];
+  tier?: ContractorTier;
+  submissionsUsed?: number;
+  submissionsLimit?: number;
 }
 
 function hasKey<K extends string>(value: object, key: K): value is Record<K, unknown> {
@@ -50,6 +53,26 @@ function clean(value: string): string {
   return value.trim();
 }
 
+function normalizeTier(value: ContractorTier | undefined): ContractorTier {
+  return value ?? "basic";
+}
+
+function defaultSubmissionLimitForTier(tier: ContractorTier): number {
+  switch (tier) {
+    case "bronze":
+      return 5;
+    case "silver":
+      return 15;
+    case "gold":
+      return 50;
+    case "platinum":
+      return 250;
+    case "basic":
+    default:
+      return 1;
+  }
+}
+
 export async function createContractor(
   input: CreateContractorInput,
   createdBy: string
@@ -68,12 +91,16 @@ export async function createContractor(
 
   try {
     const contractorRef = doc(collection(db, "contractors"));
+    const tier = normalizeTier(input.tier);
     const rawContractor = {
       companyName,
       contactPerson,
       email,
       phone,
       status: input.status ?? "pending",
+      tier,
+      submissionsUsed: input.submissionsUsed ?? 0,
+      submissionsLimit: input.submissionsLimit ?? defaultSubmissionLimitForTier(tier),
       createdAt: Date.now(),
       createdBy: owner,
     };

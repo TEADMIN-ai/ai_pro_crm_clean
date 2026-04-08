@@ -7,11 +7,15 @@ import type { Deal, DealStage } from "@/types/deal";
 /* ---------------------------------- */
 
 export const stageWeights: Record<DealStage, number> = {
+  draft: 0.05,
   lead: 0.1,
+  in_review: 0.45,
   pricing: 0.3,
   manager_review: 0.6,
   submitted: 0.8,
+  awarded: 1,
   won: 1,
+  rejected: 0,
   lost: 0,
   closed: 1,
 };

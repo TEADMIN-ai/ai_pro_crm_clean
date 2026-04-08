@@ -1,5 +1,6 @@
 import { getFirebaseAdmin } from "@/lib/firebase/admin";
 import type { AuthorizedUser } from "@/lib/server/authz";
+import type { ContractorTier } from "@/types/contractor";
 import type { ContractorDocument } from "@/types/document";
 
 function toMillis(value: unknown): number | undefined {
@@ -25,6 +26,35 @@ function hasTimestamp(value: unknown): boolean {
 
 function asString(value: unknown): string | undefined {
   return typeof value === "string" && value.trim().length > 0 ? value.trim() : undefined;
+}
+
+function asNumber(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
+function normalizeTier(value: unknown): ContractorTier {
+  return value === "bronze" ||
+    value === "silver" ||
+    value === "gold" ||
+    value === "platinum"
+    ? value
+    : "basic";
+}
+
+function defaultSubmissionLimitForTier(tier: ContractorTier): number {
+  switch (tier) {
+    case "bronze":
+      return 5;
+    case "silver":
+      return 15;
+    case "gold":
+      return 50;
+    case "platinum":
+      return 250;
+    case "basic":
+    default:
+      return 1;
+  }
 }
 
 export async function listContractors() {
@@ -53,6 +83,9 @@ export async function createContractor(
   const email = asString(payload.email) ?? asString(payload.contactEmail);
   const phone = asString(payload.phone) ?? asString(payload.contactPhone);
   const status = asString(payload.status) ?? "pending";
+  const tier = normalizeTier(payload.tier);
+  const submissionsUsed = asNumber(payload.submissionsUsed) ?? 0;
+  const submissionsLimit = asNumber(payload.submissionsLimit) ?? defaultSubmissionLimitForTier(tier);
   const createdBy = actor?.uid ?? asString(payload.createdBy) ?? null;
   const metadata =
     payload.metadata && typeof payload.metadata === "object"
@@ -84,6 +117,9 @@ export async function createContractor(
     phone: phone ?? null,
     contactPhone: phone ?? null,
     status,
+    tier,
+    submissionsUsed,
+    submissionsLimit,
     createdAt,
     updatedAt,
     createdBy,

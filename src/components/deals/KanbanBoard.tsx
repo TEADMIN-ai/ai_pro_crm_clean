@@ -3,11 +3,16 @@
 import type { Deal, DealStage } from "@/types/deal";
 
 const dealStages: DealStage[] = [
+  "draft",
   "lead",
+  "in_review",
   "pricing",
   "manager_review",
   "submitted",
+  "awarded",
   "won",
+  "rejected",
+  "lost",
   "closed",
 ];
 

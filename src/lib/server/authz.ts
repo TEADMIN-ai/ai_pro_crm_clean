@@ -1,8 +1,8 @@
 import type { NextRequest } from "next/server";
-import { getAdminAuth, getFirebaseAdmin } from "@/lib/firebase/admin";
+import { getFirebaseAdmin } from "@/lib/firebase/admin";
 import { normalizeContractorId, normalizeRole, type UserProfile } from "@/lib/auth/userProfile";
 import type { UserRole } from "@/lib/auth/roleUtils";
-import { verifySessionValue } from "@/lib/server/verifySession";
+import { requireAuth } from "@/lib/server/requireAuth";
 
 export interface AuthorizedUser {
   uid: string;
@@ -19,11 +19,6 @@ export class AuthorizationError extends Error {
     this.name = "AuthorizationError";
     this.status = status;
   }
-}
-
-function getBearerToken(request: NextRequest): string {
-  const authHeader = request.headers.get("authorization") ?? "";
-  return authHeader.startsWith("Bearer ") ? authHeader.slice("Bearer ".length).trim() : "";
 }
 
 async function getUserProfile(uid: string): Promise<UserProfile | null> {
@@ -44,13 +39,8 @@ async function getUserProfile(uid: string): Promise<UserProfile | null> {
 }
 
 export async function requireAuthorizedUser(request: NextRequest): Promise<AuthorizedUser> {
-  const token = getBearerToken(request);
-
   try {
-    const decoded =
-      token.length > 0
-        ? await getAdminAuth().verifyIdToken(token)
-        : await verifySessionValue(request.cookies.get("session")?.value ?? "");
+    const decoded = await requireAuth(request);
 
     if (!decoded) {
       throw new AuthorizationError("unauthorized", 401);
@@ -59,6 +49,10 @@ export async function requireAuthorizedUser(request: NextRequest): Promise<Autho
     const profile = await getUserProfile(decoded.uid);
     const role = profile?.role ?? normalizeRole(decoded.role);
     const contractorId = profile?.contractorId ?? normalizeContractorId(decoded.contractorId);
+
+    if (!role || role === "guest") {
+      throw new AuthorizationError("Invalid role", 403);
+    }
 
     if (role === "contractor" && !contractorId) {
       throw new AuthorizationError("unauthorized", 403);

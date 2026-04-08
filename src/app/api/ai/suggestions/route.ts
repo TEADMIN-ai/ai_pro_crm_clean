@@ -1,22 +1,32 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
+import { AuthorizationError, requireAuthorizedUser } from "@/lib/server/authz";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-const client = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
 
 type SuggestionDocument = {
   verified?: boolean;
 };
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
   try {
-    if (!process.env.OPENAI_API_KEY) {
-      return NextResponse.json({ error: "Missing OPENAI_API_KEY" }, { status: 500 });
+    const user = await requireAuthorizedUser(req);
+
+    if (!user.role) {
+      return NextResponse.json({ error: "Invalid role" }, { status: 403 });
     }
+
+    if (!process.env.OPENAI_API_KEY) {
+      return NextResponse.json({
+        suggestions: [],
+        note: "AI disabled (missing API key)",
+      });
+    }
+
+    const client = new OpenAI({
+      apiKey: process.env.OPENAI_API_KEY,
+    });
 
     const body = (await req.json()) as { documents?: SuggestionDocument[] };
     const documents = Array.isArray(body?.documents) ? body.documents : [];
@@ -42,6 +52,10 @@ Return concise, actionable advice for each item.
       suggestions: completion.choices[0]?.message?.content ?? "",
     });
   } catch (err) {
+    if (err instanceof AuthorizationError) {
+      return NextResponse.json({ error: err.message }, { status: err.status });
+    }
+
     console.error("AI suggestion failed:", err);
 
     return NextResponse.json({ error: "AI suggestion failed" }, { status: 500 });

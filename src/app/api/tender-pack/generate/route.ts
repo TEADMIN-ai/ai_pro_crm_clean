@@ -1,41 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAuth } from "firebase-admin/auth";
 
 import { adminDb } from "@/lib/firebaseAdmin";
+import { AuthorizationError, assertPrivilegedRole, requireAuthorizedUser } from "@/lib/server/authz";
 import { generateSimplePack } from "@/lib/pdf/generateSimplePack";
 import { persistTenderPackPdf } from "@/server/services/tenderPackService";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const ALLOWED_ROLES = new Set(["admin", "manager", "staff"]);
-
 type GenerateBody = {
   dealId?: string;
 };
 
-async function requireRole(request: NextRequest): Promise<{ uid: string; role: string }> {
-  const authHeader = request.headers.get("authorization") ?? "";
-  const token = authHeader.startsWith("Bearer ")
-    ? authHeader.slice("Bearer ".length).trim()
-    : "";
-
-  if (!token) {
-    throw new Error("Missing Authorization token");
-  }
-
-  const decoded = await getAuth().verifyIdToken(token);
-  const role = typeof decoded.role === "string" ? decoded.role : "";
-  if (!ALLOWED_ROLES.has(role)) {
-    throw new Error("Forbidden");
-  }
-
-  return { uid: decoded.uid, role };
-}
-
 export async function POST(request: NextRequest) {
   try {
-    const { uid } = await requireRole(request);
+    const user = await requireAuthorizedUser(request);
+    assertPrivilegedRole(user);
     const body = (await request.json()) as GenerateBody;
     const dealId = typeof body.dealId === "string" ? body.dealId.trim() : "";
 
@@ -110,7 +90,7 @@ export async function POST(request: NextRequest) {
     );
 
     const persistedPack = await persistTenderPackPdf({
-      createdBy: uid,
+      createdBy: user.uid,
       contractorId: contractor.id,
       templateKey: "simple",
       pdfBytes,
@@ -131,6 +111,10 @@ export async function POST(request: NextRequest) {
       warnings: [],
     });
   } catch (error) {
+    if (error instanceof AuthorizationError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
+
     console.error("Tender pack generation failed:", error);
     return NextResponse.json(
       {

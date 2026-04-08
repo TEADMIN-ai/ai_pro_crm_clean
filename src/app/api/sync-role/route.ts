@@ -1,27 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getBootstrapUser, syncUserClaims } from "@/server/services/authService";
+import { AuthorizationError, requireAuthorizedUser } from "@/lib/server/authz";
 
 export async function POST(req: NextRequest) {
   try {
-    const authHeader = req.headers.get("authorization");
+    const user = await requireAuthorizedUser(req);
 
-    if (authHeader?.startsWith("Bearer ")) {
-      const idToken = authHeader.split("Bearer ")[1];
-      const { role, contractorId } = await syncUserClaims(idToken);
-
-      return NextResponse.json({
-        success: true,
-        role,
-        contractorId: contractorId ?? null,
-      });
-    }
-
-    const user = await getBootstrapUser({
-      sessionCookie: req.cookies.get("session")?.value,
-    });
-
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (!user.role) {
+      return NextResponse.json({ error: "Invalid role" }, { status: 403 });
     }
 
     return NextResponse.json({
@@ -30,6 +15,10 @@ export async function POST(req: NextRequest) {
       contractorId: user.contractorId ?? null,
     });
   } catch (error) {
+    if (error instanceof AuthorizationError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
+
     console.error("Sync role failed:", error);
     return NextResponse.json({ error: "Internal error" }, { status: 500 });
   }
