@@ -43,7 +43,7 @@ export async function POST(request: NextRequest) {
       outputMode: "preview",
     });
 
-    if (!fillResult.ok) {
+    if ("error" in fillResult) {
       return NextResponse.json(
         {
           error: fillResult.error,

@@ -123,7 +123,7 @@ function toJsonValue(value: unknown): JsonValue | undefined {
     typeof value === "number" ||
     typeof value === "boolean"
   ) {
-    return value;
+    return value as JsonValue;
   }
 
   if (value instanceof Date) {

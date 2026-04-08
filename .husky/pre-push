@@ -2,6 +2,12 @@
 
 echo "[husky] pre-push sanity check"
 
+echo "[husky] running typecheck"
+npx --no-install tsc --noEmit || {
+  echo "[husky] typecheck failed; blocking push"
+  exit 1
+}
+
 if [ -f "dist/lib/sanityCheck.js" ]; then
   node dist/lib/sanityCheck.js || echo "[husky] built sanity check failed; allowing push"
 elif [ -f "src/lib/sanityCheck.ts" ]; then
