@@ -1,4 +1,5 @@
 import { createRequire } from "node:module";
+console.log("PRIVATE KEY RAW:", process.env.FIREBASE_PRIVATE_KEY?.slice(0, 50));
 import { cert, getApp, getApps, initializeApp, type App } from "firebase-admin/app";
 import { getAuth, type Auth } from "firebase-admin/auth";
 import { getFirestore, type Firestore } from "firebase-admin/firestore";

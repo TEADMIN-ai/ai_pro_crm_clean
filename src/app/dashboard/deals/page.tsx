@@ -8,6 +8,10 @@ import { API_ROUTES } from "@/lib/apiRoutes";
 import { authFetch } from "@/lib/client/authFetch";
 import { useAuth } from "@/context/AuthContext";
 import { getPermissions } from "@/lib/permissions";
+import {
+  requestTenderPackGeneration,
+  type TenderPackGenerateResponse,
+} from "@/lib/tender/requestTenderPackGeneration";
 
 type Deal = {
   id: string;
@@ -184,24 +188,31 @@ export default function DealsPage() {
     }
   }
 
+  async function generateTenderPackRequest(dealId: string): Promise<TenderPackGenerateResponse> {
+    return requestTenderPackGeneration(dealId);
+  }
+
+  function decodeBase64Pdf(base64: string): Blob {
+    const binary = window.atob(base64);
+    const bytes = new Uint8Array(binary.length);
+
+    for (let index = 0; index < binary.length; index += 1) {
+      bytes[index] = binary.charCodeAt(index);
+    }
+
+    return new Blob([bytes], { type: "application/pdf" });
+  }
+
   async function previewPack(dealId: string) {
     try {
-      const res = await authFetch(API_ROUTES.TENDER_GENERATE, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ dealId }),
-      });
+      const result = await generateTenderPackRequest(dealId);
 
-      const blob = await res.blob();
-
-      if (blob.type !== "application/pdf") {
-        throw new Error("Invalid PDF response");
+      if (!result.base64) {
+        throw new Error("Tender pack response did not include PDF content");
       }
 
+      const blob = decodeBase64Pdf(result.base64);
       const url = URL.createObjectURL(blob);
-
       window.open(url, "_blank");
     } catch (err) {
       console.error(" PDF PREVIEW ERROR:", err);
@@ -211,15 +222,13 @@ export default function DealsPage() {
 
   async function downloadPack(dealId: string) {
     try {
-      const res = await authFetch(API_ROUTES.TENDER_GENERATE, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ dealId }),
-      });
+      const result = await generateTenderPackRequest(dealId);
 
-      const blob = await res.blob();
+      if (!result.base64) {
+        throw new Error("Tender pack response did not include PDF content");
+      }
+
+      const blob = decodeBase64Pdf(result.base64);
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
 
@@ -258,16 +267,7 @@ export default function DealsPage() {
         throw new Error("Missing deal ID");
       }
 
-      const res = await authFetch(API_ROUTES.TENDER_GENERATE, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          dealId: deal.id,
-        }),
-      });
-
+      await generateTenderPackRequest(deal.id);
       alert("Tender pack generated");
     } catch (err: any) {
       console.error(" Generate Error:", err);

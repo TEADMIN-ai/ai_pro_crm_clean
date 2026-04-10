@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 
 import { useAuth } from "@/context/AuthContext";
 import { authFetch } from "@/lib/client/authFetch";
@@ -19,6 +19,7 @@ import { SBD_TEMPLATE_KEYS, type SbdFormKey } from "@/lib/pdfs/templates/sbdSche
 import { downloadTenderReport } from "@/lib/reports/downloadTenderReport";
 import { generateTenderReport } from "@/lib/reports/generateTenderReport";
 import { generateSBD4Overlay } from "@/lib/pdf/sbd4Overlay";
+import { requestTenderPackGeneration } from "@/lib/tender/requestTenderPackGeneration";
 
 type GenerateResponse = {
   packId: string;
@@ -116,8 +117,10 @@ function downloadPdfBytes(pdfBytes: Uint8Array) {
 
 export default function TenderPackGeneratorPanel() {
   const params = useParams();
+  const searchParams = useSearchParams();
   const { user } = useAuth();
   const contractorId = typeof params?.contractorId === "string" ? params.contractorId : "";
+  const dealId = searchParams.get("dealId")?.trim() ?? "";
 
   const [templateKey, setTemplateKey] = useState<SbdFormKey>(SBD_TEMPLATE_KEYS[0]);
   const [loading, setLoading] = useState(false);
@@ -195,22 +198,11 @@ export default function TenderPackGeneratorPanel() {
   }
 
   async function requestGeneration() {
-    const response = await authFetch(API_ROUTES.TENDER_PACK_GENERATE, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        contractorId,
-        templateKey,
-      }),
-    });
-
-    const payload = (await response.json()) as Partial<GenerateResponse> & { error?: string };
-    if (!response.ok) {
-      throw new Error(payload.error ?? "Failed to generate tender pack");
+    if (!dealId) {
+      throw new Error("Missing dealId for tender pack generation");
     }
 
+    const payload = (await requestTenderPackGeneration(dealId)) as Partial<GenerateResponse>;
     setResult({
       packId: payload.packId ?? "",
       downloadURL: payload.downloadURL ?? "",
