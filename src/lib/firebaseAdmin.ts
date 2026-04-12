@@ -1,5 +1,15 @@
 import admin from "firebase-admin";
 
+const rawKey = process.env.FIREBASE_PRIVATE_KEY || "";
+
+const privateKey = rawKey.replace(/\\n/g, "\n").replace(/^"(.*)"$/, "$1");
+
+if (!privateKey.includes("BEGIN PRIVATE KEY")) {
+  throw new Error("Invalid Firebase private key format");
+}
+
+console.log("KEY CHECK:", privateKey.slice(0, 30));
+
 if (!admin.apps.length) {
   const projectId = process.env.FIREBASE_PROJECT_ID;
   const storageBucket =
@@ -11,7 +21,7 @@ if (!admin.apps.length) {
     credential: admin.credential.cert({
       projectId,
       clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-      privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, "\n"),
+      privateKey,
     }),
     ...(storageBucket ? { storageBucket } : {}),
   });

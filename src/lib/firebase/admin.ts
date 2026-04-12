@@ -1,5 +1,4 @@
 import { createRequire } from "node:module";
-console.log("PRIVATE KEY RAW:", process.env.FIREBASE_PRIVATE_KEY?.slice(0, 50));
 import { cert, getApp, getApps, initializeApp, type App } from "firebase-admin/app";
 import { getAuth, type Auth } from "firebase-admin/auth";
 import { getFirestore, type Firestore } from "firebase-admin/firestore";
@@ -30,9 +29,18 @@ let cachedServices: FirebaseAdminServices | null = null;
 let bootLogEmitted = false;
 
 export function normalizePrivateKey(key: string | undefined) {
-  if (!key) return undefined;
+  const rawKey = key || "";
+  const privateKey = rawKey.replace(/\\n/g, "\n").replace(/^"(.*)"$/, "$1");
 
-  return key.replace(/\\n/g, "\n").replace(/\r/g, "").trim();
+  if (!privateKey) {
+    return undefined;
+  }
+
+  if (!privateKey.includes("BEGIN PRIVATE KEY")) {
+    throw new Error("Invalid Firebase private key format");
+  }
+
+  return privateKey;
 }
 
 function normalizeStorageBucket(bucket: string | undefined) {
@@ -89,6 +97,7 @@ function createFirebaseAdminServices(): FirebaseAdminServices {
 
   const existingApp = getApps().length > 0 ? getApp() : null;
   const storageBucket = resolveStorageBucket(validation.projectId);
+  console.log("KEY CHECK:", validation.privateKey?.slice(0, 30));
   const app =
     existingApp ??
     initializeApp({

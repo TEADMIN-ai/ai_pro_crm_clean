@@ -10,9 +10,18 @@ export interface FirebaseEnvValidationResult {
 }
 
 function normalizePrivateKey(key: string | undefined) {
-  if (!key) return undefined;
+  const rawKey = key || "";
+  const privateKey = rawKey.replace(/\\n/g, "\n").replace(/^"(.*)"$/, "$1");
 
-  return key.replace(/\\n/g, "\n").replace(/\r/g, "").trim();
+  if (!privateKey) {
+    return undefined;
+  }
+
+  if (!privateKey.includes("BEGIN PRIVATE KEY")) {
+    throw new Error("Invalid Firebase private key format");
+  }
+
+  return privateKey;
 }
 
 function logFirebaseEnvError(result: FirebaseEnvValidationResult) {
@@ -29,7 +38,25 @@ function logFirebaseEnvError(result: FirebaseEnvValidationResult) {
 export function validateFirebaseEnv(): FirebaseEnvValidationResult {
   const projectId = process.env.FIREBASE_PROJECT_ID?.trim();
   const clientEmail = process.env.FIREBASE_CLIENT_EMAIL?.trim();
-  const privateKey = normalizePrivateKey(process.env.FIREBASE_PRIVATE_KEY);
+  let privateKey: string | undefined;
+
+  try {
+    privateKey = normalizePrivateKey(process.env.FIREBASE_PRIVATE_KEY);
+  } catch (error) {
+    const result: FirebaseEnvValidationResult = {
+      valid: false,
+      projectId: process.env.FIREBASE_PROJECT_ID?.trim(),
+      clientEmail: process.env.FIREBASE_CLIENT_EMAIL?.trim(),
+      privateKey: undefined,
+      privateKeyLoaded: Boolean(process.env.FIREBASE_PRIVATE_KEY),
+      missing: [],
+      malformed: ["FIREBASE_PRIVATE_KEY"],
+      message: error instanceof Error ? error.message : "Invalid Firebase private key format",
+    };
+
+    logFirebaseEnvError(result);
+    return result;
+  }
 
   const missing: string[] = [];
   const malformed: string[] = [];
