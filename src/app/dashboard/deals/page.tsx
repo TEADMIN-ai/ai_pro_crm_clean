@@ -6,6 +6,7 @@ export const fetchCache = "force-no-store";
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import { API_ROUTES } from "@/lib/apiRoutes";
 import { authFetch } from "@/lib/client/authFetch";
+import { matchRequirements } from "@/lib/tender/matchRequirements";
 
 type Deal = {
   id: string;
@@ -17,6 +18,18 @@ type Deal = {
   contractorId?: string;
   missingDocs?: string[];
   suggestions?: string[];
+};
+
+type ContractorDocumentEntry = {
+  uploaded?: boolean;
+  valid?: boolean;
+  issues?: string[];
+};
+
+type ContractorRecord = {
+  id: string;
+  complianceApproved?: boolean;
+  documents?: Partial<Record<"cipc" | "tax" | "bbbee" | "coida", ContractorDocumentEntry>>;
 };
 
 type UploadKind = "compliance" | "supporting";
@@ -186,6 +199,7 @@ function getWorkflowBulletClasses(state: "active" | "complete" | "idle"): string
 
 export default function DealsPage() {
   const [deals, setDeals] = useState<Deal[]>([]);
+  const [selectedContractor, setSelectedContractor] = useState<ContractorRecord | null>(null);
   const [selectedDealId, setSelectedDealId] = useState<string>("");
   const [pageLoading, setPageLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -204,7 +218,14 @@ export default function DealsPage() {
   const tenderInputRef = useRef<HTMLInputElement | null>(null);
 
   const selectedDeal = deals.find((deal) => deal.id === selectedDealId) ?? deals[0] ?? null;
-  const canGeneratePack = Boolean(selectedDeal?.contractorId);
+  const readinessMatch = selectedDeal && selectedContractor
+    ? matchRequirements(selectedContractor, selectedDeal)
+    : null;
+  const canGeneratePack = Boolean(
+    selectedDeal?.contractorId &&
+      readinessMatch?.ready &&
+      selectedContractor?.complianceApproved
+  );
   const uploadState = getWorkflowStepState("upload", complianceStatus, tenderDocsStatus, packStatus);
   const processState = getWorkflowStepState("process", complianceStatus, tenderDocsStatus, packStatus);
   const generateState = getWorkflowStepState("generate", complianceStatus, tenderDocsStatus, packStatus);
@@ -257,6 +278,31 @@ export default function DealsPage() {
   useEffect(() => {
     void loadData();
   }, []);
+
+  useEffect(() => {
+    async function loadSelectedContractor() {
+      if (!selectedDeal?.contractorId?.trim()) {
+        setSelectedContractor(null);
+        return;
+      }
+
+      try {
+        const response = await authFetch(API_ROUTES.CONTRACTOR_DETAIL(selectedDeal.contractorId));
+        const payload = (await response.json()) as ContractorRecord & { success?: boolean };
+
+        setSelectedContractor({
+          id: payload.id,
+          complianceApproved: payload.complianceApproved,
+          documents: payload.documents,
+        });
+      } catch (error) {
+        console.error("Failed to load contractor readiness data:", error);
+        setSelectedContractor(null);
+      }
+    }
+
+    void loadSelectedContractor();
+  }, [selectedDeal?.contractorId]);
 
   function openFilePicker(kind: UploadKind) {
     if (kind === "compliance") {
@@ -595,12 +641,16 @@ export default function DealsPage() {
                   </p>
                 </div>
 
-                <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-                  <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">Readiness</p>
-                  <p className="mt-4 text-3xl font-semibold text-slate-900">
-                    {selectedDeal?.readinessScore ?? 0}%
+                  <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+                    <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">Readiness</p>
+                    <p className="mt-4 text-3xl font-semibold text-slate-900">
+                    {readinessMatch?.score ?? selectedDeal?.readinessScore ?? 0}%
+                    </p>
+                  <p className="mt-2 text-sm text-slate-500">
+                    {selectedContractor?.complianceApproved
+                      ? "Current tender readiness score."
+                      : "Awaiting contractor readiness and approval."}
                   </p>
-                  <p className="mt-2 text-sm text-slate-500">Current tender readiness score.</p>
                 </div>
 
                 <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -721,7 +771,11 @@ export default function DealsPage() {
 
                     {!canGeneratePack && selectedDeal ? (
                       <div className="mt-6 rounded-3xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-900">
-                        Generate Pack is disabled because this deal has no linked contractor.
+                        {selectedDeal.contractorId?.trim()
+                          ? selectedContractor?.complianceApproved
+                            ? "Generate Pack is disabled until contractor requirements are valid for this tender."
+                            : "Generate Pack is disabled until contractor compliance is approved."
+                          : "Generate Pack is disabled because this deal has no linked contractor."}
                       </div>
                     ) : null}
 
@@ -737,6 +791,47 @@ export default function DealsPage() {
                         <p className="mt-2 text-sm leading-6 text-amber-800">
                           {selectedDeal.missingDocs.join(", ")}
                         </p>
+                      </div>
+                    ) : null}
+
+                    {readinessMatch ? (
+                      <div className="mt-4 rounded-3xl border border-slate-200 bg-white p-5">
+                        <p className="text-sm font-semibold text-slate-900">Tender Requirement Match</p>
+                        <p className="mt-2 text-sm text-slate-700">Readiness: {readinessMatch.score}%</p>
+                        <p className="mt-2 text-sm text-slate-700">
+                          Risk Level:{" "}
+                          <span
+                            className={
+                              readinessMatch.riskLevel === "LOW"
+                                ? "text-green-600"
+                                : readinessMatch.riskLevel === "MEDIUM"
+                                ? "text-yellow-600"
+                                : "text-red-600"
+                            }
+                          >
+                            {readinessMatch.riskLevel}
+                          </span>
+                        </p>
+                        <p className="mt-2 text-sm text-gray-600">
+                          {readinessMatch.recommendation}
+                        </p>
+                        {readinessMatch.fixSuggestions?.length > 0 && (
+                          <div className="mt-3">
+                            <p className="font-semibold text-sm">Fix Suggestions:</p>
+                            <ul className="text-sm text-gray-600">
+                              {readinessMatch.fixSuggestions.map((s: string, i: number) => (
+                                <li key={i}>- {s}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                        {readinessMatch.missing.length > 0 ? (
+                          <p className="mt-2 text-sm text-red-500">
+                            Missing: {readinessMatch.missing.join(", ")}
+                          </p>
+                        ) : (
+                          <p className="mt-2 text-sm text-emerald-600">All core compliance requirements are valid.</p>
+                        )}
                       </div>
                     ) : null}
 

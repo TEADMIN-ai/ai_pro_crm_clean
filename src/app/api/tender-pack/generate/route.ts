@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebaseAdmin";
 import { AuthorizationError, assertPrivilegedRole, requireAuthorizedUser } from "@/lib/server/authz";
 import { generateSimplePack } from "@/lib/pdf/generateSimplePack";
+import { matchRequirements } from "@/lib/tender/matchRequirements";
 import { persistTenderPackPdf } from "@/server/services/tenderPackService";
 
 export const runtime = "nodejs";
@@ -51,6 +52,19 @@ export async function POST(request: NextRequest) {
       id: contractorSnapshot.id,
       ...(contractorSnapshot.data() ?? {}),
     } as Record<string, unknown> & { id: string };
+    const match = matchRequirements(contractor, deal);
+
+    if (!match.ready || !contractor.complianceApproved) {
+      return NextResponse.json(
+        {
+          error: "NOT_READY",
+          score: match.score,
+          missing: match.missing,
+          message: "Contractor not ready for this tender",
+        },
+        { status: 403 }
+      );
+    }
 
     console.log("GENERATING PACK FOR:", {
       dealId: deal.id,

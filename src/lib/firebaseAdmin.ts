@@ -1,37 +1,62 @@
-import admin from "firebase-admin";
+import { cert, getApps, initializeApp } from "firebase-admin/app";
+import { getAuth } from "firebase-admin/auth";
+import { getFirestore } from "firebase-admin/firestore";
+import { getStorage } from "firebase-admin/storage";
 
-const rawKey = process.env.FIREBASE_PRIVATE_KEY || "";
+function formatPrivateKey(key: string | undefined) {
+  if (!key) return undefined;
 
-// 🔥 FORCE FIX ALL FORMATS
-const privateKey = rawKey
-  .replace(/\\n/g, "\n")        // handles \n format
-  .replace(/\r?\n/g, "\n")      // handles real line breaks
-  .replace(/^"|"$/g, "");       // removes wrapping quotes if present
+  let formatted = key;
 
-if (!privateKey.includes("BEGIN PRIVATE KEY")) {
-  throw new Error("Invalid Firebase private key format");
+  // Remove wrapping quotes if present
+  if (formatted.startsWith('"') && formatted.endsWith('"')) {
+    formatted = formatted.slice(1, -1);
+  }
+
+  // Handle escaped newlines (\n -> real line breaks)
+  if (formatted.includes("\\n")) {
+    formatted = formatted.replace(/\\n/g, "\n");
+  }
+
+  // Normalize Windows/Mac line endings
+  formatted = formatted.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+
+  // Ensure proper BEGIN/END formatting
+  if (!formatted.includes("BEGIN PRIVATE KEY")) {
+    console.error("Firebase key missing BEGIN header");
+  }
+
+  return formatted;
 }
 
-console.log("KEY CHECK:", privateKey.slice(0, 30));
+const privateKey = formatPrivateKey(process.env.FIREBASE_PRIVATE_KEY);
+const projectId = process.env.FIREBASE_PROJECT_ID;
+const storageBucket =
+  process.env.FIREBASE_STORAGE_BUCKET ||
+  process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET ||
+  (projectId ? `${projectId}.appspot.com` : undefined);
 
-if (!admin.apps.length) {
-  const projectId = process.env.FIREBASE_PROJECT_ID;
-  const storageBucket =
-    process.env.FIREBASE_STORAGE_BUCKET ||
-    process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET ||
-    (projectId ? `${projectId}.appspot.com` : undefined);
-
-  admin.initializeApp({
-    credential: admin.credential.cert({
+if (!getApps().length) {
+  initializeApp({
+    credential: cert({
       projectId,
       clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
       privateKey,
     }),
     ...(storageBucket ? { storageBucket } : {}),
   });
+
+  console.log("Firebase Admin initialized safely");
+  console.log("ENV CHECK:");
+  console.log("Project ID:", process.env.FIREBASE_PROJECT_ID);
+  console.log(
+    "Client Email:",
+    process.env.FIREBASE_CLIENT_EMAIL?.slice(0, 25) + "...",
+  );
+  console.log("Private Key Loaded:", !!privateKey);
 }
 
-export const adminDb = admin.firestore();
-export const adminAuth = admin.auth();
-export const adminStorage = admin.storage();
+export const adminAuth = getAuth();
+export const adminDb = getFirestore();
+export const adminStorage = getStorage();
 export const db = adminDb;
