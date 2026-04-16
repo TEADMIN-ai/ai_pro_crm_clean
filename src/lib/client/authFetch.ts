@@ -26,7 +26,11 @@ export async function authFetch(url: string, options: RequestInit = {}) {
 
   if (!res.ok) {
     const errorText = await res.text();
-    throw new Error(`API Error: ${errorText}`);
+    console.error("API ERROR RAW:", errorText);
+
+    throw new Error(
+      errorText || "Unknown API error  check backend logs"
+    );
   }
 
   return res;

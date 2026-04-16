@@ -1,162 +1,293 @@
 import { NextRequest, NextResponse } from "next/server";
-
+import { PDFDocument } from "pdf-lib";
 import { adminDb } from "@/lib/firebaseAdmin";
-import { generateSimplePack } from "@/lib/pdf/generateSimplePack";
-import { AuthorizationError, assertCanAccessContractor, requireAuthorizedUser } from "@/lib/server/authz";
+import { fillSbd1 } from "@/lib/empirePdf/fillSbd1";
+import { fillSbd4 } from "@/lib/empirePdf/fillSbd4";
+import { generateTenderPdf } from "@/lib/pdf/generateTenderPdf";
+import { mergeTenderPack } from "@/lib/pdf/mergeTenderPack";
+import {
+  AuthorizationError,
+  assertCanAccessContractor,
+  requireAuthorizedUser,
+} from "@/lib/server/authz";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+const TEST_MODE = true;
 
 type GenerateBody = {
   dealId?: string;
+  contractorId?: string;
 };
 
-type DealAnalysis = {
-  missing?: string[];
-  score?: number;
-  risk?: string;
+type TenderDealData = {
+  id: string;
+  title: string;
+  value: number | null;
+  readinessScore: number;
+  missingDocs: string[];
+  riskLevel: string;
+  suggestions: string[];
 };
 
-function normalizeDealAnalysis(value: unknown): DealAnalysis | undefined {
-  if (!value || typeof value !== "object") {
-    return undefined;
+type TenderContractorData = {
+  id: string;
+  companyName: string;
+  registrationNumber: string | null;
+  bbbeeStatus: string | null;
+  contactPerson?: string | null;
+  directorName?: string | null;
+};
+
+type SupportingDocumentRecord = {
+  id: string;
+  fileUrl: string;
+};
+
+function normalizePdfBytes(value: unknown): Uint8Array | null {
+  if (value instanceof Uint8Array) {
+    return value;
   }
 
-  const candidate = value as Record<string, unknown>;
+  if (Buffer.isBuffer(value)) {
+    return new Uint8Array(value);
+  }
 
-  return {
-    missing: Array.isArray(candidate.missing)
-      ? candidate.missing.filter((item): item is string => typeof item === "string")
-      : undefined,
-    score: typeof candidate.score === "number" ? candidate.score : undefined,
-    risk: typeof candidate.risk === "string" ? candidate.risk : undefined,
-  };
+  return null;
 }
 
-export async function POST(req: NextRequest) {
+function isValidPdfBytes(value: unknown): value is Uint8Array {
+  const bytes = normalizePdfBytes(value);
+
+  if (!bytes || bytes.length < 5) {
+    return false;
+  }
+
+  return (
+    bytes[0] === 0x25 &&
+    bytes[1] === 0x50 &&
+    bytes[2] === 0x44 &&
+    bytes[3] === 0x46 &&
+    bytes[4] === 0x2d
+  );
+}
+
+function getString(value: unknown): string {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function getOptionalString(value: unknown): string | null {
+  const normalized = getString(value);
+  return normalized.length > 0 ? normalized : null;
+}
+
+function getNumber(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function getStringArray(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === "string" && item.trim().length > 0)
+    : [];
+}
+
+async function fetchSupportingDocumentBytes(fileUrl: string): Promise<Uint8Array> {
+  const response = await fetch(fileUrl);
+
+  if (!response.ok) {
+    throw new Error(`Supporting document fetch failed with status ${response.status}`);
+  }
+
+  const arrayBuffer = await response.arrayBuffer();
+  return new Uint8Array(arrayBuffer);
+}
+
+async function loadSupportingDocuments(dealId: string): Promise<Uint8Array[]> {
+  const supportingSnapshot = await adminDb
+    .collection("documents")
+    .where("dealId", "==", dealId)
+    .where("type", "==", "supporting")
+    .get();
+
+  const supportingDocs: SupportingDocumentRecord[] = supportingSnapshot.docs
+    .map((doc) => {
+      const data = doc.data() ?? {};
+      const fileUrl = getString(data.fileUrl);
+
+      return {
+        id: doc.id,
+        fileUrl,
+      };
+    })
+    .filter((document) => document.fileUrl.length > 0);
+
+  const loadedDocs = await Promise.all(
+    supportingDocs.map(async (document) => {
+      try {
+        const bytes = await fetchSupportingDocumentBytes(document.fileUrl);
+        await PDFDocument.load(bytes);
+        return bytes;
+      } catch (error) {
+        console.warn("SUPPORTING DOC SKIPPED:", {
+          documentId: document.id,
+          fileUrl: document.fileUrl,
+          error: error instanceof Error ? error.message : error,
+        });
+        return null;
+      }
+    })
+  );
+
+  return loadedDocs.filter((document): document is Uint8Array => document instanceof Uint8Array);
+}
+
+export async function POST(request: NextRequest) {
   try {
-    const user = await requireAuthorizedUser(req);
+    const user = await requireAuthorizedUser(request);
 
     if (!user.role) {
       return NextResponse.json({ error: "Invalid role" }, { status: 403 });
     }
 
-    const body = (await req.json()) as GenerateBody;
-    const dealId = typeof body.dealId === "string" ? body.dealId.trim() : "";
+    const body = (await request.json()) as GenerateBody;
+    const dealId = getString(body.dealId);
+    const contractorId = getString(body.contractorId);
 
-    if (!dealId) {
-      return NextResponse.json(
-        { error: "dealId is required" },
-        { status: 400 },
-      );
+    if (!dealId || !contractorId) {
+      return NextResponse.json({ error: "dealId and contractorId are required" }, { status: 400 });
     }
 
-    const dealDoc = await adminDb.collection("deals").doc(dealId).get();
-
-    if (!dealDoc.exists) {
-      return NextResponse.json(
-        { error: "Deal not found" },
-        { status: 404 },
-      );
+    const dealSnapshot = await adminDb.collection("deals").doc(dealId).get();
+    if (!dealSnapshot.exists) {
+      return NextResponse.json({ error: "Deal not found" }, { status: 404 });
     }
 
-    const dealData = dealDoc.data() ?? {};
-    const contractorId =
-      typeof dealData.contractorId === "string" ? dealData.contractorId.trim() : "";
+    const dealData = dealSnapshot.data() ?? {};
+    const storedContractorId = getString(dealData.contractorId);
 
-    if (!contractorId) {
-      return NextResponse.json(
-        { error: "Missing contractorId on deal" },
-        { status: 400 },
-      );
+    if (!storedContractorId || storedContractorId !== contractorId) {
+      return NextResponse.json({ error: "Contractor not found" }, { status: 404 });
     }
 
     assertCanAccessContractor(user, contractorId);
 
-    const contractorDoc = await adminDb.collection("contractors").doc(contractorId).get();
+    const contractorSnapshot = await adminDb.collection("contractors").doc(contractorId).get();
+    if (!contractorSnapshot.exists) {
+      return NextResponse.json({ error: "Contractor not found" }, { status: 404 });
+    }
 
-    if (!contractorDoc.exists) {
+    const readinessScore = getNumber(dealData.readinessScore) ?? 0;
+    console.log("TEST MODE:", TEST_MODE);
+    console.log("READINESS SCORE:", readinessScore);
+    if (!TEST_MODE && readinessScore < 60) {
       return NextResponse.json(
-        { error: "Contractor not found" },
-        { status: 404 },
+        { error: "Deal not ready for tender pack generation" },
+        { status: 400 }
       );
     }
 
-    const contractorData = contractorDoc.data() ?? {};
-    const pdfBytes = Buffer.from(
-      await generateSimplePack(
-        {
-          id: dealDoc.id,
-          title: typeof dealData.title === "string" ? dealData.title : undefined,
-          status: typeof dealData.status === "string" ? dealData.status : undefined,
-          contractorId,
-          analysis: normalizeDealAnalysis(dealData.analysis),
-        },
-        {
-          id: contractorDoc.id,
-          name: typeof contractorData.name === "string" ? contractorData.name : undefined,
-          companyName:
-            typeof contractorData.companyName === "string"
-              ? contractorData.companyName
-              : undefined,
-          email:
-            typeof contractorData.email === "string"
-              ? contractorData.email
-              : typeof contractorData.contactEmail === "string"
-                ? contractorData.contactEmail
-                : undefined,
-          phone:
-            typeof contractorData.phone === "string"
-              ? contractorData.phone
-              : typeof contractorData.contactPhone === "string"
-                ? contractorData.contactPhone
-                : undefined,
-          registrationNumber:
-            typeof contractorData.registrationNumber === "string"
-              ? contractorData.registrationNumber
-              : typeof contractorData.companyRegistrationNumber === "string"
-                ? contractorData.companyRegistrationNumber
-                : undefined,
-        },
-      ),
-    );
-    console.log("📄 PDF SIZE:", pdfBytes.length);
+    const contractorData = contractorSnapshot.data() ?? {};
 
-    await adminDb.collection("deals").doc(dealId).update({
-      tenderPack: {
-        dealId,
-        contractorId,
-        title:
-          typeof dealData.title === "string"
-            ? dealData.title
-            : typeof dealData.name === "string"
-              ? dealData.name
-              : dealId,
-        generatedAt: new Date().toISOString(),
-        status: "GENERATED",
-      },
-    });
+    const deal: TenderDealData = {
+      id: dealSnapshot.id,
+      title: getString(dealData.title) || getString(dealData.name) || dealSnapshot.id,
+      value: getNumber(dealData.value),
+      readinessScore,
+      missingDocs: getStringArray(dealData.missingDocs),
+      riskLevel: getString(dealData.riskLevel) || "LOW",
+      suggestions: getStringArray(dealData.suggestions),
+    };
 
-    return new Response(pdfBytes, {
-      headers: {
-        "Content-Type": "application/pdf",
-        "Content-Disposition": "attachment; filename=test.pdf",
-        "Content-Length": pdfBytes.length.toString(),
-      },
+    const contractor: TenderContractorData = {
+      id: contractorSnapshot.id,
+      companyName:
+        getString(contractorData.companyName) ||
+        getString(contractorData.company) ||
+        getString(contractorData.name) ||
+        contractorSnapshot.id,
+      registrationNumber:
+        getOptionalString(contractorData.registrationNumber) ??
+        getOptionalString(contractorData.companyRegistrationNumber),
+      bbbeeStatus:
+        getOptionalString(contractorData.bbbeeStatus) ??
+        getOptionalString(contractorData.bbbeeLevel) ??
+        getOptionalString(contractorData.bbbee),
+      contactPerson:
+        getOptionalString(contractorData.contactPerson) ??
+        getOptionalString(contractorData.contactName),
+      directorName:
+        getOptionalString(contractorData.directorName) ??
+        getOptionalString(contractorData.contactPerson) ??
+        getOptionalString(contractorData.contactName),
+    };
+
+    const summaryBytes = await generateTenderPdf(deal, contractor);
+    const sbd1Bytes = await fillSbd1(contractor, deal);
+    const sbd4Bytes = await fillSbd4(contractor, deal);
+    const supportingDocs = await loadSupportingDocuments(dealId);
+
+    console.log("SUMMARY:", summaryBytes?.length);
+    console.log("SBD1:", sbd1Bytes?.length);
+    console.log("SBD4:", sbd4Bytes?.length);
+    console.log("SUPPORTING DOCS:", supportingDocs.length);
+
+    if (!isValidPdfBytes(summaryBytes)) {
+      return NextResponse.json(
+        { error: "Summary PDF generation failed" },
+        { status: 500 }
+      );
+    }
+
+    if (!isValidPdfBytes(sbd1Bytes)) {
+      return NextResponse.json(
+        { error: "SBD1 generation failed" },
+        { status: 500 }
+      );
+    }
+
+    if (!isValidPdfBytes(sbd4Bytes)) {
+      return NextResponse.json(
+        { error: "SBD4 generation failed" },
+        { status: 500 }
+      );
+    }
+
+    let finalPdf: Uint8Array;
+
+    try {
+      finalPdf = await mergeTenderPack(summaryBytes, sbd1Bytes, sbd4Bytes, supportingDocs);
+    } catch (mergeError) {
+      console.error("TENDER MERGE ERROR:", mergeError);
+      return NextResponse.json(
+        { error: "Failed to merge tender pack" },
+        { status: 500 }
+      );
+    }
+
+    if (!isValidPdfBytes(finalPdf)) {
+      return NextResponse.json(
+        { error: "Merged tender pack is invalid" },
+        { status: 500 }
+      );
+    }
+
+    const base64 = Buffer.from(finalPdf).toString("base64");
+
+    return NextResponse.json({
+      success: true,
+      base64,
+      fileName: "tender-pack.pdf",
     });
-  } catch (error: unknown) {
+  } catch (error) {
     if (error instanceof AuthorizationError) {
       return NextResponse.json({ error: error.message }, { status: error.status });
     }
 
-    console.error("TENDER GENERATION ERROR:", error);
+    console.error("TENDER PACK ERROR:", error);
 
     return NextResponse.json(
-      {
-        error: "Failed to generate tender pack",
-        details: error instanceof Error ? error.message : "Unknown error",
-      },
-      { status: 500 },
+      { error: "Failed to generate tender pack" },
+      { status: 500 }
     );
   }
 }

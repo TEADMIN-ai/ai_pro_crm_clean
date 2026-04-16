@@ -3,436 +3,871 @@
 export const dynamic = "force-dynamic";
 export const fetchCache = "force-no-store";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import { API_ROUTES } from "@/lib/apiRoutes";
 import { authFetch } from "@/lib/client/authFetch";
-import { useAuth } from "@/context/AuthContext";
-import { getPermissions } from "@/lib/permissions";
-import {
-  requestTenderPackGeneration,
-  type TenderPackGenerateResponse,
-} from "@/lib/tender/requestTenderPackGeneration";
 
 type Deal = {
   id: string;
-  name?: string;
   title?: string;
-  status?: string;
-  contractorId?: string;
-  value?: number;
-  readinessScore?: number;
-  isTenderLocked?: boolean;
-  missingDocs?: string[];
-  riskLevel?: "LOW" | "MEDIUM" | "HIGH";
-  suggestions?: string[];
-  aiInsights?: string | null;
-  analysis?: {
-    requirements?: Record<string, boolean>;
-    missing?: string[];
-    score?: number;
-    risk?: string;
-  };
-};
-
-type Contractor = {
-  id: string;
   name?: string;
-  company?: string;
-  companyName?: string;
+  status?: string;
+  readinessScore?: number;
+  riskLevel?: string;
+  contractorId?: string;
+  missingDocs?: string[];
+  suggestions?: string[];
 };
 
-type TenderAnalysisResult = {
-  requirements: {
-    taxClearance: boolean;
-    bbbee: boolean;
-    cipc: boolean;
-    coida: boolean;
-  };
-  missing: string[];
-  score: number;
-  risk: string;
+type UploadKind = "compliance" | "supporting";
+type StatusTone = "idle" | "loading" | "success" | "error";
+
+type StatusState = {
+  label: string;
+  detail: string;
+  tone: StatusTone;
+};
+
+const DEFAULT_STATUS: StatusState = {
+  label: "Idle",
+  detail: "No action started yet.",
+  tone: "idle",
 };
 
 function getDealTitle(deal: Deal): string {
-  return deal.title || deal.name || deal.id;
+  return deal.title?.trim() || deal.name?.trim() || `Deal ${deal.id}`;
+}
+
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error && error.message.trim().length > 0) {
+    return error.message;
+  }
+
+  return "Error occurred";
+}
+
+function normalizeDeals(payload: unknown): Deal[] {
+  if (Array.isArray(payload)) {
+    return payload as Deal[];
+  }
+
+  if (payload && typeof payload === "object") {
+    const record = payload as { data?: unknown; deals?: unknown };
+
+    if (Array.isArray(record.data)) {
+      return record.data as Deal[];
+    }
+
+    if (Array.isArray(record.deals)) {
+      return record.deals as Deal[];
+    }
+  }
+
+  return [];
+}
+
+function getStatusClasses(tone: StatusTone): string {
+  switch (tone) {
+    case "loading":
+      return "border-amber-200 bg-amber-50 text-amber-900";
+    case "success":
+      return "border-emerald-200 bg-emerald-50 text-emerald-900";
+    case "error":
+      return "border-rose-200 bg-rose-50 text-rose-900";
+    case "idle":
+    default:
+      return "border-slate-200 bg-slate-50 text-slate-700";
+  }
+}
+
+function getStatusDotClasses(tone: StatusTone): string {
+  switch (tone) {
+    case "loading":
+      return "bg-amber-500";
+    case "success":
+      return "bg-emerald-500";
+    case "error":
+      return "bg-rose-500";
+    case "idle":
+    default:
+      return "bg-slate-400";
+  }
+}
+
+function getRiskBadgeClasses(riskLevel?: string): string {
+  const normalized = riskLevel?.toLowerCase();
+
+  if (normalized === "high") {
+    return "bg-rose-50 text-rose-700 ring-1 ring-inset ring-rose-200";
+  }
+
+  if (normalized === "medium") {
+    return "bg-amber-50 text-amber-700 ring-1 ring-inset ring-amber-200";
+  }
+
+  return "bg-teal-50 text-teal-700 ring-1 ring-inset ring-teal-200";
+}
+
+function getWorkflowStepState(
+  step: "upload" | "process" | "generate" | "output",
+  complianceStatus: StatusState,
+  tenderDocsStatus: StatusState,
+  packStatus: StatusState
+): "active" | "complete" | "idle" {
+  if (step === "upload") {
+    if (complianceStatus.tone === "loading" || tenderDocsStatus.tone === "loading") {
+      return "active";
+    }
+
+    if (complianceStatus.tone === "success" || tenderDocsStatus.tone === "success") {
+      return "complete";
+    }
+
+    return "idle";
+  }
+
+  if (step === "process") {
+    if (
+      complianceStatus.label === "Processing..." ||
+      tenderDocsStatus.label === "Processing..."
+    ) {
+      return "active";
+    }
+
+    if (complianceStatus.tone === "success" || tenderDocsStatus.tone === "success") {
+      return "complete";
+    }
+
+    return "idle";
+  }
+
+  if (step === "generate") {
+    if (packStatus.tone === "loading") {
+      return "active";
+    }
+
+    if (packStatus.tone === "success") {
+      return "complete";
+    }
+
+    return "idle";
+  }
+
+  if (packStatus.tone === "success") {
+    return "complete";
+  }
+
+  return "idle";
+}
+
+function getWorkflowStepClasses(state: "active" | "complete" | "idle"): string {
+  if (state === "active") {
+    return "border-sky-300 bg-sky-50 text-sky-900 shadow-sm";
+  }
+
+  if (state === "complete") {
+    return "border-teal-300 bg-teal-50 text-teal-900";
+  }
+
+  return "border-slate-200 bg-white text-slate-600";
+}
+
+function getWorkflowBulletClasses(state: "active" | "complete" | "idle"): string {
+  if (state === "active") {
+    return "bg-[#0EA5E9]";
+  }
+
+  if (state === "complete") {
+    return "bg-[#14B8A6]";
+  }
+
+  return "bg-slate-300";
 }
 
 export default function DealsPage() {
-  const { role } = useAuth();
   const [deals, setDeals] = useState<Deal[]>([]);
-  const [contractors, setContractors] = useState<Contractor[]>([]);
-  const [loading, setLoading] = useState(true);
-  const permissions = getPermissions(role);
+  const [selectedDealId, setSelectedDealId] = useState<string>("");
+  const [pageLoading, setPageLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isUploadingCompliance, setIsUploadingCompliance] = useState(false);
+  const [isUploadingTender, setIsUploadingTender] = useState(false);
+  const [isGeneratingPack, setIsGeneratingPack] = useState(false);
+  const [pageStatus, setPageStatus] = useState<StatusState>({
+    label: "Loading...",
+    detail: "Fetching deals.",
+    tone: "loading",
+  });
+  const [complianceStatus, setComplianceStatus] = useState<StatusState>(DEFAULT_STATUS);
+  const [tenderDocsStatus, setTenderDocsStatus] = useState<StatusState>(DEFAULT_STATUS);
+  const [packStatus, setPackStatus] = useState<StatusState>(DEFAULT_STATUS);
+  const complianceInputRef = useRef<HTMLInputElement | null>(null);
+  const tenderInputRef = useRef<HTMLInputElement | null>(null);
 
-  async function loadDeals() {
-    const dealsRes = await authFetch(API_ROUTES.DEALS);
+  const selectedDeal = deals.find((deal) => deal.id === selectedDealId) ?? deals[0] ?? null;
+  const canGeneratePack = Boolean(selectedDeal?.contractorId);
+  const uploadState = getWorkflowStepState("upload", complianceStatus, tenderDocsStatus, packStatus);
+  const processState = getWorkflowStepState("process", complianceStatus, tenderDocsStatus, packStatus);
+  const generateState = getWorkflowStepState("generate", complianceStatus, tenderDocsStatus, packStatus);
+  const outputState = getWorkflowStepState("output", complianceStatus, tenderDocsStatus, packStatus);
 
-    if (!dealsRes.ok) {
-      throw new Error("Failed to fetch deals");
+  async function loadData(showRefreshState = false) {
+    if (showRefreshState) {
+      setIsRefreshing(true);
     }
 
-    const dealsData = await dealsRes.json();
-    const normalizedDeals: Deal[] = Array.isArray(dealsData)
-      ? dealsData
-      : Array.isArray(dealsData?.data)
-        ? dealsData.data
-        : Array.isArray(dealsData?.deals)
-          ? dealsData.deals
-          : [];
+    setPageStatus({
+      label: "Loading...",
+      detail: "Fetching deals.",
+      tone: "loading",
+    });
 
-    setDeals(normalizedDeals);
-  }
+    try {
+      const dealsResponse = await authFetch(API_ROUTES.DEALS);
+      const dealsPayload = await dealsResponse.json();
+      const nextDeals = normalizeDeals(dealsPayload);
 
-  async function loadContractors() {
-    const contractorsRes = await authFetch(API_ROUTES.CONTRACTORS);
+      setDeals(nextDeals);
+      setSelectedDealId((currentSelectedDealId) => {
+        if (currentSelectedDealId && nextDeals.some((deal) => deal.id === currentSelectedDealId)) {
+          return currentSelectedDealId;
+        }
 
-    const contractorsData = await contractorsRes.json();
-    setContractors(Array.isArray(contractorsData) ? contractorsData : []);
+        return nextDeals[0]?.id ?? "";
+      });
+      setPageStatus({
+        label: "Loaded",
+        detail: "Deals workflow is ready.",
+        tone: "success",
+      });
+    } catch (error) {
+      const message = getErrorMessage(error);
+      console.error("Failed to load deals workflow:", error);
+      setPageStatus({
+        label: "Error occurred",
+        detail: message,
+        tone: "error",
+      });
+      alert(message);
+    } finally {
+      setPageLoading(false);
+      setIsRefreshing(false);
+    }
   }
 
   useEffect(() => {
-    const loadData = async () => {
-      try {
-        await Promise.all([loadDeals(), loadContractors()]);
-      } catch (err) {
-        console.error(" Error loading deals:", err);
-      } finally {
-        setLoading(false);
-      }
-    };
-
     void loadData();
   }, []);
 
-  async function createDeal(data: {
-    contractorId: string;
-    title: string;
-    value?: number;
-    tenderText?: string;
-  }) {
-    try {
-      const res = await authFetch(API_ROUTES.DEALS, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(data),
-      });
-
-      const newDeal = await res.json();
-
-      setDeals((prev) => [newDeal, ...prev]);
-    } catch (err) {
-      console.error(" CREATE DEAL ERROR:", err);
+  function openFilePicker(kind: UploadKind) {
+    if (kind === "compliance") {
+      complianceInputRef.current?.click();
+      return;
     }
+
+    tenderInputRef.current?.click();
   }
 
-  async function analyzeTender(text: string): Promise<TenderAnalysisResult | undefined> {
-    try {
-      const res = await authFetch(API_ROUTES.TENDER_ANALYZE, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ text }),
-      });
+  async function uploadDocument(kind: UploadKind, file: File) {
+    if (!selectedDeal) {
+      const message = "Select a deal before uploading documents.";
+      const nextStatus = {
+        label: "Error occurred",
+        detail: message,
+        tone: "error" as const,
+      };
 
-      return await res.json();
-    } catch (err) {
-      console.error(" ANALYSIS ERROR:", err);
-      return undefined;
-    }
-  }
-
-  async function runDealAnalysis(dealId: string, text: string) {
-    try {
-      const analysis = await analyzeTender(text);
-
-      if (!analysis) {
-        throw new Error("Analysis failed");
+      if (kind === "compliance") {
+        setComplianceStatus(nextStatus);
+      } else {
+        setTenderDocsStatus(nextStatus);
       }
 
-      const response = await authFetch(API_ROUTES.DEAL_ANALYZE(dealId), {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(analysis),
-      });
-
-      void response;
-      await loadDeals();
-    } catch (err) {
-      console.error(" DEAL ANALYSIS FLOW ERROR:", err);
+      alert(message);
+      return;
     }
-  }
 
-  async function uploadAndAnalyze(dealId: string, file: File) {
+    const setBusy = kind === "compliance" ? setIsUploadingCompliance : setIsUploadingTender;
+    const setStatus = kind === "compliance" ? setComplianceStatus : setTenderDocsStatus;
+    const label = kind === "compliance" ? "Compliance" : "Tender";
+
+    setBusy(true);
+    setStatus({
+      label: "Uploading...",
+      detail: `${label} document upload started for ${getDealTitle(selectedDeal)}.`,
+      tone: "loading",
+    });
+
     try {
       const formData = new FormData();
       formData.append("file", file);
-      formData.append("dealId", dealId);
+      formData.append("dealId", selectedDeal.id);
+      formData.append("documentTag", kind);
+      formData.append("documentRole", kind === "compliance" ? "compliance" : "supporting");
 
-      const res = await authFetch(API_ROUTES.DOCUMENT_UPLOAD_ANALYZE, {
+      if (selectedDeal.contractorId) {
+        formData.append("contractorId", selectedDeal.contractorId);
+      }
+
+      const response = await authFetch(API_ROUTES.DOCUMENT_UPLOAD_ANALYZE, {
         method: "POST",
         body: formData,
       });
 
-      const result = await res.json();
-
-      console.log(result);
-
-      await loadDeals();
-    } catch (err) {
-      console.error(" PIPELINE ERROR:", err);
-    }
-  }
-
-  async function generateTenderPackRequest(dealId: string): Promise<TenderPackGenerateResponse> {
-    return requestTenderPackGeneration(dealId);
-  }
-
-  function decodeBase64Pdf(base64: string): Blob {
-    const binary = window.atob(base64);
-    const bytes = new Uint8Array(binary.length);
-
-    for (let index = 0; index < binary.length; index += 1) {
-      bytes[index] = binary.charCodeAt(index);
-    }
-
-    return new Blob([bytes], { type: "application/pdf" });
-  }
-
-  async function previewPack(dealId: string) {
-    try {
-      const result = await generateTenderPackRequest(dealId);
-
-      if (!result.base64) {
-        throw new Error("Tender pack response did not include PDF content");
-      }
-
-      const blob = decodeBase64Pdf(result.base64);
-      const url = URL.createObjectURL(blob);
-      window.open(url, "_blank");
-    } catch (err) {
-      console.error(" PDF PREVIEW ERROR:", err);
-      alert("Failed to load PDF");
-    }
-  }
-
-  async function downloadPack(dealId: string) {
-    try {
-      const result = await generateTenderPackRequest(dealId);
-
-      if (!result.base64) {
-        throw new Error("Tender pack response did not include PDF content");
-      }
-
-      const blob = decodeBase64Pdf(result.base64);
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-
-      a.href = url;
-      a.download = "tender-pack.pdf";
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
-    } catch (err) {
-      console.error(" DOWNLOAD ERROR:", err);
-      alert("Download failed");
-    }
-  }
-
-  async function emailPack(dealId: string) {
-    try {
-      const res = await authFetch(API_ROUTES.TENDER_EMAIL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ dealId }),
+      setStatus({
+        label: "Processing...",
+        detail: `${label} document uploaded. Backend analysis is running.`,
+        tone: "loading",
       });
 
-      alert("Email triggered");
-    } catch (err) {
-      console.error(" EMAIL ERROR:", err);
-      alert("Email failed");
+      await response.json();
+      await loadData(true);
+
+      setStatus({
+        label: "Processed",
+        detail: `${label} document uploaded and processed successfully.`,
+        tone: "success",
+      });
+      alert(`${label} document uploaded successfully`);
+    } catch (error) {
+      const message = getErrorMessage(error);
+      console.error(`${label} upload failed:`, error);
+      setStatus({
+        label: "Error occurred",
+        detail: message,
+        tone: "error",
+      });
+      alert(message);
+    } finally {
+      setBusy(false);
     }
   }
 
-  const handleGenerate = async (deal: Deal) => {
+  async function handleFileSelection(kind: UploadKind, event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+
+    if (!file) {
+      return;
+    }
+
+    await uploadDocument(kind, file);
+  }
+
+  async function generatePack() {
+    if (!selectedDeal) {
+      const message = "Select a deal before generating a tender pack.";
+      setPackStatus({
+        label: "Error occurred",
+        detail: message,
+        tone: "error",
+      });
+      alert(message);
+      return;
+    }
+
+    if (!selectedDeal.contractorId) {
+      const message = "Generate Pack is disabled until a contractor is linked to the selected deal.";
+      setPackStatus({
+        label: "Error occurred",
+        detail: message,
+        tone: "error",
+      });
+      alert(message);
+      return;
+    }
+
+    setIsGeneratingPack(true);
+    setPackStatus({
+      label: "Processing...",
+      detail: `Generating tender pack for ${getDealTitle(selectedDeal)}.`,
+      tone: "loading",
+    });
+
     try {
-      if (!deal?.id) {
-        throw new Error("Missing deal ID");
+      const response = await authFetch(API_ROUTES.TENDER_GENERATE, {
+        method: "POST",
+        body: JSON.stringify({
+          dealId: selectedDeal.id,
+          contractorId: selectedDeal.contractorId,
+        }),
+      });
+
+      const data = (await response.json()) as { base64?: string; error?: string };
+
+      if (!data.base64) {
+        throw new Error(data.error || "Tender pack generation did not return a PDF.");
       }
 
-      await generateTenderPackRequest(deal.id);
-      alert("Tender pack generated");
-    } catch (err: any) {
-      console.error(" Generate Error:", err);
-      alert(err.message);
-    }
-  };
+      const pdfWindow = window.open("", "_blank", "noopener,noreferrer");
 
-  const handlePreviewPDF = async (deal: Deal) => {
-    try {
-      if (!deal?.id) throw new Error("Missing deal ID");
-      await previewPack(deal.id);
-    } catch (err: any) {
-      console.error(" Preview Error:", err);
-      alert(err.message || "Preview failed");
-    }
-  };
+      if (!pdfWindow) {
+        throw new Error("Unable to open PDF preview window.");
+      }
 
-  const firstContractorId = contractors[0]?.id ?? "";
-  if (loading) {
-    return <div className="p-6">Loading deals...</div>;
+      pdfWindow.document.write(
+        `<iframe width="100%" height="100%" style="border:0" src="data:application/pdf;base64,${data.base64}"></iframe>`
+      );
+      pdfWindow.document.close();
+
+      setPackStatus({
+        label: "Pack Generated",
+        detail: "Tender pack generated successfully and opened in a new window.",
+        tone: "success",
+      });
+      alert("Tender pack generated successfully");
+    } catch (error) {
+      const message = getErrorMessage(error);
+      console.error("Tender pack generation failed:", error);
+      setPackStatus({
+        label: "Error occurred",
+        detail: message,
+        tone: "error",
+      });
+      alert(message);
+    } finally {
+      setIsGeneratingPack(false);
+    }
+  }
+
+  if (pageLoading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[#F5F7FA] px-6 text-slate-700">
+        <div className="rounded-3xl border border-slate-200 bg-white px-8 py-6 text-sm shadow-sm">
+          Loading workflow...
+        </div>
+      </div>
+    );
   }
 
   return (
-    <div className="p-6 space-y-4">
-      <h1 className="text-2xl font-bold">My Deals</h1>
+    <div className="min-h-screen bg-[#F5F7FA] text-slate-900">
+      <input
+        ref={complianceInputRef}
+        type="file"
+        accept="application/pdf,.pdf"
+        className="hidden"
+        onChange={(event) => {
+          void handleFileSelection("compliance", event);
+        }}
+      />
 
-      {permissions.canEditDeal && (
-        <button
-          onClick={() => {
-            if (!firstContractorId) {
-              console.error(" CREATE DEAL ERROR: No contractor available");
-              return;
-            }
+      <input
+        ref={tenderInputRef}
+        type="file"
+        accept="application/pdf,.pdf"
+        className="hidden"
+        onChange={(event) => {
+          void handleFileSelection("supporting", event);
+        }}
+      />
 
-            void createDeal({
-              contractorId: firstContractorId,
-              title: "RFQ - Electrical Maintenance",
-              value: 50000,
-            });
-          }}
-          className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
-        >
-          Add Test Deal
-        </button>
-      )}
+      <div className="min-h-screen lg:grid lg:grid-cols-[260px_minmax(0,1fr)]">
+        <aside className="border-b border-slate-200 bg-[#F8FBFD] lg:border-b-0 lg:border-r">
+          <div className="flex h-full flex-col p-6">
+            <div className="rounded-3xl bg-gradient-to-br from-sky-500 to-teal-500 p-[1px]">
+              <div className="rounded-[calc(1.5rem-1px)] bg-white p-5">
+                <p className="text-xs font-semibold uppercase tracking-[0.28em] text-sky-600">
+                  CRM
+                </p>
+                <h1 className="mt-3 text-2xl font-semibold text-slate-900">Deals Hub</h1>
+                <p className="mt-2 text-sm leading-6 text-slate-500">
+                  Light workflow dashboard for tender operations and output tracking.
+                </p>
+              </div>
+            </div>
 
-      {deals.length === 0 && (
-        <div className="text-gray-500">No deals found</div>
-      )}
-
-      {deals.map((deal) => (
-        <div key={deal.id} className="border rounded-lg p-4 shadow-sm bg-white">
-          {(() => {
-            const readinessScore = typeof deal.readinessScore === "number" ? deal.readinessScore : 0;
-            const isLocked = deal.isTenderLocked ?? readinessScore < 60;
-
-            return (
-              <>
-          <h2 className="text-lg font-semibold">{getDealTitle(deal)}</h2>
-
-          <p className="text-sm text-gray-500">
-            Status: {deal.status || "unknown"}
-          </p>
-
-          <p className="text-sm text-gray-500">
-            Readiness Score: {typeof deal.readinessScore === "number" ? `${deal.readinessScore}%` : "Pending"}
-          </p>
-
-          <p className="text-sm text-gray-500">
-            Risk: {deal.riskLevel || "UNKNOWN"}
-          </p>
-
-          {Array.isArray(deal.missingDocs) && deal.missingDocs.length > 0 && (
-            <ul className="mt-2 list-disc pl-5 text-sm text-amber-700">
-              {deal.missingDocs.map((doc) => (
-                <li key={doc}>Missing: {doc}</li>
+            <nav className="mt-8 space-y-2">
+              {["Overview", "Workflow Engine", "Results", "Deals Table"].map((item, index) => (
+                <div
+                  key={item}
+                  className={`rounded-2xl px-4 py-3 text-sm font-medium ${
+                    index === 1
+                      ? "bg-sky-50 text-sky-700 ring-1 ring-inset ring-sky-200"
+                      : "text-slate-600"
+                  }`}
+                >
+                  {item}
+                </div>
               ))}
-            </ul>
-          )}
+            </nav>
 
-          {Array.isArray(deal.suggestions) && deal.suggestions.length > 0 && (
-            <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 p-3 text-amber-900">
-              <strong>Action Required:</strong>
-              <ul className="mt-2 list-disc pl-5 text-sm">
-                {deal.suggestions.map((suggestion, index) => (
-                  <li key={index}>{suggestion}</li>
-                ))}
-              </ul>
+            <div className="mt-8 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">
+                Active Deal
+              </p>
+              <p className="mt-3 text-lg font-semibold text-slate-900">
+                {selectedDeal ? getDealTitle(selectedDeal) : "No deal selected"}
+              </p>
+              <p className="mt-2 text-sm text-slate-500">
+                {selectedDeal?.contractorId?.trim()
+                  ? `Linked contractor: ${selectedDeal.contractorId}`
+                  : "No contractor linked yet"}
+              </p>
             </div>
-          )}
 
-          {deal.aiInsights ? (
-            <div className="mt-3 rounded-md border border-cyan-200 bg-cyan-50 p-3 text-cyan-900">
-              <strong>AI Insight:</strong>
-              <p className="mt-2 whitespace-pre-line text-sm">{deal.aiInsights}</p>
+            <div className="mt-auto rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">
+                Workflow Path
+              </p>
+              <div className="mt-4 space-y-3 text-sm text-slate-600">
+                <div className="flex items-center gap-3">
+                  <span className={`h-2.5 w-2.5 rounded-full ${getWorkflowBulletClasses(uploadState)}`} />
+                  <span>Upload</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className={`h-2.5 w-2.5 rounded-full ${getWorkflowBulletClasses(processState)}`} />
+                  <span>Process</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className={`h-2.5 w-2.5 rounded-full ${getWorkflowBulletClasses(generateState)}`} />
+                  <span>Generate</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className={`h-2.5 w-2.5 rounded-full ${getWorkflowBulletClasses(outputState)}`} />
+                  <span>Output</span>
+                </div>
+              </div>
             </div>
-          ) : null}
-
-          <div className="flex gap-3 mt-4">
-            {permissions.canGeneratePack && (
-              <button
-                onClick={() => handleGenerate(deal)}
-                disabled={isLocked}
-                className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
-                title={isLocked ? "Generate Tender Pack unlocks at 60% readiness" : undefined}
-              >
-                Generate Tender Pack
-              </button>
-            )}
-
-            <button
-              onClick={() => handlePreviewPDF(deal)}
-              className="bg-gray-800 text-white px-4 py-2 rounded hover:bg-gray-900"
-            >
-              Preview Pack
-            </button>
-
-            <button
-              onClick={() => void downloadPack(deal.id)}
-              className="bg-slate-700 text-white px-4 py-2 rounded hover:bg-slate-800"
-            >
-              Download Pack
-            </button>
-
-            <button
-              onClick={() => void emailPack(deal.id)}
-              className="bg-violet-700 text-white px-4 py-2 rounded hover:bg-violet-800"
-            >
-              Email Pack
-            </button>
-
-            {permissions.canAnalyzeDeal && (
-              <button
-                onClick={() =>
-                  void runDealAnalysis(
-                    deal.id,
-                    "This tender requires tax clearance, BBBEE and COIDA."
-                  )
-                }
-                className="bg-amber-600 text-white px-4 py-2 rounded hover:bg-amber-700"
-              >
-                Analyze Deal
-              </button>
-            )}
-
-            {permissions.canUploadDocs && (
-              <input
-                type="file"
-                accept="application/pdf"
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (file) {
-                    void uploadAndAnalyze(deal.id, file);
-                    e.currentTarget.value = "";
-                  }
-                }}
-                className="block text-sm"
-              />
-            )}
           </div>
-              </>
-            );
-          })()}
+        </aside>
+
+        <div className="min-w-0">
+          <header className="border-b border-slate-200 bg-white">
+            <div className="flex flex-col gap-4 px-5 py-5 sm:px-6 xl:flex-row xl:items-center xl:justify-between">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">
+                  Tender Workflow
+                </p>
+                <h2 className="mt-2 text-2xl font-semibold text-slate-900">
+                  Professional Deals Dashboard
+                </h2>
+              </div>
+
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+                <div className="min-w-[260px]">
+                  <label htmlFor="deal-select" className="mb-2 block text-sm font-medium text-slate-600">
+                    Active deal
+                  </label>
+                  <select
+                    id="deal-select"
+                    value={selectedDeal?.id ?? ""}
+                    onChange={(event) => setSelectedDealId(event.target.value)}
+                    className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
+                  >
+                    {deals.length === 0 && <option value="">No deals available</option>}
+                    {deals.map((deal) => (
+                      <option key={deal.id} value={deal.id}>
+                        {getDealTitle(deal)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    void loadData(true);
+                  }}
+                  disabled={isRefreshing}
+                  className="rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-medium text-slate-700 shadow-sm transition hover:border-sky-200 hover:bg-sky-50 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {isRefreshing ? "Refreshing..." : "Refresh"}
+                </button>
+              </div>
+            </div>
+          </header>
+          <main className="p-5 sm:p-6">
+            <div className="space-y-6">
+              <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+                  <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">Total Deals</p>
+                  <p className="mt-4 text-3xl font-semibold text-slate-900">{deals.length}</p>
+                  <p className="mt-2 text-sm text-slate-500">Tracked in the current workflow view.</p>
+                </div>
+
+                <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+                  <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">Selected Deal</p>
+                  <p className="mt-4 text-lg font-semibold text-slate-900">
+                    {selectedDeal ? getDealTitle(selectedDeal) : "No deal selected"}
+                  </p>
+                  <p className="mt-2 text-sm text-slate-500">
+                    Status: {selectedDeal?.status || "Unknown"}
+                  </p>
+                </div>
+
+                <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+                  <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">Readiness</p>
+                  <p className="mt-4 text-3xl font-semibold text-slate-900">
+                    {selectedDeal?.readinessScore ?? 0}%
+                  </p>
+                  <p className="mt-2 text-sm text-slate-500">Current tender readiness score.</p>
+                </div>
+
+                <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+                  <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">Risk Level</p>
+                  <div className="mt-4">
+                    <span className={`inline-flex rounded-full px-3 py-1 text-sm font-medium ${getRiskBadgeClasses(selectedDeal?.riskLevel)}`}>
+                      {selectedDeal?.riskLevel || "Unknown"}
+                    </span>
+                  </div>
+                  <p className="mt-2 text-sm text-slate-500">Operational signal from the selected deal.</p>
+                </div>
+              </section>
+
+              <section className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
+                <div className="space-y-6">
+                  <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+                    <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">
+                          Workflow Engine
+                        </p>
+                        <h3 className="mt-2 text-2xl font-semibold text-slate-900">
+                          Upload Process Generate Output
+                        </h3>
+                        <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">
+                          Run document intake, backend processing, tender pack generation, and output review from one center workspace.
+                        </p>
+                      </div>
+
+                      <div className="rounded-2xl bg-sky-50 px-4 py-3 text-sm text-sky-800 ring-1 ring-inset ring-sky-200">
+                        Contractor Link: {selectedDeal?.contractorId?.trim() || "Required for pack generation"}
+                      </div>
+                    </div>
+
+                    <div className="mt-6 grid gap-4 lg:grid-cols-[repeat(4,minmax(0,1fr))]">
+                      {[
+                        {
+                          title: "Upload",
+                          subtitle: "Compliance and tender documents",
+                          state: uploadState,
+                        },
+                        {
+                          title: "Process",
+                          subtitle: "Analysis and validation",
+                          state: processState,
+                        },
+                        {
+                          title: "Generate",
+                          subtitle: "Build tender pack",
+                          state: generateState,
+                        },
+                        {
+                          title: "Output",
+                          subtitle: "Preview generated PDF",
+                          state: outputState,
+                        },
+                      ].map((step, index) => (
+                        <div key={step.title} className="relative">
+                          <div className={`rounded-3xl border p-5 ${getWorkflowStepClasses(step.state)}`}>
+                            <div className="flex items-center gap-3">
+                              <span className={`h-3 w-3 rounded-full ${getWorkflowBulletClasses(step.state)}`} />
+                              <p className="text-sm font-semibold">
+                                {String(index + 1).padStart(2, "0")} {step.title}
+                              </p>
+                            </div>
+                            <p className="mt-3 text-sm leading-6 opacity-80">{step.subtitle}</p>
+                          </div>
+                          {index < 3 && (
+                            <div className="absolute -right-2 top-1/2 hidden h-0.5 w-4 -translate-y-1/2 bg-slate-200 lg:block" />
+                          )}
+                        </div>
+                      ))}
+                    </div>
+
+                    {selectedDeal ? (
+                      <div className="mt-6 grid gap-4 md:grid-cols-3">
+                        <button
+                          type="button"
+                          onClick={() => openFilePicker("compliance")}
+                          disabled={isUploadingCompliance}
+                          className="rounded-3xl bg-[#0EA5E9] px-5 py-4 text-sm font-semibold text-white shadow-sm transition hover:bg-sky-500 disabled:cursor-not-allowed disabled:bg-slate-300"
+                        >
+                          {isUploadingCompliance ? "Uploading..." : "Upload Compliance Docs"}
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => openFilePicker("supporting")}
+                          disabled={isUploadingTender}
+                          className="rounded-3xl bg-[#14B8A6] px-5 py-4 text-sm font-semibold text-white shadow-sm transition hover:bg-teal-500 disabled:cursor-not-allowed disabled:bg-slate-300"
+                        >
+                          {isUploadingTender ? "Uploading..." : "Upload Tender Docs"}
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            void generatePack();
+                          }}
+                          disabled={!canGeneratePack || isGeneratingPack}
+                          title={
+                            canGeneratePack
+                              ? "Generate Tender Pack"
+                              : "Link a contractor to this deal before generating the pack."
+                          }
+                          className="rounded-3xl border border-slate-200 bg-white px-5 py-4 text-sm font-semibold text-slate-800 shadow-sm transition hover:border-sky-200 hover:bg-sky-50 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
+                        >
+                          {isGeneratingPack ? "Processing..." : "Generate Tender Pack"}
+                        </button>
+                      </div>
+                    ) : null}
+
+                    {!selectedDeal ? (
+                      <div className="mt-6 rounded-3xl border border-slate-200 bg-slate-50 p-5 text-sm text-slate-600">
+                        No deals found. Add or load a deal to start the workflow.
+                      </div>
+                    ) : null}
+
+                    {!canGeneratePack && selectedDeal ? (
+                      <div className="mt-6 rounded-3xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-900">
+                        Generate Pack is disabled because this deal has no linked contractor.
+                      </div>
+                    ) : null}
+
+                    {!selectedDeal?.contractorId && selectedDeal ? (
+                      <div className="mt-4 text-sm text-red-600">
+                        This deal is not linked to a contractor. Actions are restricted.
+                      </div>
+                    ) : null}
+
+                    {selectedDeal && Array.isArray(selectedDeal.missingDocs) && selectedDeal.missingDocs.length > 0 ? (
+                      <div className="mt-6 rounded-3xl border border-amber-200 bg-amber-50 p-5">
+                        <p className="text-sm font-semibold text-amber-900">Missing Docs</p>
+                        <p className="mt-2 text-sm leading-6 text-amber-800">
+                          {selectedDeal.missingDocs.join(", ")}
+                        </p>
+                      </div>
+                    ) : null}
+
+                    {selectedDeal && Array.isArray(selectedDeal.suggestions) && selectedDeal.suggestions.length > 0 ? (
+                      <div className="mt-4 rounded-3xl border border-sky-200 bg-sky-50 p-5">
+                        <p className="text-sm font-semibold text-sky-900">System Suggestions</p>
+                        <p className="mt-2 text-sm leading-6 text-sky-800">
+                          {selectedDeal.suggestions.join(" | ")}
+                        </p>
+                      </div>
+                    ) : null}
+                  </div>
+
+                  <div className="rounded-3xl border border-slate-200 bg-white shadow-sm">
+                    <div className="flex items-center justify-between border-b border-slate-200 px-6 py-5">
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">
+                          Deals Table
+                        </p>
+                        <h3 className="mt-2 text-xl font-semibold text-slate-900">All Deals</h3>
+                      </div>
+                      <div className="text-sm text-slate-500">{deals.length} records</div>
+                    </div>
+
+                    <div className="overflow-x-auto">
+                      <table className="min-w-full divide-y divide-slate-200">
+                        <thead className="bg-slate-50">
+                          <tr className="text-left text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                            <th className="px-6 py-4">Deal</th>
+                            <th className="px-6 py-4">Status</th>
+                            <th className="px-6 py-4">Readiness</th>
+                            <th className="px-6 py-4">Risk</th>
+                            <th className="px-6 py-4">Contractor</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 bg-white">
+                          {deals.length === 0 ? (
+                            <tr>
+                              <td colSpan={5} className="px-6 py-8 text-sm text-slate-500">
+                                No deals available.
+                              </td>
+                            </tr>
+                          ) : (
+                            deals.map((deal) => {
+                              const isSelected = selectedDeal?.id === deal.id;
+
+                              return (
+                                <tr
+                                  key={deal.id}
+                                  className={`cursor-pointer transition hover:bg-sky-50 ${
+                                    isSelected ? "bg-sky-50/80" : ""
+                                  }`}
+                                  onClick={() => setSelectedDealId(deal.id)}
+                                >
+                                  <td className="px-6 py-4">
+                                    <div>
+                                      <p className="font-medium text-slate-900">{getDealTitle(deal)}</p>
+                                      <p className="mt-1 text-xs text-slate-500">ID: {deal.id}</p>
+                                    </div>
+                                  </td>
+                                  <td className="px-6 py-4 text-sm text-slate-600">{deal.status || "Unknown"}</td>
+                                  <td className="px-6 py-4 text-sm text-slate-600">
+                                    {deal.readinessScore ?? 0}%
+                                  </td>
+                                  <td className="px-6 py-4">
+                                    <span className={`inline-flex rounded-full px-3 py-1 text-xs font-medium ${getRiskBadgeClasses(deal.riskLevel)}`}>
+                                      {deal.riskLevel || "Unknown"}
+                                    </span>
+                                  </td>
+                                  <td className="px-6 py-4 text-sm text-slate-600">
+                                    {deal.contractorId?.trim() || "Not linked"}
+                                  </td>
+                                </tr>
+                              );
+                            })
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+
+                <aside className="space-y-4">
+                  <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+                    <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">
+                      Results Panel
+                    </p>
+                    <h3 className="mt-2 text-xl font-semibold text-slate-900">Live Status</h3>
+                  </div>
+
+                  <div className={`rounded-3xl border p-5 shadow-sm ${getStatusClasses(pageStatus.tone)}`}>
+                    <div className="flex items-center gap-3">
+                      <span className={`h-2.5 w-2.5 rounded-full ${getStatusDotClasses(pageStatus.tone)}`} />
+                      <p className="text-sm font-semibold">Workflow Status</p>
+                    </div>
+                    <p className="mt-4 text-base font-semibold">{pageStatus.label}</p>
+                    <p className="mt-2 text-sm leading-6 opacity-90">{pageStatus.detail}</p>
+                  </div>
+
+                  <div className={`rounded-3xl border p-5 shadow-sm ${getStatusClasses(complianceStatus.tone)}`}>
+                    <div className="flex items-center gap-3">
+                      <span className={`h-2.5 w-2.5 rounded-full ${getStatusDotClasses(complianceStatus.tone)}`} />
+                      <p className="text-sm font-semibold">Compliance Docs</p>
+                    </div>
+                    <p className="mt-4 text-base font-semibold">{complianceStatus.label}</p>
+                    <p className="mt-2 text-sm leading-6 opacity-90">{complianceStatus.detail}</p>
+                  </div>
+
+                  <div className={`rounded-3xl border p-5 shadow-sm ${getStatusClasses(tenderDocsStatus.tone)}`}>
+                    <div className="flex items-center gap-3">
+                      <span className={`h-2.5 w-2.5 rounded-full ${getStatusDotClasses(tenderDocsStatus.tone)}`} />
+                      <p className="text-sm font-semibold">Tender Docs</p>
+                    </div>
+                    <p className="mt-4 text-base font-semibold">{tenderDocsStatus.label}</p>
+                    <p className="mt-2 text-sm leading-6 opacity-90">{tenderDocsStatus.detail}</p>
+                  </div>
+
+                  <div className={`rounded-3xl border p-5 shadow-sm ${getStatusClasses(packStatus.tone)}`}>
+                    <div className="flex items-center gap-3">
+                      <span className={`h-2.5 w-2.5 rounded-full ${getStatusDotClasses(packStatus.tone)}`} />
+                      <p className="text-sm font-semibold">Pack Status</p>
+                    </div>
+                    <p className="mt-4 text-base font-semibold">{packStatus.label}</p>
+                    <p className="mt-2 text-sm leading-6 opacity-90">{packStatus.detail}</p>
+                  </div>
+                </aside>
+              </section>
+            </div>
+          </main>
         </div>
-      ))}
+      </div>
     </div>
   );
 }

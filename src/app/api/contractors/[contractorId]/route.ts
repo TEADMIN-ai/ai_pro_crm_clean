@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getAuth } from "firebase-admin/auth";
+import { db } from "@/lib/firebaseAdmin";
 import { AuthorizationError, assertCanAccessContractor, assertPrivilegedRole, requireAuthorizedUser } from "@/lib/server/authz";
-import { deleteContractorById, getContractorById, updateContractorById } from "@/server/services/contractorService";
+import { getContractorById, updateContractorById } from "@/server/services/contractorService";
 
 export async function GET(
   req: NextRequest,
@@ -77,8 +79,30 @@ export async function DELETE(
 
     assertPrivilegedRole(user);
 
-    await deleteContractorById(contractorId);
-    return NextResponse.json({ success: true, message: "Contractor deleted" });
+    const contractorRef = db.collection("contractors").doc(contractorId);
+    const contractorSnap = await contractorRef.get();
+
+    if (!contractorSnap.exists) {
+      return NextResponse.json({ error: "Contractor not found" }, { status: 404 });
+    }
+
+    const contractor = contractorSnap.data() as Record<string, unknown> | undefined;
+    const authUid =
+      typeof contractor?.authUid === "string" && contractor.authUid.trim().length > 0
+        ? contractor.authUid.trim()
+        : "";
+
+    if (!authUid) {
+      return NextResponse.json(
+        { error: "Missing authUid. Cannot delete securely." },
+        { status: 400 }
+      );
+    }
+
+    await getAuth().deleteUser(authUid);
+    await contractorRef.delete();
+
+    return NextResponse.json({ success: true });
   } catch (error) {
     if (error instanceof AuthorizationError) {
       return NextResponse.json({ success: false, error: error.message }, { status: error.status });

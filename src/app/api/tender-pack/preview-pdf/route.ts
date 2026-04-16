@@ -19,7 +19,10 @@ export async function GET(req: NextRequest) {
       return new NextResponse("Deal not found", { status: 404 });
     }
 
-    const deal = dealSnap.data() ?? {};
+    const deal = {
+      id: dealSnap.id,
+      ...(dealSnap.data() ?? {}),
+    } as Record<string, unknown> & { id: string };
     const contractorId =
       typeof deal.contractorId === "string" && deal.contractorId.trim().length > 0
         ? deal.contractorId.trim()
@@ -34,7 +37,10 @@ export async function GET(req: NextRequest) {
       return new NextResponse("Missing deal or contractor data", { status: 404 });
     }
 
-    const contractor = contractorSnap.data() ?? {};
+    const contractor = {
+      id: contractorSnap.id,
+      ...(contractorSnap.data() ?? {}),
+    } as Record<string, unknown> & { id: string };
     const pdfBytes = await generateMergedPack(deal, contractor);
 
     return new NextResponse(Buffer.from(pdfBytes), {

@@ -202,7 +202,11 @@ export default function TenderPackGeneratorPanel() {
       throw new Error("Missing dealId for tender pack generation");
     }
 
-    const payload = (await requestTenderPackGeneration(dealId)) as Partial<GenerateResponse>;
+    if (!contractorId) {
+      throw new Error("Missing contractorId for tender pack generation");
+    }
+
+    const payload = (await requestTenderPackGeneration(dealId, contractorId)) as Partial<GenerateResponse>;
     setResult({
       packId: payload.packId ?? "",
       downloadURL: payload.downloadURL ?? "",

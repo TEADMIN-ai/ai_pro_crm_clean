@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createContractor, getContractorById, listContractors } from "@/server/services/contractorService";
+import { getAuth } from "firebase-admin/auth";
+import { db } from "@/lib/firebaseAdmin";
+import { listContractors } from "@/server/services/contractorService";
 import { AuthorizationError, assertPrivilegedRole, requireAuthorizedUser } from "@/lib/server/authz";
 
 function getString(value: unknown): string {
@@ -39,14 +41,14 @@ export async function POST(req: NextRequest) {
     assertPrivilegedRole(user);
 
     const body = (await req.json()) as Record<string, unknown>;
-    const name = getString(body.name);
     const email = getString(body.email);
-    const phone = getString(body.phone);
-    const company = getString(body.company);
+    const companyName = getString(body.companyName) || getString(body.company) || getString(body.name);
+    const registrationNumber =
+      getString(body.registrationNumber) || getString(body.companyRegistrationNumber);
 
-    if (!name || !email) {
+    if (!email || !companyName) {
       return NextResponse.json(
-        { error: "Name and email are required" },
+        { error: "Missing required contractor fields" },
         { status: 400 }
       );
     }
@@ -58,36 +60,39 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const contractorId = await createContractor({
-      name,
+    const userRecord = await getAuth().createUser({
       email,
-      phone,
-      company,
-      companyName: company || name,
-      contactEmail: email,
-      contactPhone: phone,
-      createdAt: Date.now(),
+      password: "Temp123!",
     });
 
-    const createdContractor = await getContractorById(contractorId);
+    const contractorId = userRecord.uid;
+    const createdAt = new Date().toISOString();
 
-    if (!createdContractor) {
-      return NextResponse.json(
-        { error: "Failed to load created contractor" },
-        { status: 500 }
-      );
-    }
+    await db.collection("contractors").doc(contractorId).set({
+      id: contractorId,
+      contractorId,
+      authUid: contractorId,
+      userId: contractorId,
+      email,
+      companyName,
+      company: companyName,
+      name: companyName,
+      registrationNumber: registrationNumber || "",
+      companyRegistrationNumber: registrationNumber || "",
+      createdAt,
+      updatedAt: createdAt,
+    });
 
-    return NextResponse.json(createdContractor, { status: 201 });
+    return NextResponse.json({ success: true, contractorId }, { status: 201 });
   } catch (error: any) {
     if (error instanceof AuthorizationError) {
       return NextResponse.json({ error: error.message }, { status: error.status });
     }
 
-    console.error(" CONTRACTOR CREATE ERROR:", error);
+    console.error("CREATE CONTRACTOR ERROR:", error);
 
     return NextResponse.json(
-      { error: "Failed to create contractor", details: error.message },
+      { error: "Failed to create contractor" },
       { status: 500 }
     );
   }

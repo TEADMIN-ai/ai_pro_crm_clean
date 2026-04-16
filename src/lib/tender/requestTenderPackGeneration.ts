@@ -1,6 +1,11 @@
 import { authFetch } from "@/lib/client/authFetch";
 import { API_ROUTES } from "@/lib/apiRoutes";
 
+export type TenderRequest = {
+  dealId: string;
+  contractorId: string;
+};
+
 export type TenderPackGenerateResponse = {
   success?: boolean;
   packId?: string;
@@ -13,14 +18,26 @@ export type TenderPackGenerateResponse = {
 
 export async function requestTenderPackGeneration(
   dealId: string,
+  contractorId: string,
 ): Promise<TenderPackGenerateResponse> {
   const normalizedDealId = dealId.trim();
+  const normalizedContractorId = contractorId.trim();
 
   if (!normalizedDealId) {
     throw new Error("Missing deal ID");
   }
 
-  const payload = { dealId: normalizedDealId };
+  if (!normalizedContractorId) {
+    throw new Error("Missing contractor ID");
+  }
+
+  const payload: TenderRequest = {
+    dealId: normalizedDealId,
+    contractorId: normalizedContractorId,
+  };
+
+  console.log("TENDER REQUEST:", payload);
+
   const response = await authFetch(API_ROUTES.TENDER_PACK_GENERATE, {
     method: "POST",
     headers: {

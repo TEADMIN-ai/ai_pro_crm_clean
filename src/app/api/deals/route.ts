@@ -142,9 +142,16 @@ export async function POST(req: NextRequest) {
     const tenderText = getString(body.tenderText);
     const value = getNumber(body.value);
 
-    if (!contractorId || !title) {
+    if (!title) {
       return NextResponse.json(
-        { error: "contractorId and title are required" },
+        { error: "title is required" },
+        { status: 400 }
+      );
+    }
+
+    if (!contractorId) {
+      return NextResponse.json(
+        { error: "Deal must be linked to a contractor" },
         { status: 400 }
       );
     }
@@ -153,8 +160,8 @@ export async function POST(req: NextRequest) {
 
     if (!contractorSnapshot.exists) {
       return NextResponse.json(
-        { error: "Contractor not found" },
-        { status: 404 }
+        { error: "Invalid contractorId" },
+        { status: 400 }
       );
     }
 

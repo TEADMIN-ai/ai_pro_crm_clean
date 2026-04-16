@@ -68,3 +68,22 @@ export async function PATCH(
     return NextResponse.json({ error: "Failed" }, { status: 500 });
   }
 }
+
+export async function DELETE(
+  req: NextRequest,
+  context: { params: Promise<{ dealId: string }> },
+) {
+  try {
+    const { dealId } = await context.params;
+
+    await adminDb.collection("deals").doc(dealId).delete();
+
+    return NextResponse.json({ success: true });
+  } catch (err) {
+    console.error("DELETE DEAL ERROR:", err);
+    return NextResponse.json(
+      { error: "Failed to delete deal" },
+      { status: 500 },
+    );
+  }
+}
