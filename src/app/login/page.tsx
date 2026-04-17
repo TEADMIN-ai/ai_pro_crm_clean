@@ -1,8 +1,44 @@
 "use client";
 
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 import LoginForm from "@/components/auth/LoginForm";
+import { useAuthUser } from "@/hooks/useAuthUser";
 
 export default function LoginPage() {
+  console.log("📍 LoginPage mounted");
+
+  const router = useRouter();
+  const authState = useAuthUser();
+
+  console.log("🧠 Hook state:", authState);
+
+  const { user, role, loading } = authState;
+
+  // 🔍 FULL DEBUG
+  useEffect(() => {
+    console.log("🧠 LOGIN STATE:", {
+      user,
+      role,
+      loading,
+    });
+
+    if (loading) return;
+
+    if (!user) {
+      console.log("❌ No user yet");
+      return;
+    }
+
+    if (!role) {
+      console.log("⏳ Waiting for role...");
+      return;
+    }
+
+    console.log("🚀 Redirecting to dashboard...");
+    router.replace("/dashboard");
+  }, [loading, role, router, user]);
+
   return (
     <div style={{ position: "relative", minHeight: "100vh", overflow: "hidden" }}>
       
@@ -25,7 +61,7 @@ export default function LoginPage() {
         <source src="/login/hero.mp4" type="video/mp4" />
       </video>
 
-      {/* 🌓 Dark overlay for readability */}
+      {/* 🌓 Overlay */}
       <div
         style={{
           position: "absolute",
@@ -43,13 +79,36 @@ export default function LoginPage() {
           zIndex: 2,
           minHeight: "100vh",
           display: "flex",
+          flexDirection: "column",
           alignItems: "center",
           justifyContent: "center",
+          gap: 16,
+          padding: "24px",
         }}
       >
+        <div
+          style={{
+            width: "100%",
+            maxWidth: 420,
+            padding: "12px 16px",
+            borderRadius: 12,
+            background: "rgba(15, 23, 42, 0.72)",
+            color: "#E2E8F0",
+            border: "1px solid rgba(148, 163, 184, 0.35)",
+            backdropFilter: "blur(8px)",
+          }}
+        >
+          {loading && "🔄 Checking authentication..."}
+
+          {!loading && !user && "🔐 Please sign in."}
+
+          {!loading && user && !role && "⏳ Logged in, fetching role..."}
+
+          {!loading && user && role && "✅ Auth complete. Redirecting..."}
+        </div>
+
         <LoginForm />
       </div>
     </div>
   );
 }
-

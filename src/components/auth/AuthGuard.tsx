@@ -26,6 +26,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
       }
 
       if (!user) {
+        console.info("[AuthGuard] No authenticated user. Redirecting to /login");
         setSessionUser(null);
         setVerifying(false);
         router.replace("/login");
@@ -49,6 +50,10 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
         setVerifying(false);
 
         if (!verifiedUser || verifiedUser !== user.uid) {
+          console.info("[AuthGuard] Session mismatch detected. Redirecting to /login", {
+            firebaseUid: user.uid,
+            sessionUser: verifiedUser,
+          });
           router.replace("/login");
         }
       } catch (error) {
@@ -76,7 +81,8 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
   }
 
   if (!sessionUser || !user || sessionUser !== user.uid) {
-    return null;
+    console.info("[AuthGuard] Rendering redirect fallback while auth state settles");
+    return <div>Redirecting to login...</div>;
   }
 
   return <>{children}</>;

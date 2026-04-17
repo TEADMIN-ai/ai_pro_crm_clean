@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { getAuth, signInWithEmailAndPassword } from "firebase/auth";
 import { authFetch } from "@/lib/client/authFetch";
 import { API_ROUTES } from "@/lib/routes";
@@ -9,7 +8,6 @@ import { API_ROUTES } from "@/lib/routes";
 const POST_LOGIN_BOOT_KEY = "show_ai_boot";
 
 export default function LoginForm() {
-  const router = useRouter();
   const auth = getAuth();
 
   const [email, setEmail] = useState("");
@@ -25,6 +23,12 @@ export default function LoginForm() {
     try {
       const credential = await signInWithEmailAndPassword(auth, email, password);
       const idToken = await credential.user.getIdToken(true);
+
+      console.info("[LoginForm] Firebase sign-in succeeded", {
+        uid: credential.user.uid,
+        email: credential.user.email,
+      });
+
       await authFetch(API_ROUTES.AUTH_LOGIN, {
         method: "POST",
         headers: {
@@ -34,8 +38,9 @@ export default function LoginForm() {
         body: JSON.stringify({ idToken }),
       });
 
+      console.info("[LoginForm] Session cookie created successfully");
       window.sessionStorage.setItem(POST_LOGIN_BOOT_KEY, "true");
-      router.replace("/dashboard");
+      console.info("[LoginForm] Waiting for authenticated redirect");
     } catch (err: any) {
       console.error("Login failed:", err);
       setError(err.message || "Login failed");

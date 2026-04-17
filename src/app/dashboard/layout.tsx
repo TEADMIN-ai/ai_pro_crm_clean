@@ -19,6 +19,7 @@ export default function DashboardLayout({
 
   useEffect(() => {
     if (!loading && !user) {
+      console.info("[DashboardLayout] No user found. Redirecting to /login");
       router.replace("/login");
     }
   }, [loading, router, user]);
@@ -28,7 +29,7 @@ export default function DashboardLayout({
   }
 
   if (!user) {
-    return null;
+    return <div>Redirecting to login...</div>;
   }
 
   return (

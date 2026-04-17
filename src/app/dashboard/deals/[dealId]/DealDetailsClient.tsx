@@ -488,7 +488,10 @@ export default function DealDetailsClient({ dealId }: { dealId: string }) {
     return <div style={{ padding: 40 }}>Loading documents...</div>;
   }
 
-  if (!user) return null;
+  if (!user) {
+    console.info("[DealDetailsClient] Missing user. Rendering redirect fallback");
+    return <div style={{ padding: 40 }}>Redirecting to login...</div>;
+  }
 
   return (
     <div className="space-y-6" style={{ padding: 40 }}>

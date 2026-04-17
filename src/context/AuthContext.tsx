@@ -1,18 +1,17 @@
 "use client";
 
-import { getIdToken, onAuthStateChanged, signOut, User as FirebaseUser } from "firebase/auth";
 import { createContext, useContext, useEffect, useState } from "react";
+import { signOut } from "firebase/auth";
 import { useRouter } from "next/navigation";
 import { auth } from "@/lib/firebase";
 import type { UserRole } from "@/lib/auth/roleUtils";
 import { authFetch } from "@/lib/client/authFetch";
 import {
-  normalizeContractorId,
-  normalizeRole,
   type AuthUser,
-  type UserProfile,
+  normalizeContractorId,
 } from "@/lib/auth/userProfile";
 import { API_ROUTES } from "@/lib/routes";
+import { useAuthUser } from "@/hooks/useAuthUser";
 
 interface AuthContextType {
   user: AuthUser | null;
@@ -30,27 +29,6 @@ const AuthContext = createContext<AuthContextType>({
   logout: async () => {},
 });
 
-function mergeFirebaseUser(firebaseUser: FirebaseUser, profile: UserProfile): AuthUser {
-  const merged = firebaseUser as AuthUser;
-  merged.role = profile.role;
-  merged.contractorId = profile.contractorId;
-  merged.status = profile.status;
-  merged.name = profile.name ?? firebaseUser.displayName ?? undefined;
-  merged.createdAt = profile.createdAt;
-  return merged;
-}
-
-async function syncServerSession(token: string): Promise<void> {
-  await authFetch(API_ROUTES.AUTH_LOGIN, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    credentials: "include",
-    body: JSON.stringify({ idToken: token }),
-  });
-}
-
 async function clearServerSession(): Promise<void> {
   if (!auth.currentUser) {
     return;
@@ -64,98 +42,91 @@ async function clearServerSession(): Promise<void> {
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
-  const [user, setUser] = useState<AuthUser | null>(null);
-  const [role, setRole] = useState<UserRole>("guest");
-  const [loading, setLoading] = useState(true);
+  const authState = useAuthUser();
+  const [contractorId, setContractorId] = useState<string | undefined>(undefined);
 
   useEffect(() => {
-    let isActive = true;
+    let cancelled = false;
 
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      if (!isActive) {
-        return;
-      }
+    if (authState.loading) {
+      return () => {
+        cancelled = true;
+      };
+    }
 
-      setLoading(true);
+    if (!authState.user) {
+      setContractorId(undefined);
+      return () => {
+        cancelled = true;
+      };
+    }
 
-      if (!firebaseUser) {
-        if (!isActive) {
-          return;
-        }
+    if (authState.role !== "contractor") {
+      setContractorId(undefined);
+      return () => {
+        cancelled = true;
+      };
+    }
 
-        setUser(null);
-        setRole("guest");
-        setLoading(false);
-        return;
-      }
-
-      let name = firebaseUser.displayName ?? undefined;
-
+    async function syncContractorContext() {
       try {
-        const refreshedToken = await getIdToken(firebaseUser, true);
-        await syncServerSession(refreshedToken).catch((error) => {
-          console.error("Auth session sync failed:", error);
+        console.info("[AuthContext] Contractor detected. Syncing contractor context", {
+          uid: authState.user?.uid,
         });
 
-        const res = await authFetch(API_ROUTES.SYNC_ROLE, {
+        const response = await authFetch(API_ROUTES.SYNC_ROLE, {
           method: "POST",
           credentials: "include",
         });
+        const data = (await response.json()) as { contractorId?: string | null };
 
-        const data = await res.json();
+        console.info("[AuthContext] Contractor sync response", data);
 
-        if (!isActive) {
+        if (cancelled) {
           return;
         }
 
-        const profile: UserProfile = {
-          email: firebaseUser.email ?? undefined,
-          name,
-          role: normalizeRole(data.role || "guest"),
-          contractorId: normalizeContractorId(data.contractorId || null),
-        };
+        const normalizedContractorId = normalizeContractorId(data.contractorId ?? null);
+        authState.user!.contractorId = normalizedContractorId;
+        setContractorId(normalizedContractorId);
+      } catch (error) {
+        console.error("[AuthContext] Contractor sync failed", error);
 
-        const mergedUser = mergeFirebaseUser(firebaseUser, profile);
-        setUser(mergedUser);
-        setRole(profile.role);
-        setLoading(false);
-      } catch (err) {
-        console.error("Session role sync failed:", err);
-
-        if (!isActive) {
+        if (cancelled) {
           return;
         }
 
-        setUser(null);
-        setRole("guest");
-        setLoading(false);
+        setContractorId(authState.user.contractorId);
       }
-    });
+    }
+
+    void syncContractorContext();
 
     return () => {
-      isActive = false;
-      unsubscribe();
+      cancelled = true;
     };
-  }, []);
+  }, [authState.loading, authState.role, authState.user?.uid]);
 
   const logout = async () => {
     try {
       await clearServerSession();
       await signOut(auth);
     } finally {
-      setUser(null);
-      setRole("guest");
-      setLoading(false);
+      setContractorId(undefined);
       router.replace("/login");
     }
   };
 
-  if (loading) {
-    return null;
-  }
-
   return (
-    <AuthContext.Provider value={{ user, role, contractorId: user?.contractorId, loading, logout }}>
+    <AuthContext.Provider
+      value={{
+        user: authState.user,
+        role: authState.role,
+        contractorId,
+        loading: authState.loading,
+        logout,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );

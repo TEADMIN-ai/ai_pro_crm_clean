@@ -12,7 +12,21 @@ export default function Sidebar() {
   const pathname = usePathname();
 
   if (loading) {
-    return null;
+    console.info("[Sidebar] Auth state loading. Rendering sidebar placeholder");
+    return (
+      <aside
+        style={{
+          width: 220,
+          minHeight: "100vh",
+          background: empireColors.surface,
+          color: empireColors.textPrimary,
+          padding: "24px 16px",
+          borderRight: `1px solid ${empireColors.border}`,
+        }}
+      >
+        Loading navigation...
+      </aside>
+    );
   }
 
   const contractorLinks =

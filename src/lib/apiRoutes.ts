@@ -1,4 +1,5 @@
 export const API_ROUTES = {
+  ME: "/api/me",
   AUTH_BOOTSTRAP: "/api/auth/bootstrap",
   AUTH_LOGIN: "/api/auth/login",
   AUTH_LOGOUT: "/api/auth/logout",

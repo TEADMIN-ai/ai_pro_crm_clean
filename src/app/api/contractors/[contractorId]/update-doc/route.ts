@@ -4,7 +4,10 @@ import { AuthorizationError, requireAuthorizedUser } from "@/lib/server/authz";
 import { extractTextFromPdf } from "@/lib/documents/extractTextFromPdf";
 import { validateDocument } from "@/lib/documents/validateCompliance";
 
-export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function POST(
+  req: NextRequest,
+  { params }: { params: Promise<{ contractorId: string }> }
+) {
   try {
     const user = await requireAuthorizedUser(req);
 
@@ -16,7 +19,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const docTypeValue = formData.get("docType");
     const file = formData.get("file");
     const docType = typeof docTypeValue === "string" ? docTypeValue : "";
-    const { id: contractorId } = await params;
+    const { contractorId } = await params;
     const allowedDocs = ["cipc", "tax", "bbbee", "coida", "bank"];
     const uploadedAt = new Date().toISOString();
 
