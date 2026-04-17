@@ -175,9 +175,10 @@ export async function listContractorDocuments(contractorId: string) {
     const data = (doc.data() ?? {}) as Record<string, unknown>;
     const document: ContractorDocument = {
       aiStatus:
-        data.aiStatus === "valid" || data.aiStatus === "warning" || data.aiStatus === "invalid"
+        data.aiStatus === "pending" || data.aiStatus === "complete" || data.aiStatus === "failed"
           ? data.aiStatus
           : undefined,
+      aiError: asString(data.aiError),
       aiSuggestion: asString(data.aiSuggestion),
       aiData:
         data.aiData && typeof data.aiData === "object"
@@ -216,6 +217,7 @@ export async function listContractorDocuments(contractorId: string) {
       reviewedBy: asString(data.reviewedBy),
       reviewedAt: toMillis(data.reviewedAt),
       manualDecisionAvailable: data.manualDecisionAvailable === true,
+      isExpired: data.isExpired === true,
       confidenceNotes: Array.isArray(data.confidenceNotes)
         ? data.confidenceNotes.filter((value): value is string => typeof value === "string")
         : undefined,

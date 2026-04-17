@@ -54,9 +54,10 @@ function hasTimestamp(value: unknown): boolean {
 function normalizeDocument(id: string, data: Record<string, unknown>): ContractorDocument {
   const document: ContractorDocument = {
     aiStatus:
-      data.aiStatus === "valid" || data.aiStatus === "warning" || data.aiStatus === "invalid"
+      data.aiStatus === "pending" || data.aiStatus === "complete" || data.aiStatus === "failed"
         ? data.aiStatus
         : undefined,
+    aiError: typeof data.aiError === "string" ? data.aiError : undefined,
     aiSuggestion: typeof data.aiSuggestion === "string" ? data.aiSuggestion : undefined,
     id,
     contractorId: typeof data.contractorId === "string" ? data.contractorId : "",
@@ -116,6 +117,7 @@ function normalizeDocument(id: string, data: Record<string, unknown>): Contracto
     expiresAt: typeof data.expiresAt === "number" ? data.expiresAt : undefined,
     expiryDate: typeof data.expiryDate === "number" ? data.expiryDate : undefined,
     confidenceScore: typeof data.confidenceScore === "number" ? data.confidenceScore : undefined,
+    isExpired: data.isExpired === true,
     extractedFields:
       data.extractedFields && typeof data.extractedFields === "object"
         ? (data.extractedFields as Record<string, string | null>)
@@ -184,8 +186,16 @@ function parseDocumentType(value: unknown): SupportedDocumentType | null {
   return isSupportedDocumentType(type) ? type : null;
 }
 
+function getFileNameFromStoragePath(storagePath: string): string {
+  const segments = storagePath.split("/").filter(Boolean);
+  return segments[segments.length - 1] ?? "document.pdf";
+}
+
 function isValidStoragePath(contractorId: string, documentType: SupportedDocumentType, storagePath: string): boolean {
-  return storagePath === `contractors/${contractorId}/${documentType}.pdf`;
+  const normalizedPath = storagePath.trim();
+  const escapedDocumentType = documentType.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const expectedPattern = new RegExp(`^contractors/${contractorId}/${escapedDocumentType}(?:_\\d+)?\\.pdf$`);
+  return expectedPattern.test(normalizedPath);
 }
 
 async function downloadContractorDocumentBuffer(storagePath: string): Promise<Buffer> {
@@ -257,6 +267,7 @@ export async function POST(
       return jsonError("Invalid fileUrl", 400);
     }
 
+    const fileNameFromStoragePath = getFileNameFromStoragePath(storagePath);
     const now = new Date();
     await upsertContractorDocument(
       contractorId,
@@ -268,7 +279,7 @@ export async function POST(
         documentName: documentName || `${getDocumentTypeLabel(documentType)}.pdf`,
         fileName: documentName || `${documentType}.pdf`,
         originalName: documentName || `${documentType}.pdf`,
-        filename: `${documentType}.pdf`,
+        filename: fileNameFromStoragePath,
         storagePath,
         fileUrl,
         downloadURL: fileUrl,
@@ -280,6 +291,7 @@ export async function POST(
         verifiedAt: null,
         validationError: null,
         status: "uploaded",
+        isExpired: false,
       },
     );
 

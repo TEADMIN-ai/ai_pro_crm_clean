@@ -68,7 +68,7 @@ export async function POST(request: NextRequest) {
 
     const [downloadURL] = await file.getSignedUrl({
       action: "read",
-      expires: "2035-01-01",
+      expires: Date.now() + 1000 * 60 * 60 * 24 * 365 * 10,
     });
 
     return NextResponse.json(

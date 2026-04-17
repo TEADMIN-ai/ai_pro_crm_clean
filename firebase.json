@@ -1,4 +1,7 @@
 {
+  "functions": {
+    "source": "firebase/functions"
+  },
   "firestore": {
     "database": "(default)",
     "location": "africa-south1",

@@ -22,7 +22,8 @@ type DocumentListItem = {
   downloadURL: string;
   fileUrl: string;
   status: string;
-  aiStatus?: "valid" | "warning" | "invalid";
+  aiStatus?: "pending" | "complete" | "failed";
+  aiError?: string;
   aiIssues?: string[];
   aiSuggestion?: string;
   fixSuggestion?: string;
@@ -90,9 +91,10 @@ async function mapDocument(
       fileUrl: resolved.url,
       status: asString(data.status) ?? "pending",
       aiStatus:
-        data.aiStatus === "valid" || data.aiStatus === "warning" || data.aiStatus === "invalid"
+        data.aiStatus === "pending" || data.aiStatus === "complete" || data.aiStatus === "failed"
           ? data.aiStatus
           : undefined,
+      aiError: asString(data.aiError),
       aiIssues: Array.isArray(data.aiIssues)
         ? data.aiIssues.filter((value): value is string => typeof value === "string")
         : undefined,

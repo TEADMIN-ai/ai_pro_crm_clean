@@ -144,7 +144,7 @@ export async function POST(
 
       const [downloadURL] = await file.getSignedUrl({
         action: "read",
-        expires: Date.now() + 1000 * 60 * 60 * 24 * 7,
+        expires: Date.now() + 1000 * 60 * 60 * 24 * 365 * 10,
       });
 
       const uploadedAt = Timestamp.now();
@@ -188,6 +188,7 @@ export async function POST(
         uploadedAt,
         updatedAt: uploadedAt,
         status: "pending",
+        isExpired: false,
         reviewedAt: null,
         version: 1,
         extractedText,

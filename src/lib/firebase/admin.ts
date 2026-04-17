@@ -1,8 +1,9 @@
-import { createRequire } from "node:module";
-import { cert, getApp, getApps, initializeApp, type App } from "firebase-admin/app";
-import { getAuth, type Auth } from "firebase-admin/auth";
-import { getFirestore, type Firestore } from "firebase-admin/firestore";
-import { getStorage, type Storage } from "firebase-admin/storage";
+import admin from "firebase-admin";
+import type { App } from "firebase-admin/app";
+import type { Auth } from "firebase-admin/auth";
+import type { Firestore } from "firebase-admin/firestore";
+import type { Storage } from "firebase-admin/storage";
+
 import {
   validateFirebaseEnv,
   type FirebaseEnvValidationResult,
@@ -15,77 +16,31 @@ interface FirebaseAdminServices {
   storage: Storage;
 }
 
-const require = createRequire(import.meta.url);
-
-try {
-  require("server-only");
-} catch {
-  // Optional when the module is imported from standalone diagnostics.
-}
-
 export const SESSION_COOKIE_EXPIRES_IN_MS = 5 * 24 * 60 * 60 * 1000;
 
 let cachedServices: FirebaseAdminServices | null = null;
 let bootLogEmitted = false;
 
-export function normalizePrivateKey(key: string | undefined) {
-  const rawKey = key || "";
-  const privateKey = rawKey.replace(/\\n/g, "\n").replace(/^"(.*)"$/, "$1");
+function getRequiredStorageBucket() {
+  const bucket = process.env.FIREBASE_STORAGE_BUCKET?.trim();
 
-  if (!privateKey) {
-    return undefined;
-  }
-
-  if (!privateKey.includes("BEGIN PRIVATE KEY")) {
-    throw new Error("Invalid Firebase private key format");
-  }
-
-  return privateKey;
-}
-
-function normalizeStorageBucket(bucket: string | undefined) {
   if (!bucket) {
-    return undefined;
+    throw new Error("Missing FIREBASE_STORAGE_BUCKET");
   }
 
-  return bucket.replace(/^gs:\/\//, "").replace(/^\/+|\/+$/g, "").trim() || undefined;
+  return bucket.replace(/^gs:\/\//, "").replace(/^\/+|\/+$/g, "");
 }
 
-function resolveStorageBucket(projectId: string | undefined) {
-  const configuredBucket = normalizeStorageBucket(
-    process.env.FIREBASE_STORAGE_BUCKET ?? process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET
-  );
-
-  if (configuredBucket) {
-    return configuredBucket;
-  }
-
-  return projectId ? `${projectId}.appspot.com` : undefined;
-}
-
-function emitBootLog(validation: FirebaseEnvValidationResult) {
+function emitBootLog(validation: FirebaseEnvValidationResult, storageBucket: string) {
   if (bootLogEmitted) {
     return;
   }
 
   bootLogEmitted = true;
-  const storageBucket = resolveStorageBucket(validation.projectId);
-  console.info("Firebase Admin initialized successfully");
   console.info("Firebase Admin initialized");
   console.info(`Project ID: ${validation.projectId ?? "unknown"}`);
-  console.info(`Storage bucket: ${storageBucket ?? "unknown"}`);
+  console.info(`Storage bucket: ${storageBucket}`);
   console.info(`Private key loaded: ${validation.privateKeyLoaded}`);
-}
-
-export function getFirebaseAdminStatus(): FirebaseEnvValidationResult & {
-  firebaseAdminInitialized: boolean;
-} {
-  const validation = validateFirebaseEnv();
-
-  return {
-    ...validation,
-    firebaseAdminInitialized: cachedServices !== null || getApps().length > 0,
-  };
 }
 
 function createFirebaseAdminServices(): FirebaseAdminServices {
@@ -95,27 +50,41 @@ function createFirebaseAdminServices(): FirebaseAdminServices {
     throw new Error(validation.message ?? "Firebase Admin environment is invalid.");
   }
 
-  const existingApp = getApps().length > 0 ? getApp() : null;
-  const storageBucket = resolveStorageBucket(validation.projectId);
-  console.log("KEY CHECK:", validation.privateKey?.slice(0, 30));
-  const app =
-    existingApp ??
-    initializeApp({
-      credential: cert({
-        projectId: validation.projectId,
-        clientEmail: validation.clientEmail,
-        privateKey: validation.privateKey,
-      }),
-      ...(storageBucket ? { storageBucket } : {}),
-    });
+  const storageBucket = getRequiredStorageBucket();
 
-  emitBootLog(validation);
+  if (!admin.apps.length) {
+    admin.initializeApp({
+      credential: admin.credential.cert({
+        projectId: process.env.FIREBASE_PROJECT_ID,
+        clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+        privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, "\n"),
+      }),
+      storageBucket,
+    });
+  }
+
+  const app = admin.app();
+
+  emitBootLog(validation, storageBucket);
 
   return {
     app,
-    auth: getAuth(app),
-    db: getFirestore(app),
-    storage: getStorage(app),
+    auth: admin.auth(app),
+    db: admin.firestore(app),
+    storage: admin.storage(app),
+  };
+}
+
+export function getFirebaseAdminStatus(): FirebaseEnvValidationResult & {
+  firebaseAdminInitialized: boolean;
+  storageBucket?: string;
+} {
+  const validation = validateFirebaseEnv();
+
+  return {
+    ...validation,
+    firebaseAdminInitialized: cachedServices !== null || admin.apps.length > 0,
+    storageBucket: process.env.FIREBASE_STORAGE_BUCKET?.trim(),
   };
 }
 
@@ -143,3 +112,5 @@ export function getAdminApp() {
 export function getAdminStorage() {
   return getFirebaseAdminServices().storage;
 }
+
+export default admin;

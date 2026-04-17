@@ -7,7 +7,7 @@ const firebaseConfig = {
   apiKey: "AIzaSyBpVN65Z8LZ7wyO8TueFtZtQL7mdCb_ozM",
   authDomain: "torque-empire-ai-pro-crm.firebaseapp.com",
   projectId: "torque-empire-ai-pro-crm",
-  storageBucket: "torque-empire-ai-pro-crm.appspot.com",
+  storageBucket: "torque-empire-ai-pro-crm.firebasestorage.app",
   messagingSenderId: "657699489075",
   appId: "1:657699489075:web:548fb392557469109b6a46",
 };

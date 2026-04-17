@@ -16,7 +16,8 @@ type DashboardDocument = {
   fileUrl?: string;
   uploadedBy?: string;
   status?: "pending" | "approved" | "rejected";
-  aiStatus?: "valid" | "warning" | "invalid";
+  aiStatus?: "pending" | "complete" | "failed";
+  aiError?: string;
   aiIssues?: string[];
   aiSuggestion?: string;
   fixSuggestion?: string;
@@ -186,7 +187,7 @@ export default function DocumentsPage() {
                       <p>{document.fixSuggestion}</p>
                     </div>
                   ) : null}
-                  {document.aiStatus && document.aiStatus !== "valid" ? (
+                  {document.aiStatus && document.aiStatus !== "complete" ? (
                     <div
                       style={{
                         marginTop: "8px",
@@ -196,6 +197,7 @@ export default function DocumentsPage() {
                       }}
                     >
                       <strong>AI Warning:</strong>
+                      {document.aiError ? <p>{document.aiError}</p> : null}
                       <ul style={{ marginBottom: "8px", marginTop: "8px", paddingLeft: "20px" }}>
                         {document.aiIssues?.map((issue, index) => (
                           <li key={index}>{issue}</li>

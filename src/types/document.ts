@@ -16,15 +16,20 @@
  */
 
 export interface ContractorDocument {
-  aiStatus?: "valid" | "warning" | "invalid";
+  aiValidated?: boolean;
+  aiStatus?: "pending" | "complete" | "failed";
+  aiError?: string;
   aiSuggestion?: string;
   aiData?: {
+    valid?: boolean;
     companyName?: string | null;
     registrationNumber?: string | null;
     documentType?: string | null;
     expiryDate?: string | null;
+    confidenceScore?: number;
     riskLevel?: "low" | "medium" | "high" | "unknown";
     issues?: string[];
+    fraudIndicators?: string[];
     error?: string;
   };
   riskLevel?: "low" | "medium" | "high" | "unknown";
@@ -90,6 +95,7 @@ export interface ContractorDocument {
   manualDecisionAvailable?: boolean;
   confidenceNotes?: string[];
   suggestions?: string[];
+  isExpired?: boolean;
 
   /**
    * Expiry timestamp (Unix milliseconds)
