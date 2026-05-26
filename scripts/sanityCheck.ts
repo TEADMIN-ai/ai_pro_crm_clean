@@ -2,7 +2,7 @@ import { execSync, spawn } from "child_process";
 import { createRequire } from "module";
 import net from "net";
 import { loadEnvConfig } from "@next/env";
-import { getFirebaseAdminServices } from "../src/lib/firebase/admin";
+import { getFirebaseAdmin } from "../src/lib/firebase/admin";
 import { assertValidFirebaseEnv } from "../src/lib/server/validateFirebaseEnv";
 
 const require = createRequire(import.meta.url);
@@ -95,7 +95,7 @@ async function main() {
   assertValidFirebaseEnv();
 
   console.log("[sanity] firebase admin initialization");
-  getFirebaseAdminServices();
+  getFirebaseAdmin();
 
   console.log("[sanity] typecheck");
   run("npm run typecheck");

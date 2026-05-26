@@ -96,8 +96,16 @@ export default function TenderTrajectoryPanel({
         </span>
       </div>
 
-      <div style={{ marginTop: 12 }}>
-        <svg width="100%" height="80" viewBox="0 0 320 80" role="img" aria-label="WPI sparkline">
+      <div className="relative mx-auto mt-3 flex h-[80px] w-full max-w-[420px] items-center justify-center overflow-hidden">
+        <svg
+          viewBox="0 0 320 80"
+          width="320"
+          height="80"
+          role="img"
+          aria-label="WPI sparkline"
+          className="h-20 w-full max-w-[320px] shrink-0"
+          preserveAspectRatio="xMidYMid meet"
+        >
           <path d={sparklinePath} fill="none" stroke={tone.color} strokeWidth="3" strokeLinecap="round" />
         </svg>
       </div>

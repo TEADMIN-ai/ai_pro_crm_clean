@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { adminDb } from "@/lib/firebaseAdmin";
+import { getFirebaseAdmin } from "@/lib/firebase/admin";
 import { generateSimplePack } from "@/lib/pdf/generateSimplePack";
 import { AuthorizationError, assertCanAccessContractor, requireAuthorizedUser } from "@/lib/server/authz";
 
@@ -35,6 +35,7 @@ function normalizeDealAnalysis(value: unknown): DealAnalysis | undefined {
 
 export async function POST(req: NextRequest) {
   try {
+    const db = getFirebaseAdmin();
     const user = await requireAuthorizedUser(req);
 
     if (!user.role) {
@@ -48,7 +49,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "dealId required" }, { status: 400 });
     }
 
-    const dealDoc = await adminDb.collection("deals").doc(dealId).get();
+    const dealDoc = await db.collection("deals").doc(dealId).get();
 
     if (!dealDoc.exists) {
       return NextResponse.json({ error: "Deal not found" }, { status: 404 });
@@ -67,7 +68,7 @@ export async function POST(req: NextRequest) {
 
     assertCanAccessContractor(user, contractorId);
 
-    const contractorDoc = await adminDb.collection("contractors").doc(contractorId).get();
+    const contractorDoc = await db.collection("contractors").doc(contractorId).get();
 
     if (!contractorDoc.exists) {
       return NextResponse.json({ error: "Contractor not found" }, { status: 404 });

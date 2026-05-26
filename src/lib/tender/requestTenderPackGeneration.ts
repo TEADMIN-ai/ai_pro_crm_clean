@@ -10,6 +10,11 @@ export type TenderPackGenerateResponse = {
   success?: boolean;
   packId?: string;
   downloadURL?: string;
+  downloadUrl?: string;
+  fileName?: string;
+  size?: number;
+  expiresAt?: number;
+  deliveryMode?: "artifact" | "base64";
   base64?: string;
   missingFields?: string[];
   warnings?: string[];

@@ -1,6 +1,4 @@
-import { getStorage } from "firebase-admin/storage";
-
-import { getFirebaseAdmin } from "@/lib/firebase/admin";
+import { getFirebaseAdmin, getFirebaseStorageBucket } from "@/lib/firebase/admin";
 
 type DocumentMetadata = Record<string, unknown>;
 
@@ -35,7 +33,7 @@ function getExtension(fileName: string): string {
 
 async function resolveFromStoragePath(storagePath: string): Promise<string> {
   getFirebaseAdmin();
-  const bucket = getStorage().bucket();
+  const bucket = getFirebaseStorageBucket();
   const [signedUrl] = await bucket.file(storagePath).getSignedUrl({
     action: "read",
     expires: Date.now() + 1000 * 60 * 60 * 24,

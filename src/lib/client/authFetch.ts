@@ -1,37 +1,51 @@
-import { getAuth } from "firebase/auth";
+import { auth } from "@/lib/firebase";
 
-export async function authFetch(url: string, options: RequestInit = {}) {
-  const auth = getAuth();
-  const user = auth.currentUser;
-
-  if (!user) {
-    throw new Error("User not authenticated");
+function getStoredAuthToken(): string | null {
+  if (typeof window === "undefined") {
+    return null;
   }
 
-  const token = await user.getIdToken(true);
+  const sessionToken =
+    typeof window.sessionStorage?.getItem === "function"
+      ? window.sessionStorage.getItem("authToken")
+      : null;
+  if (sessionToken) {
+    return sessionToken;
+  }
+
+  return typeof window.localStorage?.getItem === "function"
+    ? window.localStorage.getItem("authToken")
+    : null;
+}
+
+export async function authFetch(url: string, options: RequestInit = {}) {
+  const user = auth.currentUser;
+  let token: string | null = null;
+
+  if (user) {
+    token = await user.getIdToken();
+    console.log("Sending token:", token.substring(0, 20));
+  } else {
+    token = getStoredAuthToken();
+  }
+
   const headers = new Headers(options.headers);
-  const hasContentType = headers.has("Content-Type");
-  const isFormDataBody = typeof FormData !== "undefined" && options.body instanceof FormData;
+  if (token) {
+    headers.set("Authorization", `Bearer ${token}`);
+  }
 
-  headers.set("Authorization", `Bearer ${token}`);
+  const body = options.body;
+  const shouldDefaultJsonContentType =
+    body !== undefined &&
+    !(body instanceof FormData) &&
+    !headers.has("Content-Type");
 
-  if (!hasContentType && !isFormDataBody) {
+  if (shouldDefaultJsonContentType) {
     headers.set("Content-Type", "application/json");
   }
 
-  const res = await fetch(url, {
+  return fetch(url, {
     ...options,
     headers,
   });
-
-  if (!res.ok) {
-    const errorText = await res.text();
-    console.error("API ERROR RAW:", errorText);
-
-    throw new Error(
-      errorText || "Unknown API error  check backend logs"
-    );
-  }
-
-  return res;
 }

@@ -1,5 +1,3 @@
-import fs from "node:fs";
-import path from "node:path";
 import { cert, getApps, initializeApp } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
 import {
@@ -16,40 +14,16 @@ type ServiceAccount = {
   privateKey: string;
 };
 
-function loadServiceAccountFromEnv(): ServiceAccount | null {
+function loadServiceAccountFromEnv(): ServiceAccount {
   const projectId = process.env.FIREBASE_PROJECT_ID;
   const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
   const privateKey = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, "\n");
 
   if (!projectId || !clientEmail || !privateKey) {
-    return null;
+    throw new Error("Missing Firebase Admin credentials in environment variables.");
   }
 
   return { projectId, clientEmail, privateKey };
-}
-
-function loadServiceAccountFromFile(): ServiceAccount {
-  const filePath = path.join(process.cwd(), "secrets", "service-account.json");
-  const raw = fs.readFileSync(filePath, "utf8");
-  const parsed = JSON.parse(raw) as Partial<ServiceAccount> & {
-    project_id?: string;
-    client_email?: string;
-    private_key?: string;
-  };
-
-  const projectId = parsed.projectId ?? parsed.project_id;
-  const clientEmail = parsed.clientEmail ?? parsed.client_email;
-  const privateKey = parsed.privateKey ?? parsed.private_key;
-
-  if (!projectId || !clientEmail || !privateKey) {
-    throw new Error("Invalid service account file");
-  }
-
-  return {
-    projectId,
-    clientEmail,
-    privateKey,
-  };
 }
 
 function initAdmin() {
@@ -57,7 +31,7 @@ function initAdmin() {
     return;
   }
 
-  const serviceAccount = loadServiceAccountFromEnv() ?? loadServiceAccountFromFile();
+  const serviceAccount = loadServiceAccountFromEnv();
 
   initializeApp({
     credential: cert({

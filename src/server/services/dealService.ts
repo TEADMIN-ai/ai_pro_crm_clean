@@ -1,8 +1,8 @@
 import { FieldPath, FieldValue } from "firebase-admin/firestore";
-import { getStorage } from "firebase-admin/storage";
+import admin from "firebase-admin";
 import type { Deal, DealStage } from "@/types/deal";
 import { normalizeDeal, resolveTenderLockStatus } from "@/lib/deals/normalizeDeal";
-import { getFirebaseAdmin } from "@/lib/firebase/admin";
+import { getFirebaseAdmin, getFirebaseStorageBucket } from "@/lib/firebase/admin";
 import type { AuthorizedUser } from "@/lib/server/authz";
 import { isPrivilegedRole } from "@/lib/server/authz";
 import { isValidTransition } from "@/lib/deals/statusTransitions";
@@ -216,7 +216,8 @@ export async function deleteDealDocument(input: { dealId: string; documentId: st
   const data = (snapshot.data() ?? {}) as Record<string, unknown>;
   const storagePath = asString(data.storagePath);
   if (storagePath) {
-    await getStorage().bucket().file(storagePath).delete({ ignoreNotFound: true });
+    const bucket = getFirebaseStorageBucket();
+    await bucket.file(storagePath).delete({ ignoreNotFound: true });
   }
 
   await docRef.delete();

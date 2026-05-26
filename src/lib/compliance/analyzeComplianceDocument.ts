@@ -169,31 +169,52 @@ export function analyzeComplianceDocument(
     }
 
     case "taxClearance": {
+      const hasTcsKeyword = /\b(?:tax compliance status|tcs)\b/i.test(text);
+      const hasTaxClearanceKeyword = /\btax clearance(?: certificate)?\b/i.test(text);
+      const hasNoticeOfRegistration = /\bnotice of registration\b/i.test(text);
+      const hasVatRegistration = /\b(?:vat registration|value-added tax registration)\b/i.test(text);
       const expiryMatch = text.match(/(?:expiry|valid until|valid to)[:\s]+(\d{2}\/\d{2}\/\d{4})/i) ?? text.match(/(\d{2}\/\d{2}\/\d{4})/);
       const taxPinMatch = text.match(/(?:pin|tax compliance status pin)[:\s]+([A-Z0-9]+)/i);
       const taxpayerMatch = text.match(/(?:taxpayer name|registered name)[:\s]+([A-Z0-9][A-Z0-9 '&.,()-]{2,})/i);
-      const expiresAt = expiryMatch ? parseDateDDMMYYYY(expiryMatch[1]) : null;
+      const supportingOnly = hasNoticeOfRegistration || hasVatRegistration;
+      const expiresAt = supportingOnly ? null : expiryMatch ? parseDateDDMMYYYY(expiryMatch[1]) : null;
       const hasExpiry = Boolean(expiresAt);
       const missingFields = [
-        ...(!expiryMatch ? ["expiryDate"] : []),
-        ...(!taxPinMatch ? ["taxPin"] : []),
+        ...(!supportingOnly && !expiryMatch ? ["expiryDate"] : []),
+        ...(!(hasTcsKeyword || hasTaxClearanceKeyword) ? ["taxComplianceProof"] : []),
+        ...(!supportingOnly && !taxPinMatch ? ["taxPin"] : []),
         ...(!taxpayerMatch ? ["taxpayerName"] : []),
       ];
 
       return buildResult({
         documentType: type,
         extractedFields: {
+          taxDocumentCategory: supportingOnly
+            ? hasVatRegistration
+              ? "VAT_REGISTRATION_NOTICE"
+              : "SARS_NOTICE_OF_REGISTRATION"
+            : hasTcsKeyword && taxPinMatch
+              ? "TCS_PIN_DOCUMENT"
+              : hasTcsKeyword
+                ? "TAX_COMPLIANCE_STATUS"
+                : hasTaxClearanceKeyword
+                  ? "LEGACY_TAX_CLEARANCE_CERTIFICATE"
+                  : "UNKNOWN_TAX_DOCUMENT",
           taxPin: taxPinMatch?.[1] ?? null,
           taxpayerName: taxpayerMatch?.[1]?.trim() ?? null,
           expiryDate: expiryMatch?.[1] ?? null,
         },
         expiresAt,
         missingFields,
-        verified: Boolean(expiresAt && expiresAt.getTime() > now),
-        validationError: hasExpiry ? null : `Missing tax clearance fields: ${missingFields.join(", ")}`,
+        verified: Boolean(!supportingOnly && expiresAt && expiresAt.getTime() > now && (hasTcsKeyword || hasTaxClearanceKeyword)),
+        validationError: supportingOnly
+          ? "Supporting SARS registration document detected; active Tax Compliance Status proof is still required"
+          : hasExpiry
+            ? null
+            : `Missing tax compliance fields: ${missingFields.join(", ")}`,
         confidenceScore: toConfidence(
-          Number(Boolean(expiryMatch)) + Number(Boolean(taxPinMatch)) + Number(Boolean(taxpayerMatch)),
-          3
+          Number(Boolean(expiryMatch)) + Number(Boolean(taxPinMatch)) + Number(Boolean(taxpayerMatch)) + Number(Boolean(hasTcsKeyword || hasTaxClearanceKeyword)),
+          4
         ),
       });
     }

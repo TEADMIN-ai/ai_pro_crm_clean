@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getFirebaseAdminStatus, getFirebaseAdminServices } from "@/lib/firebase/admin";
+import { getAuth } from "firebase-admin/auth";
+import { getFirebaseAdmin } from "@/lib/firebase/admin";
 import { AuthorizationError, requireAuthorizedUser } from "@/lib/server/authz";
 
 export async function GET(request: NextRequest) {
@@ -17,14 +18,20 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const status = getFirebaseAdminStatus();
-
-  let firebaseAdminInitialized = status.firebaseAdminInitialized;
+  let firebaseAdminInitialized = false;
   let sessionCookieWorking = false;
+  let envValid = true;
 
   try {
-    getFirebaseAdminServices();
+    getFirebaseAdmin();
     firebaseAdminInitialized = true;
+  } catch (error) {
+    envValid = false;
+    console.error("Firebase admin health check failed:", error);
+  }
+
+  try {
+    getAuth();
     sessionCookieWorking = true;
   } catch (error) {
     console.error("Firebase auth health check failed:", error);
@@ -32,7 +39,7 @@ export async function GET(request: NextRequest) {
 
   const response = {
     firebaseAdminInitialized,
-    envValid: status.valid,
+    envValid,
     sessionCookieWorking,
   };
 

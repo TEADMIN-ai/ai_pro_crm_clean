@@ -16,6 +16,23 @@
  */
 
 export interface ContractorDocument {
+  taxDocumentCategory?:
+    | "TAX_COMPLIANCE_STATUS"
+    | "TCS_PIN_DOCUMENT"
+    | "SARS_NOTICE_OF_REGISTRATION"
+    | "VAT_REGISTRATION_NOTICE"
+    | "LEGACY_TAX_CLEARANCE_CERTIFICATE"
+    | "UNKNOWN_TAX_DOCUMENT";
+  taxDocumentPurpose?:
+    | "ACTIVE_TAX_COMPLIANCE_PROOF"
+    | "SARS_REGISTRATION_PROOF"
+    | "IDENTITY_TAX_LINKAGE_SUPPORT"
+    | "UNKNOWN_TAX_PURPOSE";
+  taxClassificationConfidence?: number;
+  taxComplianceCapable?: boolean;
+  taxSupportingOnly?: boolean;
+  readinessImpactReason?: string;
+
   aiValidated?: boolean;
   aiStatus?: "pending" | "complete" | "failed";
   aiError?: string;

@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { adminDb } from "@/lib/firebaseAdmin";
+import { getFirebaseAdmin } from "@/lib/firebase/admin";
 import { AuthorizationError, assertPrivilegedRole, requireAuthorizedUser } from "@/lib/server/authz";
 import { generateSimplePack } from "@/lib/pdf/generateSimplePack";
-import { matchRequirements } from "@/lib/tender/matchRequirements";
+import { recalculateContractorCompliance } from "@/lib/server/recalculateContractorCompliance";
 import { persistTenderPackPdf } from "@/server/services/tenderPackService";
 
 export const runtime = "nodejs";
@@ -15,6 +15,7 @@ type GenerateBody = {
 
 export async function POST(request: NextRequest) {
   try {
+    const db = getFirebaseAdmin();
     const user = await requireAuthorizedUser(request);
     assertPrivilegedRole(user);
     const body = (await request.json()) as GenerateBody;
@@ -24,7 +25,7 @@ export async function POST(request: NextRequest) {
       throw new Error("Missing dealId");
     }
 
-    const dealSnapshot = await adminDb.collection("deals").doc(dealId).get();
+    const dealSnapshot = await db.collection("deals").doc(dealId).get();
     if (!dealSnapshot.exists) {
       throw new Error("Deal not found");
     }
@@ -43,7 +44,7 @@ export async function POST(request: NextRequest) {
       throw new Error("Missing deal or contractor data");
     }
 
-    const contractorSnapshot = await adminDb.collection("contractors").doc(contractorId).get();
+    const contractorSnapshot = await db.collection("contractors").doc(contractorId).get();
     if (!contractorSnapshot.exists) {
       throw new Error("Missing deal or contractor data");
     }
@@ -52,14 +53,22 @@ export async function POST(request: NextRequest) {
       id: contractorSnapshot.id,
       ...(contractorSnapshot.data() ?? {}),
     } as Record<string, unknown> & { id: string };
-    const match = matchRequirements(contractor, deal);
+    const compliance = await recalculateContractorCompliance(db, contractorId);
+    const unresolvedDocuments = Object.entries(compliance.legacyDocuments)
+      .filter(([, value]) => value.valid !== true)
+      .map(([key]) => key);
 
-    if (!match.ready || !contractor.complianceApproved) {
+    if (
+      compliance.complianceApproved !== true ||
+      compliance.docsMissing > 0 ||
+      compliance.expiredDocumentCount > 0 ||
+      compliance.tenderLockStatus !== "READY"
+    ) {
       return NextResponse.json(
         {
           error: "NOT_READY",
-          score: match.score,
-          missing: match.missing,
+          score: compliance.readinessScore,
+          missing: unresolvedDocuments,
           message: "Contractor not ready for this tender",
         },
         { status: 403 }

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { normalizeRole } from "@/lib/auth/userProfile";
-import { getAdminAuth, getFirebaseAdmin } from "@/lib/firebase/admin";
-
+import { getAuth } from "firebase-admin/auth";
+import { resolveRole } from "@/lib/auth/userProfile";
+import { getFirebaseAdmin } from "@/lib/firebase/admin";
 export const runtime = "nodejs";
 
 function extractBearerToken(authorizationHeader: string | null): string | null {
@@ -30,13 +30,13 @@ export async function GET(request: NextRequest) {
   try {
     console.info("[/api/me] Verifying bearer token");
 
-    const decodedToken = await getAdminAuth().verifyIdToken(token);
+    const decodedToken = await getAuth().verifyIdToken(token);
 
     console.info("[/api/me] Token verified", { uid: decodedToken.uid });
 
     const profileSnapshot = await getFirebaseAdmin().collection("users").doc(decodedToken.uid).get();
     const profileData = profileSnapshot.exists ? profileSnapshot.data() ?? {} : {};
-    const role = normalizeRole(profileData.role ?? decodedToken.role);
+    const role = resolveRole(profileData.role, decodedToken.role);
 
     const responseBody = {
       uid: decodedToken.uid,

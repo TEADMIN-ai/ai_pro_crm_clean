@@ -1,17 +1,9 @@
-import { existsSync, readFileSync } from "node:fs";
-import path from "node:path";
 import { cert, getApps, initializeApp, type ServiceAccount } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 
 type LogLevel = "INFO" | "ERROR";
 
 type LogFields = Record<string, string | number | boolean | null>;
-
-type ServiceAccountJson = {
-  project_id: string;
-  client_email: string;
-  private_key: string;
-};
 
 type AdminClaims = {
   role: "admin";
@@ -29,34 +21,19 @@ const log = (level: LogLevel, event: string, fields: LogFields = {}): void => {
   console.log(JSON.stringify(payload));
 };
 
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null;
+const loadServiceAccountFromEnv = (): ServiceAccount => {
+  const projectId = process.env.FIREBASE_PROJECT_ID?.trim();
+  const clientEmail = process.env.FIREBASE_CLIENT_EMAIL?.trim();
+  const privateKey = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, "\n");
 
-const parseServiceAccountJson = (raw: unknown): ServiceAccountJson => {
-  if (!isRecord(raw)) {
-    throw new Error("Service account JSON is not an object.");
-  }
-
-  const projectId = raw.project_id;
-  const clientEmail = raw.client_email;
-  const privateKey = raw.private_key;
-
-  if (typeof projectId !== "string" || projectId.trim() === "") {
-    throw new Error("Service account project_id is missing or invalid.");
-  }
-
-  if (typeof clientEmail !== "string" || clientEmail.trim() === "") {
-    throw new Error("Service account client_email is missing or invalid.");
-  }
-
-  if (typeof privateKey !== "string" || privateKey.trim() === "") {
-    throw new Error("Service account private_key is missing or invalid.");
+  if (!projectId || !clientEmail || !privateKey) {
+    throw new Error("Missing Firebase Admin credentials in environment variables.");
   }
 
   return {
-    project_id: projectId,
-    client_email: clientEmail,
-    private_key: privateKey,
+    projectId,
+    clientEmail,
+    privateKey,
   };
 };
 
@@ -77,23 +54,9 @@ const bootstrapAdminRole = async (): Promise<void> => {
   }
 
   const uid = targetUid.trim();
-  const serviceAccountPath = path.resolve(process.cwd(), "secrets", "service-account.json");
+  log("INFO", "bootstrap_start", { uid });
 
-  log("INFO", "bootstrap_start", { uid, serviceAccountPath });
-
-  if (!existsSync(serviceAccountPath)) {
-    throw new Error(`Service account file not found: ${serviceAccountPath}`);
-  }
-
-  const serviceAccountRaw = readFileSync(serviceAccountPath, "utf8");
-  const parsedJson: unknown = JSON.parse(serviceAccountRaw);
-  const serviceAccountJson = parseServiceAccountJson(parsedJson);
-
-  const serviceAccount: ServiceAccount = {
-    projectId: serviceAccountJson.project_id,
-    clientEmail: serviceAccountJson.client_email,
-    privateKey: serviceAccountJson.private_key,
-  };
+  const serviceAccount = loadServiceAccountFromEnv();
 
   if (getApps().length === 0) {
     initializeApp({

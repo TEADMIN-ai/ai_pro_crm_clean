@@ -1,8 +1,19 @@
 import { getFirebaseAdmin } from "@/lib/firebase/admin";
 import { SBD_FIELD_DEFINITIONS, type SbdFieldKey } from "@/lib/pdfs/templates/sbdSchema";
 import { resolveSbd1AutofillData } from "@/lib/autofill/sbd1DecisionEngine";
+import { buildContractorProfileIntelligence } from "@/lib/contractors/contractorProfileIntelligence";
 
 type SourceTag = "contractor" | "document-ai" | "default";
+export type CompanyProfileFieldKey =
+  | SbdFieldKey
+  | "bbbeeLevel"
+  | "bbbeeStatus"
+  | "country"
+  | "postalAddress"
+  | "streetAddress"
+  | "directorName"
+  | "signatoryRole"
+  | "businessType";
 
 export type CompanyProfile = {
   contractorId: string;
@@ -18,8 +29,16 @@ export type CompanyProfile = {
   contactPerson: string;
   email: string;
   phone: string;
+  bbbeeLevel?: string;
+  bbbeeStatus?: string;
+  country?: string;
+  postalAddress?: string;
+  streetAddress?: string;
+  directorName?: string;
+  signatoryRole?: string;
+  businessType?: string;
   missingFields: SbdFieldKey[];
-  sourceAttribution: Partial<Record<SbdFieldKey, SourceTag>>;
+  sourceAttribution: Partial<Record<CompanyProfileFieldKey, SourceTag>>;
 };
 
 function asString(value: unknown): string {
@@ -101,7 +120,7 @@ export async function buildCompanyProfile(contractorId: string): Promise<Company
     documentData = [];
   }
 
-  const sourceAttribution: Partial<Record<SbdFieldKey, SourceTag>> = {};
+  const sourceAttribution: Partial<Record<CompanyProfileFieldKey, SourceTag>> = {};
   const profile: Omit<CompanyProfile, "missingFields" | "sourceAttribution"> = {
     contractorId,
     companyName: pickFirst(
@@ -131,11 +150,19 @@ export async function buildCompanyProfile(contractorId: string): Promise<Company
     contactPerson: pickFirst(contractorData.contactPerson, contractorData.contactName),
     email: pickFirst(contractorData.email),
     phone: pickFirst(contractorData.phone),
+    bbbeeLevel: pickFirst(contractorData.bbbeeLevel, contractorData.bbbeeStatus, contractorData.bbbee),
+    bbbeeStatus: pickFirst(contractorData.bbbeeStatus, contractorData.bbbeeLevel, contractorData.bbbee),
+    country: pickFirst(contractorData.country, contractorData.countryCode, contractorData.nationality),
+    postalAddress: pickFirst(contractorData.postalAddress, contractorData.address),
+    streetAddress: pickFirst(contractorData.streetAddress, contractorData.physicalAddress, contractorData.address),
+    directorName: pickFirst(contractorData.directorName, contractorData.contactPerson, contractorData.contactName),
+    signatoryRole: pickFirst(contractorData.signatoryRole, contractorData.role, contractorData.capacity),
+    businessType: pickFirst(contractorData.businessType, contractorData.companyType, contractorData.entityType),
   };
 
   (Object.keys(profile) as Array<keyof typeof profile>).forEach((key) => {
     if (key !== "contractorId" && asString(profile[key])) {
-      sourceAttribution[key as SbdFieldKey] = "contractor";
+      sourceAttribution[key as CompanyProfileFieldKey] = "contractor";
     }
   });
 
@@ -182,6 +209,16 @@ export async function buildCompanyProfile(contractorId: string): Promise<Company
     sbd1Decision.resolvedData.streetAddress,
     sbd1Decision.resolvedData.postalAddress
   );
+  profile.postalAddress = pickFirst(
+    sbd1Decision.resolvedData.postalAddress,
+    profile.postalAddress,
+    profile.address
+  );
+  profile.streetAddress = pickFirst(
+    sbd1Decision.resolvedData.streetAddress,
+    profile.streetAddress,
+    profile.address
+  );
   profile.email =
     sbd1Decision.resolvedData.email === null ? "" : String(sbd1Decision.resolvedData.email);
   profile.phone = pickFirst(
@@ -225,9 +262,25 @@ export async function buildCompanyProfile(contractorId: string): Promise<Company
     }
   }
 
-  return {
+  const resolvedProfile: CompanyProfile = {
     ...mapped,
     missingFields,
     sourceAttribution,
   };
+  const profileIntelligence = buildContractorProfileIntelligence({
+    contractorId,
+    profile: resolvedProfile,
+  });
+
+  console.info("[CONTRACTOR_PROFILE_INTELLIGENCE]", {
+    stage: "contractor_profile_intelligence_generated",
+    mode: "profile_only",
+    contractorId,
+    overallCompleteness: profileIntelligence.overallCompleteness,
+    criticalGapCount: profileIntelligence.missingCriticalFields.length,
+    rendererHealth: profileIntelligence.rendererHealth,
+    readinessImpact: profileIntelligence.readinessImpact,
+  });
+
+  return resolvedProfile;
 }

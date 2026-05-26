@@ -4,6 +4,8 @@ import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 
 import { getFirebaseAdmin } from "@/lib/firebase/admin";
 import type { CompanyProfile } from "@/lib/autofill/buildCompanyProfile";
+import { buildContractorProfileIntelligence } from "@/lib/contractors/contractorProfileIntelligence";
+import { fillTemplateWithIntelligence } from "@/lib/empirePdf/intelligentFillEngine";
 import { SBD_SCHEMA, type SbdFieldKey, type SbdFormKey } from "@/lib/pdfs/templates/sbdSchema";
 import {
   TEMPLATE_REGISTRY,
@@ -22,6 +24,10 @@ export type TenderFillSuccess = {
   filledPdfBuffer: Buffer;
   fieldMapUsed: Record<string, string>;
   warnings: string[];
+  engine?: {
+    averageConfidence: number;
+    renderedFieldCount: number;
+  };
 };
 
 export type TenderFillError = {
@@ -87,6 +93,14 @@ function buildFieldMap(profile: CompanyProfile): Record<string, string> {
     contactPerson: safeGet(profile.contactPerson),
     email: safeGet(profile.email),
     phone: safeGet(profile.phone),
+    bbbeeLevel: safeGet(profile.bbbeeLevel),
+    bbbeeStatus: safeGet(profile.bbbeeStatus),
+    country: safeGet(profile.country),
+    postalAddress: safeGet(profile.postalAddress),
+    streetAddress: safeGet(profile.streetAddress),
+    directorName: safeGet(profile.directorName),
+    signatoryRole: safeGet(profile.signatoryRole),
+    businessType: safeGet(profile.businessType),
   };
 }
 
@@ -232,6 +246,7 @@ export async function fillTenderPack(params: FillTenderPackParams): Promise<Tend
       fieldCount: fields.length,
       fieldNames: fields.map((field) => field.getName()),
       hasOverlayMap: Boolean(registryEntry.overlayMap),
+      hasIntelligentTemplate: Boolean(registryEntry.intelligentTemplate),
     });
     if (fields.length > 0) {
       for (const field of fields) {
@@ -249,14 +264,88 @@ export async function fillTenderPack(params: FillTenderPackParams): Promise<Tend
           console.warn(`Unable to set field '${name}' on template '${templateKey}'`);
         }
       }
-    } else if (registryEntry.overlayMap) {
-      await drawOverlayFields({
-        pdfDoc,
-        overlayMap: registryEntry.overlayMap,
-        fieldMapUsed,
-        fallbackFieldMap,
-        warnings,
-      });
+    } else if (registryEntry.intelligentTemplate || registryEntry.overlayMap) {
+      let filledPdfBuffer: Buffer | null = null;
+      let engine: TenderFillSuccess["engine"];
+
+      if (registryEntry.intelligentTemplate) {
+        try {
+          const intelligentResult = await fillTemplateWithIntelligence({
+            templateKey,
+            templateBytes,
+            profile,
+            debug: outputMode === "preview" || process.env.EMPIREPDF_DEBUG === "1",
+          });
+
+          filledPdfBuffer = Buffer.from(intelligentResult.pdfBytes);
+          warnings.push(...intelligentResult.result.warnings);
+          engine = {
+            averageConfidence: intelligentResult.result.averageConfidence,
+            renderedFieldCount: intelligentResult.result.renderedFieldCount,
+          };
+
+          console.info("EmpirePDF intelligent fill summary", {
+            templateKey,
+            averageConfidence: intelligentResult.result.averageConfidence,
+            renderedFieldCount: intelligentResult.result.renderedFieldCount,
+            debugFields: intelligentResult.result.debugFields,
+          });
+
+          const profileIntelligence = buildContractorProfileIntelligence({
+            contractorId: profile.contractorId,
+            profile,
+            rendererFields: intelligentResult.result.debugFields,
+          });
+
+          console.info("[CONTRACTOR_PROFILE_INTELLIGENCE]", {
+            stage: "contractor_profile_intelligence_generated",
+            mode: "renderer_aware",
+            contractorId: profile.contractorId,
+            templateKey,
+            overallCompleteness: profileIntelligence.overallCompleteness,
+            criticalGapCount: profileIntelligence.missingCriticalFields.length,
+            rendererHealth: profileIntelligence.rendererHealth,
+            readinessImpact: profileIntelligence.readinessImpact,
+          });
+        } catch (error) {
+          warnings.push(
+            `Intelligent fill failed for '${templateKey}', reverting to overlay fallback: ${
+              error instanceof Error ? error.message : "unknown error"
+            }`
+          );
+        }
+      }
+
+      if (!filledPdfBuffer && registryEntry.overlayMap) {
+        await drawOverlayFields({
+          pdfDoc,
+          overlayMap: registryEntry.overlayMap,
+          fieldMapUsed,
+          fallbackFieldMap,
+          warnings,
+        });
+
+        filledPdfBuffer = Buffer.from(await pdfDoc.save());
+      }
+
+      if (filledPdfBuffer) {
+        if (outputMode === "final") {
+          await writeAuditTrail({
+            templateKey,
+            contractorId: profile.contractorId,
+            warnings,
+            fieldMapUsed,
+          });
+        }
+
+        return {
+          ok: true,
+          filledPdfBuffer,
+          fieldMapUsed,
+          warnings,
+          engine,
+        };
+      }
     } else {
       warnings.push(`SBD data breakpoint: no AcroForm fields found for '${templateKey}' and no overlay mapping is configured`);
       warnings.push(`No AcroForm fields found and no overlay mapping configured for '${templateKey}'`);
@@ -279,6 +368,7 @@ export async function fillTenderPack(params: FillTenderPackParams): Promise<Tend
       filledPdfBuffer,
       fieldMapUsed,
       warnings,
+      engine: undefined,
     };
   } catch (error) {
     return {

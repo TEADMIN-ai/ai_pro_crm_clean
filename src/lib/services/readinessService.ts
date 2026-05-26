@@ -1,4 +1,4 @@
-import { adminDb } from "@/lib/firebaseAdmin";
+import { getFirebaseAdmin } from "@/lib/firebase/admin";
 
 const REQUIRED_DOCS = [
   "taxClearance",
@@ -17,7 +17,8 @@ type ReadinessDoc = {
 };
 
 export async function computeReadiness(contractorId: string) {
-  const docsSnapshot = await adminDb
+  const db = getFirebaseAdmin();
+  const docsSnapshot = await db
     .collection("documents")
     .where("contractorId", "==", contractorId)
     .get();

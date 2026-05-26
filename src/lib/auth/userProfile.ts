@@ -22,6 +22,15 @@ export function normalizeRole(value: unknown): UserRole {
   return VALID_ROLES.includes(value as UserRole) ? (value as UserRole) : "guest";
 }
 
+export function resolveRole(primary: unknown, fallback?: unknown): UserRole {
+  const normalizedPrimary = normalizeRole(primary);
+  if (normalizedPrimary !== "guest") {
+    return normalizedPrimary;
+  }
+
+  return normalizeRole(fallback);
+}
+
 export function normalizeContractorId(value: unknown): string | undefined {
   return typeof value === "string" && value.trim().length > 0 ? value.trim() : undefined;
 }

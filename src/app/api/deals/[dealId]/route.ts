@@ -6,7 +6,7 @@ import {
   requireAuthorizedUser,
 } from "@/lib/server/authz";
 import { getDealAnalyticsState, getDealById } from "@/server/services/dealService";
-import { adminDb } from "@/lib/firebaseAdmin";
+import { getFirebaseAdmin } from "@/lib/firebase/admin";
 
 export async function GET(
   request: NextRequest,
@@ -42,6 +42,7 @@ export async function PATCH(
   context: { params: Promise<{ dealId: string }> },
 ) {
   try {
+    const db = getFirebaseAdmin();
     const actor = await requireAuthorizedUser(req);
     assertPrivilegedRole(actor);
 
@@ -53,7 +54,7 @@ export async function PATCH(
 
     const { dealId } = await context.params;
 
-    await adminDb.collection("deals").doc(dealId).update({
+    await db.collection("deals").doc(dealId).update({
       status,
       updatedAt: Date.now(),
     });
@@ -74,9 +75,10 @@ export async function DELETE(
   context: { params: Promise<{ dealId: string }> },
 ) {
   try {
+    const db = getFirebaseAdmin();
     const { dealId } = await context.params;
 
-    await adminDb.collection("deals").doc(dealId).delete();
+    await db.collection("deals").doc(dealId).delete();
 
     return NextResponse.json({ success: true });
   } catch (err) {

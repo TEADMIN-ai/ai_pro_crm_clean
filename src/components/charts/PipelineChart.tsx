@@ -35,8 +35,8 @@ export default function PipelineChart({ deals }: Props) {
   }
 
   return (
-    <div style={{ width: "100%", height: 260 }}>
-      <ResponsiveContainer>
+    <div className="relative mx-auto flex h-[260px] w-full max-w-[420px] items-center justify-center overflow-hidden">
+      <ResponsiveContainer width="100%" height="100%">
         <BarChart data={data}>
           <CartesianGrid stroke="rgba(30, 41, 59, 0.8)" strokeDasharray="3 3" />
           <XAxis dataKey="stage" stroke={empireColors.textSecondary} />

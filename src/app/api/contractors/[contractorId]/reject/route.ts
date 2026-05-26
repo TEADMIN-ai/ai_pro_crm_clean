@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { adminDb } from "@/lib/firebaseAdmin";
+import { getFirebaseAdmin } from "@/lib/firebase/admin";
 import { AuthorizationError, requireAuthorizedUser } from "@/lib/server/authz";
 
 export async function POST(
@@ -7,6 +7,7 @@ export async function POST(
   { params }: { params: Promise<{ contractorId: string }> }
 ) {
   try {
+    const db = getFirebaseAdmin();
     const user = await requireAuthorizedUser(req);
 
     if (!["admin", "manager"].includes(user.role)) {
@@ -33,12 +34,12 @@ export async function POST(
         ? reasonValue.trim()
         : "Documents not valid";
 
-    const docRef = adminDb.collection("contractors").doc(contractorId);
-    const auditRef = adminDb.collection("contractorComplianceAudit").doc();
+    const docRef = db.collection("contractors").doc(contractorId);
+    const auditRef = db.collection("contractorComplianceAudit").doc();
     const reviewedAt = new Date().toISOString();
     let action: "rejected" | "noop" = "rejected" as "rejected" | "noop";
 
-    await adminDb.runTransaction(async (transaction) => {
+    await db.runTransaction(async (transaction) => {
       const snap = await transaction.get(docRef);
 
       if (!snap.exists) {

@@ -39,15 +39,36 @@ export default function RequireRole({
   }, [user, role, loading, allow, router, hasAccess]);
 
   if (loading) {
-    return <div>Checking access...</div>;
+    return (
+      <div className="rounded-xl border border-[#2f3b54] bg-[#121826] p-6 text-white">
+        <h2 className="text-lg font-semibold">Checking access</h2>
+        <p className="mt-2 text-sm text-slate-300">
+          Your permissions are still initializing.
+        </p>
+      </div>
+    );
   }
 
   if (!user) {
-    return <div>Redirecting to login...</div>;
+    return (
+      <div className="rounded-xl border border-[#2f3b54] bg-[#121826] p-6 text-white">
+        <h2 className="text-lg font-semibold">Redirecting to login</h2>
+        <p className="mt-2 text-sm text-slate-300">
+          You need to sign in to view this page.
+        </p>
+      </div>
+    );
   }
 
   if (!hasAccess) {
-    return <div>Redirecting to dashboard...</div>;
+    return (
+      <div className="rounded-xl border border-[#2f3b54] bg-[#121826] p-6 text-white">
+        <h2 className="text-lg font-semibold">Redirecting to dashboard</h2>
+        <p className="mt-2 text-sm text-slate-300">
+          Your role does not have access to this page.
+        </p>
+      </div>
+    );
   }
 
   return <>{children}</>;

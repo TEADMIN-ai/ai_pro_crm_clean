@@ -1,6 +1,7 @@
 import { readFile } from "fs/promises";
 import path from "path";
 import { PDFDocument, StandardFonts, PDFPage, PDFFont, rgb } from "pdf-lib";
+import { fillTemplateWithIntelligence } from "@/lib/empirePdf/intelligentFillEngine";
 import { SBD1_FIELDS } from "@/lib/pdf/maps/SBD1";
 
 type DealInput = {
@@ -121,6 +122,51 @@ export async function fillSbd1(
 ): Promise<Uint8Array> {
   const templatePath = path.join(process.cwd(), "public", "templates", "SBD1.pdf");
   const templateBytes = await readFile(templatePath);
+  const currentDate = new Date().toLocaleDateString("en-ZA");
+
+  try {
+    const intelligentResult = await fillTemplateWithIntelligence({
+      templateKey: "sbd1",
+      templateBytes,
+      profile: {
+        contractorId: contractor.id,
+        companyName: clean(contractor.companyName, contractor.id),
+        regNumber: clean(contractor.registrationNumber, ""),
+        vatNumber: "",
+        taxPin: "",
+        cidb: "",
+        csdNumber: "",
+        bankingDetails: "",
+        directors: clean(contractor.contactPerson, contractor.companyName),
+        address: "",
+        contactPerson: clean(contractor.contactPerson, contractor.companyName),
+        email: "",
+        phone: "",
+        bbbeeLevel: clean(contractor.bbbeeStatus, ""),
+        bbbeeStatus: clean(contractor.bbbeeStatus, ""),
+        signatoryRole: "Authorized Signatory",
+        missingFields: [],
+        sourceAttribution: {},
+      },
+      debug: process.env.EMPIREPDF_DEBUG === "1",
+    });
+
+    console.info("SBD1 intelligent fill completed", {
+      contractorId: contractor.id,
+      dealId: deal.id,
+      averageConfidence: intelligentResult.result.averageConfidence,
+      renderedFieldCount: intelligentResult.result.renderedFieldCount,
+      warnings: intelligentResult.result.warnings,
+    });
+
+    return intelligentResult.pdfBytes;
+  } catch (error) {
+    console.warn("SBD1 intelligent fill failed, using legacy overlay fallback", {
+      contractorId: contractor.id,
+      dealId: deal.id,
+      error: error instanceof Error ? error.message : error,
+    });
+  }
 
   const existingPdf = await PDFDocument.load(templateBytes);
   const pages = existingPdf.getPages();
@@ -136,7 +182,7 @@ export async function fillSbd1(
     registrationNumber: clean(contractor.registrationNumber, "N/A"),
     bbbeeStatus: clean(contractor.bbbeeStatus, "N/A"),
     contactPerson: clean(contractor.contactPerson, contractor.companyName),
-    date: new Date().toLocaleDateString("en-ZA"),
+    date: currentDate,
   };
 
   const firstPage = pages[0];

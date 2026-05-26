@@ -50,4 +50,24 @@ describe("compliance scoring", () => {
     expect(result.expiryAlert).toBe("none");
     expect(result.complianceScore).toBeGreaterThan(0);
   });
+
+  test("treats SARS registration notices as supporting-only and not expiry-driven compliance proof", () => {
+    const result = analyzeComplianceDocument(
+      "taxClearance",
+      [
+        "SARS",
+        "Notice of Registration",
+        "Registered Name: Demo Trading",
+        "Taxpayer Reference No: 1234567890",
+      ].join("\n"),
+    );
+
+    expect(result.verified).toBe(false);
+    expect(result.expiryDate).toBeNull();
+    expect(result.expiryAlert).toBe("none");
+    expect(result.validationError).toBe(
+      "Supporting SARS registration document detected; active Tax Compliance Status proof is still required",
+    );
+    expect(result.extractedFields.taxDocumentCategory).toBe("SARS_NOTICE_OF_REGISTRATION");
+  });
 });

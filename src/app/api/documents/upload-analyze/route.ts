@@ -2,12 +2,13 @@ import { NextRequest } from "next/server";
 import { AuthorizationError, assertCanAccessContractor, requireAuthorizedUser } from "@/lib/server/authz";
 import { extractTextFromPdf } from "@/lib/extractTextFromPdf";
 import { analyzeTenderText } from "@/lib/tenderAnalysisService";
-import { adminDb } from "@/lib/firebaseAdmin";
+import { getFirebaseAdmin } from "@/lib/firebase/admin";
 
 export const runtime = "nodejs";
 
 export async function POST(req: NextRequest) {
   try {
+    const db = getFirebaseAdmin();
     const user = await requireAuthorizedUser(req);
 
     if (!user.role) {
@@ -28,7 +29,7 @@ export async function POST(req: NextRequest) {
 
     const arrayBuffer = await file.arrayBuffer();
     const buffer = new Uint8Array(arrayBuffer);
-    const dealSnapshot = await adminDb.collection("deals").doc(dealId).get();
+    const dealSnapshot = await db.collection("deals").doc(dealId).get();
 
     if (!dealSnapshot.exists) {
       return Response.json({ error: "Deal not found" }, { status: 404 });
@@ -75,7 +76,7 @@ export async function POST(req: NextRequest) {
     const suggestions = missing.map((item) => `Upload valid ${item} document`);
     const isTenderLocked = score < 60;
 
-    await adminDb.collection("deals").doc(dealId).update({
+    await db.collection("deals").doc(dealId).update({
       analysis,
       extractedText: text,
       readinessScore: score,

@@ -175,4 +175,68 @@ describe("manualDocumentVerificationService", () => {
       })
     );
   });
+
+  test("manual approval does not append a duplicate verified audit entry on replay", async () => {
+    getContractorDocument
+      .mockReset()
+      .mockResolvedValueOnce({
+        exists: true,
+        data: () => ({
+          contractorId: "contractor-1",
+          documentType: "cipc",
+          validationStatus: "PASS",
+          status: "verified",
+          verified: true,
+          aiStatus: "complete",
+          extractedFields: {
+            registrationNumber: "123",
+          },
+          auditTrail: [
+            { action: "uploaded", by: "system", at: "2026-03-20T10:00:00.000Z" },
+            {
+              action: "verified",
+              by: actor.email,
+              at: "2026-03-23T10:00:00.000Z",
+              source: "manual_verification",
+              verificationStatus: "PASS",
+              aiStatus: "complete",
+              extractedFieldsSignature: "{\"registrationNumber\":\"123\"}",
+            },
+          ],
+          fileUrl: "https://example.com/doc.pdf",
+        }),
+      })
+      .mockResolvedValueOnce({
+        id: "cipc",
+        data: () => ({
+          contractorId: "contractor-1",
+          documentType: "cipc",
+          validationStatus: "PASS",
+          status: "verified",
+          verified: true,
+          fileUrl: "https://example.com/doc.pdf",
+        }),
+      });
+
+    await applyManualDocumentVerification({
+      contractorId: "contractor-1",
+      documentType: "cipc",
+      action: "approve",
+      actor,
+      reviewReason: "Replay approval",
+    });
+
+    expect(upsertContractorDocument).toHaveBeenCalledWith(
+      "contractor-1",
+      "cipc",
+      expect.objectContaining({
+        auditTrail: [
+          expect.objectContaining({ action: "uploaded" }),
+          expect.objectContaining({ action: "verified", source: "manual_verification" }),
+        ],
+      })
+    );
+    const auditTrail = upsertContractorDocument.mock.calls[0][2].auditTrail as Array<Record<string, unknown>>;
+    expect(auditTrail).toHaveLength(2);
+  });
 });

@@ -37,30 +37,32 @@ export default function DealStageCharts({ deals }: { deals: Deal[] }) {
   if (!data.length) return null;
 
   return (
-    <ResponsiveContainer width="100%" height={260}>
-      <PieChart>
-        <Pie
-          data={data}
-          dataKey="value"
-          nameKey="name"
-          outerRadius={90}
-        >
-          {data.map((entry) => (
-            <Cell
-              key={entry.name}
-              fill={COLORS[entry.name] ?? "#64748b"}
-            />
-          ))}
-        </Pie>
-        <Tooltip
-          contentStyle={{
-            background: empireColors.surface,
-            border: `1px solid ${empireColors.border}`,
-            color: empireColors.textPrimary,
-          }}
-        />
-      </PieChart>
-    </ResponsiveContainer>
+    <div className="relative mx-auto flex h-[260px] w-full max-w-[420px] items-center justify-center overflow-hidden">
+      <ResponsiveContainer width="100%" height="100%">
+        <PieChart>
+          <Pie
+            data={data}
+            dataKey="value"
+            nameKey="name"
+            outerRadius={90}
+          >
+            {data.map((entry) => (
+              <Cell
+                key={entry.name}
+                fill={COLORS[entry.name] ?? "#64748b"}
+              />
+            ))}
+          </Pie>
+          <Tooltip
+            contentStyle={{
+              background: empireColors.surface,
+              border: `1px solid ${empireColors.border}`,
+              color: empireColors.textPrimary,
+            }}
+          />
+        </PieChart>
+      </ResponsiveContainer>
+    </div>
   );
 }
 

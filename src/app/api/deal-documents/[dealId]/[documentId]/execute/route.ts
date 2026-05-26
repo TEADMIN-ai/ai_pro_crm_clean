@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
-import { getStorage } from "firebase-admin/storage";
+import admin from "firebase-admin";
 
-import { getFirebaseAdmin } from "@/lib/firebase/admin";
+import { getFirebaseAdmin, getFirebaseStorageBucket } from "@/lib/firebase/admin";
 import { extractTextFromPdf } from "@/lib/pdf/extractTextFromPdf";
 import {
   AuthorizationError,
@@ -258,7 +258,8 @@ export async function POST(
       return jsonError("Document is missing storagePath", 500);
     }
 
-    const bucket = getStorage().bucket();
+    getFirebaseAdmin();
+    const bucket = getFirebaseStorageBucket();
     const [buffer] = await bucket.file(storagePath).download();
     const text = await extractTextFromPdf(Buffer.from(buffer));
 

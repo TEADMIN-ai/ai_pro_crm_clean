@@ -1,7 +1,7 @@
-import { getStorage } from "firebase-admin/storage";
+import admin from "firebase-admin";
 import { FieldValue } from "firebase-admin/firestore";
 
-import { getFirebaseAdmin } from "@/lib/firebase/admin";
+import { getFirebaseAdmin, getFirebaseStorageBucket } from "@/lib/firebase/admin";
 
 type PersistTenderPackInput = {
   contractorId: string;
@@ -16,7 +16,9 @@ type PersistTenderPackInput = {
 type CreateTenderPackRecordInput = {
   storagePath: string;
   downloadURL: string;
+  downloadUrl: string;
   createdAt: number;
+  expiresAt: number;
   createdBy: string;
   contractorId: string;
   templateKey: string;
@@ -27,6 +29,9 @@ type CreateTenderPackRecordInput = {
   contentType: "application/pdf";
   size: number;
 };
+
+const DEFAULT_TENDER_PACK_ARTIFACT_URL_TTL_MS = 1000 * 60 * 60 * 24 * 7;
+const DEFAULT_TENDER_PACK_ARTIFACT_RETENTION_MS = 1000 * 60 * 60 * 24 * 7;
 
 async function normalizePdfBuffer(pdfBytes: PersistTenderPackInput["pdfBytes"]): Promise<Buffer> {
   if (Buffer.isBuffer(pdfBytes)) {
@@ -60,11 +65,13 @@ export async function createTenderPackRecord(input: CreateTenderPackRecordInput)
 
 export async function persistTenderPackPdf(input: PersistTenderPackInput) {
   const createdAt = Date.now();
+  const expiresAt = createdAt + DEFAULT_TENDER_PACK_ARTIFACT_RETENTION_MS;
   const normalizedTemplateKey = input.templateKey.trim().toLowerCase();
   const fileName = `${createdAt}-${normalizedTemplateKey}.pdf`;
   const storagePath = `tenderPacks/${input.contractorId}/${fileName}`;
   const pdfBuffer = await normalizePdfBuffer(input.pdfBytes);
-  const file = getStorage().bucket().file(storagePath);
+  const bucket = getFirebaseStorageBucket();
+  const file = bucket.file(storagePath);
 
   await file.save(pdfBuffer, {
     contentType: "application/pdf",
@@ -74,36 +81,49 @@ export async function persistTenderPackPdf(input: PersistTenderPackInput) {
         contractorId: input.contractorId,
         createdBy: input.createdBy,
         templateKey: input.templateKey,
+        cleanupPolicy: "retention_window",
+        expiresAt: String(expiresAt),
       },
     },
   });
 
   const [downloadURL] = await file.getSignedUrl({
     action: "read",
-    expires: Date.now() + 1000 * 60 * 60 * 24 * 365 * 10,
+    expires: createdAt + DEFAULT_TENDER_PACK_ARTIFACT_URL_TTL_MS,
   });
 
-  const packId = await createTenderPackRecord({
-    storagePath,
-    downloadURL,
-    createdAt,
-    createdBy: input.createdBy,
-    contractorId: input.contractorId,
-    templateKey: input.templateKey,
-    missingFields: input.missingFields,
-    warnings: input.warnings,
-    fieldMapUsed: input.fieldMapUsed,
-    fileName,
-    contentType: "application/pdf",
-    size: pdfBuffer.byteLength,
-  });
+  let packId = "";
+
+  try {
+    packId = await createTenderPackRecord({
+      storagePath,
+      downloadURL,
+      downloadUrl: downloadURL,
+      createdAt,
+      expiresAt,
+      createdBy: input.createdBy,
+      contractorId: input.contractorId,
+      templateKey: input.templateKey,
+      missingFields: input.missingFields,
+      warnings: input.warnings,
+      fieldMapUsed: input.fieldMapUsed,
+      fileName,
+      contentType: "application/pdf",
+      size: pdfBuffer.byteLength,
+    });
+  } catch (error) {
+    await file.delete({ ignoreNotFound: true });
+    throw error;
+  }
 
   return {
     packId,
     storagePath,
     downloadURL,
+    downloadUrl: downloadURL,
     fileName,
     size: pdfBuffer.byteLength,
     createdAt,
+    expiresAt,
   };
 }

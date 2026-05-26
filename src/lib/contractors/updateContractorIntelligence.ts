@@ -1,8 +1,9 @@
 import type { Firestore } from "firebase-admin/firestore";
 
 import { recalculateContractorCompliance } from "@/lib/server/recalculateContractorCompliance";
+import { LEGACY_COMPLIANCE_REQUIREMENT_KEYS } from "@/lib/compliance/contractorCompliance";
 
-const REQUIRED_DOCS = ["cipc", "tax", "bbbee", "coida"] as const;
+const REQUIRED_DOCS = LEGACY_COMPLIANCE_REQUIREMENT_KEYS;
 
 type ContractorDocumentRecord = Record<string, unknown> & {
   aiData?: {
@@ -15,16 +16,6 @@ type ContractorDocumentRecord = Record<string, unknown> & {
   downloadURL?: string;
   url?: string;
 };
-
-function documentMatchesRequirement(documentId: string, requirement: (typeof REQUIRED_DOCS)[number]) {
-  const normalized = documentId.trim().toLowerCase();
-
-  if (requirement === "tax") {
-    return normalized === "tax" || normalized === "taxclearance";
-  }
-
-  return normalized === requirement;
-}
 
 function toConfidenceScore(value: unknown): number {
   return typeof value === "number" && Number.isFinite(value) ? Math.max(0, Math.min(100, value)) : 0;
@@ -56,7 +47,13 @@ function hasUploadedFile(document: ContractorDocumentRecord) {
     typeof document.url === "string";
 }
 
-export async function updateContractorIntelligence(db: Firestore, contractorId: string) {
+export async function updateContractorIntelligence(
+  db: Firestore,
+  contractorId: string,
+  options?: {
+    precomputedSummary?: Awaited<ReturnType<typeof recalculateContractorCompliance>>;
+  }
+) {
   const documentsSnapshot = await db
     .collection("contractors")
     .doc(contractorId)
@@ -67,18 +64,6 @@ export async function updateContractorIntelligence(db: Firestore, contractorId: 
     id: doc.id,
     ...(doc.data() as ContractorDocumentRecord),
   }));
-
-  const existingDocs = documents.map((doc) => doc.id);
-  const completed = REQUIRED_DOCS.filter((requirement) =>
-    existingDocs.some((documentId) => documentMatchesRequirement(documentId, requirement))
-  );
-  const missing = REQUIRED_DOCS.filter((requirement) =>
-    !existingDocs.some((documentId) => documentMatchesRequirement(documentId, requirement))
-  );
-
-  const complianceScore = Math.round((completed.length / REQUIRED_DOCS.length) * 100);
-  const complianceStatus =
-    complianceScore === 100 ? "complete" : complianceScore >= 60 ? "partial" : "risk";
 
   const uploadedDocuments = documents.filter(hasUploadedFile);
   const averageConfidenceScore =
@@ -92,8 +77,30 @@ export async function updateContractorIntelligence(db: Firestore, contractorId: 
       : 0;
 
   const documentQualityScore = Math.round((averageConfidenceScore + averageValidationScore) / 2);
-  const readinessScore = Math.round(complianceScore * 0.6 + documentQualityScore * 0.4);
-  const readinessStatus = readinessScore >= 80 ? "READY" : readinessScore >= 60 ? "RISK" : "BLOCKED";
+  const aiStatuses = uploadedDocuments.map((document) => document.aiStatus).filter(Boolean);
+  const aiStatusSummary =
+    aiStatuses.includes("failed")
+      ? "failed"
+      : aiStatuses.includes("pending")
+        ? "pending"
+        : aiStatuses.includes("complete")
+          ? "complete"
+          : "pending";
+  const aiStatusPendingSince =
+    aiStatusSummary === "pending"
+      ? Date.now()
+      : null;
+  const legacySummary = options?.precomputedSummary ?? (await recalculateContractorCompliance(db, contractorId));
+  const complianceCompletedTypes = REQUIRED_DOCS.filter(
+    (requirement) => legacySummary.legacyDocuments[requirement]?.valid === true
+  );
+  const complianceMissingTypes = REQUIRED_DOCS.filter(
+    (requirement) => legacySummary.legacyDocuments[requirement]?.valid !== true
+  );
+  const complianceScore = legacySummary.complianceStatusScore;
+  const complianceStatus =
+    legacySummary.docsMissing === 0 ? "complete" : complianceCompletedTypes.length > 0 ? "partial" : "risk";
+  const intelligence = legacySummary.intelligence;
 
   await db
     .collection("contractors")
@@ -101,27 +108,49 @@ export async function updateContractorIntelligence(db: Firestore, contractorId: 
     .set(
       {
         complianceScore,
-        complianceCompleted: completed,
-        complianceMissing: missing,
+        complianceCompleted: complianceCompletedTypes.length,
+        complianceCompletedTypes,
+        complianceMissing: complianceMissingTypes.length,
+        complianceMissingTypes,
+        missingDocsCount: legacySummary.docsMissing,
         complianceStatus,
+        complianceConfidence: intelligence.complianceConfidence,
+        readinessConfidence: intelligence.readinessConfidence,
+        operationalSubmissionConfidence: intelligence.operationalSubmissionConfidence,
+        riskGrade: intelligence.riskGrade,
+        explainableSummary: intelligence.explainableSummary,
+        blockedReasons: intelligence.blockedReasons,
+        reviewRecommendations: intelligence.reviewRecommendations,
+        averageDocumentConfidence: intelligence.averageDocumentConfidence,
         documentQualityScore,
-        readinessScore,
-        readinessStatus,
+        aiStatusSummary,
+        aiStatusPendingSince,
         updatedAt: new Date(),
       },
       { merge: true }
     );
 
-  const legacySummary = await recalculateContractorCompliance(db, contractorId);
-
   return {
     complianceScore,
-    complianceCompleted: completed,
-    complianceMissing: missing,
+    complianceCompleted: complianceCompletedTypes.length,
+    complianceCompletedTypes,
+    complianceMissing: complianceMissingTypes.length,
+    complianceMissingTypes,
+    missingDocsCount: legacySummary.docsMissing,
     complianceStatus,
+    complianceConfidence: intelligence.complianceConfidence,
+    readinessConfidence: intelligence.readinessConfidence,
+    operationalSubmissionConfidence: intelligence.operationalSubmissionConfidence,
+    riskGrade: intelligence.riskGrade,
+    explainableSummary: intelligence.explainableSummary,
+    blockedReasons: intelligence.blockedReasons,
+    reviewRecommendations: intelligence.reviewRecommendations,
+    averageDocumentConfidence: intelligence.averageDocumentConfidence,
     documentQualityScore,
-    readinessScore,
-    readinessStatus,
+    readinessScore: legacySummary.readinessScore,
+    readinessStatus: legacySummary.tenderLockStatus,
+    aiStatusSummary,
+    aiStatusPendingSince,
     legacySummary,
   };
 }

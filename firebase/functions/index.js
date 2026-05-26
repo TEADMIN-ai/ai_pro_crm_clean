@@ -1,9 +1,9 @@
 const admin = require("firebase-admin");
 const OpenAI = require("openai");
-const { onDocumentCreated } = require("firebase-functions/v2/firestore");
+const { onDocumentWritten } = require("firebase-functions/v2/firestore");
 const logger = require("firebase-functions/logger");
 
-const REQUIRED_DOCS = ["cipc", "tax", "bbbee", "coida"];
+const REQUIRED_DOCS = ["cipc", "tax", "bbbee", "coida", "bank"];
 const DEFAULT_MODEL = process.env.OPENAI_DOCUMENT_MODEL || "gpt-4.1-mini";
 const REGION = "africa-south1";
 
@@ -61,19 +61,37 @@ function normalizeString(value) {
   return typeof value === "string" && value.trim().length > 0 ? value.trim() : undefined;
 }
 
+function normalizeDocumentTypeToken(value) {
+  return String(value || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+function toLegacyRequirementKey(value) {
+  const normalized = normalizeDocumentTypeToken(value);
+
+  switch (normalized) {
+    case "cipc":
+      return "cipc";
+    case "bbbee":
+    case "bbee":
+      return "bbbee";
+    case "tax":
+    case "taxclearance":
+    case "taxcompliance":
+      return "tax";
+    case "coida":
+      return "coida";
+    case "bank":
+    case "bankconfirmation":
+    case "bankletter":
+      return "bank";
+    default:
+      return null;
+  }
+}
+
 function extractJsonPayload(content) {
   const fenced = content.match(/```(?:json)?\s*([\s\S]*?)```/i);
   return (fenced && fenced[1] ? fenced[1] : content).trim();
-}
-
-function documentMatchesRequirement(documentId, requirement) {
-  const normalized = String(documentId || "").trim().toLowerCase();
-
-  if (requirement === "tax") {
-    return normalized === "tax" || normalized === "taxclearance";
-  }
-
-  return normalized === requirement;
 }
 
 function hasUploadedFile(document) {
@@ -100,6 +118,67 @@ function toValidationScore(document) {
   }
 
   return document.verified === true ? 100 : 0;
+}
+
+function summarizeExtractedFields(fields) {
+  if (!fields || typeof fields !== "object") {
+    return {
+      isEmpty: true,
+      keys: [],
+      registrationNumber: null,
+      expiryDate: null,
+      companyName: null,
+    };
+  }
+
+  const registrationNumber = normalizeString(fields.registrationNumber) || null;
+  const expiryDate = normalizeString(fields.expiryDate) || null;
+  const companyName = normalizeString(fields.companyName) || null;
+  const keys = Object.keys(fields).filter((key) => normalizeString(fields[key]));
+
+  return {
+    isEmpty: keys.length === 0,
+    keys,
+    registrationNumber,
+    expiryDate,
+    companyName,
+  };
+}
+
+function determineVerificationFailureReason(aiResult, extractedFieldsSummary, expiresAt, isExpired) {
+  if (aiResult.valid !== true) {
+    return "aiResult.valid_false";
+  }
+
+  if (extractedFieldsSummary.isEmpty) {
+    return "empty_extraction_payload";
+  }
+
+  if (aiResult.confidenceScore === 0 && aiResult.issues.includes("No readable text extracted from document")) {
+    return "ocr_failure";
+  }
+
+  if (
+    extractedFieldsSummary.keys.length === 0 &&
+    (aiResult.issues.includes("AI validation returned an empty response") ||
+      aiResult.issues.includes("AI validation returned an invalid payload"))
+  ) {
+    return "invalid_normalization";
+  }
+
+  if (!extractedFieldsSummary.expiryDate && extractedFieldsSummary.keys.length > 0) {
+    return "missing_extracted_fields";
+  }
+
+  if (extractedFieldsSummary.expiryDate && expiresAt === null) {
+    return "expiry_parsing_failure";
+  }
+
+  if (isExpired) {
+    return "document_expired";
+  }
+
+  return null;
 }
 
 async function validateDocument({ storagePath, documentType }) {
@@ -238,6 +317,15 @@ async function validateDocument({ storagePath, documentType }) {
 
 async function updateContractorIntelligence(contractorId) {
   const db = admin.firestore();
+  const contractorRef = db.collection("contractors").doc(contractorId);
+  const contractorSnapshot = await contractorRef.get();
+  const readinessBefore = {
+    readinessScore: contractorSnapshot.data()?.readinessScore ?? null,
+    docsMissing: contractorSnapshot.data()?.docsMissing ?? null,
+    complianceApproved: contractorSnapshot.data()?.complianceApproved ?? null,
+    tenderLockStatus: contractorSnapshot.data()?.tenderLockStatus ?? null,
+    isTenderLocked: contractorSnapshot.data()?.isTenderLocked ?? null,
+  };
   const documentsSnapshot = await db
     .collection("contractors")
     .doc(contractorId)
@@ -248,18 +336,6 @@ async function updateContractorIntelligence(contractorId) {
     id: doc.id,
     ...doc.data(),
   }));
-
-  const existingDocs = documents.map((doc) => doc.id);
-  const completed = REQUIRED_DOCS.filter((requirement) =>
-    existingDocs.some((documentId) => documentMatchesRequirement(documentId, requirement))
-  );
-  const missing = REQUIRED_DOCS.filter((requirement) =>
-    !existingDocs.some((documentId) => documentMatchesRequirement(documentId, requirement))
-  );
-
-  const complianceScore = Math.round((completed.length / REQUIRED_DOCS.length) * 100);
-  const complianceStatus =
-    complianceScore === 100 ? "complete" : complianceScore >= 60 ? "partial" : "risk";
 
   const uploadedDocuments = documents.filter(hasUploadedFile);
   const averageConfidenceScore =
@@ -273,56 +349,122 @@ async function updateContractorIntelligence(contractorId) {
       : 0;
 
   const documentQualityScore = Math.round((averageConfidenceScore + averageValidationScore) / 2);
+  const documentsState = {
+    cipc: { uploaded: false, valid: false, status: "missing" },
+    tax: { uploaded: false, valid: false, status: "missing" },
+    bbbee: { uploaded: false, valid: false, status: "missing" },
+    coida: { uploaded: false, valid: false, status: "missing" },
+    bank: { uploaded: false, valid: false, status: "missing" },
+  };
+
+  documents.forEach((document) => {
+    const key = toLegacyRequirementKey(document.documentType || document.docType || document.id);
+    if (!key) {
+      return;
+    }
+
+    const uploaded = hasUploadedFile(document);
+    const valid = document.verified === true && document.isExpired !== true;
+    const status = valid
+      ? "verified"
+      : document.isExpired === true
+        ? "expired"
+        : uploaded
+          ? "uploaded"
+          : "missing";
+    const current = documentsState[key];
+    const currentRank = current.valid ? 2 : current.uploaded ? 1 : 0;
+    const nextRank = valid ? 2 : uploaded ? 1 : 0;
+
+    if (nextRank >= currentRank) {
+      documentsState[key] = { uploaded, valid, status };
+    }
+  });
+  const completed = Object.entries(documentsState)
+    .filter(([, document]) => document.valid === true)
+    .map(([key]) => key);
+  const missing = Object.entries(documentsState)
+    .filter(([, document]) => document.valid !== true)
+    .map(([key]) => key);
+  const complianceScore = Math.round((completed.length / REQUIRED_DOCS.length) * 100);
+  const complianceStatus =
+    complianceScore === 100 ? "complete" : complianceScore >= 60 ? "partial" : "risk";
   const readinessScore = Math.round(complianceScore * 0.6 + documentQualityScore * 0.4);
   const readinessStatus = readinessScore >= 80 ? "READY" : readinessScore >= 60 ? "RISK" : "BLOCKED";
+  const docsMissing = Object.values(documentsState).filter((document) => document.valid !== true).length;
+  const complianceApproved =
+    docsMissing === 0 &&
+    documentsState.cipc.valid === true &&
+    documentsState.tax.valid === true &&
+    documentsState.bbbee.valid === true &&
+    documentsState.coida.valid === true &&
+    documentsState.bank.valid === true;
 
-  await db
-    .collection("contractors")
-    .doc(contractorId)
-    .set(
+  await contractorRef.set(
       {
         complianceScore,
-        complianceCompleted: completed,
-        complianceMissing: missing,
+        complianceCompleted: completed.length,
+        complianceCompletedTypes: completed,
+        complianceMissing: missing.length,
+        complianceMissingTypes: missing,
         complianceStatus,
         documentQualityScore,
         readinessScore,
         readinessStatus,
+        docsMissing,
+        isTenderLocked: docsMissing > 0 || readinessScore < 80,
+        tenderLockStatus: docsMissing > 0 ? "BLOCKED" : readinessStatus,
+        complianceApproved,
+        documents: documentsState,
         updatedAt: new Date(),
       },
       { merge: true }
     );
+
+  const readinessAfter = {
+    readinessScore,
+    docsMissing,
+    complianceApproved,
+    tenderLockStatus: docsMissing > 0 ? "BLOCKED" : readinessStatus,
+    isTenderLocked: docsMissing > 0 || readinessScore < 80,
+  };
+
+  return { readinessBefore, readinessAfter };
 }
 
-exports.onContractorDocumentCreated = onDocumentCreated(
+exports.onContractorDocumentCreated = onDocumentWritten(
   {
     document: "contractors/{contractorId}/documents/{docType}",
     region: REGION,
   },
   async (event) => {
-    const snapshot = event.data;
-    if (!snapshot) {
+    const change = event.data;
+    if (!change || !change.after) {
       logger.warn("Document trigger fired without snapshot data");
       return;
     }
 
     const contractorId = event.params.contractorId;
     const docType = event.params.docType;
-    const documentRef = snapshot.ref;
+    const beforeSnapshot = change.before;
+    const afterSnapshot = change.after;
+    const documentRef = afterSnapshot.ref;
+    const beforeData = beforeSnapshot && beforeSnapshot.exists ? beforeSnapshot.data() || {} : {};
+    const currentData = afterSnapshot.exists ? afterSnapshot.data() || {} : {};
+    const triggerType = !beforeSnapshot.exists ? "create" : !afterSnapshot.exists ? "delete" : "update";
 
     logger.info("document intelligence trigger start", {
       contractorId,
       docType,
+      triggerType,
       path: documentRef.path,
     });
 
-    const currentSnapshot = await documentRef.get();
-    const currentData = currentSnapshot.data() || {};
-
-    if (currentData.aiStatus === "complete") {
-      logger.info("document intelligence skipped: already processed", {
+    if (!afterSnapshot.exists) {
+      logger.info("document intelligence skipped: document deleted", {
         contractorId,
         docType,
+        triggerType,
         path: documentRef.path,
       });
       return;
@@ -330,8 +472,15 @@ exports.onContractorDocumentCreated = onDocumentCreated(
 
     const storagePath = normalizeString(currentData.storagePath);
     const documentType = normalizeString(currentData.documentType) || docType;
+    const previousStoragePath = normalizeString(beforeData.storagePath);
+    const storagePathChanged = previousStoragePath !== storagePath;
+    const shouldVerify =
+      Boolean(storagePath) &&
+      currentData.verified !== true &&
+      (currentData.aiStatus === "pending" || !beforeSnapshot.exists || storagePathChanged);
+    let verified = currentData.verified === true;
 
-    if (!storagePath) {
+    if (!storagePath && shouldVerify) {
       await documentRef.set(
         {
           aiStatus: "failed",
@@ -345,83 +494,175 @@ exports.onContractorDocumentCreated = onDocumentCreated(
       logger.error("document intelligence failed: missing storagePath", {
         contractorId,
         docType,
+        documentType,
+        triggerType,
         path: documentRef.path,
       });
 
-      await updateContractorIntelligence(contractorId);
+      const syncResult = await updateContractorIntelligence(contractorId);
+      logger.info("document intelligence sync complete", {
+        contractorId,
+        documentType,
+        triggerType,
+        verified: false,
+        readinessBefore: syncResult.readinessBefore,
+        readinessAfter: syncResult.readinessAfter,
+      });
       return;
     }
 
-    try {
-      const aiResult = await validateDocument({ storagePath, documentType });
-      const expiresAt = parseExpiryDateToTimestamp(aiResult.extractedFields.expiryDate);
-      const isExpired = typeof expiresAt === "number" ? expiresAt <= Date.now() : false;
-      const validationError =
-        aiResult.valid && !isExpired
-          ? null
-          : aiResult.issues.join("; ") || (isExpired ? "Document is expired" : "AI validation failed");
+    if (shouldVerify) {
+      try {
+        const aiResult = await validateDocument({ storagePath, documentType });
+        const extractedFieldsSummary = summarizeExtractedFields(aiResult.extractedFields);
+        const expiresAt = parseExpiryDateToTimestamp(aiResult.extractedFields.expiryDate);
+        const isExpired = typeof expiresAt === "number" ? expiresAt <= Date.now() : false;
+        const verificationFailureReason = determineVerificationFailureReason(
+          aiResult,
+          extractedFieldsSummary,
+          expiresAt,
+          isExpired
+        );
+        const validationError =
+          aiResult.valid && !isExpired
+            ? null
+            : aiResult.issues.join("; ") || (isExpired ? "Document is expired" : "AI validation failed");
+        const contractorSnapshotBefore = await documentRef.parent.parent.get();
+        const contractorDataBefore = contractorSnapshotBefore.data() || {};
+        const readinessBefore = {
+          readinessScore: contractorDataBefore.readinessScore ?? null,
+          docsMissing: contractorDataBefore.docsMissing ?? null,
+          complianceApproved: contractorDataBefore.complianceApproved ?? null,
+          tenderLockStatus: contractorDataBefore.tenderLockStatus ?? null,
+          isTenderLocked: contractorDataBefore.isTenderLocked ?? null,
+        };
 
-      logger.info("document intelligence ai result", {
-        contractorId,
-        docType,
-        valid: aiResult.valid,
-        confidenceScore: aiResult.confidenceScore,
-        issues: aiResult.issues,
-        fraudIndicators: aiResult.fraudIndicators,
-        expiresAt,
-        isExpired,
-      });
-
-      await documentRef.set(
-        {
-          aiStatus: "complete",
-          aiError: null,
-          aiValidated: true,
-          aiData: aiResult,
+        logger.info("document intelligence ai result", {
+          contractorId,
+          docType,
+          documentType,
+          triggerType,
+          valid: aiResult.valid,
           confidenceScore: aiResult.confidenceScore,
           issues: aiResult.issues,
-          extractedFields: {
-            registrationNumber: aiResult.extractedFields.registrationNumber || null,
-            expiryDate: aiResult.extractedFields.expiryDate || null,
-            companyName: aiResult.extractedFields.companyName || null,
-          },
-          expiryDate: expiresAt,
+          fraudIndicators: aiResult.fraudIndicators,
           expiresAt,
           isExpired,
-          validationError,
-          verified: aiResult.valid && !isExpired,
-          status: aiResult.valid ? (isExpired ? "expired" : "verified") : "uploaded",
-          updatedAt: new Date(),
-        },
-        { merge: true }
-      );
+          extractedFields: extractedFieldsSummary,
+          verificationResult: {
+            verified: aiResult.valid && !isExpired,
+            failureReason: verificationFailureReason,
+            validationError,
+          },
+        });
 
-      logger.info("document intelligence firestore update complete", {
-        contractorId,
-        docType,
-        path: documentRef.path,
-      });
-    } catch (error) {
-      const aiError = error instanceof Error ? error.message : "Unknown AI validation error";
+        await documentRef.set(
+          {
+            aiStatus: "complete",
+            aiError: null,
+            aiValidated: true,
+            aiData: aiResult,
+            confidenceScore: aiResult.confidenceScore,
+            issues: aiResult.issues,
+            extractedFields: {
+              registrationNumber: aiResult.extractedFields.registrationNumber || null,
+              expiryDate: aiResult.extractedFields.expiryDate || null,
+              companyName: aiResult.extractedFields.companyName || null,
+            },
+            expiryDate: expiresAt,
+            expiresAt,
+            isExpired,
+            validationError,
+            verified: aiResult.valid && !isExpired,
+            status: aiResult.valid ? (isExpired ? "expired" : "verified") : "uploaded",
+            updatedAt: new Date(),
+          },
+          { merge: true }
+        );
+        verified = aiResult.valid && !isExpired;
 
-      logger.error("document intelligence failed", {
-        contractorId,
-        docType,
-        path: documentRef.path,
-        aiError,
-      });
+        const verificationSnapshot = await documentRef.get();
+        const verificationData = verificationSnapshot.data() || {};
 
-      await documentRef.set(
-        {
-          aiStatus: "failed",
+        logger.info("document intelligence firestore update complete", {
+          contractorId,
+          docType,
+          documentType,
+          triggerType,
+          path: documentRef.path,
+          aiValid: aiResult.valid,
+          isExpired,
+          extractedFields: extractedFieldsSummary,
+          verificationResult: {
+            verified,
+            failureReason: verificationFailureReason,
+            validationError,
+          },
+          firestoreState: {
+            verified: verificationData.verified === true,
+            status: verificationData.status || null,
+            aiStatus: verificationData.aiStatus || null,
+            validationError: verificationData.validationError || null,
+          },
+          readinessBefore,
+        });
+      } catch (error) {
+        const aiError = error instanceof Error ? error.message : "Unknown AI validation error";
+
+        logger.error("document intelligence failed", {
+          contractorId,
+          docType,
+          documentType,
+          triggerType,
+          path: documentRef.path,
           aiError,
-          aiValidated: false,
-          updatedAt: new Date(),
-        },
-        { merge: true }
-      );
+        });
+
+        await documentRef.set(
+          {
+            aiStatus: "failed",
+            aiError,
+            aiValidated: false,
+            updatedAt: new Date(),
+          },
+          { merge: true }
+        );
+      }
+    } else {
+      logger.info("document intelligence skipped: verification not required", {
+        contractorId,
+        docType,
+        documentType,
+        triggerType,
+        path: documentRef.path,
+      });
     }
 
-    await updateContractorIntelligence(contractorId);
+    const persistedSnapshot = await documentRef.get();
+    const persistedData = persistedSnapshot.data() || {};
+    const syncResult = await updateContractorIntelligence(contractorId);
+    logger.info("document intelligence verification trace", {
+      contractorId,
+      documentType,
+      aiValid: persistedData.aiData && persistedData.aiData.valid === true,
+      isExpired: persistedData.isExpired === true,
+      extractedFields: summarizeExtractedFields(persistedData.extractedFields),
+      verificationResult: {
+        verified: persistedData.verified === true,
+        validationError: persistedData.validationError || null,
+        aiStatus: persistedData.aiStatus || null,
+        status: persistedData.status || null,
+      },
+      readinessBefore: syncResult.readinessBefore,
+      readinessAfter: syncResult.readinessAfter,
+    });
+    logger.info("document intelligence sync complete", {
+      contractorId,
+      documentType,
+      triggerType,
+      verified,
+      readinessBefore: syncResult.readinessBefore,
+      readinessAfter: syncResult.readinessAfter,
+    });
   }
 );

@@ -1,14 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAuth } from "firebase-admin/auth";
-import { db } from "@/lib/firebaseAdmin";
+import { logActivity } from "@/lib/activity/logActivity";
+import { getFirebaseAdmin } from "@/lib/firebase/admin";
 import { AuthorizationError, assertCanAccessContractor, assertPrivilegedRole, requireAuthorizedUser } from "@/lib/server/authz";
-import { getContractorById, updateContractorById } from "@/server/services/contractorService";
+import { getContractorById, listContractorDocuments, updateContractorById } from "@/server/services/contractorService";
 
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ contractorId: string }> }
 ) {
   try {
+    const db = getFirebaseAdmin();
     const user = await requireAuthorizedUser(req);
     const { contractorId } = await params;
 
@@ -22,10 +24,12 @@ export async function GET(
     if (!contractor) {
       return NextResponse.json({ success: false, error: "Contractor not found" }, { status: 404 });
     }
+    const documentRecords = await listContractorDocuments(contractorId);
 
     return NextResponse.json({
       success: true,
       ...contractor,
+      documentRecords,
     });
   } catch (error) {
     if (error instanceof AuthorizationError) {
@@ -53,6 +57,11 @@ export async function PATCH(
     assertPrivilegedRole(user);
 
     await updateContractorById(contractorId, body as Record<string, unknown>);
+    await logActivity({
+      contractorId,
+      action: "Contractor updated",
+      performedBy: user.email?.trim() || user.uid,
+    });
 
     return NextResponse.json({ success: true, message: "Contractor updated successfully" });
   } catch (error) {
@@ -70,6 +79,7 @@ export async function DELETE(
   { params }: { params: Promise<{ contractorId: string }> }
 ) {
   try {
+    const db = getFirebaseAdmin();
     const user = await requireAuthorizedUser(req);
     const { contractorId } = await params;
 

@@ -46,6 +46,12 @@ type DealDocument = {
   reviewedAt?: string;
 };
 
+type DealIntelligence = {
+  status: string;
+  reason: string;
+  priorityFixes: string[];
+};
+
 function getComplianceColor(score: number): string {
   if (score >= 90) return "text-green-400";
   if (score >= 70) return "text-yellow-400";
@@ -78,6 +84,7 @@ export default function DealDetailsClient({ dealId }: { dealId: string }) {
   const [previousWpi, setPreviousWpi] = useState<WpiHistoryPoint | null>(null);
   const [documentIntelligence, setDocumentIntelligence] = useState<DocumentIntelligenceResult | null>(null);
   const [readinessUpdatedAt, setReadinessUpdatedAt] = useState<string | undefined>(undefined);
+  const [intelligence, setIntelligence] = useState<DealIntelligence | null>(null);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -146,7 +153,7 @@ export default function DealDetailsClient({ dealId }: { dealId: string }) {
     try {
       console.log("Sending documentId:", documentId);
 
-      const response = await authFetch(`/api/documents/${encodeURIComponent(documentId)}/status`, {
+      const response = await authFetch(API_ROUTES.DOCUMENT_STATUS(documentId), {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
@@ -482,6 +489,48 @@ export default function DealDetailsClient({ dealId }: { dealId: string }) {
     });
   }, [resolvedDealId, documentIntelligence, documentIntelligencePayload]);
 
+  useEffect(() => {
+    if (!deal?.id) return;
+
+    let cancelled = false;
+
+    async function fetchIntelligence() {
+      try {
+        const response = await authFetch(API_ROUTES.DEALS_INTELLIGENCE, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            readinessScore: deal.readinessScore,
+            status: deal.tenderLockStatus,
+            missingDocs: Array.isArray(deal.missingRequirements) ? deal.missingRequirements : [],
+          }),
+        });
+
+        if (!response.ok) {
+          throw new Error(`Intelligence fetch failed with status ${response.status}`);
+        }
+
+        const data = (await response.json()) as DealIntelligence;
+        if (!cancelled) {
+          setIntelligence(data);
+        }
+      } catch (error) {
+        console.error("Intelligence fetch failed", error);
+        if (!cancelled) {
+          setIntelligence(null);
+        }
+      }
+    }
+
+    void fetchIntelligence();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [deal?.id, deal?.readinessScore, deal?.tenderLockStatus, deal?.missingRequirements]);
+
   const isPageLoading = loading || isLoadingDocs;
 
   if (isPageLoading) {
@@ -540,6 +589,31 @@ export default function DealDetailsClient({ dealId }: { dealId: string }) {
         evaluation={tenderEvaluation}
         readinessUpdatedAt={readinessUpdatedAt}
       />
+      <div className="space-y-4 rounded-xl border border-cyan-700 bg-slate-950 p-5">
+        <h2 className="text-lg font-semibold text-cyan-400">Deal Intelligence</h2>
+
+        <div>
+          <h3 className="text-sm font-semibold text-gray-300">AI Summary</h3>
+          <div className="text-sm text-gray-700">
+            {intelligence?.reason || "Analyzing deal..."}
+          </div>
+        </div>
+
+        <div>
+          <h3 className="text-sm font-semibold text-gray-300">Priority Fixes</h3>
+          {intelligence?.priorityFixes?.length > 0 ? (
+            <ul className="text-sm space-y-1 text-gray-300">
+              {intelligence.priorityFixes.map((fix, index) => (
+                <li key={`${fix}-${index}`}>{fix}</li>
+              ))}
+            </ul>
+          ) : (
+            <div className="text-sm text-gray-500">
+              No suggestions available
+            </div>
+          )}
+        </div>
+      </div>
       {impactAttribution && (
         <ImpactAttributionPanel
           deltaProbability={impactAttribution.deltaProbability}

@@ -1,7 +1,8 @@
 import "server-only";
 
+import { getAuth } from "firebase-admin/auth";
 import type { AppUser } from "@/types/user";
-import { getAdminAuth, getFirebaseAdmin } from "@/lib/firebase/admin";
+import { getFirebaseAdmin } from "@/lib/firebase/admin";
 import { MANAGED_USER_ROLES, type ManagedUserRole } from "@/lib/users/managedUserRoles";
 
 export class CreateUserValidationError extends Error {
@@ -72,7 +73,7 @@ function validateCreateUserInput(input: CreateUserInput): CreateUserInput {
 
 export async function createManagedUser(input: CreateUserInput): Promise<CreateUserResult> {
   const payload = validateCreateUserInput(input);
-  const auth = getAdminAuth();
+  const auth = getAuth();
   const db = getFirebaseAdmin();
   const createdAt = Date.now();
 

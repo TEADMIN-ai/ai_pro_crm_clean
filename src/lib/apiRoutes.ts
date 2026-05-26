@@ -30,13 +30,17 @@ export const API_ROUTES = {
   DEAL_PRICING_APPROVE: (dealId: string) =>
     `/api/deals/${encodeURIComponent(dealId)}/pricing/approve`,
   DEAL_SUBMIT: "/api/deals/submit",
+  DEALS_INTELLIGENCE: "/api/deals/intelligence",
   DASHBOARD_ANALYTICS: "/api/deals/analytics",
+  DASHBOARD_SUMMARY: "/api/dashboard/summary",
   DOCUMENTS: "/api/documents",
   DOCUMENT_DETAIL: (documentId: string) =>
     `/api/documents/${encodeURIComponent(documentId)}`,
   DOCUMENT_EXECUTE: (id: string) => `/api/documents/${encodeURIComponent(id)}/execute`,
   DOCUMENT_STATUS: (documentId: string) =>
     `/api/documents/${encodeURIComponent(documentId)}/status`,
+  GOVERNANCE_ALERT_WORKFLOW: (alertId: string) =>
+    `/api/governance/alerts/${encodeURIComponent(alertId)}/workflow`,
   DOCUMENT_UPLOAD: "/api/documents/upload",
   DOCUMENT_UPLOAD_ANALYZE: "/api/documents/upload-analyze",
   TENDER_PACK: (dealId: string) => `/api/tender-pack?dealId=${encodeURIComponent(dealId)}`,
@@ -71,6 +75,9 @@ export const API_ROUTES = {
   SYNC_ROLE: "/api/sync-role",
   AI_TENDER_SUMMARY: (tenderId: string) =>
     `/api/ai/tender-summary?tenderId=${encodeURIComponent(tenderId)}`,
+  MANUS_WORKFLOW: "/api/manus/workflow",
+  MANUS_TENDER: "/api/manus/tender",
+  MANUS_STATUS: (workflowId: string) => `/api/manus/status?workflowId=${encodeURIComponent(workflowId)}`,
   SMOKE_CONTRACTOR_DOCS: "/api/contractors/smoke-check/documents",
   SMOKE_DOCUMENT_EXECUTE: "/api/documents/smoke-check/execute",
 } as const;

@@ -1,6 +1,7 @@
 import type { NextRequest } from "next/server";
 import { getFirebaseAdmin } from "@/lib/firebase/admin";
-import { normalizeContractorId, normalizeRole, type UserProfile } from "@/lib/auth/userProfile";
+import { normalizeContractorId, normalizeRole, resolveRole, type UserProfile } from "@/lib/auth/userProfile";
+import { ensureContractorAuthLinkage } from "@/lib/contractors/contractorAuthLink";
 import type { UserRole } from "@/lib/auth/roleUtils";
 import { requireAuth } from "@/lib/server/requireAuth";
 
@@ -47,14 +48,28 @@ export async function requireAuthorizedUser(request: NextRequest): Promise<Autho
     }
 
     const profile = await getUserProfile(decoded.uid);
-    const role = profile?.role ?? normalizeRole(decoded.role);
+    const role = resolveRole(profile?.role, decoded.role);
     const contractorId = profile?.contractorId ?? normalizeContractorId(decoded.contractorId);
 
     if (!role || role === "guest") {
       throw new AuthorizationError("Invalid role", 403);
     }
 
-    if (role === "contractor" && !contractorId) {
+    const linkage =
+      role === "contractor"
+        ? await ensureContractorAuthLinkage({
+            uid: decoded.uid,
+            source: "authz.requireAuthorizedUser",
+            decodedRole: role,
+            decodedContractorId: contractorId,
+            decodedEmail: decoded.email,
+            profile,
+            allowCreateMissingContractor: true,
+          })
+        : null;
+    const resolvedContractorId = linkage?.contractorId ?? contractorId;
+
+    if (role === "contractor" && !resolvedContractorId) {
       throw new AuthorizationError("unauthorized", 403);
     }
 
@@ -62,7 +77,7 @@ export async function requireAuthorizedUser(request: NextRequest): Promise<Autho
       uid: decoded.uid,
       email: typeof decoded.email === "string" ? decoded.email : undefined,
       role,
-      contractorId,
+      contractorId: resolvedContractorId,
     };
   } catch (error) {
     if (error instanceof AuthorizationError) {

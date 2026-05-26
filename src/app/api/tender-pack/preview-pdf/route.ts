@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { adminDb } from "@/lib/firebaseAdmin";
+import { getFirebaseAdmin } from "@/lib/firebase/admin";
 import { AuthorizationError, assertPrivilegedRole, requireAuthorizedUser } from "@/lib/server/authz";
 import { generateMergedPack } from "@/lib/pdf/mergeTenderPack";
 
 export async function GET(req: NextRequest) {
   try {
+    const db = getFirebaseAdmin();
     const user = await requireAuthorizedUser(req);
     assertPrivilegedRole(user);
 
@@ -14,7 +15,7 @@ export async function GET(req: NextRequest) {
       return new NextResponse("Missing dealId", { status: 400 });
     }
 
-    const dealSnap = await adminDb.collection("deals").doc(dealId).get();
+    const dealSnap = await db.collection("deals").doc(dealId).get();
     if (!dealSnap.exists) {
       return new NextResponse("Deal not found", { status: 404 });
     }
@@ -32,7 +33,7 @@ export async function GET(req: NextRequest) {
       return new NextResponse("Missing deal or contractor data", { status: 400 });
     }
 
-    const contractorSnap = await adminDb.collection("contractors").doc(contractorId).get();
+    const contractorSnap = await db.collection("contractors").doc(contractorId).get();
     if (!contractorSnap.exists) {
       return new NextResponse("Missing deal or contractor data", { status: 404 });
     }

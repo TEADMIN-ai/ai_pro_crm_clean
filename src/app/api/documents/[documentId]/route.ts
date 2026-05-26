@@ -6,8 +6,16 @@ import {
   requireAuthorizedUser,
 } from "@/lib/server/authz";
 import { getFirebaseAdmin } from "@/lib/firebase/admin";
+import {
+  AUTHORITY_CLASSIFICATIONS,
+  MUTATION_CLASSIFICATIONS,
+  ROUTE_CLASSIFICATIONS,
+} from "@/lib/governance/classification";
+import { observeLegacyCanonicalDocumentStatus } from "@/lib/governance/divergence";
+import { emitGovernanceEvent } from "@/lib/governance/emitter";
+import { withGovernanceObservation } from "@/lib/governance/observer";
 import { generateFixSuggestion } from "@/lib/services/aiFixService";
-import { computeReadiness } from "@/lib/services/readinessService";
+import { recalculateContractorCompliance } from "@/lib/server/recalculateContractorCompliance";
 
 export const runtime = "nodejs";
 
@@ -19,7 +27,15 @@ function jsonError(message: string, status: number) {
   return NextResponse.json({ error: message }, { status });
 }
 
-export async function PATCH(request: NextRequest, context: RouteContext) {
+export const PATCH = withGovernanceObservation(
+  {
+    sourceName: "top_level_document_patch",
+    routePath: "/api/documents/[documentId]",
+    method: "PATCH",
+    sourceType: "route",
+    sourceClassification: ROUTE_CLASSIFICATIONS.HYBRID,
+  },
+  async (request: NextRequest, context: RouteContext, governanceContext) => {
   try {
     const user = await requireAuthorizedUser(request);
     assertPrivilegedRole(user);
@@ -43,6 +59,90 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     if (!snapshot.exists) {
       return jsonError("Document not found", 404);
     }
+
+    const existing = snapshot.data() ?? {};
+    const existingContractorId =
+      typeof existing.contractorId === "string" && existing.contractorId.trim().length > 0
+        ? existing.contractorId.trim()
+        : null;
+
+    emitGovernanceEvent({
+      eventId: crypto.randomUUID(),
+      eventVersion: "v1",
+      occurredAt: new Date().toISOString(),
+      category: "legacy_mutation",
+      eventType: "legacy_top_level_document_status_write",
+      correlation: {
+        correlationId: governanceContext.correlationId,
+        requestId: governanceContext.requestId,
+      },
+      actor: {
+        actorId: user.uid,
+        actorEmail: user.email?.trim() || null,
+        actorRole: user.role,
+      },
+      source: {
+        sourceType: "route",
+        sourceName: governanceContext.route.sourceName,
+        routePath: governanceContext.route.routePath ?? null,
+        method: governanceContext.route.method ?? request.method,
+        sourceClassification: governanceContext.route.sourceClassification ?? null,
+      },
+      entity: {
+        entityType: "topLevelDocument",
+        entityId: documentId,
+        contractorId: existingContractorId,
+      },
+      mutation: {
+        mutationType: MUTATION_CLASSIFICATIONS.LEGACY_TOP_LEVEL_DOCUMENT_STATUS_WRITE,
+        mutatedFields: ["status", "reviewedAt", "reviewedBy", "fixSuggestion", "updatedAt"],
+      },
+      governance: {
+        routeClassification: ROUTE_CLASSIFICATIONS.HYBRID,
+        sourceClassification: governanceContext.route.sourceClassification ?? null,
+        authorityClassification: AUTHORITY_CLASSIFICATIONS.DERIVED_WRITER,
+        failOpen: true,
+      },
+    });
+
+    emitGovernanceEvent({
+      eventId: crypto.randomUUID(),
+      eventVersion: "v1",
+      occurredAt: new Date().toISOString(),
+      category: "legacy_mutation",
+      eventType: "legacy_document_mutation_observed",
+      correlation: {
+        correlationId: governanceContext.correlationId,
+        requestId: governanceContext.requestId,
+      },
+      actor: {
+        actorId: user.uid,
+        actorEmail: user.email?.trim() || null,
+        actorRole: user.role,
+      },
+      source: {
+        sourceType: "route",
+        sourceName: governanceContext.route.sourceName,
+        routePath: governanceContext.route.routePath ?? null,
+        method: governanceContext.route.method ?? request.method,
+        sourceClassification: governanceContext.route.sourceClassification ?? null,
+      },
+      entity: {
+        entityType: "topLevelDocument",
+        entityId: documentId,
+        contractorId: existingContractorId,
+      },
+      mutation: {
+        mutationType: MUTATION_CLASSIFICATIONS.LEGACY_TOP_LEVEL_DOCUMENT_STATUS_WRITE,
+        mutatedFields: ["status"],
+      },
+      governance: {
+        routeClassification: ROUTE_CLASSIFICATIONS.HYBRID,
+        sourceClassification: governanceContext.route.sourceClassification ?? null,
+        authorityClassification: AUTHORITY_CLASSIFICATIONS.DERIVED_WRITER,
+        failOpen: true,
+      },
+    });
 
     await docRef.update({
       status,
@@ -73,31 +173,21 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
         : undefined;
 
     if (contractorId) {
-      const readiness = await computeReadiness(contractorId);
-      const dealsSnapshot = await db.collection("deals").where("contractorId", "==", contractorId).get();
-      const batch = db.batch();
-
-      dealsSnapshot.forEach((dealDoc) => {
-        batch.update(dealDoc.ref, {
-          readinessScore: readiness.score,
-          readinessStatus: readiness.status,
-          docsMissing: readiness.missing,
-          tenderLockStatus:
-            readiness.status === "READY"
-              ? "READY"
-              : readiness.status === "AT_RISK"
-                ? "RISK"
-                : "BLOCKED",
-          isTenderLocked: readiness.status !== "READY",
-          readinessUpdatedAt: new Date().toISOString(),
-          updatedAt: FieldValue.serverTimestamp(),
-        });
-      });
-
-      if (!dealsSnapshot.empty) {
-        await batch.commit();
-      }
+      await recalculateContractorCompliance(db, contractorId, governanceContext);
     }
+
+    observeLegacyCanonicalDocumentStatus({
+      governanceContext,
+      contractorId: contractorId ?? existingContractorId,
+      documentId,
+      documentType:
+        typeof existing.documentType === "string"
+          ? existing.documentType
+          : typeof existing.docType === "string"
+            ? existing.docType
+            : null,
+      legacyStatus: status,
+    });
 
     return NextResponse.json(
       {
@@ -131,4 +221,4 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     console.error("Document approval update failed", error);
     return jsonError("Failed to update document status", 500);
   }
-}
+});

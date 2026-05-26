@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { adminDb } from "@/lib/firebaseAdmin";
+import { getFirebaseAdmin } from "@/lib/firebase/admin";
 import { AuthorizationError, requireAuthorizedUser } from "@/lib/server/authz";
 import { extractTextFromPdf } from "@/lib/documents/extractTextFromPdf";
 import { validateDocument } from "@/lib/documents/validateCompliance";
@@ -9,6 +9,7 @@ export async function POST(
   { params }: { params: Promise<{ contractorId: string }> }
 ) {
   try {
+    const db = getFirebaseAdmin();
     const user = await requireAuthorizedUser(req);
 
     if (!user) {
@@ -46,7 +47,7 @@ export async function POST(
       );
     }
 
-    const docRef = adminDb.collection("contractors").doc(contractorId);
+    const docRef = db.collection("contractors").doc(contractorId);
     const snap = await docRef.get();
     const existing =
       snap.data()?.documents &&
@@ -82,7 +83,7 @@ export async function POST(
       { merge: true }
     );
 
-    await adminDb.collection("contractorComplianceAudit").add({
+    await db.collection("contractorComplianceAudit").add({
       action: "document_updated",
       actorUid: user.uid,
       actorRole: user.role,

@@ -1,6 +1,7 @@
-import { db } from "@/lib/firebaseAdmin";
+import { getFirebaseAdmin } from "@/lib/firebase/admin";
 
 async function fixContractors() {
+  const db = getFirebaseAdmin();
   const snapshot = await db.collection("contractors").get();
 
   for (const doc of snapshot.docs) {

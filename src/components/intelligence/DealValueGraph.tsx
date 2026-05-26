@@ -36,8 +36,8 @@ export default function DealValueGraph({ deals }: DealValueGraphProps) {
         }}
       >
         <p style={{ margin: 0, fontSize: 12, letterSpacing: 0.5, color: "#b7ceef" }}>Deal Value Momentum</p>
-        <div style={{ width: "100%", height: 260, marginTop: 10 }}>
-          <ResponsiveContainer>
+        <div className="relative mx-auto mt-[10px] flex h-[260px] w-full max-w-[420px] items-center justify-center overflow-hidden">
+          <ResponsiveContainer width="100%" height="100%">
             <LineChart data={data}>
               <CartesianGrid stroke="rgba(30, 41, 59, 0.8)" strokeDasharray="3 3" />
               <XAxis dataKey="month" stroke={empireColors.textSecondary} />

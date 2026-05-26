@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { adminDb } from "@/lib/firebaseAdmin";
+import { getFirebaseAdmin } from "@/lib/firebase/admin";
 import { AuthorizationError, requireAuthorizedUser } from "@/lib/server/authz";
 
 const ALLOWED_TEMPLATES = new Set(["SBD1", "SBD4", "SBD6", "SBD8", "SBD9"]);
@@ -10,6 +10,7 @@ export async function PATCH(
   context: { params: Promise<{ dealId: string }> }
 ) {
   try {
+    const db = getFirebaseAdmin();
     const actor = await requireAuthorizedUser(req);
     if (actor.role !== "admin") {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
@@ -28,7 +29,7 @@ export async function PATCH(
       return NextResponse.json({ error: "Invalid template" }, { status: 400 });
     }
 
-    const ref = adminDb.collection("deals").doc(dealId);
+    const ref = db.collection("deals").doc(dealId);
     const snap = await ref.get();
 
     if (!snap.exists) {

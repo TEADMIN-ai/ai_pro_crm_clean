@@ -1,15 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { getAuth, signInWithEmailAndPassword } from "firebase/auth";
+import { signInWithEmailAndPassword } from "firebase/auth";
 import { authFetch } from "@/lib/client/authFetch";
+import { auth } from "@/lib/firebase/client";
 import { API_ROUTES } from "@/lib/routes";
 
 const POST_LOGIN_BOOT_KEY = "show_ai_boot";
 
 export default function LoginForm() {
-  const auth = getAuth();
-
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);

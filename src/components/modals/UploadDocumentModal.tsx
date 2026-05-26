@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import { isSupportedDocumentType } from "@/lib/compliance/contractorCompliance";
+import { uploadContractorDocument } from "@/lib/contractors/uploadContractorDocument";
 
 type ContractorLike = {
   id?: string;
@@ -31,14 +33,11 @@ export default function UploadDocumentModal({
     setIsUploading(true);
 
     try {
-      const formData = new FormData();
-      formData.append("docType", docType);
-      formData.append("file", selectedFile);
+      if (!isSupportedDocumentType(docType)) {
+        throw new Error("Unsupported compliance document type");
+      }
 
-      await fetch(`/api/contractors/${contractor.id}/update-doc`, {
-        method: "POST",
-        body: formData,
-      });
+      await uploadContractorDocument(contractor.id, docType, selectedFile);
 
       onClose();
       setSelectedFile(null);

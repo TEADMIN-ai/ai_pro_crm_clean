@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getStorage } from "firebase-admin/storage";
-import { getAdminApp, getFirebaseAdmin } from "@/lib/firebase/admin";
+import { logActivity } from "@/lib/activity/logActivity";
+import { getFirebaseAdmin } from "@/lib/firebase/admin";
 import {
   getDocumentTypeLabel,
   resolveContractorDocumentStatus,
@@ -13,8 +13,10 @@ import {
   assertPrivilegedRole,
   requireAuthorizedUser,
 } from "@/lib/server/authz";
+import { ROUTE_CLASSIFICATIONS, MUTATION_CLASSIFICATIONS } from "@/lib/governance/classification";
+import { emitGovernanceEvent } from "@/lib/governance/emitter";
+import { withGovernanceObservation } from "@/lib/governance/observer";
 import { recalculateContractorCompliance } from "@/lib/server/recalculateContractorCompliance";
-import { verifyStoredContractorDocument } from "@/server/services/documentVerificationService";
 import {
   getContractorDocument,
   listContractorDocuments,
@@ -144,43 +146,6 @@ function normalizeDocument(id: string, data: Record<string, unknown>): Contracto
   };
 }
 
-function buildVerificationPersistence(
-  result: Awaited<ReturnType<typeof verifyStoredContractorDocument>>,
-  currentUser?: { email?: string },
-  existingDocument?: Record<string, unknown>
-) {
-  const verifiedAt = result.verified ? new Date().toISOString() : null;
-  const verifiedBy = result.verified ? currentUser?.email?.trim() || "unknown" : null;
-  const auditTrailEntry = result.verified
-    ? {
-        action: "verified",
-        by: currentUser?.email?.trim() || "unknown",
-        at: verifiedAt,
-      }
-    : null;
-
-  return {
-    validationStatus: result.status,
-    confidenceScore: result.score,
-    missingFields: result.missingFields,
-    extractedFields: result.extractedFields,
-    confidenceNotes: result.confidenceNotes ?? [],
-    suggestions: result.suggestions,
-    reviewReason: result.reason ?? null,
-    validationError: result.status === "FAIL" ? result.reason ?? "Automatic verification failed" : null,
-    manualDecisionAvailable: result.status === "REVIEW",
-    verified: result.verified,
-    verifiedAt,
-    verifiedBy,
-    auditTrail: auditTrailEntry
-      ? [...(Array.isArray(existingDocument?.auditTrail) ? existingDocument.auditTrail : []), auditTrailEntry]
-      : existingDocument?.auditTrail,
-    status: result.status === "PASS" ? "verified" : result.status === "FAIL" ? "invalid" : "uploaded",
-    analysisTimestamp: Date.now(),
-    updatedAt: new Date(),
-  };
-}
-
 function parseDocumentType(value: unknown): SupportedDocumentType | null {
   const type = getString(value);
   return isSupportedDocumentType(type) ? type : null;
@@ -196,12 +161,6 @@ function isValidStoragePath(contractorId: string, documentType: SupportedDocumen
   const escapedDocumentType = documentType.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const expectedPattern = new RegExp(`^contractors/${contractorId}/${escapedDocumentType}(?:_\\d+)?\\.pdf$`);
   return expectedPattern.test(normalizedPath);
-}
-
-async function downloadContractorDocumentBuffer(storagePath: string): Promise<Buffer> {
-  const storage = getStorage(getAdminApp());
-  const [buffer] = await storage.bucket().file(storagePath).download();
-  return Buffer.from(buffer);
 }
 
 export async function GET(
@@ -289,31 +248,21 @@ export async function POST(
         updatedAt: now,
         verified: false,
         verifiedAt: null,
+        verifiedBy: null,
+        aiStatus: "pending",
+        aiValidated: false,
+        aiError: null,
         validationError: null,
         status: "uploaded",
         isExpired: false,
       },
     );
 
-    try {
-      console.log("Document verification running", {
-        contractorId,
-        documentType,
-      });
-
-      const buffer = await downloadContractorDocumentBuffer(storagePath);
-      const verificationResult = await verifyStoredContractorDocument(buffer, documentType);
-      const existingDocument = (
-        await getContractorDocument(contractorId, documentType)
-      ).data() as Record<string, unknown> | undefined;
-      await upsertContractorDocument(
-        contractorId,
-        documentType,
-        buildVerificationPersistence(verificationResult, user, existingDocument)
-      );
-    } catch (error) {
-      console.error("Document verification failed", error);
-    }
+    await logActivity({
+      contractorId,
+      action: `Uploaded ${documentType}`,
+      performedBy: user.email?.trim() || user.uid,
+    });
 
     const summary = await recalculateContractorCompliance(getFirebaseAdmin(), contractorId);
     const savedDoc = await getContractorDocument(contractorId, documentType);
@@ -335,10 +284,19 @@ export async function POST(
   }
 }
 
-export async function PATCH(
-  request: NextRequest,
-  context: { params: Promise<{ contractorId: string }> }
-) {
+export const PATCH = withGovernanceObservation(
+  {
+    sourceName: "contractor_documents_patch",
+    routePath: "/api/contractors/[contractorId]/documents",
+    method: "PATCH",
+    sourceType: "route",
+    sourceClassification: ROUTE_CLASSIFICATIONS.HYBRID,
+  },
+  async (
+    request: NextRequest,
+    context: { params: Promise<{ contractorId: string }> },
+    governanceContext
+  ) => {
   try {
     const user = await requireAuthorizedUser(request);
     const db = getFirebaseAdmin();
@@ -368,6 +326,45 @@ export async function PATCH(
     };
 
     if (typeof body.verified === "boolean") {
+      emitGovernanceEvent({
+        eventId: crypto.randomUUID(),
+        eventVersion: "v1",
+        occurredAt: new Date().toISOString(),
+        category: "legacy_mutation",
+        eventType: "direct_verified_patch_branch_observed",
+        correlation: {
+          correlationId: governanceContext.correlationId,
+          requestId: governanceContext.requestId,
+        },
+        actor: {
+          actorId: user.uid,
+          actorEmail: user.email?.trim() || null,
+          actorRole: user.role,
+        },
+        source: {
+          sourceType: "route",
+          sourceName: governanceContext.route.sourceName,
+          routePath: governanceContext.route.routePath ?? null,
+          method: governanceContext.route.method ?? request.method,
+          sourceClassification: governanceContext.route.sourceClassification ?? null,
+        },
+        entity: {
+          entityType: "contractorDocument",
+          entityId: documentType,
+          contractorId,
+          documentType,
+        },
+        mutation: {
+          mutationType: MUTATION_CLASSIFICATIONS.LEGACY_DIRECT_VERIFIED_WRITE,
+          mutatedFields: ["verified", "verifiedAt", "verifiedBy"],
+        },
+        governance: {
+          routeClassification: ROUTE_CLASSIFICATIONS.HYBRID,
+          sourceClassification: governanceContext.route.sourceClassification ?? null,
+          failOpen: true,
+        },
+      });
+
       updates.verified = body.verified;
       updates.verifiedAt = body.verified ? new Date().toISOString() : null;
       updates.verifiedBy = body.verified ? user.email?.trim() || "unknown" : null;
@@ -398,4 +395,4 @@ export async function PATCH(
     console.error(error);
     return jsonError(error instanceof Error ? error.message : "Failed to update document", 500);
   }
-}
+});

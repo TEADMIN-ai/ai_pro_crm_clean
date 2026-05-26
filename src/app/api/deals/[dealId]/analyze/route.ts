@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { adminDb } from "@/lib/firebaseAdmin";
+import { getFirebaseAdmin } from "@/lib/firebase/admin";
 import { AuthorizationError, assertCanAccessContractor, requireAuthorizedUser } from "@/lib/server/authz";
 
 export async function POST(
@@ -7,6 +7,7 @@ export async function POST(
   { params }: { params: Promise<{ dealId: string }> }
 ) {
   try {
+    const db = getFirebaseAdmin();
     const user = await requireAuthorizedUser(req);
 
     if (!user.role) {
@@ -21,7 +22,7 @@ export async function POST(
     };
     const { dealId } = await params;
 
-    const dealRef = adminDb.collection("deals").doc(dealId);
+    const dealRef = db.collection("deals").doc(dealId);
     const dealSnapshot = await dealRef.get();
 
     if (!dealSnapshot.exists) {

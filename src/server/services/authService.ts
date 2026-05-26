@@ -1,6 +1,8 @@
 import type { DecodedIdToken } from "firebase-admin/auth";
-import { getAdminAuth, getFirebaseAdmin } from "@/lib/firebase/admin";
-import { normalizeContractorId, normalizeRole, type UserProfile } from "@/lib/auth/userProfile";
+import { getAuth } from "firebase-admin/auth";
+import { getFirebaseAdmin } from "@/lib/firebase/admin";
+import { normalizeContractorId, normalizeRole, resolveRole, type UserProfile } from "@/lib/auth/userProfile";
+import { ensureContractorAuthLinkage } from "@/lib/contractors/contractorAuthLink";
 import { verifySessionValue } from "@/lib/server/verifySession";
 import type { UserRole } from "@/lib/auth/roleUtils";
 
@@ -35,35 +37,55 @@ export async function getUserProfile(uid: string): Promise<UserProfile | null> {
 }
 
 export async function syncUserClaims(idToken: string) {
-  const adminAuth = getAdminAuth();
+  const adminAuth = getAuth();
   const db = getFirebaseAdmin();
   const decodedToken = await adminAuth.verifyIdToken(idToken);
   const uid = decodedToken.uid;
   const userDoc = await db.collection("users").doc(uid).get();
   const userData = (userDoc.data() ?? {}) as Record<string, unknown>;
-  const role = userDoc.exists ? normalizeRole(userData.role) : "guest";
-  const contractorId = userDoc.exists ? normalizeContractorId(userData.contractorId) : undefined;
-
   const userRecord = await adminAuth.getUser(uid);
-  const currentRole = userRecord.customClaims?.role;
+  const currentRole = normalizeRole(userRecord.customClaims?.role);
   const currentContractorId = normalizeContractorId(userRecord.customClaims?.contractorId);
+  const role = userDoc.exists ? resolveRole(userData.role, currentRole) : currentRole;
+  const contractorId = userDoc.exists
+    ? normalizeContractorId(userData.contractorId) ?? currentContractorId
+    : currentContractorId;
 
-  if (currentRole !== role || currentContractorId !== contractorId) {
+  if (role === "guest") {
+    throw new Error("User role could not be resolved");
+  }
+
+  const linkage =
+    role === "contractor"
+      ? await ensureContractorAuthLinkage({
+          uid,
+          source: "authService.syncUserClaims",
+          decodedRole: role,
+          decodedContractorId: contractorId,
+          decodedEmail: decodedToken.email,
+          authUser: userRecord,
+          profile: userDoc.exists ? toUserProfile(userData) : null,
+          allowCreateMissingContractor: true,
+        })
+      : null;
+  const resolvedContractorId = linkage?.contractorId ?? contractorId;
+
+  if (currentRole !== role || currentContractorId !== resolvedContractorId) {
     await adminAuth.setCustomUserClaims(uid, {
       role,
-      contractorId: contractorId ?? null,
+      contractorId: resolvedContractorId ?? null,
     });
   }
 
   return {
     uid,
     role,
-    contractorId: contractorId ?? null,
+    contractorId: resolvedContractorId ?? null,
   };
 }
 
 export async function createSessionCookie(idToken: string) {
-  const auth = getAdminAuth();
+  const auth = getAuth();
   const decodedToken = await auth.verifyIdToken(idToken);
   const expiresIn = 5 * 24 * 60 * 60 * 1000;
   const maxAge = 5 * 24 * 60 * 60;
@@ -97,7 +119,7 @@ export async function getBootstrapUser(input: {
   }
 
   const profile = await getUserProfile(decoded.uid);
-  const role = profile?.role ?? normalizeRole(decoded.role);
+  const role = resolveRole(profile?.role, decoded.role);
   const contractorId = profile?.contractorId ?? normalizeContractorId(decoded.contractorId);
 
   return {

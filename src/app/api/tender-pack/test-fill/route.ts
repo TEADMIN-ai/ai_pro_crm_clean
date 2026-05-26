@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getStorage } from "firebase-admin/storage";
+import admin from "firebase-admin";
 
-import { getFirebaseAdmin } from "@/lib/firebase/admin";
+import { getFirebaseAdmin, getFirebaseStorageBucket } from "@/lib/firebase/admin";
 import { AuthorizationError, assertPrivilegedRole, requireAuthorizedUser } from "@/lib/server/authz";
 import { buildCompanyProfile } from "@/lib/autofill/buildCompanyProfile";
 import { fillTenderPack } from "@/lib/pdfs/empirePdfFill";
@@ -57,7 +57,8 @@ export async function POST(request: NextRequest) {
     getFirebaseAdmin();
     const timestamp = Date.now();
     const storagePath = `tender-pack-tests/${contractorId}/${timestamp}-${templateKey}.pdf`;
-    const file = getStorage().bucket().file(storagePath);
+    const bucket = getFirebaseStorageBucket();
+    const file = bucket.file(storagePath);
 
     await file.save(fillResult.filledPdfBuffer, {
       contentType: "application/pdf",

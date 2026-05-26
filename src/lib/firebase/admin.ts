@@ -1,116 +1,74 @@
-import admin from "firebase-admin";
-import type { App } from "firebase-admin/app";
-import type { Auth } from "firebase-admin/auth";
-import type { Firestore } from "firebase-admin/firestore";
-import type { Storage } from "firebase-admin/storage";
+import { applicationDefault, cert, getApps, initializeApp, type AppOptions, type ServiceAccount } from "firebase-admin/app";
+import { getFirestore } from "firebase-admin/firestore";
+import { getStorage } from "firebase-admin/storage";
 
-import {
-  validateFirebaseEnv,
-  type FirebaseEnvValidationResult,
-} from "@/lib/server/validateFirebaseEnv";
-
-interface FirebaseAdminServices {
-  app: App;
-  auth: Auth;
-  db: Firestore;
-  storage: Storage;
+function normalizePrivateKey(privateKey: string | undefined) {
+  return privateKey?.replace(/\\n/g, "\n").trim();
 }
 
-export const SESSION_COOKIE_EXPIRES_IN_MS = 5 * 24 * 60 * 60 * 1000;
+function resolveFirebaseStorageBucket() {
+  const rawBucket = process.env.FIREBASE_STORAGE_BUCKET?.trim()
+    || process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET?.trim();
+  if (!rawBucket) return undefined;
 
-let cachedServices: FirebaseAdminServices | null = null;
-let bootLogEmitted = false;
+  const normalizedBucket = rawBucket
+    .replace(/^gs:\/\//, "")
+    .replace(/^https?:\/\/storage.googleapis.com\//, "")
+    .replace(/\/+$/, "");
 
-function getRequiredStorageBucket() {
-  const bucket = process.env.FIREBASE_STORAGE_BUCKET?.trim();
-
-  if (!bucket) {
-    throw new Error("Missing FIREBASE_STORAGE_BUCKET");
-  }
-
-  return bucket.replace(/^gs:\/\//, "").replace(/^\/+|\/+$/g, "");
+  return normalizedBucket;
 }
 
-function emitBootLog(validation: FirebaseEnvValidationResult, storageBucket: string) {
-  if (bootLogEmitted) {
-    return;
+function resolveAdminCredential() {
+  const projectId = process.env.FIREBASE_PROJECT_ID?.trim();
+  const clientEmail = process.env.FIREBASE_CLIENT_EMAIL?.trim();
+  const privateKey = normalizePrivateKey(process.env.FIREBASE_PRIVATE_KEY);
+
+  if (!projectId || !clientEmail || !privateKey) {
+    return {
+      credential: applicationDefault(),
+      credentialSource: "applicationDefault" as const,
+    };
   }
 
-  bootLogEmitted = true;
-  console.info("Firebase Admin initialized");
-  console.info(`Project ID: ${validation.projectId ?? "unknown"}`);
-  console.info(`Storage bucket: ${storageBucket}`);
-  console.info(`Private key loaded: ${validation.privateKeyLoaded}`);
-}
-
-function createFirebaseAdminServices(): FirebaseAdminServices {
-  const validation = validateFirebaseEnv();
-
-  if (!validation.valid) {
-    throw new Error(validation.message ?? "Firebase Admin environment is invalid.");
-  }
-
-  const storageBucket = getRequiredStorageBucket();
-
-  if (!admin.apps.length) {
-    admin.initializeApp({
-      credential: admin.credential.cert({
-        projectId: process.env.FIREBASE_PROJECT_ID,
-        clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-        privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, "\n"),
-      }),
-      storageBucket,
-    });
-  }
-
-  const app = admin.app();
-
-  emitBootLog(validation, storageBucket);
+  const serviceAccount: ServiceAccount = {
+    projectId,
+    clientEmail,
+    privateKey,
+  };
 
   return {
-    app,
-    auth: admin.auth(app),
-    db: admin.firestore(app),
-    storage: admin.storage(app),
+    credential: cert(serviceAccount),
+    credentialSource: "serviceAccount" as const,
   };
 }
 
-export function getFirebaseAdminStatus(): FirebaseEnvValidationResult & {
-  firebaseAdminInitialized: boolean;
-  storageBucket?: string;
-} {
-  const validation = validateFirebaseEnv();
+export const firebaseAdminStorageBucket = resolveFirebaseStorageBucket();
 
-  return {
-    ...validation,
-    firebaseAdminInitialized: cachedServices !== null || admin.apps.length > 0,
-    storageBucket: process.env.FIREBASE_STORAGE_BUCKET?.trim(),
+if (!getApps().length) {
+  const { credential, credentialSource } = resolveAdminCredential();
+  const appOptions: AppOptions = {
+    credential,
   };
-}
 
-export function getFirebaseAdminServices(): FirebaseAdminServices {
-  if (cachedServices) {
-    return cachedServices;
+  if (firebaseAdminStorageBucket) {
+    appOptions.storageBucket = firebaseAdminStorageBucket;
   }
 
-  cachedServices = createFirebaseAdminServices();
-  return cachedServices;
+  initializeApp(appOptions);
+
+  console.log("[FIREBASE_ADMIN_INIT]", {
+    credentialSource,
+    projectId: process.env.FIREBASE_PROJECT_ID?.trim() ?? null,
+    storageBucket: firebaseAdminStorageBucket ?? null,
+  });
 }
 
-export function getFirebaseAdmin() {
-  return getFirebaseAdminServices().db;
+export const adminDb = getFirestore();
+export const getFirebaseAdmin = () => adminDb;
+export const getFirebaseStorageBucketName = () => firebaseAdminStorageBucket;
+export function getFirebaseStorageBucket() {
+  return firebaseAdminStorageBucket
+    ? getStorage().bucket(firebaseAdminStorageBucket)
+    : getStorage().bucket();
 }
-
-export function getAdminAuth() {
-  return getFirebaseAdminServices().auth;
-}
-
-export function getAdminApp() {
-  return getFirebaseAdminServices().app;
-}
-
-export function getAdminStorage() {
-  return getFirebaseAdminServices().storage;
-}
-
-export default admin;

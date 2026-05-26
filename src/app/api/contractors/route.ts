@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAdminAuth, getFirebaseAdmin } from "@/lib/firebase/admin";
+import { getAuth } from "firebase-admin/auth";
+import { getFirebaseAdmin } from "@/lib/firebase/admin";
+import { ensureContractorAuthLinkage } from "@/lib/contractors/contractorAuthLink";
 import { listContractors } from "@/server/services/contractorService";
 import { AuthorizationError, assertPrivilegedRole, requireAuthorizedUser } from "@/lib/server/authz";
 
@@ -50,6 +52,34 @@ async function findExistingContractorByEmail(email: string) {
   return null;
 }
 
+async function repairExistingContractorByEmail(email: string) {
+  const normalizedEmail = normalizeEmail(email);
+  if (!normalizedEmail) {
+    return null;
+  }
+
+  try {
+    const authUser = await getAuth().getUserByEmail(normalizedEmail);
+    return await ensureContractorAuthLinkage({
+      uid: authUser.uid,
+      source: "api.contractors.repairExistingContractorByEmail",
+      authUser,
+      decodedEmail: normalizedEmail,
+      allowCreateMissingContractor: true,
+    });
+  } catch (error) {
+    if (isFirebaseAuthError(error, "auth/user-not-found")) {
+      return null;
+    }
+
+    console.error("[contractor-linkage] email_conflict_repair_failed", {
+      email: normalizedEmail,
+      error,
+    });
+    return null;
+  }
+}
+
 // GET - Fetch contractors
 export async function GET(request: NextRequest) {
   try {
@@ -81,7 +111,7 @@ export async function POST(req: NextRequest) {
     assertPrivilegedRole(user);
 
     const body = (await req.json()) as Record<string, unknown>;
-    const auth = getAdminAuth();
+    const auth = getAuth();
     const db = getFirebaseAdmin();
     const email = normalizeEmail(body.email);
     submittedEmail = email;
@@ -154,6 +184,23 @@ export async function POST(req: NextRequest) {
           contractorId,
         }),
       ]);
+
+      await ensureContractorAuthLinkage({
+        uid: contractorId,
+        source: "api.contractors.POST",
+        authUser: userRecord,
+        decodedRole: "contractor",
+        decodedContractorId: contractorId,
+        decodedEmail: email,
+        profile: {
+          name: contactPerson,
+          email,
+          role: "contractor",
+          contractorId,
+          createdAt,
+        },
+        allowCreateMissingContractor: true,
+      });
     } catch (writeError) {
       await auth.deleteUser(contractorId).catch((cleanupError) => {
         console.error("Failed to rollback contractor auth user after creation error:", cleanupError);
@@ -177,20 +224,21 @@ export async function POST(req: NextRequest) {
     }
 
     if (isFirebaseAuthError(error, "auth/email-already-exists")) {
+      const repaired = submittedEmail ? await repairExistingContractorByEmail(submittedEmail) : null;
       const existingContractor = submittedEmail ? await findExistingContractorByEmail(submittedEmail) : null;
 
       return NextResponse.json(
         {
           success: false,
           error: "A contractor with that email already exists.",
-          contractorId:
-            existingContractor && typeof existingContractor.contractorId === "string"
+          contractorId: repaired?.contractorId ??
+            (existingContractor && typeof existingContractor.contractorId === "string"
               ? existingContractor.contractorId
-              : existingContractor?.id ?? null,
-          uid:
-            existingContractor && typeof existingContractor.authUid === "string"
+              : existingContractor?.id ?? null),
+          uid: repaired?.uid ??
+            (existingContractor && typeof existingContractor.authUid === "string"
               ? existingContractor.authUid
-              : existingContractor?.id ?? null,
+              : existingContractor?.id ?? null),
         },
         { status: 409 }
       );

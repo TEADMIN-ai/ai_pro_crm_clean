@@ -1,6 +1,5 @@
 import OpenAI from "openai";
-import { getStorage } from "firebase-admin/storage";
-import { getAdminApp, getFirebaseAdmin } from "@/lib/firebase/admin";
+import { getFirebaseAdmin, getFirebaseStorageBucket } from "@/lib/firebase/admin";
 import { extractTextFromPdf } from "@/lib/pdf/extractTextFromPdf";
 import { listContractorDocuments } from "@/server/services/contractorService";
 
@@ -49,11 +48,6 @@ const DEFAULT_MODEL = process.env.OPENAI_TENDER_MODEL || process.env.OPENAI_DOCU
 function getOpenAIClient(): OpenAI | null {
   const apiKey = process.env.OPENAI_API_KEY?.trim();
   return apiKey ? new OpenAI({ apiKey }) : null;
-}
-
-function getBucketName(): string | undefined {
-  const value = process.env.FIREBASE_STORAGE_BUCKET || process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET;
-  return typeof value === "string" && value.trim().length > 0 ? value.trim() : undefined;
 }
 
 function inferTenderId(documentPath: string): string {
@@ -113,9 +107,8 @@ function normalizeRequiredCertificates(values: string[]): string[] {
 }
 
 async function downloadPdfBuffer(documentPath: string): Promise<Buffer> {
-  const storage = getStorage(getAdminApp());
-  const bucketName = getBucketName();
-  const bucket = bucketName ? storage.bucket(bucketName) : storage.bucket();
+  getFirebaseAdmin();
+  const bucket = getFirebaseStorageBucket();
   const [buffer] = await bucket.file(documentPath).download();
   return Buffer.from(buffer);
 }

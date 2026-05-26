@@ -24,6 +24,10 @@ import { requestTenderPackGeneration } from "@/lib/tender/requestTenderPackGener
 type GenerateResponse = {
   packId: string;
   downloadURL: string;
+  downloadUrl?: string;
+  fileName?: string;
+  size?: number;
+  expiresAt?: number;
   missingFields: string[];
   warnings: string[];
 };
@@ -115,6 +119,10 @@ function downloadPdfBytes(pdfBytes: Uint8Array) {
   URL.revokeObjectURL(url);
 }
 
+function openDownloadUrl(downloadUrl: string) {
+  window.open(downloadUrl, "_blank", "noopener,noreferrer");
+}
+
 export default function TenderPackGeneratorPanel() {
   const params = useParams();
   const searchParams = useSearchParams();
@@ -197,7 +205,7 @@ export default function TenderPackGeneratorPanel() {
     setMissingFieldsModalOpen(true);
   }
 
-  async function requestGeneration() {
+  async function requestGeneration(): Promise<GenerateResponse> {
     if (!dealId) {
       throw new Error("Missing dealId for tender pack generation");
     }
@@ -207,12 +215,18 @@ export default function TenderPackGeneratorPanel() {
     }
 
     const payload = (await requestTenderPackGeneration(dealId, contractorId)) as Partial<GenerateResponse>;
-    setResult({
+    const nextResult = {
       packId: payload.packId ?? "",
       downloadURL: payload.downloadURL ?? "",
+      downloadUrl: payload.downloadUrl,
+      fileName: payload.fileName,
+      size: payload.size,
+      expiresAt: payload.expiresAt,
       missingFields: payload.missingFields ?? [],
       warnings: payload.warnings ?? [],
-    });
+    };
+    setResult(nextResult);
+    return nextResult;
   }
 
   async function handleGeneratePack() {
@@ -237,7 +251,14 @@ export default function TenderPackGeneratorPanel() {
       return;
     }
 
-    await requestGeneration();
+    const generationResult = await requestGeneration();
+    const artifactUrl = generationResult.downloadURL || generationResult.downloadUrl || "";
+
+    if (artifactUrl) {
+      openDownloadUrl(artifactUrl);
+      return;
+    }
+
     downloadPdfBytes(localResult.pdfBytes);
   }
 
@@ -352,7 +373,7 @@ export default function TenderPackGeneratorPanel() {
   };
 
   return (
-    <div className="p-6 bg-[#0B1220] min-h-screen text-white">
+    <div className="bg-[#0B1220] p-6 text-white">
       <div className="bg-[#111827] border border-[#1F2937] rounded-2xl p-6 shadow-xl space-y-6">
         <div className="space-y-6">
           <div className="space-y-2">

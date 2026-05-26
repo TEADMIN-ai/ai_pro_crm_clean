@@ -5,6 +5,7 @@ const DEFAULT_OPENAI_MODEL = process.env.OPENAI_DOCUMENT_MODEL || "gpt-4.1-mini"
 type OcrOptions = {
   filename?: string;
   mimeType?: string;
+  pageCount?: number;
 };
 
 type SupportedOcrInput =
@@ -172,16 +173,25 @@ function toLoggableError(error: unknown) {
 
 export async function runOCR(buffer: Buffer, options?: OcrOptions): Promise<string> {
   if (!buffer.length) {
-    console.log("OCR text length:", 0);
-    console.log("OCR RAW TEXT:", "");
+    console.log("[OCR_TEXT_LENGTH]", {
+      filename: options?.filename ?? "document",
+      textLength: 0,
+      bytes: 0,
+      pageCount: options?.pageCount ?? null,
+    });
     return "";
   }
 
   const client = getOpenAIClient();
   if (!client) {
     console.warn("OCR skipped: OPENAI_API_KEY is not configured");
-    console.log("OCR text length:", 0);
-    console.log("OCR RAW TEXT:", "");
+    console.log("[OCR_TEXT_LENGTH]", {
+      filename: options?.filename ?? "document",
+      textLength: 0,
+      bytes: buffer.length,
+      pageCount: options?.pageCount ?? null,
+      skipped: "missing_api_key",
+    });
     return "";
   }
 
@@ -192,18 +202,25 @@ export async function runOCR(buffer: Buffer, options?: OcrOptions): Promise<stri
       mimeType: options?.mimeType ?? null,
       bytes: buffer.length,
     });
-    console.log("OCR text length:", 0);
-    console.log("OCR RAW TEXT:", "");
+    console.log("[OCR_TEXT_LENGTH]", {
+      filename: options?.filename ?? "document",
+      textLength: 0,
+      bytes: buffer.length,
+      pageCount: options?.pageCount ?? null,
+      skipped: "unsupported_input",
+    });
     return "";
   }
 
-  console.log("OCR request details:", {
-    requestPath: input.requestPath,
-    inputType: input.inputType,
+  console.log("[OCR_FALLBACK]", {
+    activated: true,
     filename: input.filename,
     mimeType: input.mimeType,
-    model: DEFAULT_OPENAI_MODEL,
     bytes: buffer.length,
+    pageCount: options?.pageCount ?? null,
+    inputType: input.inputType,
+    requestPath: input.requestPath,
+    model: DEFAULT_OPENAI_MODEL,
   });
 
   try {
@@ -224,8 +241,12 @@ export async function runOCR(buffer: Buffer, options?: OcrOptions): Promise<stri
     });
     const text = typeof response.output_text === "string" ? response.output_text.trim() : "";
 
-    console.log("OCR text length:", text.length);
-    console.log("OCR RAW TEXT:", text.slice(0, 500));
+    console.log("[OCR_TEXT_LENGTH]", {
+      filename: input.filename,
+      textLength: text.length,
+      bytes: buffer.length,
+      pageCount: options?.pageCount ?? null,
+    });
 
     return text;
   } catch (error) {
@@ -236,8 +257,13 @@ export async function runOCR(buffer: Buffer, options?: OcrOptions): Promise<stri
       mimeType: input.mimeType,
       error: toLoggableError(error),
     });
-    console.log("OCR text length:", 0);
-    console.log("OCR RAW TEXT:", "");
+    console.log("[OCR_TEXT_LENGTH]", {
+      filename: input.filename,
+      textLength: 0,
+      bytes: buffer.length,
+      pageCount: options?.pageCount ?? null,
+      failed: true,
+    });
     return "";
   }
 }

@@ -115,8 +115,8 @@ export default function DealConversionGraph() {
         ) : error ? (
           <p style={{ margin: "8px 0 0", color: "#ffb6b6" }}>{error}</p>
         ) : (
-          <div style={{ width: "100%", height: 250, marginTop: 10 }}>
-            <ResponsiveContainer>
+          <div className="relative mx-auto mt-[10px] flex h-[250px] w-full max-w-[420px] items-center justify-center overflow-hidden">
+            <ResponsiveContainer width="100%" height="100%">
               <BarChart data={data}>
                 <CartesianGrid stroke="rgba(30, 41, 59, 0.8)" strokeDasharray="3 3" />
                 <XAxis dataKey="status" stroke={empireColors.textSecondary} />

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { adminDb } from "@/lib/firebaseAdmin";
+import { getFirebaseAdmin } from "@/lib/firebase/admin";
 import {
   AuthorizationError,
   assertCanAccessContractor,
@@ -38,8 +38,9 @@ export async function GET(
   context: { params: Promise<{ dealId: string }> },
 ) {
   try {
+    const db = getFirebaseAdmin();
     const { dealId } = await resolveAuthorizedDeal(request, context);
-    const snapshot = await adminDb.collection("dealNotes").where("dealId", "==", dealId).get();
+    const snapshot = await db.collection("dealNotes").where("dealId", "==", dealId).get();
 
     const notes = snapshot.docs
       .map((doc): Record<string, unknown> & { id: string } => ({
@@ -72,6 +73,7 @@ export async function POST(
   context: { params: Promise<{ dealId: string }> },
 ) {
   try {
+    const db = getFirebaseAdmin();
     const { actor, dealId } = await resolveAuthorizedDeal(request, context);
     assertPrivilegedRole(actor);
 
@@ -82,7 +84,7 @@ export async function POST(
       return NextResponse.json({ error: "Note required" }, { status: 400 });
     }
 
-    const noteRef = await adminDb.collection("dealNotes").add({
+    const noteRef = await db.collection("dealNotes").add({
       dealId,
       note,
       createdBy: actor.uid,

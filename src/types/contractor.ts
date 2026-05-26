@@ -24,6 +24,13 @@ export interface Contractor {
   submissionsUsed?: number | null;
   submissionsLimit?: number | null;
   readinessScore?: number | null;
+  complianceConfidence?: number | null;
+  readinessConfidence?: number | null;
+  operationalSubmissionConfidence?: number | null;
+  riskGrade?: "LOW RISK" | "MODERATE RISK" | "REVIEW REQUIRED" | "HIGH RISK" | null;
+  explainableSummary?: string | null;
+  blockedReasons?: string[] | null;
+  reviewRecommendations?: string[] | null;
   docsMissing?: number | null;
   tenderLockStatus?: "READY" | "RISK" | "BLOCKED" | null;
   isTenderLocked?: boolean | null;

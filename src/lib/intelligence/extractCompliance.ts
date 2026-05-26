@@ -22,7 +22,10 @@ export function extractComplianceData(text: string) {
 
   return {
     hasCIPC: patternMatch || keywordMatch,
-    hasTaxClearance: cleanText.includes("tax clearance"),
+    hasTaxClearance:
+      cleanText.includes("tax clearance") ||
+      cleanText.includes("tax compliance status") ||
+      /\btcs\b/.test(cleanText),
     hasBBBEE: cleanText.includes("bbbee") || cleanText.includes("b-bbee"),
     hasCOIDA: cleanText.includes("coida"),
   };

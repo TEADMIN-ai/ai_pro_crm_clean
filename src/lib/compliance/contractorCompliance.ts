@@ -9,6 +9,8 @@ export const SUPPORTED_DOCUMENT_TYPES = [
 ] as const;
 
 export type SupportedDocumentType = (typeof SUPPORTED_DOCUMENT_TYPES)[number];
+export const LEGACY_COMPLIANCE_REQUIREMENT_KEYS = ["cipc", "tax", "bbbee", "coida", "bank"] as const;
+export type LegacyComplianceRequirementKey = (typeof LEGACY_COMPLIANCE_REQUIREMENT_KEYS)[number];
 
 export type ContractorComplianceSummary = {
   readinessScore: number;
@@ -24,8 +26,59 @@ export type ContractorComplianceSummary = {
 
 export type ContractorDocumentStatus = "missing" | "uploaded" | "verified" | "invalid" | "expired" | "expiringSoon";
 
+function normalizeDocumentTypeToken(value: unknown): string {
+  return typeof value === "string" ? value.toLowerCase().replace(/[^a-z0-9]/g, "") : "";
+}
+
+export function normalizeSupportedDocumentType(value: unknown): SupportedDocumentType | null {
+  const normalized = normalizeDocumentTypeToken(value);
+
+  switch (normalized) {
+    case "cipc":
+      return "cipc";
+    case "bbbee":
+    case "bbee":
+      return "bbbee";
+    case "tax":
+    case "taxclearance":
+    case "taxcompliance":
+    case "taxcompliancestatus":
+    case "tcspin":
+    case "tcspindocument":
+    case "legacytaxclearancecertificate":
+      return "taxClearance";
+    case "coida":
+      return "coida";
+    case "bank":
+    case "bankconfirmation":
+    case "bankletter":
+      return "bankConfirmation";
+    default:
+      return null;
+  }
+}
+
+export function toLegacyComplianceRequirementKey(value: unknown): LegacyComplianceRequirementKey | null {
+  const normalized = normalizeSupportedDocumentType(value);
+
+  switch (normalized) {
+    case "cipc":
+      return "cipc";
+    case "bbbee":
+      return "bbbee";
+    case "taxClearance":
+      return "tax";
+    case "coida":
+      return "coida";
+    case "bankConfirmation":
+      return "bank";
+    default:
+      return null;
+  }
+}
+
 export function isSupportedDocumentType(value: string): value is SupportedDocumentType {
-  return (SUPPORTED_DOCUMENT_TYPES as readonly string[]).includes(value);
+  return normalizeSupportedDocumentType(value) !== null;
 }
 
 export function getDocumentTypeLabel(type: SupportedDocumentType): string {
@@ -116,14 +169,14 @@ export function calculateContractorCompliance(documents: ContractorDocument[]): 
   let complianceScoreTotal = 0;
 
   for (const document of documents) {
-    const type = document.documentType ?? document.docType;
-    if (!type || !isSupportedDocumentType(type)) {
+    const normalizedType = normalizeSupportedDocumentType(document.documentType ?? document.docType);
+    if (!normalizedType) {
       continue;
     }
 
     const status = resolveContractorDocumentStatus(document, now);
     if (status === "verified" || status === "expiringSoon") {
-      verifiedTypes.add(type);
+      verifiedTypes.add(normalizedType);
     }
     if (status === "expired") {
       expiredDocumentCount += 1;

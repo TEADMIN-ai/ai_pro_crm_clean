@@ -34,10 +34,14 @@ type ExecutiveAnalyticsPayload = {
     };
     complianceSummary: {
       averageComplianceScore: number;
+      averageComplianceConfidence: number;
+      averageReadinessConfidence: number;
+      averageOperationalConfidence: number;
       readyContractors: number;
       riskContractors: number;
       blockedContractors: number;
       statusBreakdown: Array<{ status: string; count: number }>;
+      riskDistribution: Array<{ grade: string; count: number }>;
     };
     verificationStats: {
       totalDocuments: number;
@@ -98,8 +102,8 @@ function ComplianceStatusChart({
   return (
     <Card>
       <p style={{ margin: 0, fontSize: 12, letterSpacing: 0.5, color: "#b7ceef" }}>Compliance Status</p>
-      <div style={{ width: "100%", height: 280, marginTop: 12 }}>
-        <ResponsiveContainer>
+      <div className="relative mx-auto mt-3 w-full max-w-[420px] overflow-hidden" style={{ height: 240 }}>
+        <ResponsiveContainer width="100%" height="100%">
           <PieChart>
             <Pie data={data} dataKey="count" nameKey="status" innerRadius={55} outerRadius={92} paddingAngle={4}>
               {data.map((entry, index) => (
@@ -128,8 +132,8 @@ function AuditProgressChart({
   return (
     <Card>
       <p style={{ margin: 0, fontSize: 12, letterSpacing: 0.5, color: "#b7ceef" }}>Audit Progress</p>
-      <div style={{ width: "100%", height: 300, marginTop: 12 }}>
-        <ResponsiveContainer>
+      <div className="relative mx-auto mt-3 w-full max-w-[420px] overflow-hidden" style={{ height: 240 }}>
+        <ResponsiveContainer width="100%" height="100%">
           <BarChart data={data}>
             <CartesianGrid stroke="rgba(30, 41, 59, 0.8)" strokeDasharray="3 3" />
             <XAxis dataKey="title" hide />
@@ -264,8 +268,8 @@ function VerificationSummary({
           <p className="enterprise-metric-value">{clampPercent(stats.averageConfidenceScore * 100)}%</p>
         </div>
       </div>
-      <div style={{ width: "100%", height: 240, marginTop: 12 }}>
-        <ResponsiveContainer>
+      <div className="relative mx-auto mt-3 w-full max-w-[420px] overflow-hidden" style={{ height: 240 }}>
+        <ResponsiveContainer width="100%" height="100%">
           <BarChart data={data}>
             <CartesianGrid stroke="rgba(30, 41, 59, 0.8)" strokeDasharray="3 3" />
             <XAxis dataKey="status" stroke={empireColors.textSecondary} />
@@ -375,7 +379,7 @@ export default function ExecutiveDashboard() {
               label="Compliance Score"
               value={`${metrics.complianceSummary.averageComplianceScore}%`}
               tone={metrics.complianceSummary.averageComplianceScore >= 80 ? "success" : "warning"}
-              helper={`${metrics.cards.complianceAlerts} active expiry alert(s)`}
+              helper={`${metrics.complianceSummary.averageOperationalConfidence}% operational confidence • ${metrics.cards.complianceAlerts} active expiry alert(s)`}
             />
             <MetricCard
               label="Verified Documents"
@@ -385,12 +389,12 @@ export default function ExecutiveDashboard() {
             />
           </div>
 
-          <div className="enterprise-grid-metrics" style={{ alignItems: "stretch" }}>
+          <div className="enterprise-grid-metrics" style={{ alignItems: "flex-start" }}>
             <RiskHeatmap data={metrics.riskHeatmap} />
             <ComplianceStatusChart data={metrics.complianceSummary.statusBreakdown} />
           </div>
 
-          <div className="enterprise-grid-metrics" style={{ alignItems: "stretch" }}>
+          <div className="enterprise-grid-metrics" style={{ alignItems: "flex-start" }}>
             <AuditProgressChart data={metrics.auditProgress} />
             <VerificationSummary stats={metrics.verificationStats} />
           </div>

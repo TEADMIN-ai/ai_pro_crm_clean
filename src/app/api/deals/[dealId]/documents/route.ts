@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
+import admin from "firebase-admin";
 import { Timestamp } from "firebase-admin/firestore";
-import { getStorage } from "firebase-admin/storage";
 import {
   AuthorizationError,
   assertCanAccessContractor,
@@ -14,7 +14,7 @@ import {
   updateDealDocumentReview,
 } from "@/server/services/dealService";
 import { canDelete, canReview } from "@/lib/auth/roleUtils";
-import { getAdminApp, getFirebaseAdmin } from "@/lib/firebase/admin";
+import { getFirebaseAdmin, getFirebaseStorageBucket } from "@/lib/firebase/admin";
 import { extractTextFromPdf } from "@/lib/pdf/extractTextFromPdf";
 
 function sanitizeFilename(name: string) {
@@ -130,8 +130,8 @@ export async function POST(
       const timestamp = Date.now();
       const safeFilename = sanitizeFilename(uploadedFile.name);
       const filePath = `uploads/deals/${dealId}/${timestamp}_${safeFilename}`;
-      const storage = getStorage(getAdminApp());
-      const bucket = storage.bucket();
+      getFirebaseAdmin();
+      const bucket = getFirebaseStorageBucket();
       const file = bucket.file(filePath);
 
       await file.save(fileBuffer, {

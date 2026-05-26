@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { adminDb } from "@/lib/firebaseAdmin";
+import { getFirebaseAdmin } from "@/lib/firebase/admin";
 import { AuthorizationError, assertPrivilegedRole, requireAuthorizedUser } from "@/lib/server/authz";
 import { generateMergedPack, getMergedPackTemplateIds } from "@/lib/pdf/mergeTenderPack";
 import { persistTenderPackPdf } from "@/server/services/tenderPackService";
@@ -10,6 +10,7 @@ export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
   try {
+    const db = getFirebaseAdmin();
     const user = await requireAuthorizedUser(request);
     assertPrivilegedRole(user);
     const dealId = request.nextUrl.searchParams.get("dealId")?.trim() ?? "";
@@ -18,7 +19,7 @@ export async function GET(request: NextRequest) {
       throw new Error("Missing dealId");
     }
 
-    const dealSnapshot = await adminDb.collection("deals").doc(dealId).get();
+    const dealSnapshot = await db.collection("deals").doc(dealId).get();
     if (!dealSnapshot.exists) {
       throw new Error("Deal not found");
     }
@@ -37,7 +38,7 @@ export async function GET(request: NextRequest) {
       throw new Error("Missing deal or contractor data");
     }
 
-    const contractorSnapshot = await adminDb.collection("contractors").doc(contractorId).get();
+    const contractorSnapshot = await db.collection("contractors").doc(contractorId).get();
     if (!contractorSnapshot.exists) {
       throw new Error("Missing deal or contractor data");
     }

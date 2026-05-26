@@ -1,6 +1,10 @@
 import { recalculateContractorCompliance } from "@/lib/server/recalculateContractorCompliance";
 import type { AuthorizedUser } from "@/lib/server/authz";
+import { applyVerificationAuditTrail } from "@/lib/documents/verificationAuditTrail";
 import { getFirebaseAdmin } from "@/lib/firebase/admin";
+import { AUTHORITY_CLASSIFICATIONS, ROUTE_CLASSIFICATIONS } from "@/lib/governance/classification";
+import { createGovernanceContext, type GovernanceContext } from "@/lib/governance/context";
+import { emitGovernanceEvent } from "@/lib/governance/emitter";
 import { recordAuditLog } from "@/server/services/auditLogService";
 import {
   getContractorDocument,
@@ -105,11 +109,6 @@ function buildReviewUpdate(action: ManualVerificationAction, reviewReason: strin
   const now = new Date();
   const nowIso = now.toISOString();
   const reviewedBy = actor.email?.trim() || actor.uid;
-  const verificationAuditEntry = {
-    action: "verified",
-    by: actor.email?.trim() || "unknown",
-    at: nowIso,
-  };
 
   switch (action) {
     case "approve":
@@ -124,7 +123,7 @@ function buildReviewUpdate(action: ManualVerificationAction, reviewReason: strin
         reviewedBy,
         reviewedAt: now,
         manualDecisionAvailable: false,
-        auditTrail: [verificationAuditEntry],
+        auditTrailAt: nowIso,
       };
     case "reject":
       return {
@@ -161,7 +160,21 @@ export async function applyManualDocumentVerification(params: {
   action: ManualVerificationAction;
   actor: AuthorizedUser;
   reviewReason?: string;
+  governanceContext?: GovernanceContext;
 }): Promise<ContractorDocument> {
+  const governanceContext = params.governanceContext ?? createGovernanceContext({
+    actor: {
+      actorId: params.actor.uid,
+      actorEmail: params.actor.email ?? null,
+      actorRole: params.actor.role,
+    },
+    route: {
+      sourceName: "applyManualDocumentVerification",
+      sourceType: "service",
+      sourceClassification: ROUTE_CLASSIFICATIONS.CANONICAL,
+    },
+  });
+  const startedAt = Date.now();
   const snap = await getContractorDocument(params.contractorId, params.documentType);
   if (!snap.exists) {
     throw new Error("Document not found");
@@ -176,14 +189,46 @@ export async function applyManualDocumentVerification(params: {
         : "uploaded";
 
   const reviewUpdate = buildReviewUpdate(params.action, params.reviewReason?.trim() || undefined, params.actor);
+  const manualAudit = params.action === "approve"
+    ? applyVerificationAuditTrail({
+        existingAuditTrail: current.auditTrail,
+        metadata: current,
+        candidate: {
+          actor: params.actor.email?.trim() || "unknown",
+          at: reviewUpdate.auditTrailAt,
+          source: "manual_verification",
+          verificationStatus: reviewUpdate.validationStatus,
+          aiStatus: asString(current.aiStatus),
+          extractedFields:
+            current.extractedFields && typeof current.extractedFields === "object"
+              ? (current.extractedFields as Record<string, string | null>)
+              : undefined,
+        },
+      })
+    : {
+        auditTrail: Array.isArray(current.auditTrail) ? current.auditTrail : [],
+        appended: false,
+        skippedDuplicate: false,
+        duplicateReason: null,
+      };
   const payload = {
     ...reviewUpdate,
-    auditTrail: [
-      ...((Array.isArray(current.auditTrail) ? current.auditTrail : []) as Record<string, unknown>[]),
-      ...(reviewUpdate.auditTrail ?? []),
-    ],
+    auditTrail: manualAudit.auditTrail,
     updatedAt: new Date(),
   };
+
+  delete (payload as Record<string, unknown>).auditTrailAt;
+
+  if (manualAudit.skippedDuplicate) {
+    const logMethod = manualAudit.duplicateReason === "ambiguous_replay" ? console.warn : console.info;
+    logMethod("[verification-audit] skipped_duplicate_write", {
+      contractorId: params.contractorId,
+      documentType: params.documentType,
+      source: "manual_verification",
+      reason: manualAudit.duplicateReason,
+      actor: params.actor.email?.trim() || params.actor.uid,
+    });
+  }
 
   await upsertContractorDocument(params.contractorId, params.documentType, payload);
 
@@ -202,7 +247,47 @@ export async function applyManualDocumentVerification(params: {
     },
   });
 
-  await recalculateContractorCompliance(getFirebaseAdmin(), params.contractorId);
+  await recalculateContractorCompliance(getFirebaseAdmin(), params.contractorId, governanceContext);
+
+  emitGovernanceEvent({
+    eventId: crypto.randomUUID(),
+    eventVersion: "v1",
+    occurredAt: new Date().toISOString(),
+    category: "verification",
+    eventType: "manual_verification_applied",
+    correlation: {
+      correlationId: governanceContext.correlationId,
+      requestId: governanceContext.requestId,
+    },
+    actor: {
+      actorId: governanceContext.actor.actorId ?? null,
+      actorEmail: governanceContext.actor.actorEmail ?? null,
+      actorRole: governanceContext.actor.actorRole ?? null,
+    },
+    source: {
+      sourceType: "service",
+      sourceName: "applyManualDocumentVerification",
+      routePath: governanceContext.route.routePath ?? null,
+      method: governanceContext.route.method ?? null,
+      sourceClassification: ROUTE_CLASSIFICATIONS.CANONICAL,
+    },
+    entity: {
+      entityType: "contractorDocument",
+      entityId: params.documentType,
+      contractorId: params.contractorId,
+      documentType: params.documentType,
+    },
+    mutation: {
+      mutatedFields: ["verified", "verifiedAt", "verifiedBy", "validationStatus", "status"],
+    },
+    governance: {
+      routeClassification: ROUTE_CLASSIFICATIONS.CANONICAL,
+      sourceClassification: ROUTE_CLASSIFICATIONS.CANONICAL,
+      authorityClassification: AUTHORITY_CLASSIFICATIONS.SOURCE_OF_TRUTH,
+      latencyMs: Date.now() - startedAt,
+      failOpen: true,
+    },
+  });
 
   const updated = await getContractorDocument(params.contractorId, params.documentType);
   return normalizeDocument(

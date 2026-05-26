@@ -1,4 +1,6 @@
 import type { CompanyProfile } from "@/lib/autofill/buildCompanyProfile";
+import { EMPIRE_PDF_TEMPLATE_REGISTRY } from "@/lib/empirePdf/templates";
+import type { EmpirePdfTemplateDefinition } from "@/lib/empirePdf/templates";
 import type { SbdFormKey } from "@/lib/pdfs/templates/sbdSchema";
 
 export type TemplateFieldMap = Partial<Record<string, keyof CompanyProfile>>;
@@ -20,6 +22,7 @@ export type TemplateRegistryEntry = {
   pdfRelativePath: string;
   fieldMap?: TemplateFieldMap;
   overlayMap?: TemplateOverlayMap;
+  intelligentTemplate?: EmpirePdfTemplateDefinition;
 };
 
 const COMMON_FIELD_MAP: TemplateFieldMap = {
@@ -162,6 +165,7 @@ export const TEMPLATE_REGISTRY: Record<SbdFormKey, TemplateRegistryEntry> = {
     pdfRelativePath: "src/lib/pdfs/templates/tender-packs/sbd1.pdf",
     fieldMap: COMMON_FIELD_MAP,
     overlayMap: SBD1_OVERLAY_MAP,
+    intelligentTemplate: EMPIRE_PDF_TEMPLATE_REGISTRY.sbd1,
   },
   sbd2: {
     templateKey: "sbd2",
@@ -177,6 +181,7 @@ export const TEMPLATE_REGISTRY: Record<SbdFormKey, TemplateRegistryEntry> = {
     templateKey: "sbd4",
     pdfRelativePath: "src/lib/pdfs/templates/tender-packs/sbd4.pdf",
     fieldMap: COMMON_FIELD_MAP,
+    intelligentTemplate: EMPIRE_PDF_TEMPLATE_REGISTRY.sbd4,
   },
   sbd5: {
     templateKey: "sbd5",
@@ -187,6 +192,7 @@ export const TEMPLATE_REGISTRY: Record<SbdFormKey, TemplateRegistryEntry> = {
     templateKey: "sbd6",
     pdfRelativePath: "src/lib/pdfs/templates/tender-packs/sbd6.pdf",
     fieldMap: COMMON_FIELD_MAP,
+    intelligentTemplate: EMPIRE_PDF_TEMPLATE_REGISTRY.sbd6,
   },
   sbd7: {
     templateKey: "sbd7",

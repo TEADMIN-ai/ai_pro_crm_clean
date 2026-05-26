@@ -1,6 +1,7 @@
 import { readFile } from "fs/promises";
 import path from "path";
 import { PDFDocument, PDFPage, PDFFont, StandardFonts, rgb } from "pdf-lib";
+import { fillTemplateWithIntelligence } from "@/lib/empirePdf/intelligentFillEngine";
 import { SBD4_FIELD_MAP, SBD4_FIELDS } from "@/lib/pdf/maps/SBD4";
 import { applySignature } from "@/lib/empirePdf/signatureOverlay";
 
@@ -113,6 +114,50 @@ export async function fillSbd4(
 ): Promise<Uint8Array> {
   const templatePath = path.join(process.cwd(), "public", "templates", "SBD4.pdf");
   const templateBytes = await readFile(templatePath);
+
+  try {
+    const intelligentResult = await fillTemplateWithIntelligence({
+      templateKey: "sbd4",
+      templateBytes,
+      profile: {
+        contractorId: contractor.id,
+        companyName: clean(contractor.companyName, contractor.id),
+        regNumber: clean(contractor.registrationNumber, ""),
+        vatNumber: "",
+        taxPin: "",
+        cidb: "",
+        csdNumber: "",
+        bankingDetails: "",
+        directors: clean(contractor.directorName, contractor.contactPerson || contractor.companyName),
+        address: "",
+        contactPerson: clean(contractor.contactPerson, contractor.companyName),
+        email: "",
+        phone: "",
+        directorName: clean(contractor.directorName, contractor.contactPerson || contractor.companyName),
+        signatoryRole: "Authorized Signatory",
+        missingFields: [],
+        sourceAttribution: {},
+      },
+      debug: process.env.EMPIREPDF_DEBUG === "1",
+    });
+
+    console.info("SBD4 intelligent fill completed", {
+      contractorId: contractor.id,
+      dealId: deal.id,
+      averageConfidence: intelligentResult.result.averageConfidence,
+      renderedFieldCount: intelligentResult.result.renderedFieldCount,
+      warnings: intelligentResult.result.warnings,
+    });
+
+    return intelligentResult.pdfBytes;
+  } catch (error) {
+    console.warn("SBD4 intelligent fill failed, using legacy overlay fallback", {
+      contractorId: contractor.id,
+      dealId: deal.id,
+      error: error instanceof Error ? error.message : error,
+    });
+  }
+
   const existingPdf = await PDFDocument.load(templateBytes);
   const pages = existingPdf.getPages();
 

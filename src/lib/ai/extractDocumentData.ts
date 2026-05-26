@@ -41,9 +41,9 @@
  *
  */
 import OpenAI from "openai";
-import { cert, getApps, initializeApp } from "firebase-admin/app";
-import { getStorage } from "firebase-admin/storage";
+import { extractTextFromPdfDetailed } from "@/lib/pdf/extractTextFromPdf";
 import { runOCR } from "@/server/services/ocrService";
+import { getFirebaseAdmin, getFirebaseStorageBucket } from "@/lib/firebase/admin";
 
 /**
  * ExtractedDocumentData
@@ -67,37 +67,6 @@ export type ExtractedDocumentData = {
 const MAX_FILE_SIZE_BYTES = 8 * 1024 * 1024;
 const DEFAULT_OPENAI_MODEL = process.env.OPENAI_DOCUMENT_MODEL || "gpt-4.1-mini";
 
-function getConfiguredBucketName(): string | undefined {
-  const bucketName =
-    process.env.FIREBASE_STORAGE_BUCKET || process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET;
-  return bucketName && bucketName.trim().length > 0 ? bucketName.trim() : undefined;
-}
-
-function initFirebaseAdminForStorage(): void {
-  if (getApps().length > 0) {
-    return;
-  }
-
-  const projectId = process.env.FIREBASE_PROJECT_ID;
-  const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
-  const privateKeyRaw = process.env.FIREBASE_PRIVATE_KEY;
-  const storageBucket = getConfiguredBucketName();
-
-  if (projectId && clientEmail && privateKeyRaw) {
-    initializeApp({
-      credential: cert({
-        projectId,
-        clientEmail,
-        privateKey: privateKeyRaw.replace(/\\n/g, "\n"),
-      }),
-      ...(storageBucket ? { storageBucket } : {}),
-    });
-    return;
-  }
-
-  initializeApp(storageBucket ? { storageBucket } : undefined);
-}
-
 function getOpenAIClient(): OpenAI | null {
   const apiKey = process.env.OPENAI_API_KEY?.trim();
   if (!apiKey) {
@@ -107,8 +76,8 @@ function getOpenAIClient(): OpenAI | null {
 }
 
 function selectBucket() {
-  const bucketName = getConfiguredBucketName();
-  return bucketName ? getStorage().bucket(bucketName) : getStorage().bucket();
+  getFirebaseAdmin();
+  return getFirebaseStorageBucket();
 }
 
 function isLikelyPlainText(text: string): boolean {
@@ -286,7 +255,7 @@ export async function extractDocumentData(args: {
   }
 
   try {
-    initFirebaseAdminForStorage();
+    getFirebaseAdmin();
   } catch (initError) {
     console.error("Firebase admin storage initialization failed", {
       storagePath: args.storagePath,
@@ -318,10 +287,16 @@ export async function extractDocumentData(args: {
 
     const fileBuffer = Buffer.from(fileResult.value[0] as Uint8Array);
     const bytes = new Uint8Array(fileBuffer);
+    const filename = args.filename?.trim() || "document";
 
     const utf8Text = fileBuffer.toString("utf8").trim();
     if (isLikelyPlainText(utf8Text)) {
       return { text: utf8Text, mimeType };
+    }
+
+    if (mimeType === "application/pdf") {
+      const pdfResult = await extractTextFromPdfDetailed(fileBuffer, { filename });
+      return { text: pdfResult.text, mimeType };
     }
 
     if (bytes.byteLength > MAX_FILE_SIZE_BYTES) {
@@ -336,7 +311,7 @@ export async function extractDocumentData(args: {
     try {
       const text = await extractTextWithOpenAI({
         bytes,
-        filename: args.filename?.trim() || "document",
+        filename,
         mimeType,
       });
       return { text, mimeType };

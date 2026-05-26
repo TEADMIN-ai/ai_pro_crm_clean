@@ -49,10 +49,14 @@ export interface VerificationStatsPayload {
 
 export interface ComplianceSummaryPayload {
   averageComplianceScore: number;
+  averageComplianceConfidence: number;
+  averageReadinessConfidence: number;
+  averageOperationalConfidence: number;
   readyContractors: number;
   riskContractors: number;
   blockedContractors: number;
   statusBreakdown: ComplianceStatusPoint[];
+  riskDistribution: Array<{ grade: string; count: number }>;
 }
 
 export interface RiskHeatmapPoint {
@@ -127,13 +131,22 @@ function buildTenderInsights(deals: Deal[]): DashboardTenderInsights {
 
 function buildComplianceSummary(contractorsSnapshot: FirebaseFirestore.QuerySnapshot): ComplianceSummaryPayload {
   let totalScore = 0;
+  let totalComplianceConfidence = 0;
+  let totalReadinessConfidence = 0;
+  let totalOperationalConfidence = 0;
   let readyContractors = 0;
   let riskContractors = 0;
   let blockedContractors = 0;
+  const riskDistribution = new Map<string, number>();
 
   for (const doc of contractorsSnapshot.docs) {
     const data = (doc.data() ?? {}) as Record<string, unknown>;
     totalScore += toSafeNumber(data.complianceStatusScore);
+    totalComplianceConfidence += toSafeNumber(data.complianceConfidence);
+    totalReadinessConfidence += toSafeNumber(data.readinessConfidence);
+    totalOperationalConfidence += toSafeNumber(data.operationalSubmissionConfidence);
+    const riskGrade = asString(data.riskGrade) ?? "UNCLASSIFIED";
+    riskDistribution.set(riskGrade, (riskDistribution.get(riskGrade) ?? 0) + 1);
 
     const tenderLockStatus = asString(data.tenderLockStatus);
     if (tenderLockStatus === "READY") {
@@ -148,6 +161,12 @@ function buildComplianceSummary(contractorsSnapshot: FirebaseFirestore.QuerySnap
   return {
     averageComplianceScore:
       contractorsSnapshot.size > 0 ? Math.round(totalScore / contractorsSnapshot.size) : 0,
+    averageComplianceConfidence:
+      contractorsSnapshot.size > 0 ? Math.round(totalComplianceConfidence / contractorsSnapshot.size) : 0,
+    averageReadinessConfidence:
+      contractorsSnapshot.size > 0 ? Math.round(totalReadinessConfidence / contractorsSnapshot.size) : 0,
+    averageOperationalConfidence:
+      contractorsSnapshot.size > 0 ? Math.round(totalOperationalConfidence / contractorsSnapshot.size) : 0,
     readyContractors,
     riskContractors,
     blockedContractors,
@@ -156,6 +175,7 @@ function buildComplianceSummary(contractorsSnapshot: FirebaseFirestore.QuerySnap
       { status: "Risk", count: riskContractors },
       { status: "Blocked", count: blockedContractors },
     ],
+    riskDistribution: Array.from(riskDistribution.entries()).map(([grade, count]) => ({ grade, count })),
   };
 }
 
@@ -169,7 +189,15 @@ function buildVerificationStats(snapshot: FirebaseFirestore.QuerySnapshot): Veri
 
   for (const doc of snapshot.docs) {
     const data = (doc.data() ?? {}) as Record<string, unknown>;
-    const status = asString(data.validationStatus) ?? asString(data.status) ?? "uploaded";
+    const rawStatus = asString(data.validationStatus) ?? asString(data.status) ?? "uploaded";
+    const status =
+      rawStatus === "PASS"
+        ? "verified"
+        : rawStatus === "FAIL"
+          ? "invalid"
+          : rawStatus === "REVIEW"
+            ? "uploaded"
+            : rawStatus;
 
     if (status === "verified") {
       verified += 1;
@@ -288,7 +316,10 @@ async function buildExecutiveMetrics(
   risks: Awaited<ReturnType<typeof listRiskRegisterEntries>>,
 ): Promise<ExecutiveMetricsPayload> {
   const [complianceDataSnapshot, auditProgress] = await Promise.all([
-    db.collectionGroup("complianceData").get(),
+    db.collectionGroup("complianceData").get().catch((error) => {
+      console.error("[analytics] complianceData collectionGroup failed", error);
+      return { docs: [], size: 0 } as FirebaseFirestore.QuerySnapshot;
+    }),
     buildAuditProgress(db),
   ]);
 
@@ -314,9 +345,13 @@ async function buildExecutiveMetrics(
 
 export async function getDashboardAnalytics(user: AuthorizedUser): Promise<DashboardAnalyticsPayload> {
   const db = getFirebaseAdmin();
+  const contractorsQuery =
+    user.role === "contractor" && user.contractorId
+      ? db.collection("contractors").where("contractorId", "==", user.contractorId).limit(1)
+      : db.collection("contractors");
   const [deals, contractorsSnapshot, risks] = await Promise.all([
     listDealsForUser(user),
-    db.collection("contractors").get(),
+    contractorsQuery.get(),
     listRiskRegisterEntries(user),
   ]);
 

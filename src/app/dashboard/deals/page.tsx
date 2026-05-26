@@ -1,12 +1,18 @@
 "use client";
 
-export const dynamic = "force-dynamic";
-export const fetchCache = "force-no-store";
-
+import Link from "next/link";
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import { API_ROUTES } from "@/lib/apiRoutes";
 import { authFetch } from "@/lib/client/authFetch";
+import {
+  SUPPORTED_DOCUMENT_TYPES,
+  getDocumentTypeLabel,
+  type SupportedDocumentType,
+} from "@/lib/compliance/contractorCompliance";
 import { matchRequirements } from "@/lib/tender/matchRequirements";
+
+export const dynamic = "force-dynamic";
+export const fetchCache = "force-no-store";
 
 type Deal = {
   id: string;
@@ -29,6 +35,10 @@ type ContractorDocumentEntry = {
 type ContractorRecord = {
   id: string;
   complianceApproved?: boolean;
+  readinessScore?: number;
+  docsMissing?: number;
+  tenderLockStatus?: "READY" | "RISK" | "BLOCKED";
+  isTenderLocked?: boolean;
   documents?: Partial<Record<"cipc" | "tax" | "bbbee" | "coida", ContractorDocumentEntry>>;
 };
 
@@ -57,6 +67,75 @@ function getErrorMessage(error: unknown): string {
   }
 
   return "Error occurred";
+}
+
+function buildTenderPackFilename(dealId: string): string {
+  const normalizedDealId = dealId
+    .trim()
+    .replace(/[^a-zA-Z0-9_-]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+
+  if (!normalizedDealId) {
+    return "TenderPack.pdf";
+  }
+
+  const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+  return `TenderPack_${normalizedDealId}_${timestamp}.pdf`;
+}
+
+function getDownloadUrl(value: { downloadURL?: string; downloadUrl?: string }): string {
+  return value.downloadURL?.trim() || value.downloadUrl?.trim() || "";
+}
+
+function createPdfBlobFromBase64(base64: string): Blob {
+  const sanitizedBase64 = base64.trim();
+
+  if (!sanitizedBase64) {
+    throw new Error("Tender pack generation did not return a PDF.");
+  }
+
+  try {
+    const binary = window.atob(sanitizedBase64);
+    const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0));
+    return new Blob([bytes], { type: "application/pdf" });
+  } catch {
+    throw new Error("Unable to prepare tender pack PDF for download.");
+  }
+}
+
+function triggerBlobDownload(blob: Blob, filename: string): void {
+  const objectUrl = window.URL.createObjectURL(blob);
+  const downloadLink = document.createElement("a");
+
+  downloadLink.href = objectUrl;
+  downloadLink.download = filename;
+  downloadLink.style.display = "none";
+
+  try {
+    document.body.appendChild(downloadLink);
+    downloadLink.click();
+  } finally {
+    downloadLink.remove();
+    window.setTimeout(() => {
+      window.URL.revokeObjectURL(objectUrl);
+    }, 1000);
+  }
+}
+
+function triggerUrlDownload(downloadUrl: string, filename: string): void {
+  const downloadLink = document.createElement("a");
+  downloadLink.href = downloadUrl;
+  downloadLink.download = filename;
+  downloadLink.rel = "noreferrer noopener";
+  downloadLink.target = "_blank";
+  downloadLink.style.display = "none";
+
+  try {
+    document.body.appendChild(downloadLink);
+    downloadLink.click();
+  } finally {
+    downloadLink.remove();
+  }
 }
 
 function normalizeDeals(payload: unknown): Deal[] {
@@ -214,6 +293,7 @@ export default function DealsPage() {
   const [complianceStatus, setComplianceStatus] = useState<StatusState>(DEFAULT_STATUS);
   const [tenderDocsStatus, setTenderDocsStatus] = useState<StatusState>(DEFAULT_STATUS);
   const [packStatus, setPackStatus] = useState<StatusState>(DEFAULT_STATUS);
+  const [complianceDocumentType, setComplianceDocumentType] = useState<SupportedDocumentType>("cipc");
   const complianceInputRef = useRef<HTMLInputElement | null>(null);
   const tenderInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -221,15 +301,55 @@ export default function DealsPage() {
   const readinessMatch = selectedDeal && selectedContractor
     ? matchRequirements(selectedContractor, selectedDeal)
     : null;
+  const contractorReady =
+    selectedContractor?.complianceApproved === true ||
+    (
+      typeof selectedContractor?.docsMissing === "number" &&
+      selectedContractor.docsMissing === 0 &&
+      typeof selectedContractor.readinessScore === "number" &&
+      selectedContractor.readinessScore >= 80 &&
+      selectedContractor.isTenderLocked !== true
+    );
   const canGeneratePack = Boolean(
     selectedDeal?.contractorId &&
-      readinessMatch?.ready &&
-      selectedContractor?.complianceApproved
+      contractorReady &&
+      (readinessMatch?.ready ?? true)
   );
   const uploadState = getWorkflowStepState("upload", complianceStatus, tenderDocsStatus, packStatus);
   const processState = getWorkflowStepState("process", complianceStatus, tenderDocsStatus, packStatus);
   const generateState = getWorkflowStepState("generate", complianceStatus, tenderDocsStatus, packStatus);
   const outputState = getWorkflowStepState("output", complianceStatus, tenderDocsStatus, packStatus);
+
+  async function loadSelectedContractor(contractorId: string) {
+    const response = await authFetch(API_ROUTES.CONTRACTOR_DETAIL(contractorId));
+    if (!response.ok) {
+      const payload = (await response.json().catch(() => null)) as { error?: string } | null;
+      throw new Error(payload?.error ?? `Failed to load contractor ${contractorId}`);
+    }
+
+    const payload = (await response.json()) as ContractorRecord & {
+      success?: boolean;
+      readinessScore?: unknown;
+      docsMissing?: unknown;
+      tenderLockStatus?: unknown;
+      isTenderLocked?: unknown;
+    };
+
+    setSelectedContractor({
+      id: payload.id,
+      complianceApproved: payload.complianceApproved,
+      readinessScore: typeof payload.readinessScore === "number" ? payload.readinessScore : undefined,
+      docsMissing: typeof payload.docsMissing === "number" ? payload.docsMissing : undefined,
+      tenderLockStatus:
+        payload.tenderLockStatus === "READY" ||
+        payload.tenderLockStatus === "RISK" ||
+        payload.tenderLockStatus === "BLOCKED"
+          ? payload.tenderLockStatus
+          : undefined,
+      isTenderLocked: payload.isTenderLocked === true,
+      documents: payload.documents,
+    });
+  }
 
   async function loadData(showRefreshState = false) {
     if (showRefreshState) {
@@ -280,28 +400,21 @@ export default function DealsPage() {
   }, []);
 
   useEffect(() => {
-    async function loadSelectedContractor() {
+    async function hydrateSelectedContractor() {
       if (!selectedDeal?.contractorId?.trim()) {
         setSelectedContractor(null);
         return;
       }
 
       try {
-        const response = await authFetch(API_ROUTES.CONTRACTOR_DETAIL(selectedDeal.contractorId));
-        const payload = (await response.json()) as ContractorRecord & { success?: boolean };
-
-        setSelectedContractor({
-          id: payload.id,
-          complianceApproved: payload.complianceApproved,
-          documents: payload.documents,
-        });
+        await loadSelectedContractor(selectedDeal.contractorId);
       } catch (error) {
         console.error("Failed to load contractor readiness data:", error);
         setSelectedContractor(null);
       }
     }
 
-    void loadSelectedContractor();
+    void hydrateSelectedContractor();
   }, [selectedDeal?.contractorId]);
 
   function openFilePicker(kind: UploadKind) {
@@ -346,18 +459,33 @@ export default function DealsPage() {
     try {
       const formData = new FormData();
       formData.append("file", file);
-      formData.append("dealId", selectedDeal.id);
-      formData.append("documentTag", kind);
-      formData.append("documentRole", kind === "compliance" ? "compliance" : "supporting");
+      let endpoint: string = API_ROUTES.DOCUMENT_UPLOAD_ANALYZE;
 
-      if (selectedDeal.contractorId) {
+      if (kind === "compliance") {
+        if (!selectedDeal.contractorId?.trim()) {
+          throw new Error("A valid contractor must be linked before uploading compliance documents.");
+        }
+
         formData.append("contractorId", selectedDeal.contractorId);
+        formData.append("documentType", complianceDocumentType);
+        endpoint = API_ROUTES.DOCUMENT_UPLOAD;
+      } else {
+        formData.append("dealId", selectedDeal.id);
+
+        if (selectedDeal.contractorId?.trim()) {
+          formData.append("contractorId", selectedDeal.contractorId);
+        }
       }
 
-      const response = await authFetch(API_ROUTES.DOCUMENT_UPLOAD_ANALYZE, {
+      const response = await authFetch(endpoint, {
         method: "POST",
         body: formData,
       });
+
+      if (!response.ok) {
+        const payload = (await response.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(payload?.error ?? `${label} upload failed`);
+      }
 
       setStatus({
         label: "Processing...",
@@ -367,6 +495,9 @@ export default function DealsPage() {
 
       await response.json();
       await loadData(true);
+      if (selectedDeal.contractorId) {
+        await loadSelectedContractor(selectedDeal.contractorId);
+      }
 
       setStatus({
         label: "Processed",
@@ -438,26 +569,35 @@ export default function DealsPage() {
         }),
       });
 
-      const data = (await response.json()) as { base64?: string; error?: string };
+      const data = (await response.json()) as {
+        base64?: string;
+        downloadURL?: string;
+        downloadUrl?: string;
+        fileName?: string;
+        error?: string;
+      };
 
-      if (!data.base64) {
-        throw new Error(data.error || "Tender pack generation did not return a PDF.");
+      if (!response.ok) {
+        throw new Error(data.error || "Tender pack generation failed.");
       }
 
-      const pdfWindow = window.open("", "_blank", "noopener,noreferrer");
+      const downloadUrl = getDownloadUrl(data);
+      const fileName = data.fileName?.trim() || buildTenderPackFilename(selectedDeal.id);
 
-      if (!pdfWindow) {
-        throw new Error("Unable to open PDF preview window.");
+      if (downloadUrl) {
+        triggerUrlDownload(downloadUrl, fileName);
+      } else if (data.base64) {
+        const pdfBlob = createPdfBlobFromBase64(data.base64);
+        triggerBlobDownload(pdfBlob, fileName);
+      } else {
+        throw new Error(data.error || "Tender pack generation did not return a downloadable PDF.");
       }
-
-      pdfWindow.document.write(
-        `<iframe width="100%" height="100%" style="border:0" src="data:application/pdf;base64,${data.base64}"></iframe>`
-      );
-      pdfWindow.document.close();
 
       setPackStatus({
         label: "Pack Generated",
-        detail: "Tender pack generated successfully and opened in a new window.",
+        detail: downloadUrl
+          ? "Tender pack generated successfully and the artifact download is ready."
+          : "Tender pack generated successfully and the PDF download has started.",
         tone: "success",
       });
       alert("Tender pack generated successfully");
@@ -477,7 +617,7 @@ export default function DealsPage() {
 
   if (pageLoading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[#F5F7FA] px-6 text-slate-700">
+      <div className="flex items-center justify-center bg-[#F5F7FA] px-6 text-slate-700">
         <div className="rounded-3xl border border-slate-200 bg-white px-8 py-6 text-sm shadow-sm">
           Loading workflow...
         </div>
@@ -486,7 +626,7 @@ export default function DealsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#F5F7FA] text-slate-900">
+    <div className="bg-[#F5F7FA] text-slate-900">
       <input
         ref={complianceInputRef}
         type="file"
@@ -507,7 +647,7 @@ export default function DealsPage() {
         }}
       />
 
-      <div className="min-h-screen lg:grid lg:grid-cols-[260px_minmax(0,1fr)]">
+      <div className="lg:grid lg:grid-cols-[260px_minmax(0,1fr)]">
         <aside className="border-b border-slate-200 bg-[#F8FBFD] lg:border-b-0 lg:border-r">
           <div className="flex h-full flex-col p-6">
             <div className="rounded-3xl bg-gradient-to-br from-sky-500 to-teal-500 p-[1px]">
@@ -550,6 +690,21 @@ export default function DealsPage() {
                   : "No contractor linked yet"}
               </p>
             </div>
+
+            <Link
+              href="/dashboard/governance"
+              className="mt-8 block rounded-3xl border border-sky-100 bg-sky-50 p-5 shadow-sm transition hover:border-sky-200 hover:bg-sky-100"
+            >
+              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-sky-600">
+                Governance
+              </p>
+              <p className="mt-3 text-lg font-semibold text-slate-900">
+                Open Governance Console
+              </p>
+              <p className="mt-2 text-sm leading-6 text-slate-600">
+                Review passive alerts, route pressure, and executive governance visibility for current operations.
+              </p>
+            </Link>
 
             <div className="mt-auto rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
               <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">
@@ -704,7 +859,7 @@ export default function DealsPage() {
                         },
                         {
                           title: "Output",
-                          subtitle: "Preview generated PDF",
+                          subtitle: "Download generated PDF",
                           state: outputState,
                         },
                       ].map((step, index) => (
@@ -727,14 +882,29 @@ export default function DealsPage() {
 
                     {selectedDeal ? (
                       <div className="mt-6 grid gap-4 md:grid-cols-3">
-                        <button
-                          type="button"
-                          onClick={() => openFilePicker("compliance")}
-                          disabled={isUploadingCompliance}
-                          className="rounded-3xl bg-[#0EA5E9] px-5 py-4 text-sm font-semibold text-white shadow-sm transition hover:bg-sky-500 disabled:cursor-not-allowed disabled:bg-slate-300"
-                        >
-                          {isUploadingCompliance ? "Uploading..." : "Upload Compliance Docs"}
-                        </button>
+                        <div className="grid gap-3">
+                          <select
+                            value={complianceDocumentType}
+                            onChange={(event) => setComplianceDocumentType(event.target.value as SupportedDocumentType)}
+                            disabled={isUploadingCompliance}
+                            className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 shadow-sm"
+                          >
+                            {SUPPORTED_DOCUMENT_TYPES.map((documentType) => (
+                              <option key={documentType} value={documentType}>
+                                {getDocumentTypeLabel(documentType)}
+                              </option>
+                            ))}
+                          </select>
+
+                          <button
+                            type="button"
+                            onClick={() => openFilePicker("compliance")}
+                            disabled={isUploadingCompliance}
+                            className="rounded-3xl bg-[#0EA5E9] px-5 py-4 text-sm font-semibold text-white shadow-sm transition hover:bg-sky-500 disabled:cursor-not-allowed disabled:bg-slate-300"
+                          >
+                            {isUploadingCompliance ? "Uploading..." : "Upload Compliance Docs"}
+                          </button>
+                        </div>
 
                         <button
                           type="button"

@@ -23,5 +23,11 @@ describe("templateRegistry overlay support", () => {
       expect(typeof coords.y).toBe("number");
     }
   });
+
+  test("intelligent templates are registered for SBD1, SBD4, and SBD6", () => {
+    expect(TEMPLATE_REGISTRY.sbd1.intelligentTemplate?.formId).toBe("SBD1");
+    expect(TEMPLATE_REGISTRY.sbd4.intelligentTemplate?.formId).toBe("SBD4");
+    expect(TEMPLATE_REGISTRY.sbd6.intelligentTemplate?.formId).toBe("SBD6.1");
+  });
 });
 
