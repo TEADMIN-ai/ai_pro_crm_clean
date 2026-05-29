@@ -94,6 +94,7 @@ function buildFieldMap(profile: CompanyProfile): Record<string, string> {
     email: safeGet(profile.email),
     phone: safeGet(profile.phone),
     bbbeeLevel: safeGet(profile.bbbeeLevel),
+    bbbeeIssueDate: safeGet(profile.bbbeeIssueDate),
     bbbeeStatus: safeGet(profile.bbbeeStatus),
     country: safeGet(profile.country),
     postalAddress: safeGet(profile.postalAddress),
@@ -274,7 +275,9 @@ export async function fillTenderPack(params: FillTenderPackParams): Promise<Tend
             templateKey,
             templateBytes,
             profile,
-            debug: outputMode === "preview" || process.env.EMPIREPDF_DEBUG === "1",
+            debugBoundingBoxes:
+              process.env.NODE_ENV !== "production" &&
+              (outputMode === "preview" || process.env.EMPIREPDF_DEBUG === "1"),
           });
 
           filledPdfBuffer = Buffer.from(intelligentResult.pdfBytes);

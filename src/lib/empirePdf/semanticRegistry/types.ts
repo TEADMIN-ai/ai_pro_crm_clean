@@ -23,6 +23,7 @@ export type ResolvedSemanticField = {
   source: string;
   sourceField: string;
   confidence: number;
+  intentionallyEmpty?: boolean;
   fallbackUsed: boolean;
   aliasMatched: string;
   semanticAliasUsed: string;

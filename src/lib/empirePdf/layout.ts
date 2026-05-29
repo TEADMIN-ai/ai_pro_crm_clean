@@ -4,8 +4,9 @@ import type {
   BoundingBoxCheckboxLayout,
   BoundingBoxFieldDefinition,
   BoundingBoxTextLayout,
+  OverflowBehavior,
 } from "./boundingBoxes";
-import type { FieldAlignment, IntelligentAnchorMatch, TemplateFieldDefinition } from "./templates";
+import type { FieldAlignment, IntelligentAnchorMatch, TemplateFieldDefinition, TextPadding } from "./templates";
 
 type PlacementBox = {
   x: number;
@@ -16,13 +17,35 @@ type PlacementBox = {
   confidence: number;
 };
 
+type ConstraintBox = {
+  x: number;
+  width: number;
+  height: number;
+  paddingX: number;
+  paddingY: number;
+  alignment: FieldAlignment;
+  maxFontSize: number;
+  minFontSize: number;
+  lineHeight: number;
+  maxLines: number;
+  multiline: boolean;
+  overflowBehavior: OverflowBehavior;
+  baselineMode: "fixed" | "top";
+  baseY: number;
+};
+
 export type FittedTextLayout = PlacementBox & {
   text: string;
+  lines: string[];
   fontSize: number;
   lineHeight: number;
   overflowDetected: boolean;
   clippingRisk: boolean;
   multilineOverflowDetected: boolean;
+  contentX: number;
+  contentY: number;
+  contentWidth: number;
+  contentHeight: number;
 };
 
 export type BoundingTextFitResult = BoundingBoxTextLayout & {
@@ -36,8 +59,20 @@ function lineWidth(font: PDFFont, text: string, size: number): number {
   return font.widthOfTextAtSize(text, size);
 }
 
-function clipLineToWidth(font: PDFFont, text: string, size: number, width: number): string {
-  const normalized = text.trim();
+function normalizeWhitespace(value: string): string {
+  return value.replace(/\s+/g, " ").trim();
+}
+
+function normalizePadding(padding: number | TextPadding | undefined): TextPadding {
+  if (typeof padding === "number") {
+    return { x: padding, y: padding };
+  }
+
+  return padding ?? { x: 0, y: 0 };
+}
+
+function truncateLineToWidth(font: PDFFont, text: string, size: number, width: number): string {
+  const normalized = normalizeWhitespace(text);
   if (!normalized) {
     return "";
   }
@@ -56,53 +91,229 @@ function clipLineToWidth(font: PDFFont, text: string, size: number, width: numbe
   return clipped ? `${clipped}${ellipsis}` : ellipsis;
 }
 
-function splitLongWord(font: PDFFont, word: string, size: number, width: number): string[] {
-  if (lineWidth(font, word, size) <= width) {
-    return [word];
-  }
-
-  const segments: string[] = [];
-  let remaining = word;
-
-  while (remaining.length > 0) {
-    let sliceLength = remaining.length;
-
-    while (sliceLength > 1 && lineWidth(font, remaining.slice(0, sliceLength), size) > width) {
-      sliceLength -= 1;
-    }
-
-    segments.push(remaining.slice(0, sliceLength));
-    remaining = remaining.slice(sliceLength);
-  }
-
-  return segments;
-}
-
-function wrapText(font: PDFFont, text: string, size: number, width: number): string[] {
-  const words = text
-    .split(/\s+/)
-    .filter(Boolean)
-    .flatMap((word) => splitLongWord(font, word, size, width));
-  if (words.length === 0) {
+function wrapTextOnSpaces(font: PDFFont, text: string, size: number, width: number): string[] {
+  const normalized = normalizeWhitespace(text);
+  if (!normalized) {
     return [];
   }
 
+  const words = normalized.split(" ");
   const lines: string[] = [];
-  let current = words[0];
+  let currentLine = "";
 
-  for (const word of words.slice(1)) {
-    const candidate = `${current} ${word}`;
-    if (lineWidth(font, candidate, size) <= width) {
-      current = candidate;
+  for (const word of words) {
+    if (!currentLine) {
+      currentLine = word;
       continue;
     }
 
-    lines.push(current);
-    current = word;
+    const candidate = `${currentLine} ${word}`;
+    if (lineWidth(font, candidate, size) <= width) {
+      currentLine = candidate;
+      continue;
+    }
+
+    lines.push(currentLine);
+    currentLine = word;
   }
 
-  lines.push(current);
+  if (currentLine) {
+    lines.push(currentLine);
+  }
+
   return lines;
+}
+
+function buildCandidateLines(
+  font: PDFFont,
+  value: string,
+  fontSize: number,
+  box: ConstraintBox
+): string[] {
+  if (!box.multiline && box.overflowBehavior !== "wrap") {
+    return [normalizeWhitespace(value)];
+  }
+
+  return wrapTextOnSpaces(font, value, fontSize, getContentWidth(box));
+}
+
+function getContentWidth(box: ConstraintBox): number {
+  return Math.max(box.width - box.paddingX * 2, 0);
+}
+
+function getContentHeight(box: ConstraintBox): number {
+  return Math.max(box.height - box.paddingY * 2, 0);
+}
+
+function computeLineHeight(box: ConstraintBox, fontSize: number): number {
+  return Math.max(box.lineHeight, Number((fontSize + 0.5).toFixed(2)));
+}
+
+function getFontHeightAtSize(font: PDFFont, fontSize: number, options?: { descender?: boolean }): number {
+  const fontWithMetrics = font as PDFFont & {
+    heightAtSize?: (size: number, options?: { descender?: boolean }) => number;
+  };
+
+  if (typeof fontWithMetrics.heightAtSize === "function") {
+    return fontWithMetrics.heightAtSize(fontSize, options);
+  }
+
+  return fontSize * (options?.descender === false ? 0.718 : 0.925);
+}
+
+function resolveBaselineY(
+  font: PDFFont,
+  lines: string[],
+  box: ConstraintBox,
+  fontSize: number,
+  lineHeight: number
+): number {
+  if (box.baselineMode === "fixed") {
+    return box.baseY;
+  }
+
+  const contentBottom = box.baseY + box.paddingY;
+  const contentHeight = getContentHeight(box);
+  const fontHeight = getFontHeightAtSize(font, fontSize);
+  const ascenderHeight = getFontHeightAtSize(font, fontSize, { descender: false });
+  const descenderHeight = Math.max(fontHeight - ascenderHeight, 0);
+  const blockHeight = Math.max((Math.max(lines.length, 1) - 1) * lineHeight + fontHeight, fontHeight);
+  const centeredBlockBottom = contentBottom + Math.max((contentHeight - blockHeight) / 2, 0);
+
+  return Number((centeredBlockBottom + (Math.max(lines.length, 1) - 1) * lineHeight + descenderHeight).toFixed(2));
+}
+
+function measureTextFit(font: PDFFont, lines: string[], fontSize: number, box: ConstraintBox) {
+  const contentWidth = getContentWidth(box);
+  const contentHeight = getContentHeight(box);
+  const lineHeight = computeLineHeight(box, fontSize);
+  const tooWide = lines.some((line) => lineWidth(font, line, fontSize) > contentWidth);
+  const tooTall = lines.length > box.maxLines || lines.length * lineHeight > contentHeight;
+
+  return {
+    lineHeight,
+    tooWide,
+    tooTall,
+    contentWidth,
+    contentHeight,
+  };
+}
+
+function finalizeOverflowLines(font: PDFFont, value: string, fontSize: number, box: ConstraintBox) {
+  const contentWidth = getContentWidth(box);
+  const contentHeight = getContentHeight(box);
+  const lineHeight = computeLineHeight(box, fontSize);
+  const heightLineLimit = Math.max(Math.floor(contentHeight / Math.max(lineHeight, 1)), 1);
+  const maxVisibleLines = Math.max(Math.min(box.maxLines, heightLineLimit), 1);
+  const wrappedLines =
+    box.multiline || box.overflowBehavior === "wrap"
+      ? wrapTextOnSpaces(font, value, fontSize, contentWidth)
+      : [normalizeWhitespace(value)];
+  const visibleLines = (wrappedLines.length > 0 ? wrappedLines : [normalizeWhitespace(value)]).slice(0, maxVisibleLines);
+  const lastIndex = visibleLines.length - 1;
+
+  if (lastIndex >= 0) {
+    visibleLines[lastIndex] = truncateLineToWidth(font, visibleLines[lastIndex] ?? "", fontSize, contentWidth);
+  }
+
+  const tooWide = visibleLines.some((line) => lineWidth(font, line, fontSize) > contentWidth);
+  const multilineOverflowDetected = box.multiline && wrappedLines.length > maxVisibleLines;
+
+  return {
+    lines: visibleLines,
+    lineHeight,
+    overflowDetected: true,
+    clippingRisk: true,
+    multilineOverflowDetected,
+    contentWidth,
+    contentHeight,
+  };
+}
+
+function fitTextWithinConstraintBox(font: PDFFont, value: string, box: ConstraintBox) {
+  const normalized = normalizeWhitespace(value);
+  if (!normalized) {
+    return null;
+  }
+
+  let fontSize = box.maxFontSize;
+
+  while (fontSize >= box.minFontSize) {
+    const lines = buildCandidateLines(font, normalized, fontSize, box);
+    const measured = measureTextFit(font, lines, fontSize, box);
+
+    if (!measured.tooWide && !measured.tooTall) {
+      return {
+        text: lines.join("\n"),
+        lines,
+        fontSize,
+        lineHeight: measured.lineHeight,
+        overflowDetected: false,
+        clippingRisk: false,
+        multilineOverflowDetected: false,
+        contentWidth: measured.contentWidth,
+        contentHeight: measured.contentHeight,
+        contentY: resolveBaselineY(font, lines, box, fontSize, measured.lineHeight),
+      };
+    }
+
+    fontSize = Number((fontSize - 0.5).toFixed(2));
+  }
+
+  const overflowLayout = finalizeOverflowLines(font, normalized, box.minFontSize, box);
+
+  return {
+    text: overflowLayout.lines.join("\n"),
+    lines: overflowLayout.lines,
+    fontSize: box.minFontSize,
+    lineHeight: overflowLayout.lineHeight,
+    overflowDetected: overflowLayout.overflowDetected,
+    clippingRisk: overflowLayout.clippingRisk,
+    multilineOverflowDetected: overflowLayout.multilineOverflowDetected,
+    contentWidth: overflowLayout.contentWidth,
+    contentHeight: overflowLayout.contentHeight,
+    contentY: resolveBaselineY(font, overflowLayout.lines, box, box.minFontSize, overflowLayout.lineHeight),
+  };
+}
+
+function toFallbackConstraintBox(field: TemplateFieldDefinition, placement: PlacementBox): ConstraintBox {
+  const padding = normalizePadding(field.padding);
+
+  return {
+    x: placement.x,
+    width: Math.max(placement.width, 0),
+    height: Math.max(placement.height, 0),
+    paddingX: padding.x,
+    paddingY: padding.y,
+    alignment: field.alignment,
+    maxFontSize: field.maxFontSize ?? 11,
+    minFontSize: field.minFontSize ?? 6,
+    lineHeight: field.lineHeight ?? Math.max((field.maxFontSize ?? 11) + 0.5, 8),
+    maxLines: field.maxLines ?? (field.multiline ? Math.max(Math.floor((placement.height - padding.y * 2) / Math.max(field.lineHeight ?? 10, 1)), 1) : 1),
+    multiline: field.multiline === true,
+    overflowBehavior: field.overflowBehavior ?? (field.multiline ? "wrap" : "scale"),
+    baselineMode: "fixed",
+    baseY: placement.y,
+  };
+}
+
+function toBoundingConstraintBox(box: BoundingBoxFieldDefinition): ConstraintBox {
+  return {
+    x: box.x,
+    width: box.width,
+    height: box.height,
+    paddingX: box.padding,
+    paddingY: box.padding,
+    alignment: box.alignment,
+    maxFontSize: box.maxFontSize,
+    minFontSize: box.minFontSize,
+    lineHeight: box.lineHeight,
+    maxLines: box.maxLines,
+    multiline: box.multiline,
+    overflowBehavior: box.overflowBehavior,
+    baselineMode: "top",
+    baseY: box.y,
+  };
 }
 
 export function resolvePlacementBox(
@@ -174,47 +385,40 @@ export function fitTextToBox(
   field: TemplateFieldDefinition,
   anchor: IntelligentAnchorMatch | null
 ): FittedTextLayout {
-  const box = resolvePlacementBox(field, anchor);
-  const maxFontSize = field.maxFontSize ?? 10;
-  const minFontSize = field.minFontSize ?? 7;
-  let fontSize = maxFontSize;
-  let lines = field.multiline ? wrapText(font, value, fontSize, box.width) : [value];
-  const maxHeight = box.height;
+  const placement = resolvePlacementBox(field, anchor);
+  const constraintBox = toFallbackConstraintBox(field, placement);
+  const fitted = fitTextWithinConstraintBox(font, value, constraintBox);
 
-  while (fontSize > minFontSize) {
-    const lineHeight = field.lineHeight ?? fontSize + 1;
-    const tooWide = lines.some((line) => lineWidth(font, line, fontSize) > box.width);
-    const tooTall = lines.length * lineHeight > maxHeight;
-
-    if (!tooWide && !tooTall) {
-      return {
-        ...box,
-        text: lines.join("\n"),
-        fontSize,
-        lineHeight,
-        overflowDetected: false,
-        clippingRisk: false,
-        multilineOverflowDetected: false,
-      };
-    }
-
-    fontSize -= 0.5;
-    lines = field.multiline ? wrapText(font, value, fontSize, box.width) : [value];
+  if (!fitted) {
+    return {
+      ...placement,
+      text: "",
+      lines: [],
+      fontSize: field.minFontSize ?? 6,
+      lineHeight: field.lineHeight ?? 8,
+      overflowDetected: false,
+      clippingRisk: false,
+      multilineOverflowDetected: false,
+      contentX: placement.x + constraintBox.paddingX,
+      contentY: placement.y,
+      contentWidth: getContentWidth(constraintBox),
+      contentHeight: getContentHeight(constraintBox),
+    };
   }
 
-  const lineHeight = field.lineHeight ?? minFontSize + 1;
-  const clippedLines = field.multiline ? wrapText(font, value, minFontSize, box.width) : [value];
-  const tooWideAtMinSize = clippedLines.some((line) => lineWidth(font, line, minFontSize) > box.width);
-  const tooTallAtMinSize = clippedLines.length * lineHeight > maxHeight;
-
   return {
-    ...box,
-    text: clippedLines.join("\n"),
-    fontSize: minFontSize,
-    lineHeight,
-    overflowDetected: tooWideAtMinSize || tooTallAtMinSize,
-    clippingRisk: tooWideAtMinSize,
-    multilineOverflowDetected: field.multiline === true && tooTallAtMinSize,
+    ...placement,
+    text: fitted.text,
+    lines: fitted.lines,
+    fontSize: fitted.fontSize,
+    lineHeight: fitted.lineHeight,
+    overflowDetected: fitted.overflowDetected,
+    clippingRisk: fitted.clippingRisk,
+    multilineOverflowDetected: fitted.multilineOverflowDetected,
+    contentX: placement.x + constraintBox.paddingX,
+    contentY: fitted.contentY,
+    contentWidth: fitted.contentWidth,
+    contentHeight: fitted.contentHeight,
   };
 }
 
@@ -230,124 +434,60 @@ export function alignX(alignment: FieldAlignment, x: number, width: number, text
   return x;
 }
 
-function boxWidth(box: BoundingBoxFieldDefinition): number {
-  return Math.max(box.xMax - box.xMin, 0);
-}
-
-function boxHeight(box: BoundingBoxFieldDefinition): number {
-  return Math.max(box.yMax - box.yMin, 0);
-}
-
-function buildCandidateLines(
-  font: PDFFont,
-  value: string,
-  fontSize: number,
-  box: BoundingBoxFieldDefinition,
-  allowClip = false
-): string[] {
-  if (box.multiline) {
-    return wrapText(font, value, fontSize, boxWidth(box));
-  }
-
-  return [allowClip ? clipLineToWidth(font, value, fontSize, boxWidth(box)) : value.trim()];
-}
-
 export function fitTextToBoundingBox(
   font: PDFFont,
   value: string,
   box: BoundingBoxFieldDefinition
 ): BoundingTextFitResult | null {
-  const normalized = value.trim();
-  if (!normalized) {
+  if (box.width <= 0 || box.height <= 0) {
     return null;
   }
 
-  const width = boxWidth(box);
-  const height = boxHeight(box);
-
-  if (width <= 0 || height <= 0) {
-    return null;
-  }
-
-  let fontSize = box.maxFontSize;
-
-  while (fontSize >= box.minFontSize) {
-    const lineHeight = Math.max(box.lineSpacing, fontSize + 0.5);
-    const lines = buildCandidateLines(font, normalized, fontSize, box);
-    const tooWide = lines.some((line) => lineWidth(font, line, fontSize) > width);
-    const tooTall = lines.length * lineHeight > height;
-
-    if (!tooWide && !tooTall) {
-      return {
-        fieldId: box.fieldId,
-        page: box.page,
-        x: box.xMin,
-        y: box.yMax - fontSize,
-        width,
-        height,
-        fontSize,
-        lineHeight,
-        text: lines.join("\n"),
-        lineCount: lines.length,
-        overflowDetected: false,
-        clippingRisk: false,
-        multilineOverflowDetected: false,
-      };
-    }
-
-    fontSize = Number((fontSize - 0.5).toFixed(2));
-  }
-
-  const finalFontSize = box.minFontSize;
-  const lineHeight = Math.max(box.lineSpacing, finalFontSize + 0.5);
-  const maxLineCount = Math.max(Math.floor(height / lineHeight), 1);
-  const lines = buildCandidateLines(font, normalized, finalFontSize, box, true)
-    .slice(0, maxLineCount)
-    .map((line, index, allLines) =>
-      index === allLines.length - 1 ? clipLineToWidth(font, line, finalFontSize, width) : line
-    );
-
-  if (lines.length === 0) {
+  const constraintBox = toBoundingConstraintBox(box);
+  const fitted = fitTextWithinConstraintBox(font, value, constraintBox);
+  if (!fitted) {
     return null;
   }
 
   return {
     fieldId: box.fieldId,
     page: box.page,
-    x: box.xMin,
-    y: box.yMax - finalFontSize,
-    width,
-    height,
-    fontSize: finalFontSize,
-    lineHeight,
-    text: lines.join("\n"),
-    lineCount: lines.length,
-    overflowDetected: true,
-    clippingRisk: true,
-    multilineOverflowDetected: box.multiline && maxLineCount < buildCandidateLines(font, normalized, finalFontSize, box).length,
+    x: box.x,
+    y: fitted.contentY,
+    width: box.width,
+    height: box.height,
+    fontSize: fitted.fontSize,
+    lineHeight: fitted.lineHeight,
+    text: fitted.text,
+    lines: fitted.lines,
+    lineCount: fitted.lines.length,
+    overflowDetected: fitted.overflowDetected,
+    clippingRisk: fitted.clippingRisk,
+    multilineOverflowDetected: fitted.multilineOverflowDetected,
+    contentX: box.x + box.padding,
+    contentY: fitted.contentY,
+    contentWidth: fitted.contentWidth,
+    contentHeight: fitted.contentHeight,
   };
 }
 
 export function resolveCheckboxInBoundingBox(
   box: BoundingBoxFieldDefinition
 ): BoundingBoxCheckboxLayout | null {
-  if (!box.isCheckbox) {
-    return null;
-  }
-
-  const width = boxWidth(box);
-  const height = boxHeight(box);
-  if (width <= 0 || height <= 0) {
+  if (!box.isCheckbox || box.width <= 0 || box.height <= 0) {
     return null;
   }
 
   return {
     fieldId: box.fieldId,
     page: box.page,
-    centerX: box.xMin + width / 2,
-    centerY: box.yMin + height / 2,
-    width,
-    height,
-    strokeWidth: Math.max(Math.min(width, height) * 0.12, 0.9),
+    x: box.x,
+    y: box.y,
+    centerX: box.x + box.width / 2,
+    centerY: box.y + box.height / 2,
+    width: box.width,
+    height: box.height,
+    strokeWidth: Math.max(Math.min(box.width, box.height) * 0.12, 0.9),
+    style: box.checkboxStyle,
   };
 }

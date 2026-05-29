@@ -7,6 +7,7 @@ type SourceTag = "contractor" | "document-ai" | "default";
 export type CompanyProfileFieldKey =
   | SbdFieldKey
   | "bbbeeLevel"
+  | "bbbeeIssueDate"
   | "bbbeeStatus"
   | "country"
   | "postalAddress"
@@ -30,6 +31,7 @@ export type CompanyProfile = {
   email: string;
   phone: string;
   bbbeeLevel?: string;
+  bbbeeIssueDate?: string;
   bbbeeStatus?: string;
   country?: string;
   postalAddress?: string;
@@ -55,7 +57,7 @@ function pickFirst(...values: unknown[]): string {
   return "";
 }
 
-type DocumentExtract = Partial<Record<SbdFieldKey, string>>;
+type DocumentExtract = Partial<Record<SbdFieldKey | "bbbeeIssueDate", string>>;
 
 function readDocumentExtract(data: Record<string, unknown>): DocumentExtract {
   const extracted =
@@ -88,6 +90,7 @@ function readDocumentExtract(data: Record<string, unknown>): DocumentExtract {
     contactPerson: pickFirst(extracted.contactPerson, extracted.contactName, extracted.accountHolder),
     email: pickFirst(extracted.email, extracted.contactEmail),
     phone: pickFirst(extracted.phone, extracted.contactPhone),
+    bbbeeIssueDate: pickFirst(extracted.bbbeeIssueDate, extracted.issueDate),
   };
 }
 
@@ -151,6 +154,11 @@ export async function buildCompanyProfile(contractorId: string): Promise<Company
     email: pickFirst(contractorData.email),
     phone: pickFirst(contractorData.phone),
     bbbeeLevel: pickFirst(contractorData.bbbeeLevel, contractorData.bbbeeStatus, contractorData.bbbee),
+    bbbeeIssueDate: pickFirst(
+      contractorData.bbbeeIssueDate,
+      contractorData.bbbee_issue_date,
+      contractorData.issueDate
+    ),
     bbbeeStatus: pickFirst(contractorData.bbbeeStatus, contractorData.bbbeeLevel, contractorData.bbbee),
     country: pickFirst(contractorData.country, contractorData.countryCode, contractorData.nationality),
     postalAddress: pickFirst(contractorData.postalAddress, contractorData.address),
@@ -177,6 +185,11 @@ export async function buildCompanyProfile(contractorId: string): Promise<Company
           sourceAttribution[key] = "document-ai";
         }
       }
+    }
+
+    if (!profile.bbbeeIssueDate && extract.bbbeeIssueDate) {
+      profile.bbbeeIssueDate = extract.bbbeeIssueDate;
+      sourceAttribution.bbbeeIssueDate = "document-ai";
     }
   }
 

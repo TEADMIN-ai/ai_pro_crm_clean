@@ -51,6 +51,10 @@ type StatusState = {
   tone: StatusTone;
 };
 
+type GeneratedTenderPack = {
+  url: string;
+};
+
 const DEFAULT_STATUS: StatusState = {
   label: "Idle",
   detail: "No action started yet.",
@@ -122,20 +126,8 @@ function triggerBlobDownload(blob: Blob, filename: string): void {
   }
 }
 
-function triggerUrlDownload(downloadUrl: string, filename: string): void {
-  const downloadLink = document.createElement("a");
-  downloadLink.href = downloadUrl;
-  downloadLink.download = filename;
-  downloadLink.rel = "noreferrer noopener";
-  downloadLink.target = "_blank";
-  downloadLink.style.display = "none";
-
-  try {
-    document.body.appendChild(downloadLink);
-    downloadLink.click();
-  } finally {
-    downloadLink.remove();
-  }
+function openTenderPackUrl(downloadUrl: string): void {
+  window.open(downloadUrl, "_blank", "noopener,noreferrer");
 }
 
 function normalizeDeals(payload: unknown): Deal[] {
@@ -293,6 +285,7 @@ export default function DealsPage() {
   const [complianceStatus, setComplianceStatus] = useState<StatusState>(DEFAULT_STATUS);
   const [tenderDocsStatus, setTenderDocsStatus] = useState<StatusState>(DEFAULT_STATUS);
   const [packStatus, setPackStatus] = useState<StatusState>(DEFAULT_STATUS);
+  const [generatedTenderPack, setGeneratedTenderPack] = useState<GeneratedTenderPack | null>(null);
   const [complianceDocumentType, setComplianceDocumentType] = useState<SupportedDocumentType>("cipc");
   const complianceInputRef = useRef<HTMLInputElement | null>(null);
   const tenderInputRef = useRef<HTMLInputElement | null>(null);
@@ -554,6 +547,7 @@ export default function DealsPage() {
     }
 
     setIsGeneratingPack(true);
+    setGeneratedTenderPack(null);
     setPackStatus({
       label: "Processing...",
       detail: `Generating tender pack for ${getDealTitle(selectedDeal)}.`,
@@ -585,7 +579,10 @@ export default function DealsPage() {
       const fileName = data.fileName?.trim() || buildTenderPackFilename(selectedDeal.id);
 
       if (downloadUrl) {
-        triggerUrlDownload(downloadUrl, fileName);
+        setGeneratedTenderPack({
+          url: downloadUrl,
+        });
+        openTenderPackUrl(downloadUrl);
       } else if (data.base64) {
         const pdfBlob = createPdfBlobFromBase64(data.base64);
         triggerBlobDownload(pdfBlob, fileName);
@@ -1126,6 +1123,16 @@ export default function DealsPage() {
                     </div>
                     <p className="mt-4 text-base font-semibold">{packStatus.label}</p>
                     <p className="mt-2 text-sm leading-6 opacity-90">{packStatus.detail}</p>
+                    {generatedTenderPack ? (
+                      <a
+                        href={generatedTenderPack.url}
+                        target="_blank"
+                        rel="noreferrer noopener"
+                        className="mt-4 inline-flex rounded-2xl bg-white px-4 py-2 text-sm font-semibold text-slate-900 shadow-sm ring-1 ring-inset ring-slate-200 transition hover:bg-slate-50"
+                      >
+                        View Tender Pack
+                      </a>
+                    ) : null}
                   </div>
                 </aside>
               </section>

@@ -1,5 +1,8 @@
 import type { CompanyProfile } from "@/lib/autofill/buildCompanyProfile";
+import type { ManusContext } from "@/lib/manus/types/manus.types";
 import type { SbdFormKey } from "@/lib/pdfs/templates/sbdSchema";
+
+import type { CheckboxRenderStyle, OverflowBehavior } from "../boundingBoxes";
 
 export type TemplateFieldType = "text" | "checkbox" | "signature" | "date";
 export type FieldCriticality = "critical" | "important" | "optional";
@@ -32,6 +35,7 @@ export type SemanticValueKey =
   | "email"
   | "phone"
   | "bbbeeLevel"
+  | "bbbeeIssueDate"
   | "bbbeeStatus"
   | "foreignSupplierYes"
   | "foreignSupplierNo"
@@ -51,6 +55,11 @@ export type TextBounds = {
   height?: number;
 };
 
+export type TextPadding = {
+  x: number;
+  y: number;
+};
+
 export type FallbackPlacement = {
   pageIndex: number;
   x: number;
@@ -59,7 +68,7 @@ export type FallbackPlacement = {
   height?: number;
 };
 
-export type CheckboxGlyph = "X" | "✓";
+export type CheckboxGlyph = string;
 
 export type TemplateFieldDefinition = {
   fieldId: string;
@@ -73,15 +82,21 @@ export type TemplateFieldDefinition = {
   textBounds: TextBounds;
   multiline?: boolean;
   lineHeight?: number;
+  maxLines?: number;
+  padding?: number | TextPadding;
+  overflowBehavior?: OverflowBehavior;
   maxFontSize?: number;
   minFontSize?: number;
   checkboxGlyph?: CheckboxGlyph;
+  checkboxStyle?: CheckboxRenderStyle;
+  fieldVersion?: string;
   fallback: FallbackPlacement;
 };
 
 export type EmpirePdfTemplateDefinition = {
   templateKey: SbdFormKey;
   formId: TenderFormId;
+  templateVersion?: string;
   pdfRelativePath: string;
   pageMappings: number[];
   fields: TemplateFieldDefinition[];
@@ -100,6 +115,7 @@ export type IntelligentAnchorMatch = {
 export type SemanticProfile = CompanyProfile & {
   today: string;
   bbbeeLevel: string;
+  bbbeeIssueDate: string;
   bbbeeStatus: string;
   foreignSupplier: boolean | null;
   companyType: "PTY_LTD" | "SOLE_PROPRIETOR" | "CONSORTIUM" | "JOINT_VENTURE" | "UNKNOWN";
@@ -134,10 +150,16 @@ export type EngineDebugField = {
   overflowDetected: boolean;
   clippingRisk: boolean;
   multilineOverflowDetected: boolean;
+  validationWarnings?: string[];
   renderDurationMs: number;
   x: number;
   y: number;
+  width?: number;
+  height?: number;
   fontSize: number;
+  lineHeight?: number;
+  templateVersion?: string;
+  fieldVersion?: string;
 };
 
 export type ReviewFlag = {
@@ -151,4 +173,8 @@ export type IntelligentFillResult = {
   reviewFlags: ReviewFlag[];
   averageConfidence: number;
   renderedFieldCount: number;
+};
+
+export type IntelligentFillAuditOptions = {
+  workflowContext?: ManusContext;
 };

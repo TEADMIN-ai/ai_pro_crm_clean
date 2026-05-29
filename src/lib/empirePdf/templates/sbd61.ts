@@ -61,7 +61,7 @@ export const SBD61_TEMPLATE: EmpirePdfTemplateDefinition = {
     {
       fieldId: "date",
       pageIndex: 0,
-      anchorText: "Date",
+      anchorText: "Date signed",
       fieldType: "date",
       semanticKey: "today",
       placement: "right",

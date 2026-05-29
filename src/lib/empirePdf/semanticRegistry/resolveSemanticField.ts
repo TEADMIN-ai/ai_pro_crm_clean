@@ -1,4 +1,4 @@
-import { findMatchingAlias, normalizeSemanticAlias } from "./aliases";
+import { findMatchingAlias, isSemanticAliasMatch } from "./aliases";
 import { SEMANTIC_TENDER_FIELD_REGISTRY } from "./registry";
 import type { ResolveSemanticFieldParams, ResolvedSemanticField, SemanticRegistryFieldDefinition } from "./types";
 
@@ -314,10 +314,11 @@ function computeConfidence(params: {
   value: string;
   sourceConfidence: number;
   field: SemanticRegistryFieldDefinition;
+  intentionallyEmpty?: boolean;
 }): number {
   const aliasWeight = params.aliasMatched ? 0.99 : 0.78;
-  const dataWeight = params.value ? params.sourceConfidence : 0.15;
-  const requiredPenalty = params.field.required && !params.value ? 0.2 : 1;
+  const dataWeight = params.value || params.intentionallyEmpty ? params.sourceConfidence : 0.15;
+  const requiredPenalty = params.field.required && !params.value && !params.intentionallyEmpty ? 0.2 : 1;
   const semanticBoost = params.field.fieldType === "checkbox" ? 0.99 : 0.95;
   const score = (aliasWeight * 0.35 + dataWeight * 0.45 + semanticBoost * 0.2) * requiredPenalty;
 
@@ -344,13 +345,14 @@ export function resolveSemanticField(params: ResolveSemanticFieldParams): Resolv
   }
 
   const aliasMatched = findMatchingAlias(entry.aliases, params.anchorText);
-  const isAliasMatch = normalizeSemanticAlias(aliasMatched) === normalizeSemanticAlias(params.anchorText);
+  const isAliasMatch = isSemanticAliasMatch(aliasMatched, params.anchorText);
   const diagnostics = resolveFieldDiagnostics(params.profile, entry);
   const confidence = computeConfidence({
     aliasMatched: isAliasMatch,
     value: diagnostics.value,
     sourceConfidence: diagnostics.sourceConfidence,
     field: entry,
+    intentionallyEmpty: diagnostics.intentionallyEmpty,
   });
   const reviewFlags: ResolvedSemanticField["reviewFlags"] = [];
 
@@ -388,6 +390,7 @@ export function resolveSemanticField(params: ResolveSemanticFieldParams): Resolv
     source: diagnostics.sourceField,
     sourceField: diagnostics.sourceField,
     confidence,
+    intentionallyEmpty: diagnostics.intentionallyEmpty,
     fallbackUsed: false,
     aliasMatched,
     semanticAliasUsed: aliasMatched,

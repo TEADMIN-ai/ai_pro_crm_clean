@@ -72,15 +72,21 @@ function extractBbbeeLevel(profile: CompanyProfile): string {
   return match ? `Level ${match[1]}` : direct;
 }
 
+function extractBbbeeIssueDate(profile: CompanyProfile): string {
+  return clean(profile.bbbeeIssueDate);
+}
+
 export function buildSemanticProfile(profile: CompanyProfile): SemanticProfile {
   const today = new Date().toLocaleDateString("en-ZA");
   const bbbeeLevel = extractBbbeeLevel(profile);
+  const bbbeeIssueDate = extractBbbeeIssueDate(profile);
   const foreignSupplier = inferForeignSupplier(profile);
 
   return {
     ...profile,
     today,
     bbbeeLevel,
+    bbbeeIssueDate,
     bbbeeStatus: clean(profile.bbbeeStatus || profile.bbbeeLevel),
     foreignSupplier,
     companyType: inferCompanyType(profile),

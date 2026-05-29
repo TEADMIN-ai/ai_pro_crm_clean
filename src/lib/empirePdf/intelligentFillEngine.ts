@@ -6,8 +6,9 @@ import { resolveSemanticField } from "./semanticRegistry";
 import { buildSemanticProfile } from "./semanticContext";
 import { EMPIRE_PDF_TEMPLATE_REGISTRY } from "./templates";
 import { getPdfBinaryType, normalizePdfBinary } from "./utils/normalizePdfBinary";
+import { auditRenderedFieldWarnings, validateRenderedField } from "./validation";
 import type { CompanyProfile } from "@/lib/autofill/buildCompanyProfile";
-import type { EngineDebugField, IntelligentFillResult } from "./templates";
+import type { EngineDebugField, IntelligentFillAuditOptions, IntelligentFillResult } from "./templates";
 import type { SbdFormKey } from "@/lib/pdfs/templates/sbdSchema";
 
 export async function fillTemplateWithIntelligence(params: {
@@ -15,6 +16,8 @@ export async function fillTemplateWithIntelligence(params: {
   templateBytes: Buffer | Uint8Array | ArrayBuffer;
   profile: CompanyProfile;
   debug?: boolean;
+  debugBoundingBoxes?: boolean;
+  audit?: IntelligentFillAuditOptions;
 }): Promise<{ pdfBytes: Uint8Array; result: IntelligentFillResult }> {
   const template = EMPIRE_PDF_TEMPLATE_REGISTRY[params.templateKey];
   if (!template) {
@@ -38,6 +41,9 @@ export async function fillTemplateWithIntelligence(params: {
   const warnings: string[] = [];
   const debugFields: EngineDebugField[] = [];
   const reviewFlags: IntelligentFillResult["reviewFlags"] = [];
+  const seenFieldKeys = new Set<string>();
+  const debugBoundingBoxes =
+    process.env.NODE_ENV !== "production" && (params.debugBoundingBoxes === true || params.debug === true);
   let anchorResolver: Awaited<ReturnType<typeof createAnchorResolver>> | null = null;
 
   try {
@@ -103,14 +109,35 @@ export async function fillTemplateWithIntelligence(params: {
       profile: semanticProfile,
       field,
       anchor,
-      debug: params.debug === true,
+      debug: debugBoundingBoxes,
     });
 
-    if (!anchor) {
-      warnings.push(`Anchor fallback used for ${template.formId}.${field.fieldId}`);
-    }
-
     if (debugField) {
+      if (debugField.fallbackUsed) {
+        warnings.push(`Anchor fallback used for ${template.formId}.${field.fieldId}`);
+      }
+
+      const pages =
+        typeof (pdfDocument as { getPages?: unknown }).getPages === "function"
+          ? (pdfDocument as { getPages: () => Array<{ getSize: () => { width: number; height: number } }> }).getPages()
+          : [];
+      const validationWarnings = validateRenderedField({
+        debugField,
+        page: pages[debugField.pageIndex] ?? null,
+        seenFieldKeys,
+      });
+      debugField.validationWarnings = validationWarnings;
+      if (validationWarnings.length > 0) {
+        warnings.push(...validationWarnings);
+        await auditRenderedFieldWarnings({
+          templateKey: params.templateKey,
+          formId: template.formId,
+          debugField,
+          warnings: validationWarnings,
+          audit: params.audit,
+        });
+      }
+
       console.info("[EMPIREPDF_INTELLIGENT_FILL]", {
         stage: "field_resolution_completed",
         templateKey: params.templateKey,
@@ -130,6 +157,9 @@ export async function fillTemplateWithIntelligence(params: {
         clippingRisk: debugField.clippingRisk,
         resolutionStrategy: debugField.resolutionStrategy,
         renderSuccess: debugField.renderSuccess,
+        validationWarnings: debugField.validationWarnings,
+        templateVersion: debugField.templateVersion ?? template.templateVersion ?? null,
+        fieldVersion: debugField.fieldVersion ?? null,
       });
       debugFields.push(debugField);
     }

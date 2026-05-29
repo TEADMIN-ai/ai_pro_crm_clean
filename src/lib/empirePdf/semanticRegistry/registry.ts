@@ -117,6 +117,15 @@ export const SEMANTIC_TENDER_FIELD_REGISTRY: Record<string, SemanticRegistryForm
         placementPreference: "below_anchor",
       },
       {
+        fieldId: "bbbee_issue_date",
+        aliases: ["B-BBEE ISSUE DATE", "B-BBEE CERTIFICATE ISSUE DATE", "DATE OF ISSUE", "ISSUE DATE"],
+        sourcePath: "contractor.bbbeeIssueDate",
+        semanticKey: "bbbeeIssueDate",
+        fieldType: "date",
+        required: false,
+        placementPreference: "right_of_anchor",
+      },
+      {
         fieldId: "signature_name",
         aliases: ["SIGNATURE OF BIDDER", "SIGNATURE", "AUTHORISED SIGNATORY"],
         sourcePath: "semantic.signatureName",
@@ -127,7 +136,7 @@ export const SEMANTIC_TENDER_FIELD_REGISTRY: Record<string, SemanticRegistryForm
       },
       {
         fieldId: "date",
-        aliases: ["DATE", "DATE SIGNED"],
+        aliases: ["DATE SIGNED", "SIGNATURE DATE", "FORM DATE", "DATE"],
         sourcePath: "semantic.today",
         semanticKey: "today",
         fieldType: "date",
@@ -198,7 +207,7 @@ export const SEMANTIC_TENDER_FIELD_REGISTRY: Record<string, SemanticRegistryForm
       },
       {
         fieldId: "date",
-        aliases: ["DATE", "DATE SIGNED"],
+        aliases: ["DATE SIGNED", "SIGNATURE DATE", "FORM DATE", "DATE"],
         sourcePath: "semantic.today",
         semanticKey: "today",
         fieldType: "date",
@@ -238,6 +247,15 @@ export const SEMANTIC_TENDER_FIELD_REGISTRY: Record<string, SemanticRegistryForm
         placementPreference: "right_of_anchor",
       },
       {
+        fieldId: "bbbee_issue_date",
+        aliases: ["B-BBEE ISSUE DATE", "B-BBEE CERTIFICATE ISSUE DATE", "DATE OF ISSUE", "ISSUE DATE"],
+        sourcePath: "contractor.bbbeeIssueDate",
+        semanticKey: "bbbeeIssueDate",
+        fieldType: "date",
+        required: false,
+        placementPreference: "right_of_anchor",
+      },
+      {
         fieldId: "signature_name",
         aliases: ["SIGNATURE", "SIGNATURE OF BIDDER"],
         sourcePath: "semantic.signatureName",
@@ -248,7 +266,7 @@ export const SEMANTIC_TENDER_FIELD_REGISTRY: Record<string, SemanticRegistryForm
       },
       {
         fieldId: "date",
-        aliases: ["DATE", "DATE SIGNED"],
+        aliases: ["DATE SIGNED", "SIGNATURE DATE", "FORM DATE", "DATE"],
         sourcePath: "semantic.today",
         semanticKey: "today",
         fieldType: "date",

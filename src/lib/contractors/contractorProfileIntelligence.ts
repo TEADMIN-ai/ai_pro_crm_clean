@@ -84,6 +84,7 @@ const FIELD_CONFIGS: ContractorFieldConfig[] = [
   { key: "csdNumber", label: "CSD number", category: "compliance", weight: 10, priority: "recommended" },
   { key: "cidb", label: "CIDB number", category: "compliance", weight: 4, priority: "optional" },
   { key: "bbbeeLevel", label: "B-BBEE level", category: "compliance", weight: 4, priority: "optional" },
+  { key: "bbbeeIssueDate", label: "B-BBEE issue date", category: "compliance", weight: 2, priority: "optional" },
   { key: "contactPerson", label: "Contact person", category: "contact", weight: 10, priority: "critical" },
   { key: "email", label: "Email", category: "contact", weight: 10, priority: "recommended" },
   { key: "phone", label: "Phone", category: "contact", weight: 8, priority: "recommended" },

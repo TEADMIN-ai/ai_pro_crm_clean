@@ -19,7 +19,123 @@ type AnchorTextRecord = {
 };
 
 function normalizeText(value: string): string {
-  return value.replace(/\s+/g, " ").trim().toLowerCase();
+  return value
+    .normalize("NFKD")
+    .replace(/[^\w\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+}
+
+function groupByLine(records: AnchorTextRecord[]): AnchorTextRecord[][] {
+  const sortedRecords = [...records].sort((left, right) => {
+    if (left.pageIndex !== right.pageIndex) {
+      return left.pageIndex - right.pageIndex;
+    }
+
+    const yDelta = Math.abs(left.y - right.y);
+    if (yDelta > 2.5) {
+      return right.y - left.y;
+    }
+
+    return left.x - right.x;
+  });
+  const lines: AnchorTextRecord[][] = [];
+
+  for (const record of sortedRecords) {
+    const lastLine = lines.at(-1);
+    const lastRecord = lastLine?.at(-1);
+
+    if (
+      lastLine &&
+      lastRecord &&
+      lastRecord.pageIndex === record.pageIndex &&
+      Math.abs(lastRecord.y - record.y) <= 2.5
+    ) {
+      lastLine.push(record);
+      continue;
+    }
+
+    lines.push([record]);
+  }
+
+  return lines;
+}
+
+function buildLineCandidates(records: AnchorTextRecord[]): AnchorTextRecord[] {
+  const candidates: AnchorTextRecord[] = [...records];
+
+  for (const line of groupByLine(records)) {
+    const sortedLine = [...line].sort((left, right) => left.x - right.x);
+    const maxWindow = Math.min(sortedLine.length, 8);
+
+    for (let start = 0; start < sortedLine.length; start += 1) {
+      for (let length = 2; length <= maxWindow && start + length <= sortedLine.length; length += 1) {
+        const slice = sortedLine.slice(start, start + length);
+        const text = slice.map((entry) => entry.text.trim()).filter(Boolean).join(" ").replace(/\s+/g, " ").trim();
+
+        if (!text) {
+          continue;
+        }
+
+        const first = slice[0];
+        const last = slice[slice.length - 1];
+        candidates.push({
+          pageIndex: first.pageIndex,
+          text,
+          x: first.x,
+          y: Math.min(...slice.map((entry) => entry.y)),
+          width: Math.max(last.x + last.width - first.x, 0),
+          height: Math.max(...slice.map((entry) => entry.height)),
+        });
+      }
+    }
+  }
+
+  return candidates;
+}
+
+function computeAnchorMatchConfidence(anchorText: string, candidateText: string): number {
+  const normalizedAnchor = normalizeText(anchorText);
+  const normalizedCandidate = normalizeText(candidateText);
+
+  if (!normalizedAnchor || !normalizedCandidate) {
+    return 0;
+  }
+
+  if (normalizedCandidate === normalizedAnchor) {
+    return 0.99;
+  }
+
+  const anchorTokens = normalizedAnchor.split(" ").filter(Boolean);
+  const candidateTokens = normalizedCandidate.split(" ").filter(Boolean);
+
+  if (
+    anchorTokens.length === 1 &&
+    anchorTokens[0] === "date" &&
+    candidateTokens.length > 1 &&
+    !candidateTokens.some((token) => ["signed", "signature", "form"].includes(token))
+  ) {
+    return 0;
+  }
+
+  const candidateTokenSet = new Set(candidateTokens);
+  const sharedTokenCount = anchorTokens.reduce(
+    (count, token) => count + (candidateTokenSet.has(token) ? 1 : 0),
+    0
+  );
+
+  if (sharedTokenCount === 0) {
+    return 0;
+  }
+
+  const coverage = sharedTokenCount / anchorTokens.length;
+  const precision = sharedTokenCount / candidateTokens.length;
+  const containsBoost =
+    normalizedCandidate.includes(normalizedAnchor) || normalizedAnchor.includes(normalizedCandidate) ? 0.08 : 0;
+  const score = coverage * 0.72 + precision * 0.2 + containsBoost;
+
+  return Number(Math.max(0, Math.min(0.97, score)).toFixed(2));
 }
 
 async function extractAnchorTextRecords(pdfBytes: Buffer | Uint8Array | ArrayBuffer): Promise<AnchorTextRecord[]> {
@@ -109,7 +225,7 @@ function findAnchorInRecords(
   pageIndex: number
 ): IntelligentAnchorMatch | null {
   const normalizedAnchor = normalizeText(anchorText);
-  const pageRecords = records.filter((record) => record.pageIndex === pageIndex);
+  const pageRecords = buildLineCandidates(records.filter((record) => record.pageIndex === pageIndex));
 
   let bestMatch: IntelligentAnchorMatch | null = null;
 
@@ -120,15 +236,16 @@ function findAnchorInRecords(
       continue;
     }
 
-    const exact = normalizedRecord === normalizedAnchor;
-    const contains = normalizedRecord.includes(normalizedAnchor) || normalizedAnchor.includes(normalizedRecord);
-
-    if (!exact && !contains) {
+    const confidence = computeAnchorMatchConfidence(normalizedAnchor, normalizedRecord);
+    if (confidence < 0.6) {
       continue;
     }
 
-    const confidence = exact ? 0.98 : 0.82;
-    if (!bestMatch || confidence > bestMatch.confidence) {
+    if (
+      !bestMatch ||
+      confidence > bestMatch.confidence ||
+      (confidence === bestMatch.confidence && normalizedRecord.length > normalizeText(bestMatch.sourceText).length)
+    ) {
       bestMatch = {
         pageIndex: record.pageIndex,
         x: record.x,

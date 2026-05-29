@@ -2,9 +2,9 @@ import { StandardFonts, rgb, type PDFDocument, type PDFPage } from "pdf-lib";
 
 import { getBoundingBoxField } from "./boundingBoxes";
 import {
+  alignX,
   fitTextToBoundingBox,
   fitTextToBox,
-  alignX,
   resolveCheckboxInBoundingBox,
   resolvePlacementBox,
 } from "./layout";
@@ -27,12 +27,13 @@ function drawBoundingBoxDebug(
   font: Awaited<ReturnType<PDFDocument["embedFont"]>>,
   params: {
     fieldId: string;
+    label: string;
     xMin: number;
     xMax: number;
     yMin: number;
     yMax: number;
-    confidence: number;
     anchor: IntelligentAnchorMatch | null;
+    overflowDetected?: boolean;
   }
 ) {
   page.drawRectangle({
@@ -44,13 +45,23 @@ function drawBoundingBoxDebug(
     borderWidth: 0.6,
   });
 
-  page.drawText(`[BOUNDING_BOX] ${params.fieldId} ${params.confidence.toFixed(2)}`, {
+  page.drawText(`${params.label} ${params.fieldId}`, {
     x: params.xMin,
-    y: params.yMax + 2,
+    y: params.yMax + 4,
     size: 5.5,
     font,
     color: rgb(0.9, 0, 0),
   });
+
+  if (params.overflowDetected) {
+    page.drawText("overflow", {
+      x: params.xMin,
+      y: params.yMin - 8,
+      size: 5,
+      font,
+      color: rgb(0.85, 0.33, 0.1),
+    });
+  }
 
   if (params.anchor) {
     page.drawRectangle({
@@ -61,7 +72,116 @@ function drawBoundingBoxDebug(
       borderColor: rgb(0, 0.35, 1),
       borderWidth: 0.5,
     });
+
+    page.drawText(
+      `anchor ${params.anchor.x.toFixed(1)},${params.anchor.y.toFixed(1)} p${params.anchor.pageIndex + 1}`,
+      {
+        x: params.anchor.x,
+        y: params.anchor.y + params.anchor.height + 3,
+        size: 4.8,
+        font,
+        color: rgb(0, 0.2, 0.85),
+      }
+    );
   }
+}
+
+function resolveCheckboxStyle(field: TemplateFieldDefinition, glyph: string | undefined) {
+  if (field.checkboxStyle) {
+    return field.checkboxStyle;
+  }
+
+  if (glyph === "âœ“" || glyph === "✓") {
+    return "tick";
+  }
+
+  return "x";
+}
+
+function drawCheckboxMark(
+  page: PDFPage,
+  params: {
+    centerX: number;
+    centerY: number;
+    width: number;
+    height: number;
+    strokeWidth: number;
+    style: "tick" | "x" | "filled_square";
+  }
+) {
+  const size = Math.min(params.width, params.height);
+
+  if (params.style === "filled_square") {
+    const side = size * 0.62;
+    page.drawRectangle({
+      x: params.centerX - side / 2,
+      y: params.centerY - side / 2,
+      width: side,
+      height: side,
+      color: rgb(0, 0, 0),
+    });
+    return;
+  }
+
+  if (params.style === "tick") {
+    page.drawLine({
+      start: { x: params.centerX - size * 0.28, y: params.centerY - size * 0.02 },
+      end: { x: params.centerX - size * 0.08, y: params.centerY - size * 0.24 },
+      thickness: params.strokeWidth,
+      color: rgb(0, 0, 0),
+    });
+    page.drawLine({
+      start: { x: params.centerX - size * 0.08, y: params.centerY - size * 0.24 },
+      end: { x: params.centerX + size * 0.30, y: params.centerY + size * 0.24 },
+      thickness: params.strokeWidth,
+      color: rgb(0, 0, 0),
+    });
+    return;
+  }
+
+  page.drawLine({
+    start: { x: params.centerX - size * 0.28, y: params.centerY - size * 0.28 },
+    end: { x: params.centerX + size * 0.28, y: params.centerY + size * 0.28 },
+    thickness: params.strokeWidth,
+    color: rgb(0, 0, 0),
+  });
+  page.drawLine({
+    start: { x: params.centerX - size * 0.28, y: params.centerY + size * 0.28 },
+    end: { x: params.centerX + size * 0.28, y: params.centerY - size * 0.28 },
+    thickness: params.strokeWidth,
+    color: rgb(0, 0, 0),
+  });
+}
+
+function drawFittedLines(
+  page: PDFPage,
+  font: Awaited<ReturnType<PDFDocument["embedFont"]>>,
+  params: {
+    lines: string[];
+    fontSize: number;
+    lineHeight: number;
+    contentX: number;
+    contentY: number;
+    contentWidth: number;
+    alignment: TemplateFieldDefinition["alignment"];
+  }
+) {
+  params.lines.forEach((line, index) => {
+    const textX = alignX(
+      params.alignment,
+      params.contentX,
+      params.contentWidth,
+      font.widthOfTextAtSize(line, params.fontSize)
+    );
+
+    page.drawText(line, {
+      x: textX,
+      y: params.contentY - index * params.lineHeight,
+      size: params.fontSize,
+      font,
+      color: rgb(0, 0, 0),
+    });
+  });
 }
 
 export async function renderTemplateField(params: {
@@ -75,6 +195,7 @@ export async function renderTemplateField(params: {
   const { pdfDocument, profile, field, anchor, debug } = params;
   const renderStartedAt = Date.now();
   const page = resolvePage(pdfDocument, field.pageIndex);
+
   if (!page) {
     return null;
   }
@@ -118,10 +239,16 @@ export async function renderTemplateField(params: {
       overflowDetected: false,
       clippingRisk: false,
       multilineOverflowDetected: false,
+      validationWarnings: [],
       renderDurationMs: Date.now() - renderStartedAt,
       x: 0,
       y: 0,
-      fontSize: field.maxFontSize ?? 10,
+      width: field.fallback.width,
+      height: field.fallback.height ?? field.textBounds.height ?? 14,
+      fontSize: field.maxFontSize ?? 11,
+      lineHeight: field.lineHeight,
+      templateVersion: params.template.templateVersion,
+      fieldVersion: field.fieldVersion,
       ...overrides,
     };
   }
@@ -134,11 +261,11 @@ export async function renderTemplateField(params: {
         if (debug) {
           drawBoundingBoxDebug(page, font, {
             fieldId: field.fieldId,
-            xMin: boundedField.xMin,
-            xMax: boundedField.xMax,
-            yMin: boundedField.yMin,
-            yMax: boundedField.yMax,
-            confidence: resolved.confidence,
+            label: `[BOX p${boundedField?.pageNumber ?? field.pageIndex + 1}]`,
+            xMin: boundedField?.xMin ?? field.fallback.x,
+            xMax: boundedField?.xMax ?? field.fallback.x + field.fallback.width,
+            yMin: boundedField?.yMin ?? field.fallback.y,
+            yMax: boundedField?.yMax ?? field.fallback.y + (field.fallback.height ?? 10),
             anchor,
           });
         }
@@ -148,66 +275,58 @@ export async function renderTemplateField(params: {
           fallbackUsed: false,
           anchorUsed: Boolean(anchor),
           confidence: resolved.confidence,
-          x: boundedField.xMin,
-          y: boundedField.yMin,
+          x: boundedField?.x ?? field.fallback.x,
+          y: boundedField?.y ?? field.fallback.y,
+          width: boundedField?.width ?? field.fallback.width,
+          height: boundedField?.height ?? (field.fallback.height ?? 10),
         });
       }
 
-      const horizontalInset = Math.max(checkbox.width * 0.18, 1.4);
-      const verticalInset = Math.max(checkbox.height * 0.18, 1.4);
-
-      page.drawLine({
-        start: {
-          x: checkbox.centerX - checkbox.width / 2 + horizontalInset,
-          y: checkbox.centerY - checkbox.height / 2 + verticalInset,
-        },
-        end: {
-          x: checkbox.centerX + checkbox.width / 2 - horizontalInset,
-          y: checkbox.centerY + checkbox.height / 2 - verticalInset,
-        },
-        thickness: checkbox.strokeWidth,
-        color: rgb(0, 0, 0),
-      });
-      page.drawLine({
-        start: {
-          x: checkbox.centerX - checkbox.width / 2 + horizontalInset,
-          y: checkbox.centerY + checkbox.height / 2 - verticalInset,
-        },
-        end: {
-          x: checkbox.centerX + checkbox.width / 2 - horizontalInset,
-          y: checkbox.centerY - checkbox.height / 2 + verticalInset,
-        },
-        thickness: checkbox.strokeWidth,
-        color: rgb(0, 0, 0),
-      });
+      drawCheckboxMark(page, checkbox);
 
       if (debug) {
         drawBoundingBoxDebug(page, font, {
           fieldId: field.fieldId,
+          label: `[BOX p${boundedField.pageNumber}]`,
           xMin: boundedField.xMin,
           xMax: boundedField.xMax,
           yMin: boundedField.yMin,
           yMax: boundedField.yMax,
-          confidence: resolved.confidence,
           anchor,
         });
       }
 
       return buildDebugField("checkbox_bounding_box", {
-        value: "X",
+        value: checkbox.style,
         rendered: true,
         renderSuccess: true,
         usedFallback: false,
         fallbackUsed: false,
         anchorUsed: Boolean(anchor),
         confidence: resolved.confidence,
-        x: checkbox.centerX,
-        y: checkbox.centerY,
+        x: checkbox.x,
+        y: checkbox.y,
+        width: checkbox.width,
+        height: checkbox.height,
         fontSize: boundedField.maxFontSize,
+        lineHeight: boundedField.lineHeight,
+        fieldVersion: boundedField.fieldVersion,
+        templateVersion: boundedField.templateVersion,
       });
     }
 
     const box = resolvePlacementBox(field, anchor);
+    const checkboxStyle = resolveCheckboxStyle(field, field.checkboxGlyph);
+    const checkboxWidth = Math.max(box.width, 10);
+    const checkboxHeight = Math.max(box.height, 10);
+    const checkbox = {
+      centerX: box.x + checkboxWidth / 2,
+      centerY: box.y + checkboxHeight / 2,
+      width: checkboxWidth,
+      height: checkboxHeight,
+      strokeWidth: Math.max(Math.min(checkboxWidth, checkboxHeight) * 0.12, 0.9),
+      style: checkboxStyle,
+    } as const;
     const confidence = Math.min(box.confidence, resolved.confidence);
 
     if (!value) {
@@ -218,20 +337,27 @@ export async function renderTemplateField(params: {
         confidence,
         x: box.x,
         y: box.y,
+        width: checkboxWidth,
+        height: checkboxHeight,
       });
     }
 
-    const mark = field.checkboxGlyph ?? "X";
-    page.drawText(mark, {
-      x: box.x,
-      y: box.y,
-      size: field.maxFontSize ?? 10,
-      font,
-      color: rgb(0, 0, 0),
-    });
+    drawCheckboxMark(page, checkbox);
+
+    if (debug) {
+      drawBoundingBoxDebug(page, font, {
+        fieldId: field.fieldId,
+        label: `[PLACE p${field.pageIndex + 1}]`,
+        xMin: box.x,
+        xMax: box.x + checkboxWidth,
+        yMin: box.y,
+        yMax: box.y + checkboxHeight,
+        anchor,
+      });
+    }
 
     return buildDebugField(box.usedFallback ? "checkbox_fallback" : "checkbox_anchor", {
-      value: mark,
+      value: checkboxStyle,
       rendered: true,
       renderSuccess: true,
       usedFallback: box.usedFallback,
@@ -240,7 +366,10 @@ export async function renderTemplateField(params: {
       confidence,
       x: box.x,
       y: box.y,
+      width: checkboxWidth,
+      height: checkboxHeight,
       fontSize: field.maxFontSize ?? 10,
+      lineHeight: field.lineHeight,
     });
   }
 
@@ -252,33 +381,26 @@ export async function renderTemplateField(params: {
     const fitted = fitTextToBoundingBox(font, value, boundedField);
 
     if (fitted) {
-      const firstLine = fitted.text.split("\n")[0] ?? "";
-      const textX = alignX(
-        boundedField.alignment,
-        fitted.x,
-        fitted.width,
-        font.widthOfTextAtSize(firstLine, fitted.fontSize)
-      );
-
-      page.drawText(fitted.text, {
-        x: textX,
-        y: fitted.y,
-        size: fitted.fontSize,
+      drawFittedLines(page, font, {
+        lines: fitted.lines,
+        fontSize: fitted.fontSize,
         lineHeight: fitted.lineHeight,
-        maxWidth: fitted.width,
-        font,
-        color: rgb(0, 0, 0),
+        contentX: fitted.contentX,
+        contentY: fitted.contentY,
+        contentWidth: fitted.contentWidth,
+        alignment: boundedField.alignment,
       });
 
       if (debug) {
         drawBoundingBoxDebug(page, font, {
           fieldId: field.fieldId,
+          label: `[BOX ${boundedField.templateVersion} p${boundedField.pageNumber}]`,
           xMin: boundedField.xMin,
           xMax: boundedField.xMax,
           yMin: boundedField.yMin,
           yMax: boundedField.yMax,
-          confidence: resolved.confidence,
           anchor,
+          overflowDetected: fitted.overflowDetected,
         });
       }
 
@@ -292,35 +414,40 @@ export async function renderTemplateField(params: {
         overflowDetected: fitted.overflowDetected,
         clippingRisk: fitted.clippingRisk,
         multilineOverflowDetected: fitted.multilineOverflowDetected,
-        x: textX,
-        y: fitted.y,
+        x: fitted.contentX,
+        y: fitted.contentY,
+        width: fitted.contentWidth,
+        height: fitted.contentHeight,
         fontSize: fitted.fontSize,
+        lineHeight: fitted.lineHeight,
+        fieldVersion: boundedField.fieldVersion,
+        templateVersion: boundedField.templateVersion,
       });
     }
   }
 
   const fitted = fitTextToBox(font, value, field, anchor);
-  const firstLine = fitted.text.split("\n")[0] ?? "";
-  const textX = alignX(field.alignment, fitted.x, fitted.width, font.widthOfTextAtSize(firstLine, fitted.fontSize));
 
-  page.drawText(fitted.text, {
-    x: textX,
-    y: fitted.y,
-    size: fitted.fontSize,
+  drawFittedLines(page, font, {
+    lines: fitted.lines,
+    fontSize: fitted.fontSize,
     lineHeight: fitted.lineHeight,
-    maxWidth: fitted.width,
-    font,
-    color: rgb(0, 0, 0),
+    contentX: fitted.contentX,
+    contentY: fitted.contentY,
+    contentWidth: fitted.contentWidth,
+    alignment: field.alignment,
   });
 
   if (debug) {
-    page.drawRectangle({
-      x: fitted.x,
-      y: fitted.y - 2,
-      width: fitted.width,
-      height: fitted.height,
-      borderColor: rgb(1, 0, 0),
-      borderWidth: 0.5,
+    drawBoundingBoxDebug(page, font, {
+      fieldId: field.fieldId,
+      label: `[PLACE p${field.pageIndex + 1}]`,
+      xMin: fitted.x,
+      xMax: fitted.x + fitted.width,
+      yMin: fitted.y,
+      yMax: fitted.y + fitted.height,
+      anchor,
+      overflowDetected: fitted.overflowDetected,
     });
   }
 
@@ -334,8 +461,11 @@ export async function renderTemplateField(params: {
     overflowDetected: fitted.overflowDetected,
     clippingRisk: fitted.clippingRisk,
     multilineOverflowDetected: fitted.multilineOverflowDetected,
-    x: textX,
-    y: fitted.y,
+    x: fitted.contentX,
+    y: fitted.contentY,
+    width: fitted.contentWidth,
+    height: fitted.contentHeight,
     fontSize: fitted.fontSize,
+    lineHeight: fitted.lineHeight,
   });
 }

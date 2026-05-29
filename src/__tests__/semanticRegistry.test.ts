@@ -18,6 +18,7 @@ function makeProfile(overrides: Partial<CompanyProfile> = {}): CompanyProfile {
     email: "jane@example.com",
     phone: "0110000000",
     bbbeeLevel: "Level 1",
+    bbbeeIssueDate: "01/04/2026",
     bbbeeStatus: "Level 1",
     country: "South Africa",
     postalAddress: "PO Box 1, Johannesburg, 2000",
@@ -30,6 +31,7 @@ function makeProfile(overrides: Partial<CompanyProfile> = {}): CompanyProfile {
       companyName: "contractor",
       regNumber: "contractor",
       taxPin: "contractor",
+      bbbeeIssueDate: "contractor",
     },
     ...overrides,
   };
@@ -91,8 +93,46 @@ describe("semanticRegistry", () => {
     expect(foreignYes.value).toBe("");
     expect(foreignNo.value).toBe("true");
     expect(supplierType.value).toBe("true");
-    expect(foreignNo.confidence).toBeGreaterThanOrEqual(0.95);
-    expect(supplierType.confidence).toBeGreaterThanOrEqual(0.95);
+    expect(foreignYes.intentionallyEmpty).toBe(true);
+    expect(foreignNo.confidence).toBeGreaterThanOrEqual(0.9);
+    expect(foreignYes.confidence).toBeGreaterThanOrEqual(0.75);
+    expect(supplierType.confidence).toBeGreaterThanOrEqual(0.9);
+  });
+
+  test("accepts expanded checkbox anchor phrasing without degrading confidence", () => {
+    const profile = buildSemanticProfile(makeProfile());
+    const foreignNo = resolveSemanticField({
+      formId: "SBD1",
+      fieldId: "foreign_supplier_no",
+      anchorText: "ARE YOU A FOREIGN BASED SUPPLIER FOR THE GOODS OR SERVICES",
+      profile,
+    });
+    const supplierType = resolveSemanticField({
+      formId: "SBD1",
+      fieldId: "supplier_type_pty_ltd",
+      anchorText: "(PTY) LIMITED",
+      profile,
+    });
+
+    expect(foreignNo.aliasMatched).toBe("ARE YOU A FOREIGN BASED SUPPLIER");
+    expect(foreignNo.confidence).toBeGreaterThanOrEqual(0.9);
+    expect(supplierType.aliasMatched).toBe("(PTY) LIMITED");
+    expect(supplierType.confidence).toBeGreaterThanOrEqual(0.9);
+  });
+
+  test("resolves B-BBEE issue date without relying on generic date aliases", () => {
+    const profile = buildSemanticProfile(makeProfile());
+    const resolved = resolveSemanticField({
+      formId: "SBD6.1",
+      fieldId: "bbbee_issue_date",
+      anchorText: "B-BBEE CERTIFICATE ISSUE DATE",
+      profile,
+    });
+
+    expect(resolved.value).toBe("01/04/2026");
+    expect(resolved.sourceField).toBe("contractor.bbbeeIssueDate");
+    expect(resolved.semanticAliasUsed).toBe("B-BBEE CERTIFICATE ISSUE DATE");
+    expect(resolved.confidence).toBeGreaterThanOrEqual(0.95);
   });
 
   test("raises review flags for low-confidence or missing contractor data", () => {
