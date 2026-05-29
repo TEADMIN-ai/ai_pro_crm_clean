@@ -2,7 +2,6 @@
 
 import type { Deal } from "@/types/deal";
 import {
-  ResponsiveContainer,
   BarChart,
   Bar,
   XAxis,
@@ -10,6 +9,7 @@ import {
   Tooltip,
   CartesianGrid,
 } from "recharts";
+import MeasuredResponsiveContainer from "@/components/charts/MeasuredResponsiveContainer";
 import { empireColors } from "@/theme/empireTheme";
 
 type Props = {
@@ -35,8 +35,8 @@ export default function PipelineChart({ deals }: Props) {
   }
 
   return (
-    <div className="relative mx-auto flex h-[260px] w-full max-w-[420px] items-center justify-center overflow-hidden">
-      <ResponsiveContainer width="100%" height="100%">
+    <div className="relative mx-auto flex h-[260px] min-h-[260px] min-w-0 w-full max-w-[420px] items-center justify-center overflow-hidden">
+      <MeasuredResponsiveContainer minHeight={260}>
         <BarChart data={data}>
           <CartesianGrid stroke="rgba(30, 41, 59, 0.8)" strokeDasharray="3 3" />
           <XAxis dataKey="stage" stroke={empireColors.textSecondary} />
@@ -50,7 +50,7 @@ export default function PipelineChart({ deals }: Props) {
           />
           <Bar dataKey="count" fill={empireColors.primary} radius={[5, 5, 0, 0]} />
         </BarChart>
-      </ResponsiveContainer>
+      </MeasuredResponsiveContainer>
     </div>
   );
 }

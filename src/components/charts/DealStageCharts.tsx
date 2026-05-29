@@ -1,7 +1,8 @@
 "use client";
 
-import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
+import { PieChart, Pie, Cell, Tooltip } from "recharts";
 import type { Deal } from "@/types/deal";
+import MeasuredResponsiveContainer from "@/components/charts/MeasuredResponsiveContainer";
 import { empireColors } from "@/theme/empireTheme";
 
 const COLORS: Record<string, string> = {
@@ -37,8 +38,8 @@ export default function DealStageCharts({ deals }: { deals: Deal[] }) {
   if (!data.length) return null;
 
   return (
-    <div className="relative mx-auto flex h-[260px] w-full max-w-[420px] items-center justify-center overflow-hidden">
-      <ResponsiveContainer width="100%" height="100%">
+    <div className="relative mx-auto flex h-[260px] min-h-[260px] min-w-0 w-full max-w-[420px] items-center justify-center overflow-hidden">
+      <MeasuredResponsiveContainer minHeight={260}>
         <PieChart>
           <Pie
             data={data}
@@ -61,7 +62,7 @@ export default function DealStageCharts({ deals }: { deals: Deal[] }) {
             }}
           />
         </PieChart>
-      </ResponsiveContainer>
+      </MeasuredResponsiveContainer>
     </div>
   );
 }

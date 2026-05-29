@@ -9,11 +9,11 @@ import {
   Cell,
   Pie,
   PieChart,
-  ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
 } from "recharts";
+import MeasuredResponsiveContainer from "@/components/charts/MeasuredResponsiveContainer";
 import Badge from "@/components/ui/Badge";
 import Card, { IdentityCardHeader } from "@/components/ui/Card";
 import { authFetch } from "@/lib/client/authFetch";
@@ -102,8 +102,8 @@ function ComplianceStatusChart({
   return (
     <Card>
       <p style={{ margin: 0, fontSize: 12, letterSpacing: 0.5, color: "#b7ceef" }}>Compliance Status</p>
-      <div className="relative mx-auto mt-3 w-full max-w-[420px] overflow-hidden" style={{ height: 240 }}>
-        <ResponsiveContainer width="100%" height="100%">
+      <div className="relative mx-auto mt-3 min-w-0 w-full max-w-[420px] overflow-hidden" style={{ height: 240, minHeight: 240 }}>
+        <MeasuredResponsiveContainer minHeight={240}>
           <PieChart>
             <Pie data={data} dataKey="count" nameKey="status" innerRadius={55} outerRadius={92} paddingAngle={4}>
               {data.map((entry, index) => (
@@ -118,7 +118,7 @@ function ComplianceStatusChart({
               }}
             />
           </PieChart>
-        </ResponsiveContainer>
+        </MeasuredResponsiveContainer>
       </div>
     </Card>
   );
@@ -132,8 +132,8 @@ function AuditProgressChart({
   return (
     <Card>
       <p style={{ margin: 0, fontSize: 12, letterSpacing: 0.5, color: "#b7ceef" }}>Audit Progress</p>
-      <div className="relative mx-auto mt-3 w-full max-w-[420px] overflow-hidden" style={{ height: 240 }}>
-        <ResponsiveContainer width="100%" height="100%">
+      <div className="relative mx-auto mt-3 min-w-0 w-full max-w-[420px] overflow-hidden" style={{ height: 240, minHeight: 240 }}>
+        <MeasuredResponsiveContainer minHeight={240}>
           <BarChart data={data}>
             <CartesianGrid stroke="rgba(30, 41, 59, 0.8)" strokeDasharray="3 3" />
             <XAxis dataKey="title" hide />
@@ -147,7 +147,7 @@ function AuditProgressChart({
             />
             <Bar dataKey="progress" fill={empireColors.primary} radius={[6, 6, 0, 0]} />
           </BarChart>
-        </ResponsiveContainer>
+        </MeasuredResponsiveContainer>
       </div>
       <div style={{ display: "grid", gap: 8 }}>
         {data.map((item) => (
@@ -268,8 +268,8 @@ function VerificationSummary({
           <p className="enterprise-metric-value">{clampPercent(stats.averageConfidenceScore * 100)}%</p>
         </div>
       </div>
-      <div className="relative mx-auto mt-3 w-full max-w-[420px] overflow-hidden" style={{ height: 240 }}>
-        <ResponsiveContainer width="100%" height="100%">
+      <div className="relative mx-auto mt-3 min-w-0 w-full max-w-[420px] overflow-hidden" style={{ height: 240, minHeight: 240 }}>
+        <MeasuredResponsiveContainer minHeight={240}>
           <BarChart data={data}>
             <CartesianGrid stroke="rgba(30, 41, 59, 0.8)" strokeDasharray="3 3" />
             <XAxis dataKey="status" stroke={empireColors.textSecondary} />
@@ -298,7 +298,7 @@ function VerificationSummary({
               ))}
             </Bar>
           </BarChart>
-        </ResponsiveContainer>
+        </MeasuredResponsiveContainer>
       </div>
     </Card>
   );

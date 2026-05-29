@@ -2,7 +2,6 @@
 
 import Card from "@/components/ui/Card";
 import {
-  ResponsiveContainer,
   LineChart,
   Line,
   XAxis,
@@ -10,6 +9,7 @@ import {
   Tooltip,
   CartesianGrid,
 } from "recharts";
+import MeasuredResponsiveContainer from "@/components/charts/MeasuredResponsiveContainer";
 import { empireColors } from "@/theme/empireTheme";
 import type { Deal } from "@/types/deal";
 
@@ -36,8 +36,8 @@ export default function DealValueGraph({ deals }: DealValueGraphProps) {
         }}
       >
         <p style={{ margin: 0, fontSize: 12, letterSpacing: 0.5, color: "#b7ceef" }}>Deal Value Momentum</p>
-        <div className="relative mx-auto mt-[10px] flex h-[260px] w-full max-w-[420px] items-center justify-center overflow-hidden">
-          <ResponsiveContainer width="100%" height="100%">
+        <div className="relative mx-auto mt-[10px] flex h-[260px] min-h-[260px] min-w-0 w-full max-w-[420px] items-center justify-center overflow-hidden">
+          <MeasuredResponsiveContainer minHeight={260}>
             <LineChart data={data}>
               <CartesianGrid stroke="rgba(30, 41, 59, 0.8)" strokeDasharray="3 3" />
               <XAxis dataKey="month" stroke={empireColors.textSecondary} />
@@ -57,7 +57,7 @@ export default function DealValueGraph({ deals }: DealValueGraphProps) {
                 dot={{ r: 3, stroke: empireColors.primary, fill: empireColors.primary }}
               />
             </LineChart>
-          </ResponsiveContainer>
+          </MeasuredResponsiveContainer>
         </div>
       </div>
     </Card>

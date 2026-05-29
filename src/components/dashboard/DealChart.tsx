@@ -3,11 +3,11 @@
 import {
   Bar,
   BarChart,
-  ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
 } from "recharts";
+import MeasuredResponsiveContainer from "@/components/charts/MeasuredResponsiveContainer";
 
 type DealChartDatum = {
   name: string;
@@ -50,8 +50,8 @@ export default function DealChart({ data }: { data: DealChartDatum[] }) {
       </div>
 
       <div className="rounded-[24px] border border-white/8 bg-[radial-gradient(circle_at_top,rgba(56,189,248,0.08),transparent_45%),rgba(2,6,23,0.45)] p-3 sm:p-4">
-        <div className="h-[260px] w-full sm:h-[310px]">
-          <ResponsiveContainer width="100%" height="100%">
+        <div className="h-[260px] min-h-[260px] min-w-0 w-full sm:h-[310px] sm:min-h-[310px]">
+          <MeasuredResponsiveContainer minHeight={260}>
             <BarChart data={data} margin={{ top: 8, right: 8, left: -20, bottom: 4 }}>
               <XAxis
                 dataKey="name"
@@ -78,7 +78,7 @@ export default function DealChart({ data }: { data: DealChartDatum[] }) {
               />
               <Bar dataKey="value" fill="#38bdf8" radius={[12, 12, 4, 4]} maxBarSize={72} />
             </BarChart>
-          </ResponsiveContainer>
+          </MeasuredResponsiveContainer>
         </div>
       </div>
     </div>

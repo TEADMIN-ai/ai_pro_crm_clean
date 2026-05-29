@@ -2,7 +2,6 @@
 
 import Card from "@/components/ui/Card";
 import {
-  ResponsiveContainer,
   BarChart,
   Bar,
   XAxis,
@@ -10,6 +9,7 @@ import {
   Tooltip,
   CartesianGrid,
 } from "recharts";
+import MeasuredResponsiveContainer from "@/components/charts/MeasuredResponsiveContainer";
 import { empireColors } from "@/theme/empireTheme";
 import type { Deal } from "@/types/deal";
 
@@ -38,8 +38,8 @@ export default function DocumentStatusGraph({ deals }: DocumentStatusGraphProps)
         }}
       >
         <p style={{ margin: 0, fontSize: 12, letterSpacing: 0.5, color: "#b7ceef" }}>Document Status Distribution</p>
-        <div className="relative mx-auto mt-[10px] flex h-[250px] w-full max-w-[420px] items-center justify-center overflow-hidden">
-          <ResponsiveContainer width="100%" height="100%">
+        <div className="relative mx-auto mt-[10px] flex h-[250px] min-h-[250px] min-w-0 w-full max-w-[420px] items-center justify-center overflow-hidden">
+          <MeasuredResponsiveContainer minHeight={250}>
             <BarChart data={data}>
               <CartesianGrid stroke="rgba(30, 41, 59, 0.8)" strokeDasharray="3 3" />
               <XAxis dataKey="status" stroke={empireColors.textSecondary} />
@@ -53,7 +53,7 @@ export default function DocumentStatusGraph({ deals }: DocumentStatusGraphProps)
               />
               <Bar dataKey="count" fill={empireColors.primary} radius={[5, 5, 0, 0]} />
             </BarChart>
-          </ResponsiveContainer>
+          </MeasuredResponsiveContainer>
         </div>
       </div>
     </Card>

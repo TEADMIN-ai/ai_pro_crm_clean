@@ -6,7 +6,6 @@ import Card from "@/components/ui/Card";
 import { authFetch } from "@/lib/client/authFetch";
 import { API_ROUTES } from "@/lib/routes";
 import {
-  ResponsiveContainer,
   LineChart,
   Line,
   XAxis,
@@ -14,6 +13,7 @@ import {
   Tooltip,
   CartesianGrid,
 } from "recharts";
+import MeasuredResponsiveContainer from "@/components/charts/MeasuredResponsiveContainer";
 import { empireColors } from "@/theme/empireTheme";
 
 type Deal = {
@@ -116,8 +116,8 @@ export default function RevenueTrendGraph() {
         ) : error ? (
           <p style={{ margin: "8px 0 0", color: "#ffb6b6" }}>{error}</p>
         ) : (
-          <div className="relative mx-auto mt-[10px] flex h-[260px] w-full max-w-[420px] items-center justify-center overflow-hidden">
-            <ResponsiveContainer width="100%" height="100%">
+          <div className="relative mx-auto mt-[10px] flex h-[260px] min-h-[260px] min-w-0 w-full max-w-[420px] items-center justify-center overflow-hidden">
+            <MeasuredResponsiveContainer minHeight={260}>
               <LineChart data={data}>
                 <CartesianGrid stroke="rgba(30, 41, 59, 0.8)" strokeDasharray="3 3" />
                 <XAxis dataKey="month" stroke={empireColors.textSecondary} />
@@ -138,7 +138,7 @@ export default function RevenueTrendGraph() {
                   dot={{ r: 3, stroke: empireColors.primary, fill: empireColors.primary }}
                 />
               </LineChart>
-            </ResponsiveContainer>
+            </MeasuredResponsiveContainer>
           </div>
         )}
       </div>
