@@ -14,7 +14,8 @@ export type FieldResolutionStrategy =
   | "checkbox_anchor"
   | "checkbox_fallback"
   | "not_rendered_missing_value"
-  | "not_rendered_missing_page";
+  | "not_rendered_missing_page"
+  | "not_rendered_suppressed";
 
 export type FieldPlacementMode = "below" | "right" | "inline" | "replace";
 export type FieldAlignment = "left" | "center" | "right";
@@ -100,6 +101,12 @@ export type EmpirePdfTemplateDefinition = {
   pdfRelativePath: string;
   pageMappings: number[];
   fields: TemplateFieldDefinition[];
+  metadata?: {
+    signatureSections?: Array<{
+      pageIndex: number;
+      fieldIds?: string[];
+    }>;
+  };
 };
 
 export type IntelligentAnchorMatch = {
@@ -156,6 +163,21 @@ export type EngineDebugField = {
   y: number;
   width?: number;
   height?: number;
+  renderedBounds?: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  };
+  boundingBox?: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    pageIndex: number;
+    templateVersion: string;
+    fieldVersion: string;
+  };
   fontSize: number;
   lineHeight?: number;
   templateVersion?: string;
@@ -173,6 +195,20 @@ export type IntelligentFillResult = {
   reviewFlags: ReviewFlag[];
   averageConfidence: number;
   renderedFieldCount: number;
+  qaReport?: {
+    document: TenderFormId;
+    templateVersion: string | null;
+    placementAccuracy: number;
+    overflowEvents: number;
+    checkboxAlignmentIssues: number;
+    missingFields: number;
+    calibrationConfidence: number;
+    validationIssueCount: number;
+    outOfBoundsEvents: number;
+    clippingEvents: number;
+    renderedFieldCount: number;
+    calibratedFieldCount: number;
+  };
 };
 
 export type IntelligentFillAuditOptions = {

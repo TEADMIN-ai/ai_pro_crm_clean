@@ -11,6 +11,7 @@ type AuthState = {
   user: AuthUser | null;
   role: UserRole;
   loading: boolean;
+  error: string | null;
 };
 
 const AUTH_HYDRATION_TIMEOUT_MS = 5000;
@@ -55,11 +56,13 @@ export function useAuthUser(): AuthState {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [role, setRole] = useState<UserRole>("guest");
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
+    let authEventReceived = false;
     const hydrationDeadline = window.setTimeout(() => {
-      if (!active) {
+      if (!active || authEventReceived) {
         return;
       }
 
@@ -67,6 +70,8 @@ export function useAuthUser(): AuthState {
     }, AUTH_HYDRATION_TIMEOUT_MS);
 
     const unsubscribe = onIdTokenChanged(auth, async (firebaseUser) => {
+      authEventReceived = true;
+
       if (!active) {
         return;
       }
@@ -74,6 +79,7 @@ export function useAuthUser(): AuthState {
       if (!firebaseUser) {
         setUser(null);
         setRole("guest");
+        setError(null);
         setLoading(false);
         return;
       }
@@ -83,7 +89,9 @@ export function useAuthUser(): AuthState {
       nextUser.role = cachedRole;
 
       setUser(nextUser);
-      setRole(cachedRole);
+      setRole(cachedRole !== "guest" ? cachedRole : "guest");
+      setError(null);
+      setLoading(true);
 
       try {
         const token = await fetchWithTimeout(firebaseUser.getIdToken(), API_ME_TIMEOUT_MS);
@@ -105,6 +113,11 @@ export function useAuthUser(): AuthState {
 
         const data = await res.json();
         const nextRole = normalizeRole(data?.role);
+
+        if (nextRole === "guest") {
+          throw new Error("Authenticated user has no application role");
+        }
+
         nextUser.role = nextRole;
 
         if (!active) {
@@ -117,17 +130,16 @@ export function useAuthUser(): AuthState {
       } catch (error) {
         console.error("[useAuthUser] Auth flow error", error);
 
-        const fallbackRole = cachedRole !== "guest"
-          ? cachedRole
-          : normalizeRole((await firebaseUser.getIdTokenResult()).claims.role);
-
         if (!active) {
           return;
         }
 
-        nextUser.role = fallbackRole;
+        nextUser.role = cachedRole;
         setUser(nextUser);
-        setRole(fallbackRole);
+        setRole(cachedRole);
+        setError(
+          "You are signed in with Firebase, but the server could not verify your app profile. Check Firebase Admin runtime credentials and the /users profile for this UID."
+        );
       } finally {
         if (active) {
           window.clearTimeout(hydrationDeadline);
@@ -143,5 +155,5 @@ export function useAuthUser(): AuthState {
     };
   }, []);
 
-  return { user, role, loading };
+  return { user, role, loading, error };
 }

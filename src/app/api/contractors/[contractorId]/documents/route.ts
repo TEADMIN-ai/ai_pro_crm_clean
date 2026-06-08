@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { logActivity } from "@/lib/activity/logActivity";
 import { getFirebaseAdmin } from "@/lib/firebase/admin";
+import { buildContractorDocumentDownloadUrl } from "@/lib/documents/contractorDocumentDownloadUrl";
 import {
   getDocumentTypeLabel,
   resolveContractorDocumentStatus,
@@ -208,22 +209,18 @@ export async function POST(
     const documentType = parseDocumentType(body.documentType);
     const documentName = getString(body.documentName);
     const storagePath = getString(body.storagePath);
-    const fileUrl = getString(body.fileUrl || body.downloadURL || body.url);
+    const fileUrl = buildContractorDocumentDownloadUrl(contractorId, documentType);
 
     if (!documentType) {
       return jsonError("Unsupported documentType", 400);
     }
 
-    if (!storagePath || !fileUrl) {
-      return jsonError("Missing storagePath or fileUrl", 400);
+    if (!storagePath) {
+      return jsonError("Missing storagePath", 400);
     }
 
     if (!isValidStoragePath(contractorId, documentType, storagePath)) {
       return jsonError("Invalid storagePath", 400);
-    }
-
-    if (!/^https?:\/\//i.test(fileUrl)) {
-      return jsonError("Invalid fileUrl", 400);
     }
 
     const fileNameFromStoragePath = getFileNameFromStoragePath(storagePath);

@@ -1,0 +1,28 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <style>
+      html, body { margin: 0; background: white; }
+      canvas { display: block; }
+    </style>
+  </head>
+  <body>
+    <canvas id="page"></canvas>
+    <script type="module">
+      import * as pdfjsLib from "file:///C:/TorqueEmpire/ai_pro_crm_clean/node_modules/pdfjs-dist/build/pdf.mjs";
+      pdfjsLib.GlobalWorkerOptions.workerSrc = "file:///C:/TorqueEmpire/ai_pro_crm_clean/node_modules/pdfjs-dist/build/pdf.worker.mjs";
+      const documentTask = pdfjsLib.getDocument("file:///C:/TorqueEmpire/ai_pro_crm_clean/output/pdf/empirepdf-qa/baseline_local_pty/sbd1.debug.pdf");
+      const document = await documentTask.promise;
+      const page = await document.getPage(1);
+      const viewport = page.getViewport({ scale: 2 });
+      const canvas = document.getElementById("page");
+      canvas.width = Math.ceil(viewport.width);
+      canvas.height = Math.ceil(viewport.height);
+      canvas.style.width = canvas.width + "px";
+      canvas.style.height = canvas.height + "px";
+      await page.render({ canvasContext: canvas.getContext("2d"), viewport }).promise;
+      window.__renderComplete = { width: canvas.width, height: canvas.height };
+    </script>
+  </body>
+</html>

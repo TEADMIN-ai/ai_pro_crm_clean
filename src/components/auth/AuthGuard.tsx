@@ -30,26 +30,26 @@ function AuthGuardStatus({
 
 export default function AuthGuard({ children }: { children: React.ReactNode }) {
   const router = useRouter();
-  const { user, loading } = useAuth();
-  const [sessionFailed, setSessionFailed] = useState(false);
+  const { user, loading, error: authError } = useAuth();
+  const [sessionError, setSessionError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
 
     async function verify() {
-      if (loading) {
+      if (loading || authError) {
         return;
       }
 
       if (!user) {
         console.info("[AuthGuard] No authenticated user. Redirecting to /login");
-        setSessionFailed(true);
+        setSessionError(null);
         router.replace("/login");
         return;
       }
 
       try {
-        setSessionFailed(false);
+        setSessionError(null);
         const response = await new Promise<Response>((resolve, reject) => {
           const timeoutId = window.setTimeout(() => {
             reject(new Error("Session verification timed out"));
@@ -70,6 +70,11 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
             }
           );
         });
+
+        if (!response.ok) {
+          throw new Error(`Session verification failed with ${response.status}`);
+        }
+
         const payload = (await response.json()) as SessionDebugResponse;
         const verifiedUser = payload.sessionExists ? payload.userId ?? null : null;
 
@@ -82,8 +87,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
             firebaseUid: user.uid,
             sessionUser: verifiedUser,
           });
-          setSessionFailed(true);
-          router.replace("/login");
+          setSessionError("Your Firebase session is signed in, but the server verified a different app session. Sign out and sign in again.");
         }
       } catch (error) {
         console.error("Session debug check failed", error);
@@ -92,8 +96,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
           return;
         }
 
-        setSessionFailed(true);
-        router.replace("/login");
+        setSessionError("You are signed in with Firebase, but the server could not verify your app session. Check Firebase Admin runtime credentials and project configuration.");
       }
     }
 
@@ -102,7 +105,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, [loading, router, user]);
+  }, [authError, loading, router, user]);
 
   if (loading) {
     return (
@@ -113,7 +116,16 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
     );
   }
 
-  if (!user || sessionFailed) {
+  if (authError || sessionError) {
+    return (
+      <AuthGuardStatus
+        title="Authentication needs attention"
+        message={authError ?? sessionError ?? "The server could not verify your session."}
+      />
+    );
+  }
+
+  if (!user) {
     console.info("[AuthGuard] Rendering redirect fallback while auth state settles");
     return (
       <AuthGuardStatus

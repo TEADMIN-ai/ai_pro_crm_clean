@@ -1,0 +1,57 @@
+[
+  {
+    "fieldName": "company_name",
+    "fieldId": "company_name",
+    "activeInTemplate": true,
+    "hasBoundingBox": true,
+    "currentX": 111,
+    "currentY": 602,
+    "width": 320,
+    "height": 16,
+    "pageNumber": 1
+  },
+  {
+    "fieldName": "director_name",
+    "fieldId": "director_name",
+    "activeInTemplate": true,
+    "hasBoundingBox": true,
+    "currentX": 276,
+    "currentY": 727,
+    "width": 247,
+    "height": 16,
+    "pageNumber": 2
+  },
+  {
+    "fieldName": "signature_role",
+    "fieldId": "signature_role",
+    "activeInTemplate": true,
+    "hasBoundingBox": true,
+    "currentX": 276,
+    "currentY": 638,
+    "width": 247,
+    "height": 22,
+    "pageNumber": 2
+  },
+  {
+    "fieldName": "relationship_declaration",
+    "fieldId": "relationship_declaration",
+    "activeInTemplate": true,
+    "hasBoundingBox": true,
+    "currentX": 454,
+    "currentY": 265,
+    "width": 78,
+    "height": 16,
+    "pageNumber": 2
+  },
+  {
+    "fieldName": "signature_name",
+    "fieldId": "signature_name",
+    "activeInTemplate": true,
+    "hasBoundingBox": true,
+    "currentX": 246,
+    "currentY": 70,
+    "width": 277,
+    "height": 16,
+    "pageNumber": 4
+  }
+]

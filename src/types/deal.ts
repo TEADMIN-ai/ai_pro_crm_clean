@@ -71,6 +71,23 @@ export interface TenderAnalysisSnapshot {
   aiAnalyzedAt?: string | null;
 }
 
+export type BriefingSessionType = "physical" | "MS Teams" | "online" | "unknown";
+export type BriefingSessionRequired = "yes" | "no" | "unknown";
+
+export interface ContractorTenderSummary {
+  scopeOfWork: string | null;
+  closingDate: string | null;
+  briefingSessionRequired: BriefingSessionRequired;
+  briefingDateTime: string | null;
+  briefingType: BriefingSessionType;
+  briefingLocationOrPlatform: string | null;
+  requiredDocuments: string[];
+  eligibilityRequirements: string[];
+  mainRiskNotes: string[];
+  contractorActionChecklist: string[];
+  aiAnalyzedAt: string;
+}
+
 /* ---------------------------------- */
 /* Core Deal Model                    */
 /* ---------------------------------- */
@@ -109,6 +126,7 @@ export interface Deal {
   riskLevel?: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
   estimatedDealValue?: number;
   tenderAnalysis?: TenderAnalysisSnapshot;
+  contractorTenderSummary?: ContractorTenderSummary | null;
 
   // Approval
   pricingApprovedAt?: Date;

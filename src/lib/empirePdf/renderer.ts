@@ -5,6 +5,7 @@ import {
   alignX,
   fitTextToBoundingBox,
   fitTextToBox,
+  measureFittedTextRenderBounds,
   resolveCheckboxInBoundingBox,
   resolvePlacementBox,
 } from "./layout";
@@ -184,6 +185,18 @@ function drawFittedLines(
   });
 }
 
+function serializeBoundingBox(box: NonNullable<ReturnType<typeof getBoundingBoxField>>) {
+  return {
+    x: box.x,
+    y: box.y,
+    width: box.width,
+    height: box.height,
+    pageIndex: box.page,
+    templateVersion: box.templateVersion,
+    fieldVersion: box.fieldVersion,
+  };
+}
+
 export async function renderTemplateField(params: {
   pdfDocument: PDFDocument;
   template: EmpirePdfTemplateDefinition;
@@ -308,6 +321,13 @@ export async function renderTemplateField(params: {
         y: checkbox.y,
         width: checkbox.width,
         height: checkbox.height,
+        renderedBounds: {
+          x: checkbox.x,
+          y: checkbox.y,
+          width: checkbox.width,
+          height: checkbox.height,
+        },
+        boundingBox: serializeBoundingBox(boundedField),
         fontSize: boundedField.maxFontSize,
         lineHeight: boundedField.lineHeight,
         fieldVersion: boundedField.fieldVersion,
@@ -368,6 +388,12 @@ export async function renderTemplateField(params: {
       y: box.y,
       width: checkboxWidth,
       height: checkboxHeight,
+      renderedBounds: {
+        x: box.x,
+        y: box.y,
+        width: checkboxWidth,
+        height: checkboxHeight,
+      },
       fontSize: field.maxFontSize ?? 10,
       lineHeight: field.lineHeight,
     });
@@ -381,6 +407,16 @@ export async function renderTemplateField(params: {
     const fitted = fitTextToBoundingBox(font, value, boundedField);
 
     if (fitted) {
+      const renderedBounds = measureFittedTextRenderBounds(font, {
+        lines: fitted.lines,
+        fontSize: fitted.fontSize,
+        lineHeight: fitted.lineHeight,
+        contentX: fitted.contentX,
+        contentY: fitted.contentY,
+        contentWidth: fitted.contentWidth,
+        alignment: boundedField.alignment,
+      });
+
       drawFittedLines(page, font, {
         lines: fitted.lines,
         fontSize: fitted.fontSize,
@@ -418,6 +454,8 @@ export async function renderTemplateField(params: {
         y: fitted.contentY,
         width: fitted.contentWidth,
         height: fitted.contentHeight,
+        renderedBounds,
+        boundingBox: serializeBoundingBox(boundedField),
         fontSize: fitted.fontSize,
         lineHeight: fitted.lineHeight,
         fieldVersion: boundedField.fieldVersion,
@@ -427,6 +465,15 @@ export async function renderTemplateField(params: {
   }
 
   const fitted = fitTextToBox(font, value, field, anchor);
+  const renderedBounds = measureFittedTextRenderBounds(font, {
+    lines: fitted.lines,
+    fontSize: fitted.fontSize,
+    lineHeight: fitted.lineHeight,
+    contentX: fitted.contentX,
+    contentY: fitted.contentY,
+    contentWidth: fitted.contentWidth,
+    alignment: field.alignment,
+  });
 
   drawFittedLines(page, font, {
     lines: fitted.lines,
@@ -465,6 +512,7 @@ export async function renderTemplateField(params: {
     y: fitted.contentY,
     width: fitted.contentWidth,
     height: fitted.contentHeight,
+    renderedBounds,
     fontSize: fitted.fontSize,
     lineHeight: fitted.lineHeight,
   });

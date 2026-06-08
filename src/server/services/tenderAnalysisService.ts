@@ -2,6 +2,7 @@ import OpenAI from "openai";
 import { getFirebaseAdmin, getFirebaseStorageBucket } from "@/lib/firebase/admin";
 import { extractTextFromPdf } from "@/lib/pdf/extractTextFromPdf";
 import { listContractorDocuments } from "@/server/services/contractorService";
+import type { ContractorTenderSummary } from "@/types/deal";
 
 type TenderDocumentType = "tender" | "rfq" | "rfp" | "quotation" | "unknown";
 type TenderRiskLevel = "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
@@ -20,6 +21,7 @@ type TenderStructuredExtraction = {
   requiredCertificates: string[];
   estimatedValue: number | null;
   location: string | null;
+  contractorTenderSummary: Omit<ContractorTenderSummary, "aiAnalyzedAt">;
 };
 
 type TenderAnalysisRecord = {
@@ -37,6 +39,7 @@ export type TenderAnalysisResult = {
   tenderId: string;
   documentType: TenderDocumentType;
   analysis: TenderAnalysisRecord;
+  contractorTenderSummary: ContractorTenderSummary;
   complianceMatch: boolean;
   missingRequirements: string[];
   readinessScore: number;
@@ -113,6 +116,67 @@ async function downloadPdfBuffer(documentPath: string): Promise<Buffer> {
   return Buffer.from(buffer);
 }
 
+function normalizeStringArray(values: unknown): string[] {
+  return Array.isArray(values)
+    ? values.filter((value): value is string => typeof value === "string" && value.trim().length > 0).map((value) => value.trim())
+    : [];
+}
+
+function normalizeBriefingSessionRequired(value: unknown): ContractorTenderSummary["briefingSessionRequired"] {
+  return value === "yes" || value === "no" || value === "unknown" ? value : "unknown";
+}
+
+function normalizeBriefingType(value: unknown): ContractorTenderSummary["briefingType"] {
+  if (value === "physical" || value === "MS Teams" || value === "online" || value === "unknown") {
+    return value;
+  }
+
+  if (typeof value === "string" && value.toLowerCase().includes("team")) {
+    return "MS Teams";
+  }
+
+  return "unknown";
+}
+
+function normalizeContractorTenderSummary(
+  value: unknown,
+  fallback: {
+    scopeOfWork: string | null;
+    submissionDeadline: string | null;
+    location: string | null;
+    requiredCertificates: string[];
+  },
+): Omit<ContractorTenderSummary, "aiAnalyzedAt"> {
+  const source = value && typeof value === "object" ? (value as Record<string, unknown>) : {};
+
+  return {
+    scopeOfWork:
+      typeof source.scopeOfWork === "string" && source.scopeOfWork.trim()
+        ? source.scopeOfWork.trim()
+        : fallback.scopeOfWork,
+    closingDate:
+      typeof source.closingDate === "string" && source.closingDate.trim()
+        ? source.closingDate.trim()
+        : fallback.submissionDeadline,
+    briefingSessionRequired: normalizeBriefingSessionRequired(source.briefingSessionRequired),
+    briefingDateTime:
+      typeof source.briefingDateTime === "string" && source.briefingDateTime.trim()
+        ? source.briefingDateTime.trim()
+        : null,
+    briefingType: normalizeBriefingType(source.briefingType),
+    briefingLocationOrPlatform:
+      typeof source.briefingLocationOrPlatform === "string" && source.briefingLocationOrPlatform.trim()
+        ? source.briefingLocationOrPlatform.trim()
+        : fallback.location,
+    requiredDocuments: normalizeStringArray(source.requiredDocuments).length
+      ? normalizeStringArray(source.requiredDocuments)
+      : fallback.requiredCertificates,
+    eligibilityRequirements: normalizeStringArray(source.eligibilityRequirements),
+    mainRiskNotes: normalizeStringArray(source.mainRiskNotes),
+    contractorActionChecklist: normalizeStringArray(source.contractorActionChecklist),
+  };
+}
+
 async function extractPdfText(documentPath: string): Promise<string> {
   const fileBuffer = await downloadPdfBuffer(documentPath);
   return extractTextFromPdf(fileBuffer);
@@ -147,6 +211,18 @@ function fallbackExtraction(text: string): TenderStructuredExtraction {
     requiredCertificates,
     estimatedValue: Number.isFinite(estimatedValue ?? NaN) ? estimatedValue : null,
     location,
+    contractorTenderSummary: {
+      scopeOfWork: null,
+      closingDate: submissionDeadline,
+      briefingSessionRequired: /briefing|site meeting|compulsory/i.test(text) ? "unknown" : "unknown",
+      briefingDateTime: text.match(/(?:briefing|site meeting)[^\n:]*[:\s-]+([^\n]+)/i)?.[1]?.trim() ?? null,
+      briefingType: /ms teams|teams/i.test(text) ? "MS Teams" : /online|virtual|zoom/i.test(text) ? "online" : "unknown",
+      briefingLocationOrPlatform: location,
+      requiredDocuments: requiredCertificates,
+      eligibilityRequirements: [],
+      mainRiskNotes: [],
+      contractorActionChecklist: requiredCertificates.map((certificate) => `Confirm ${certificate} is uploaded and current.`),
+    },
   };
 }
 
@@ -179,6 +255,34 @@ async function extractStructuredTenderData(text: string, documentType: TenderDoc
               },
               estimatedValue: { type: ["number", "null"] },
               location: { type: ["string", "null"] },
+              contractorTenderSummary: {
+                type: "object",
+                additionalProperties: false,
+                properties: {
+                  scopeOfWork: { type: ["string", "null"] },
+                  closingDate: { type: ["string", "null"] },
+                  briefingSessionRequired: { enum: ["yes", "no", "unknown"] },
+                  briefingDateTime: { type: ["string", "null"] },
+                  briefingType: { enum: ["physical", "MS Teams", "online", "unknown"] },
+                  briefingLocationOrPlatform: { type: ["string", "null"] },
+                  requiredDocuments: { type: "array", items: { type: "string" } },
+                  eligibilityRequirements: { type: "array", items: { type: "string" } },
+                  mainRiskNotes: { type: "array", items: { type: "string" } },
+                  contractorActionChecklist: { type: "array", items: { type: "string" } },
+                },
+                required: [
+                  "scopeOfWork",
+                  "closingDate",
+                  "briefingSessionRequired",
+                  "briefingDateTime",
+                  "briefingType",
+                  "briefingLocationOrPlatform",
+                  "requiredDocuments",
+                  "eligibilityRequirements",
+                  "mainRiskNotes",
+                  "contractorActionChecklist",
+                ],
+              },
             },
             required: [
               "issuingAuthority",
@@ -188,6 +292,7 @@ async function extractStructuredTenderData(text: string, documentType: TenderDoc
               "requiredCertificates",
               "estimatedValue",
               "location",
+              "contractorTenderSummary",
             ],
           },
         },
@@ -219,7 +324,8 @@ async function extractStructuredTenderData(text: string, documentType: TenderDoc
                 "- scopeOfWork\n" +
                 "- requiredCertificates\n" +
                 "- estimatedValue\n" +
-                "- location\n\n" +
+                "- location\n" +
+                "- contractorTenderSummary with contractor-facing scope, closing date, briefing details, required documents, eligibility, risks, and action checklist\n\n" +
                 `Tender text:\n${text.slice(0, 18000)}`,
             },
           ],
@@ -232,7 +338,7 @@ async function extractStructuredTenderData(text: string, documentType: TenderDoc
     }
 
     const parsed = JSON.parse(response.output_text) as Partial<TenderStructuredExtraction>;
-    return {
+      return {
       issuingAuthority: typeof parsed.issuingAuthority === "string" ? parsed.issuingAuthority.trim() || null : null,
       tenderNumber: typeof parsed.tenderNumber === "string" ? parsed.tenderNumber.trim() || null : null,
       submissionDeadline:
@@ -247,6 +353,17 @@ async function extractStructuredTenderData(text: string, documentType: TenderDoc
         ? parsed.estimatedValue
         : null,
       location: typeof parsed.location === "string" ? parsed.location.trim() || null : null,
+      contractorTenderSummary: normalizeContractorTenderSummary(parsed.contractorTenderSummary, {
+        scopeOfWork: typeof parsed.scopeOfWork === "string" ? parsed.scopeOfWork.trim() || null : null,
+        submissionDeadline:
+          typeof parsed.submissionDeadline === "string" ? parsed.submissionDeadline.trim() || null : null,
+        location: typeof parsed.location === "string" ? parsed.location.trim() || null : null,
+        requiredCertificates: normalizeRequiredCertificates(
+          Array.isArray(parsed.requiredCertificates)
+            ? parsed.requiredCertificates.filter((value): value is string => typeof value === "string")
+            : []
+        ),
+      }),
     };
   } catch {
     return fallbackExtraction(text);
@@ -359,6 +476,13 @@ export async function analyzeTenderDocument(input: TenderAnalysisInput): Promise
   const requiredCertificates = normalizeRequiredCertificates(extracted.requiredCertificates);
   const compliance = await buildComplianceMatch(input.contractorId, requiredCertificates);
   const aiAnalyzedAt = new Date().toISOString();
+  const contractorTenderSummary: ContractorTenderSummary = {
+    ...extracted.contractorTenderSummary,
+    requiredDocuments: extracted.contractorTenderSummary.requiredDocuments.length
+      ? extracted.contractorTenderSummary.requiredDocuments
+      : requiredCertificates,
+    aiAnalyzedAt,
+  };
   const analysis: TenderAnalysisRecord = {
     issuingAuthority: extracted.issuingAuthority,
     tenderNumber: extracted.tenderNumber,
@@ -379,6 +503,7 @@ export async function analyzeTenderDocument(input: TenderAnalysisInput): Promise
     tenderId,
     documentType: normalizedDocumentType,
     analysis,
+    contractorTenderSummary,
     complianceMatch: compliance.complianceMatch,
     missingRequirements: compliance.missingRequirements,
     readinessScore: compliance.readinessScore,
@@ -392,6 +517,7 @@ export async function analyzeTenderDocument(input: TenderAnalysisInput): Promise
       documentPath: normalizedPath,
       documentType: normalizedDocumentType,
       analysis,
+      contractorTenderSummary,
       complianceMatch: payload.complianceMatch,
       missingRequirements: payload.missingRequirements,
       readinessScore: payload.readinessScore,
@@ -404,6 +530,7 @@ export async function analyzeTenderDocument(input: TenderAnalysisInput): Promise
   await db.collection("deals").doc(tenderId).set(
     {
       tenderAnalysis: analysis,
+      contractorTenderSummary,
       complianceMatch: payload.complianceMatch,
       missingRequirements: payload.missingRequirements,
       readinessScore: payload.readinessScore,

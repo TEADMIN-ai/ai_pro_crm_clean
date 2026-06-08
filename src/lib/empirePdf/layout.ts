@@ -82,6 +82,10 @@ function truncateLineToWidth(font: PDFFont, text: string, size: number, width: n
   }
 
   const ellipsis = "...";
+  if (lineWidth(font, ellipsis, size) > width) {
+    return "";
+  }
+
   let clipped = normalized;
 
   while (clipped.length > 0 && lineWidth(font, `${clipped}${ellipsis}`, size) > width) {
@@ -213,7 +217,9 @@ function finalizeOverflowLines(font: PDFFont, value: string, fontSize: number, b
   const lastIndex = visibleLines.length - 1;
 
   if (lastIndex >= 0) {
-    visibleLines[lastIndex] = truncateLineToWidth(font, visibleLines[lastIndex] ?? "", fontSize, contentWidth);
+    for (let index = 0; index < visibleLines.length; index += 1) {
+      visibleLines[index] = truncateLineToWidth(font, visibleLines[index] ?? "", fontSize, contentWidth);
+    }
   }
 
   const tooWide = visibleLines.some((line) => lineWidth(font, line, fontSize) > contentWidth);
@@ -223,7 +229,7 @@ function finalizeOverflowLines(font: PDFFont, value: string, fontSize: number, b
     lines: visibleLines,
     lineHeight,
     overflowDetected: true,
-    clippingRisk: true,
+    clippingRisk: tooWide,
     multilineOverflowDetected,
     contentWidth,
     contentHeight,
@@ -432,6 +438,60 @@ export function alignX(alignment: FieldAlignment, x: number, width: number, text
   }
 
   return x;
+}
+
+export function measureFittedTextRenderBounds(
+  font: PDFFont,
+  params: {
+    lines: string[];
+    fontSize: number;
+    lineHeight: number;
+    contentX: number;
+    contentY: number;
+    contentWidth: number;
+    alignment: FieldAlignment;
+  }
+) {
+  const fontWithMetrics = font as PDFFont & {
+    heightAtSize?: (size: number, options?: { descender?: boolean }) => number;
+  };
+  const fontHeight =
+    typeof fontWithMetrics.heightAtSize === "function"
+      ? fontWithMetrics.heightAtSize(params.fontSize)
+      : params.fontSize;
+  const bounds = params.lines.map((line, index) => {
+    const width = lineWidth(font, line, params.fontSize);
+    const x = alignX(params.alignment, params.contentX, params.contentWidth, width);
+    const baselineY = params.contentY - index * params.lineHeight;
+
+    return {
+      x,
+      y: baselineY,
+      width,
+      height: fontHeight,
+    };
+  });
+
+  if (bounds.length === 0) {
+    return {
+      x: params.contentX,
+      y: params.contentY,
+      width: 0,
+      height: 0,
+    };
+  }
+
+  const minX = Math.min(...bounds.map((bound) => bound.x));
+  const maxX = Math.max(...bounds.map((bound) => bound.x + bound.width));
+  const minY = Math.min(...bounds.map((bound) => bound.y));
+  const maxY = Math.max(...bounds.map((bound) => bound.y + bound.height));
+
+  return {
+    x: Number(minX.toFixed(2)),
+    y: Number(minY.toFixed(2)),
+    width: Number((maxX - minX).toFixed(2)),
+    height: Number((maxY - minY).toFixed(2)),
+  };
 }
 
 export function fitTextToBoundingBox(

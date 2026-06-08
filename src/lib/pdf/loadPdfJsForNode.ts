@@ -1,8 +1,16 @@
+import path from "node:path";
+import { pathToFileURL } from "node:url";
+
 const PDFJS_NODE_SPECIFIERS = [
+  pathToFileURL(path.join(process.cwd(), "node_modules", "pdfjs-dist", "legacy", "build", "pdf.mjs")).href,
   "pdfjs-dist/legacy/build/pdf.mjs",
   "pdfjs-dist/legacy/build/pdf.js",
   "pdfjs-dist/legacy/build/pdf",
 ] as const;
+
+const PDFJS_WORKER_SPECIFIER = pathToFileURL(
+  path.join(process.cwd(), "node_modules", "pdfjs-dist", "legacy", "build", "pdf.worker.mjs")
+).href;
 
 const importPdfJsModule = new Function("specifier", "return import(specifier);") as (
   specifier: string
@@ -10,7 +18,7 @@ const importPdfJsModule = new Function("specifier", "return import(specifier);")
 
 type PdfJsRuntimeModule = {
   pdfjs: any;
-  specifier: (typeof PDFJS_NODE_SPECIFIERS)[number];
+  specifier: string;
   compatibilityMode: "node-legacy";
 };
 
@@ -27,11 +35,15 @@ async function loadPdfJsForNodeUncached(diagnosticLabel: string): Promise<PdfJsR
   for (const specifier of PDFJS_NODE_SPECIFIERS) {
     try {
       const pdfjs = await importPdfJsModule(specifier);
+      if (pdfjs?.GlobalWorkerOptions) {
+        pdfjs.GlobalWorkerOptions.workerSrc = PDFJS_WORKER_SPECIFIER;
+      }
 
       console.info("[PDFJS_RUNTIME]", {
         diagnosticLabel,
         stage: "load_success",
         specifier,
+        workerSrc: PDFJS_WORKER_SPECIFIER,
         compatibilityMode: "node-legacy",
         isNodeRuntime,
         hasDOMMatrix: typeof globalThis.DOMMatrix !== "undefined",

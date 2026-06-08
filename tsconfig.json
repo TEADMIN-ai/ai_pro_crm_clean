@@ -39,6 +39,11 @@
   ],
   "exclude": [
     "node_modules",
-    ".next"
+    ".next",
+    "tmp/**",
+    "output/**",
+    "reports/**",
+    "backups/**",
+    "generated/**"
   ]
 }

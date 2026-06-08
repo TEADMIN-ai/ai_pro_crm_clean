@@ -18,6 +18,7 @@ interface AuthContextType {
   role: UserRole;
   contractorId?: string;
   loading: boolean;
+  error: string | null;
   logout: () => Promise<void>;
 }
 
@@ -26,6 +27,7 @@ const AuthContext = createContext<AuthContextType>({
   role: "guest",
   contractorId: undefined,
   loading: true,
+  error: null,
   logout: async () => {},
 });
 
@@ -124,6 +126,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         role: authState.role,
         contractorId,
         loading: authState.loading,
+        error: authState.error,
         logout,
       }}
     >

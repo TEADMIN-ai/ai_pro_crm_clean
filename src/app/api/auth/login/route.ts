@@ -1,14 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAuth } from "firebase-admin/auth";
-import { requireAuth } from "@/lib/server/requireAuth";
 
 export const runtime = "nodejs";
 const SESSION_COOKIE_EXPIRES_IN_MS = 5 * 24 * 60 * 60 * 1000;
 
 export async function POST(request: NextRequest) {
   try {
-    await requireAuth(request);
-
     console.log("LOGIN START");
 
     const { idToken } = (await request.json()) as { idToken?: string };

@@ -2,16 +2,25 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { getFirebaseAdmin } from "@/lib/firebase/admin";
 import { AuthorizationError, assertPrivilegedRole, requireAuthorizedUser } from "@/lib/server/authz";
+import { generateMergedPack } from "@/lib/pdf/mergeTenderPack";
 import { generateSimplePack } from "@/lib/pdf/generateSimplePack";
 import { recalculateContractorCompliance } from "@/lib/server/recalculateContractorCompliance";
 import { persistTenderPackPdf } from "@/server/services/tenderPackService";
+import { getTenderPackRequest, markTenderPackRequestGenerated } from "@/server/services/tenderPackRequestService";
+import { recordAuditLog } from "@/server/services/auditLogService";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 type GenerateBody = {
   dealId?: string;
+  requestId?: string;
 };
+
+function isEmpirePdfGenerationEnabled(): boolean {
+  const value = process.env.EMPIREPDF_GENERATION_ENABLED?.trim().toLowerCase();
+  return value === "true" || value === "1" || value === "yes";
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -20,9 +29,33 @@ export async function POST(request: NextRequest) {
     assertPrivilegedRole(user);
     const body = (await request.json()) as GenerateBody;
     const dealId = typeof body.dealId === "string" ? body.dealId.trim() : "";
+    const requestId = typeof body.requestId === "string" ? body.requestId.trim() : "";
 
     if (!dealId) {
       throw new Error("Missing dealId");
+    }
+
+    const tenderPackRequest = requestId ? await getTenderPackRequest(requestId) : null;
+    if (requestId && !tenderPackRequest) {
+      throw new Error("Tender pack request not found");
+    }
+    if (tenderPackRequest && tenderPackRequest.status !== "approved") {
+      return NextResponse.json(
+        {
+          error: "REQUEST_NOT_APPROVED",
+          message: "Tender pack request must be approved before generation",
+        },
+        { status: 403 }
+      );
+    }
+    if (tenderPackRequest && user.role !== "admin") {
+      return NextResponse.json(
+        {
+          error: "REQUEST_GENERATION_ADMIN_REQUIRED",
+          message: "Only an admin can generate an approved contractor tender pack request",
+        },
+        { status: 403 }
+      );
     }
 
     const dealSnapshot = await db.collection("deals").doc(dealId).get();
@@ -42,6 +75,19 @@ export async function POST(request: NextRequest) {
 
     if (!contractorId) {
       throw new Error("Missing deal or contractor data");
+    }
+
+    if (
+      tenderPackRequest &&
+      (tenderPackRequest.dealId !== deal.id || tenderPackRequest.contractorId !== contractorId)
+    ) {
+      return NextResponse.json(
+        {
+          error: "REQUEST_DEAL_MISMATCH",
+          message: "Tender pack request does not match this deal and contractor",
+        },
+        { status: 400 }
+      );
     }
 
     const contractorSnapshot = await db.collection("contractors").doc(contractorId).get();
@@ -80,50 +126,76 @@ export async function POST(request: NextRequest) {
       contractorId: contractor.id,
     });
 
-    const pdfBytes = await generateSimplePack(
-      {
-        id: deal.id,
-        title: typeof deal.title === "string" ? deal.title : undefined,
-        status: typeof deal.status === "string" ? deal.status : undefined,
-        contractorId,
-      },
-      {
-        id: contractor.id,
-        name: typeof contractor.name === "string" ? contractor.name : undefined,
-        companyName: typeof contractor.companyName === "string" ? contractor.companyName : undefined,
-        email:
-          typeof contractor.email === "string"
-            ? contractor.email
-            : typeof contractor.contactEmail === "string"
-              ? contractor.contactEmail
-              : undefined,
-        phone:
-          typeof contractor.phone === "string"
-            ? contractor.phone
-            : typeof contractor.contactPhone === "string"
-              ? contractor.contactPhone
-              : undefined,
-        registrationNumber:
-          typeof contractor.registrationNumber === "string"
-            ? contractor.registrationNumber
-            : typeof contractor.companyRegistrationNumber === "string"
-              ? contractor.companyRegistrationNumber
-              : undefined,
-      }
-    );
+    const empirePdfGenerationEnabled = isEmpirePdfGenerationEnabled();
+    const templateKey = empirePdfGenerationEnabled ? "summary-sbd1-sbd4" : "simple";
+    const pdfBytes = empirePdfGenerationEnabled
+      ? await generateMergedPack(deal, contractor)
+      : await generateSimplePack(
+          {
+            id: deal.id,
+            title: typeof deal.title === "string" ? deal.title : undefined,
+            status: typeof deal.status === "string" ? deal.status : undefined,
+            contractorId,
+          },
+          {
+            id: contractor.id,
+            name: typeof contractor.name === "string" ? contractor.name : undefined,
+            companyName: typeof contractor.companyName === "string" ? contractor.companyName : undefined,
+            email:
+              typeof contractor.email === "string"
+                ? contractor.email
+                : typeof contractor.contactEmail === "string"
+                  ? contractor.contactEmail
+                  : undefined,
+            phone:
+              typeof contractor.phone === "string"
+                ? contractor.phone
+                : typeof contractor.contactPhone === "string"
+                  ? contractor.contactPhone
+                  : undefined,
+            registrationNumber:
+              typeof contractor.registrationNumber === "string"
+                ? contractor.registrationNumber
+                : typeof contractor.companyRegistrationNumber === "string"
+                  ? contractor.companyRegistrationNumber
+                  : undefined,
+          }
+        );
 
     const persistedPack = await persistTenderPackPdf({
       createdBy: user.uid,
       contractorId: contractor.id,
-      templateKey: "simple",
+      templateKey,
       pdfBytes,
       missingFields: [],
       warnings: [],
       fieldMapUsed: {
         dealId: deal.id,
         contractorId: contractor.id,
+        generationMode: templateKey,
       },
     });
+
+    if (tenderPackRequest) {
+      await markTenderPackRequestGenerated({
+        requestId: tenderPackRequest.id,
+        actor: user,
+        packId: persistedPack.packId,
+        downloadURL: persistedPack.downloadURL,
+      });
+
+      await recordAuditLog({
+        userId: user.uid,
+        action: "TENDER_PACK_REQUEST_GENERATED",
+        entityType: "tenderPackRequest",
+        entityId: tenderPackRequest.id,
+        metadata: {
+          contractorId: contractor.id,
+          dealId: deal.id,
+          packId: persistedPack.packId,
+        },
+      });
+    }
 
     return NextResponse.json({
       success: true,

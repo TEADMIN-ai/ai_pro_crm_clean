@@ -76,12 +76,22 @@ export async function DELETE(
 ) {
   try {
     const db = getFirebaseAdmin();
+    const actor = await requireAuthorizedUser(req);
+
+    if (actor.role !== "admin" && actor.role !== "manager") {
+      throw new AuthorizationError("unauthorized", 403);
+    }
+
     const { dealId } = await context.params;
 
     await db.collection("deals").doc(dealId).delete();
 
     return NextResponse.json({ success: true });
   } catch (err) {
+    if (err instanceof AuthorizationError) {
+      return NextResponse.json({ error: err.message }, { status: err.status });
+    }
+
     console.error("DELETE DEAL ERROR:", err);
     return NextResponse.json(
       { error: "Failed to delete deal" },

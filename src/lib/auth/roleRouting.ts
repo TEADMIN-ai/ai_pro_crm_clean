@@ -1,4 +1,4 @@
-export type UserRole = "admin" | "staff" | "contractor" | "manager";
+import type { UserRole } from "@/lib/auth/roleUtils";
 
 export function getDashboardPath(role: UserRole) {
   switch (role) {
@@ -7,10 +7,14 @@ export function getDashboardPath(role: UserRole) {
     case "manager":
       return "/dashboard/manager";
     case "contractor":
-      return "/dashboard";
+      return "/dashboard/contractor";
     case "staff":
       return "/dashboard/staff";
     default:
       return "/login";
   }
+}
+
+export function getUnauthorizedRedirectPath(role: UserRole): string {
+  return role === "guest" ? "/login" : getDashboardPath(role);
 }

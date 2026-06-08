@@ -1,0 +1,366 @@
+diff --git a/src/app/login/page.tsx b/src/app/login/page.tsx
+index 2abdfce..ba70164 100644
+--- a/src/app/login/page.tsx
++++ b/src/app/login/page.tsx
+@@ -6,43 +6,36 @@ import LoginForm from "@/components/auth/LoginForm";
+ import { useAuthUser } from "@/hooks/useAuthUser";
+ 
+ export default function LoginPage() {
+-  console.log("📍 LoginPage mounted");
+-
+   const router = useRouter();
+   const authState = useAuthUser();
++  const { user, role, loading, error } = authState;
+ 
+-  console.log("🧠 Hook state:", authState);
+-
+-  const { user, role, loading } = authState;
+-
+-  // 🔍 FULL DEBUG
+   useEffect(() => {
+-    console.log("🧠 LOGIN STATE:", {
++    console.log("[LoginPage] Auth state", {
+       user,
+       role,
+       loading,
++      error,
+     });
+ 
+-    if (loading) return;
++    if (loading || error) return;
+ 
+     if (!user) {
+-      console.log("❌ No user yet");
++      console.log("[LoginPage] No user yet");
+       return;
+     }
+ 
+-    if (!role) {
+-      console.log("⏳ Waiting for role...");
++    if (role === "guest") {
++      console.log("[LoginPage] Waiting for role");
+       return;
+     }
+ 
+-    console.log("🚀 Redirecting to dashboard...");
++    console.log("[LoginPage] Redirecting to dashboard");
+     router.replace("/dashboard");
+-  }, [loading, role, router, user]);
++  }, [error, loading, role, router, user]);
+ 
+   return (
+     <div style={{ position: "relative", minHeight: "100vh", overflow: "hidden" }}>
+-      
+-      {/* 🎥 Background Video */}
+       <video
+         autoPlay
+         muted
+@@ -61,7 +54,6 @@ export default function LoginPage() {
+         <source src="/login/hero.mp4" type="video/mp4" />
+       </video>
+ 
+-      {/* 🌓 Overlay */}
+       <div
+         style={{
+           position: "absolute",
+@@ -72,7 +64,6 @@ export default function LoginPage() {
+         }}
+       />
+ 
+-      {/* 🔐 Login Card */}
+       <div
+         style={{
+           position: "relative",
+@@ -98,13 +89,15 @@ export default function LoginPage() {
+             backdropFilter: "blur(8px)",
+           }}
+         >
+-          {loading && "🔄 Checking authentication..."}
++          {loading && "Checking authentication..."}
++
++          {!loading && error && error}
+ 
+-          {!loading && !user && "🔐 Please sign in."}
++          {!loading && !error && !user && "Please sign in."}
+ 
+-          {!loading && user && !role && "⏳ Logged in, fetching role..."}
++          {!loading && !error && user && role === "guest" && "Logged in, fetching role..."}
+ 
+-          {!loading && user && role && "✅ Auth complete. Redirecting..."}
++          {!loading && !error && user && role !== "guest" && "Auth complete. Redirecting..."}
+         </div>
+ 
+         <LoginForm />
+diff --git a/src/components/auth/AuthGuard.tsx b/src/components/auth/AuthGuard.tsx
+index 23abad0..4d18d7f 100644
+--- a/src/components/auth/AuthGuard.tsx
++++ b/src/components/auth/AuthGuard.tsx
+@@ -30,26 +30,26 @@ function AuthGuardStatus({
+ 
+ export default function AuthGuard({ children }: { children: React.ReactNode }) {
+   const router = useRouter();
+-  const { user, loading } = useAuth();
+-  const [sessionFailed, setSessionFailed] = useState(false);
++  const { user, loading, error: authError } = useAuth();
++  const [sessionError, setSessionError] = useState<string | null>(null);
+ 
+   useEffect(() => {
+     let cancelled = false;
+ 
+     async function verify() {
+-      if (loading) {
++      if (loading || authError) {
+         return;
+       }
+ 
+       if (!user) {
+         console.info("[AuthGuard] No authenticated user. Redirecting to /login");
+-        setSessionFailed(true);
++        setSessionError(null);
+         router.replace("/login");
+         return;
+       }
+ 
+       try {
+-        setSessionFailed(false);
++        setSessionError(null);
+         const response = await new Promise<Response>((resolve, reject) => {
+           const timeoutId = window.setTimeout(() => {
+             reject(new Error("Session verification timed out"));
+@@ -70,6 +70,11 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
+             }
+           );
+         });
++
++        if (!response.ok) {
++          throw new Error(`Session verification failed with ${response.status}`);
++        }
++
+         const payload = (await response.json()) as SessionDebugResponse;
+         const verifiedUser = payload.sessionExists ? payload.userId ?? null : null;
+ 
+@@ -82,8 +87,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
+             firebaseUid: user.uid,
+             sessionUser: verifiedUser,
+           });
+-          setSessionFailed(true);
+-          router.replace("/login");
++          setSessionError("Your Firebase session is signed in, but the server verified a different app session. Sign out and sign in again.");
+         }
+       } catch (error) {
+         console.error("Session debug check failed", error);
+@@ -92,8 +96,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
+           return;
+         }
+ 
+-        setSessionFailed(true);
+-        router.replace("/login");
++        setSessionError("You are signed in with Firebase, but the server could not verify your app session. Check Firebase Admin runtime credentials and project configuration.");
+       }
+     }
+ 
+@@ -102,7 +105,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
+     return () => {
+       cancelled = true;
+     };
+-  }, [loading, router, user]);
++  }, [authError, loading, router, user]);
+ 
+   if (loading) {
+     return (
+@@ -113,7 +116,16 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
+     );
+   }
+ 
+-  if (!user || sessionFailed) {
++  if (authError || sessionError) {
++    return (
++      <AuthGuardStatus
++        title="Authentication needs attention"
++        message={authError ?? sessionError ?? "The server could not verify your session."}
++      />
++    );
++  }
++
++  if (!user) {
+     console.info("[AuthGuard] Rendering redirect fallback while auth state settles");
+     return (
+       <AuthGuardStatus
+diff --git a/src/components/auth/RequireRole.tsx b/src/components/auth/RequireRole.tsx
+index 20f8e38..c28df12 100644
+--- a/src/components/auth/RequireRole.tsx
++++ b/src/components/auth/RequireRole.tsx
+@@ -14,12 +14,12 @@ export default function RequireRole({
+   allow: NonGuestRole[];
+   children: ReactNode;
+ }) {
+-  const { user, role, loading } = useAuth();
++  const { user, role, loading, error: authError } = useAuth();
+   const router = useRouter();
+   const hasAccess = role !== "guest" && allow.includes(role);
+ 
+   useEffect(() => {
+-    if (loading) {
++    if (loading || authError) {
+       return;
+     }
+ 
+@@ -36,7 +36,7 @@ export default function RequireRole({
+       });
+       router.replace("/dashboard");
+     }
+-  }, [user, role, loading, allow, router, hasAccess]);
++  }, [user, role, loading, authError, allow, router, hasAccess]);
+ 
+   if (loading) {
+     return (
+@@ -49,6 +49,15 @@ export default function RequireRole({
+     );
+   }
+ 
++  if (authError) {
++    return (
++      <div className="rounded-xl border border-[#2f3b54] bg-[#121826] p-6 text-white">
++        <h2 className="text-lg font-semibold">Authentication needs attention</h2>
++        <p className="mt-2 text-sm text-slate-300">{authError}</p>
++      </div>
++    );
++  }
++
+   if (!user) {
+     return (
+       <div className="rounded-xl border border-[#2f3b54] bg-[#121826] p-6 text-white">
+diff --git a/src/context/AuthContext.tsx b/src/context/AuthContext.tsx
+index 22f5234..d321645 100644
+--- a/src/context/AuthContext.tsx
++++ b/src/context/AuthContext.tsx
+@@ -18,6 +18,7 @@ interface AuthContextType {
+   role: UserRole;
+   contractorId?: string;
+   loading: boolean;
++  error: string | null;
+   logout: () => Promise<void>;
+ }
+ 
+@@ -26,6 +27,7 @@ const AuthContext = createContext<AuthContextType>({
+   role: "guest",
+   contractorId: undefined,
+   loading: true,
++  error: null,
+   logout: async () => {},
+ });
+ 
+@@ -124,6 +126,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
+         role: authState.role,
+         contractorId,
+         loading: authState.loading,
++        error: authState.error,
+         logout,
+       }}
+     >
+diff --git a/src/hooks/useAuthUser.ts b/src/hooks/useAuthUser.ts
+index ad4fd1e..9843f8b 100644
+--- a/src/hooks/useAuthUser.ts
++++ b/src/hooks/useAuthUser.ts
+@@ -11,6 +11,7 @@ type AuthState = {
+   user: AuthUser | null;
+   role: UserRole;
+   loading: boolean;
++  error: string | null;
+ };
+ 
+ const AUTH_HYDRATION_TIMEOUT_MS = 5000;
+@@ -55,11 +56,13 @@ export function useAuthUser(): AuthState {
+   const [user, setUser] = useState<AuthUser | null>(null);
+   const [role, setRole] = useState<UserRole>("guest");
+   const [loading, setLoading] = useState(true);
++  const [error, setError] = useState<string | null>(null);
+ 
+   useEffect(() => {
+     let active = true;
++    let authEventReceived = false;
+     const hydrationDeadline = window.setTimeout(() => {
+-      if (!active) {
++      if (!active || authEventReceived) {
+         return;
+       }
+ 
+@@ -67,6 +70,8 @@ export function useAuthUser(): AuthState {
+     }, AUTH_HYDRATION_TIMEOUT_MS);
+ 
+     const unsubscribe = onIdTokenChanged(auth, async (firebaseUser) => {
++      authEventReceived = true;
++
+       if (!active) {
+         return;
+       }
+@@ -74,6 +79,7 @@ export function useAuthUser(): AuthState {
+       if (!firebaseUser) {
+         setUser(null);
+         setRole("guest");
++        setError(null);
+         setLoading(false);
+         return;
+       }
+@@ -83,7 +89,9 @@ export function useAuthUser(): AuthState {
+       nextUser.role = cachedRole;
+ 
+       setUser(nextUser);
+-      setRole(cachedRole);
++      setRole(cachedRole !== "guest" ? cachedRole : "guest");
++      setError(null);
++      setLoading(true);
+ 
+       try {
+         const token = await fetchWithTimeout(firebaseUser.getIdToken(), API_ME_TIMEOUT_MS);
+@@ -105,6 +113,11 @@ export function useAuthUser(): AuthState {
+ 
+         const data = await res.json();
+         const nextRole = normalizeRole(data?.role);
++
++        if (nextRole === "guest") {
++          throw new Error("Authenticated user has no application role");
++        }
++
+         nextUser.role = nextRole;
+ 
+         if (!active) {
+@@ -117,17 +130,16 @@ export function useAuthUser(): AuthState {
+       } catch (error) {
+         console.error("[useAuthUser] Auth flow error", error);
+ 
+-        const fallbackRole = cachedRole !== "guest"
+-          ? cachedRole
+-          : normalizeRole((await firebaseUser.getIdTokenResult()).claims.role);
+-
+         if (!active) {
+           return;
+         }
+ 
+-        nextUser.role = fallbackRole;
++        nextUser.role = cachedRole;
+         setUser(nextUser);
+-        setRole(fallbackRole);
++        setRole(cachedRole);
++        setError(
++          "You are signed in with Firebase, but the server could not verify your app profile. Check Firebase Admin runtime credentials and the /users profile for this UID."
++        );
+       } finally {
+         if (active) {
+           window.clearTimeout(hydrationDeadline);
+@@ -143,5 +155,5 @@ export function useAuthUser(): AuthState {
+     };
+   }, []);
+ 
+-  return { user, role, loading };
++  return { user, role, loading, error };
+ }
+diff --git a/src/lib/auth.ts b/src/lib/auth.ts
+index 042256d..8c48d9e 100644
+--- a/src/lib/auth.ts
++++ b/src/lib/auth.ts
+@@ -1,3 +1,4 @@
++import "@/lib/firebase/admin";
+ import { getAuth } from "firebase-admin/auth";
+ 
+ export async function verifyIdToken(token: string) {

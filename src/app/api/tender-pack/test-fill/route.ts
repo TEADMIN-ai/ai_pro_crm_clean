@@ -10,6 +10,8 @@ import { SBD_TEMPLATE_KEYS, type SbdFormKey } from "@/lib/pdfs/templates/sbdSche
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+const TEST_FILL_SIGNED_URL_TTL_MS = 5 * 60 * 1000;
+
 type TestFillBody = {
   contractorId?: string;
   templateKey?: string;
@@ -69,7 +71,7 @@ export async function POST(request: NextRequest) {
 
     const [downloadURL] = await file.getSignedUrl({
       action: "read",
-      expires: Date.now() + 1000 * 60 * 60 * 24 * 365 * 10,
+      expires: Date.now() + TEST_FILL_SIGNED_URL_TTL_MS,
     });
 
     return NextResponse.json(

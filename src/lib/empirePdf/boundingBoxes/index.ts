@@ -2,6 +2,7 @@ import type { TenderFormId } from "../templates";
 
 import { SBD1_BOUNDING_BOXES } from "./sbd1";
 import { SBD4_BOUNDING_BOXES } from "./sbd4";
+import { SBD1_CALIBRATION_OVERRIDES, type CalibrationOverride } from "../calibrationOverrides/sbd1";
 import type {
   BoundingBoxFieldDefinition,
   BoundingBoxTemplateDefinition,
@@ -15,15 +16,28 @@ const BOUNDING_BOX_REGISTRY: Partial<Record<TenderFormId, BoundingBoxTemplateDef
 
 function normalizeBoundingBoxField(
   templateVersion: string,
-  box: RawBoundingBoxFieldDefinition
+  box: RawBoundingBoxFieldDefinition,
+  override?: CalibrationOverride
 ): BoundingBoxFieldDefinition {
-  const width = Math.max(box.xMax - box.xMin, 0);
-  const height = Math.max(box.yMax - box.yMin, 0);
+  const dx = override?.dx ?? 0;
+  const dy = override?.dy ?? 0;
+  const dw = override?.dw ?? 0;
+  const dh = override?.dh ?? 0;
+  const xMin = box.xMin + dx;
+  const yMin = box.yMin + dy;
+  const width = Math.max(box.xMax - box.xMin + dw, 0);
+  const height = Math.max(box.yMax - box.yMin + dh, 0);
+  const xMax = xMin + width;
+  const yMax = yMin + height;
 
   return {
     ...box,
-    x: box.xMin,
-    y: box.yMin,
+    xMin,
+    xMax,
+    yMin,
+    yMax,
+    x: xMin,
+    y: yMin,
     width,
     height,
     pageNumber: box.page + 1,
@@ -37,6 +51,14 @@ function normalizeBoundingBoxField(
   };
 }
 
+function getCalibrationOverride(formId: TenderFormId, fieldId: string): CalibrationOverride | undefined {
+  if (formId === "SBD1") {
+    return SBD1_CALIBRATION_OVERRIDES[fieldId];
+  }
+
+  return undefined;
+}
+
 export function getBoundingBoxField(
   formId: TenderFormId,
   fieldId: string
@@ -44,7 +66,7 @@ export function getBoundingBoxField(
   const template = BOUNDING_BOX_REGISTRY[formId];
   const box = template?.fields[fieldId];
 
-  return box ? normalizeBoundingBoxField(template.templateVersion, box) : null;
+  return box ? normalizeBoundingBoxField(template.templateVersion, box, getCalibrationOverride(formId, fieldId)) : null;
 }
 
 export function getBoundingBoxTemplate(formId: TenderFormId): BoundingBoxTemplateDefinition | null {

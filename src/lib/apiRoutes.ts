@@ -14,6 +14,10 @@ export const API_ROUTES = {
     `/api/contractors/${encodeURIComponent(contractorId)}`,
   CONTRACTOR_DOCUMENTS: (contractorId: string) =>
     `/api/contractors/${encodeURIComponent(contractorId)}/documents`,
+  CONTRACTOR_ONBOARDING: (contractorId: string) =>
+    `/api/contractors/${encodeURIComponent(contractorId)}/onboarding`,
+  CONTRACTOR_ACKNOWLEDGEMENTS: (contractorId: string) =>
+    `/api/contractors/${encodeURIComponent(contractorId)}/acknowledgements`,
   CONTRACTOR_DOCUMENT_REVIEW: (contractorId: string, documentType: string) =>
     `/api/contractor-documents/${encodeURIComponent(contractorId)}/${encodeURIComponent(documentType)}/review`,
   DEALS: "/api/deals",
@@ -49,6 +53,9 @@ export const API_ROUTES = {
   TENDER_PACK_PREVIEW_PDF: (dealId: string) =>
     `/api/tender-pack/preview-pdf?dealId=${encodeURIComponent(dealId)}`,
   TENDER_PACK_GENERATE: "/api/tender-pack/generate",
+  TENDER_PACK_REQUESTS: "/api/tender-pack/requests",
+  TENDER_PACK_REQUEST_DETAIL: (requestId: string) =>
+    `/api/tender-pack/requests/${encodeURIComponent(requestId)}`,
   TENDER_PACK_VALIDATE: "/api/tender-pack/validate",
   TENDER_PACK_TEST_FILL: "/api/tender-pack/test-fill",
   TENDER_ANALYZE: "/api/tenders/analyze",

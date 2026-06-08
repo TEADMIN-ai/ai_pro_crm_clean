@@ -4,45 +4,40 @@ import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import LoginForm from "@/components/auth/LoginForm";
 import { useAuthUser } from "@/hooks/useAuthUser";
+import { getDashboardPath } from "@/lib/auth/roleRouting";
 
 export default function LoginPage() {
-  console.log("📍 LoginPage mounted");
-
   const router = useRouter();
   const authState = useAuthUser();
+  const { user, role, loading, error } = authState;
 
-  console.log("🧠 Hook state:", authState);
-
-  const { user, role, loading } = authState;
-
-  // 🔍 FULL DEBUG
   useEffect(() => {
-    console.log("🧠 LOGIN STATE:", {
+    console.log("[LoginPage] Auth state", {
       user,
       role,
       loading,
+      error,
     });
 
-    if (loading) return;
+    if (loading || error) return;
 
     if (!user) {
-      console.log("❌ No user yet");
+      console.log("[LoginPage] No user yet");
       return;
     }
 
-    if (!role) {
-      console.log("⏳ Waiting for role...");
+    if (role === "guest") {
+      console.log("[LoginPage] Waiting for role");
       return;
     }
 
-    console.log("🚀 Redirecting to dashboard...");
-    router.replace("/dashboard");
-  }, [loading, role, router, user]);
+    const dashboardPath = getDashboardPath(role);
+    console.log("[LoginPage] Redirecting to dashboard", { dashboardPath });
+    router.replace(dashboardPath);
+  }, [error, loading, role, router, user]);
 
   return (
     <div style={{ position: "relative", minHeight: "100vh", overflow: "hidden" }}>
-      
-      {/* 🎥 Background Video */}
       <video
         autoPlay
         muted
@@ -61,7 +56,6 @@ export default function LoginPage() {
         <source src="/login/hero.mp4" type="video/mp4" />
       </video>
 
-      {/* 🌓 Overlay */}
       <div
         style={{
           position: "absolute",
@@ -72,7 +66,6 @@ export default function LoginPage() {
         }}
       />
 
-      {/* 🔐 Login Card */}
       <div
         style={{
           position: "relative",
@@ -98,13 +91,15 @@ export default function LoginPage() {
             backdropFilter: "blur(8px)",
           }}
         >
-          {loading && "🔄 Checking authentication..."}
+          {loading && "Checking authentication..."}
 
-          {!loading && !user && "🔐 Please sign in."}
+          {!loading && error && error}
 
-          {!loading && user && !role && "⏳ Logged in, fetching role..."}
+          {!loading && !error && !user && "Please sign in."}
 
-          {!loading && user && role && "✅ Auth complete. Redirecting..."}
+          {!loading && !error && user && role === "guest" && "Logged in, fetching role..."}
+
+          {!loading && !error && user && role !== "guest" && "Auth complete. Redirecting..."}
         </div>
 
         <LoginForm />

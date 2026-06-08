@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import { signInWithEmailAndPassword } from "firebase/auth";
 import { authFetch } from "@/lib/client/authFetch";
@@ -42,7 +43,7 @@ export default function LoginForm() {
       console.info("[LoginForm] Waiting for authenticated redirect");
     } catch (err: any) {
       console.error("Login failed:", err);
-      setError(err.message || "Login failed");
+      setError("We could not sign you in with those details. Check your email and password, then try again.");
     } finally {
       setLoading(false);
     }
@@ -101,6 +102,19 @@ export default function LoginForm() {
       >
         {loading ? "Signing in..." : "Login"}
       </button>
+
+      <Link
+        href="/login/reset-password"
+        style={{
+          alignSelf: "center",
+          color: "#BFDBFE",
+          fontSize: 14,
+          fontWeight: 600,
+          textDecoration: "none",
+        }}
+      >
+        Forgot password?
+      </Link>
     </form>
   );
 }

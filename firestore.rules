@@ -36,7 +36,31 @@ service cloud.firestore {
       ];
     }
 
+    function protectedUserFields() {
+      return [
+        "role",
+        "contractorId",
+        "admin",
+        "authUid",
+        "customClaims",
+        "claims",
+        "status"
+      ];
+    }
+
+    function doesNotSetProtectedUserFields() {
+      return !request.resource.data.keys().hasAny(protectedUserFields());
+    }
+
+    function doesNotModifyProtectedUserFields() {
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(protectedUserFields());
+    }
+
     function canAccessDeal(data) {
+      return isPrivileged() || isContractorOwner(data.contractorId);
+    }
+
+    function canAccessDocument(data) {
       return isPrivileged() || isContractorOwner(data.contractorId);
     }
 
@@ -71,7 +95,7 @@ service cloud.firestore {
 
     match /contractors/{docId} {
       allow read: if isSignedIn() && (isPrivileged() || isContractorOwner(docId));
-      allow write: if isSignedIn() && isPrivileged();
+      allow write: if false;
 
       match /documents/{documentId} {
         allow read: if isSignedIn() && (isPrivileged() || isContractorOwner(docId));
@@ -84,13 +108,19 @@ service cloud.firestore {
     }
 
     match /documents/{docId} {
-      allow read: if isSignedIn();
+      allow read: if isSignedIn() && canAccessDocument(resource.data);
       allow write: if false;
     }
 
     match /users/{docId} {
       allow read: if isSignedIn() && (request.auth.uid == docId || isPrivileged());
-      allow write: if isSignedIn() && (request.auth.uid == docId || role() == "admin");
+      allow create: if isSignedIn()
+        && request.auth.uid == docId
+        && doesNotSetProtectedUserFields();
+      allow update: if isSignedIn()
+        && request.auth.uid == docId
+        && doesNotModifyProtectedUserFields();
+      allow delete: if false;
     }
 
     match /tender_fixes/{docId} {

@@ -1,4 +1,4 @@
-import type { Deal } from "@/types/deal";
+import type { BriefingSessionRequired, BriefingSessionType, Deal } from "@/types/deal";
 import { normalizeDocsMissingCount } from "@/lib/compliance/contractorCompliance";
 
 function normalizeNumber(value: unknown): number {
@@ -87,6 +87,37 @@ function normalizeTenderAnalysis(value: unknown): Deal["tenderAnalysis"] | undef
   };
 }
 
+function normalizeBriefingRequired(value: unknown): BriefingSessionRequired {
+  return value === "yes" || value === "no" || value === "unknown" ? value : "unknown";
+}
+
+function normalizeBriefingType(value: unknown): BriefingSessionType {
+  return value === "physical" || value === "MS Teams" || value === "online" || value === "unknown"
+    ? value
+    : "unknown";
+}
+
+function normalizeContractorTenderSummary(value: unknown): Deal["contractorTenderSummary"] | null {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+
+  const source = value as Record<string, unknown>;
+  return {
+    scopeOfWork: normalizeOptionalString(source.scopeOfWork) ?? null,
+    closingDate: normalizeOptionalString(source.closingDate) ?? null,
+    briefingSessionRequired: normalizeBriefingRequired(source.briefingSessionRequired),
+    briefingDateTime: normalizeOptionalString(source.briefingDateTime) ?? null,
+    briefingType: normalizeBriefingType(source.briefingType),
+    briefingLocationOrPlatform: normalizeOptionalString(source.briefingLocationOrPlatform) ?? null,
+    requiredDocuments: normalizeStringArray(source.requiredDocuments) ?? [],
+    eligibilityRequirements: normalizeStringArray(source.eligibilityRequirements) ?? [],
+    mainRiskNotes: normalizeStringArray(source.mainRiskNotes) ?? [],
+    contractorActionChecklist: normalizeStringArray(source.contractorActionChecklist) ?? [],
+    aiAnalyzedAt: normalizeOptionalString(source.aiAnalyzedAt) ?? new Date(0).toISOString(),
+  };
+}
+
 export function resolveTenderLockStatus(
   score: number,
   docsMissing: number,
@@ -155,5 +186,6 @@ export function normalizeDeal(id: string, source: Record<string, unknown>): Deal
         : undefined,
     estimatedDealValue: normalizeOptionalNumber(source.estimatedDealValue),
     tenderAnalysis: normalizeTenderAnalysis(source.tenderAnalysis),
+    contractorTenderSummary: normalizeContractorTenderSummary(source.contractorTenderSummary),
   };
 }

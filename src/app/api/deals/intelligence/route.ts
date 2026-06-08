@@ -1,4 +1,6 @@
 import OpenAI from "openai";
+import { NextRequest } from "next/server";
+import { AuthorizationError, requireAuthorizedUser } from "@/lib/server/authz";
 
 export const runtime = "nodejs";
 
@@ -13,6 +15,30 @@ type DealIntelligenceResponse = {
   reason: string;
   priorityFixes: string[];
 };
+
+const RATE_LIMIT_WINDOW_MS = 60_000;
+const RATE_LIMIT_MAX_REQUESTS = 20;
+const rateLimitBuckets = new Map<string, { count: number; resetAt: number }>();
+
+function isRateLimited(userId: string): boolean {
+  const now = Date.now();
+  const bucket = rateLimitBuckets.get(userId);
+
+  if (!bucket || bucket.resetAt <= now) {
+    rateLimitBuckets.set(userId, {
+      count: 1,
+      resetAt: now + RATE_LIMIT_WINDOW_MS,
+    });
+    return false;
+  }
+
+  if (bucket.count >= RATE_LIMIT_MAX_REQUESTS) {
+    return true;
+  }
+
+  bucket.count += 1;
+  return false;
+}
 
 function getOpenAIClient(): OpenAI | null {
   const apiKey = process.env.OPENAI_API_KEY;
@@ -111,12 +137,22 @@ function sanitizeModelResponse(
   };
 }
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
   let normalizedStatus = "UNKNOWN";
   let normalizedReadinessScore = 0;
   let normalizedMissingDocs: string[] = [];
 
   try {
+    const user = await requireAuthorizedUser(req);
+
+    if (!user.role || user.role === "guest") {
+      return Response.json({ error: "Invalid role" }, { status: 403 });
+    }
+
+    if (isRateLimited(user.uid)) {
+      return Response.json({ error: "Too many requests" }, { status: 429 });
+    }
+
     const body = (await req.json()) as DealIntelligenceRequest;
     normalizedStatus = normalizeStatus(body.status);
     normalizedReadinessScore = normalizeReadinessScore(body.readinessScore);
@@ -193,6 +229,10 @@ Rules:
 
     return Response.json(sanitizeModelResponse(parsed, fallback));
   } catch (error) {
+    if (error instanceof AuthorizationError) {
+      return Response.json({ error: error.message }, { status: error.status });
+    }
+
     console.error("Intelligence API error:", error);
 
     return Response.json(

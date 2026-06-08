@@ -3,7 +3,7 @@ import { getFirestore } from "firebase-admin/firestore";
 import { getStorage } from "firebase-admin/storage";
 
 function normalizePrivateKey(privateKey: string | undefined) {
-  return privateKey?.replace(/\\n/g, "\n").trim();
+  return privateKey?.replace(/\\n/g, "\n").replace(/^"(.*)"$/, "$1").trim();
 }
 
 function resolveFirebaseStorageBucket() {
@@ -27,7 +27,9 @@ function resolveAdminCredential() {
   if (!projectId || !clientEmail || !privateKey) {
     return {
       credential: applicationDefault(),
-      credentialSource: "applicationDefault" as const,
+      credentialSource: process.env.GOOGLE_APPLICATION_CREDENTIALS?.trim()
+        ? "googleApplicationCredentials" as const
+        : "applicationDefault" as const,
     };
   }
 

@@ -105,6 +105,36 @@ describe("EmpirePDF precision engine", () => {
     expect(layout?.overflowDetected).toBe(true);
   });
 
+  test("truncates every overflow line so rendered text stays within the calibrated box", () => {
+    const box = getBoundingBoxField("SBD1", "postal_address");
+    expect(box).not.toBeNull();
+    const narrowBox = {
+      ...box!,
+      xMax: box!.xMin + 44,
+      width: 44,
+      minFontSize: 7,
+      maxFontSize: 7,
+      maxLines: 2,
+      yMax: box!.yMin + 18,
+      height: 18,
+    };
+    const tightFont = {
+      widthOfTextAtSize: jest.fn((text: string, size: number) => text.length * size),
+    };
+
+    const layout = fitTextToBoundingBox(
+      tightFont as never,
+      "UnbrokenProcurementIdentifier AnotherUnbrokenProcurementIdentifier",
+      narrowBox
+    );
+
+    expect(layout).not.toBeNull();
+    expect(layout?.overflowDetected).toBe(true);
+    expect(layout?.lines.every((line) => tightFont.widthOfTextAtSize(line, layout!.fontSize) <= layout!.contentWidth)).toBe(
+      true
+    );
+  });
+
   test("centers checkbox marks using the bounding box midpoint", () => {
     const box = getBoundingBoxField("SBD1", "foreign_supplier_no");
     const checkbox = resolveCheckboxInBoundingBox(box!);

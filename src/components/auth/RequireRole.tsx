@@ -3,6 +3,7 @@
 import { ReactNode, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
+import { getUnauthorizedRedirectPath } from "@/lib/auth/roleRouting";
 import type { UserRole } from "@/lib/auth/roleUtils";
 
 type NonGuestRole = Exclude<UserRole, "guest">;
@@ -14,12 +15,12 @@ export default function RequireRole({
   allow: NonGuestRole[];
   children: ReactNode;
 }) {
-  const { user, role, loading } = useAuth();
+  const { user, role, loading, error: authError } = useAuth();
   const router = useRouter();
   const hasAccess = role !== "guest" && allow.includes(role);
 
   useEffect(() => {
-    if (loading) {
+    if (loading || authError) {
       return;
     }
 
@@ -30,13 +31,15 @@ export default function RequireRole({
     }
 
     if (!hasAccess) {
-      console.info("[RequireRole] Access denied. Redirecting to /dashboard", {
+      const redirectPath = getUnauthorizedRedirectPath(role);
+      console.info("[RequireRole] Access denied. Redirecting to role dashboard", {
         role,
         allow,
+        redirectPath,
       });
-      router.replace("/dashboard");
+      router.replace(redirectPath);
     }
-  }, [user, role, loading, allow, router, hasAccess]);
+  }, [user, role, loading, authError, allow, router, hasAccess]);
 
   if (loading) {
     return (
@@ -45,6 +48,15 @@ export default function RequireRole({
         <p className="mt-2 text-sm text-slate-300">
           Your permissions are still initializing.
         </p>
+      </div>
+    );
+  }
+
+  if (authError) {
+    return (
+      <div className="rounded-xl border border-[#2f3b54] bg-[#121826] p-6 text-white">
+        <h2 className="text-lg font-semibold">Authentication needs attention</h2>
+        <p className="mt-2 text-sm text-slate-300">{authError}</p>
       </div>
     );
   }

@@ -17,6 +17,8 @@ import { canDelete, canReview } from "@/lib/auth/roleUtils";
 import { getFirebaseAdmin, getFirebaseStorageBucket } from "@/lib/firebase/admin";
 import { extractTextFromPdf } from "@/lib/pdf/extractTextFromPdf";
 
+const DEAL_DOCUMENT_SIGNED_URL_TTL_MS = 5 * 60 * 1000;
+
 function sanitizeFilename(name: string) {
   const cleaned = name.replace(/[^a-zA-Z0-9._-]/g, "_");
   return cleaned.length > 0 ? cleaned : "document.pdf";
@@ -144,7 +146,7 @@ export async function POST(
 
       const [downloadURL] = await file.getSignedUrl({
         action: "read",
-        expires: Date.now() + 1000 * 60 * 60 * 24 * 365 * 10,
+        expires: Date.now() + DEAL_DOCUMENT_SIGNED_URL_TTL_MS,
       });
 
       const uploadedAt = Timestamp.now();

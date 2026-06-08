@@ -5,6 +5,7 @@ import { runAutomation } from "@/lib/automation/automationEngine";
 import { normalizeSupportedDocumentType } from "@/lib/compliance/contractorCompliance";
 import { updateContractorIntelligence } from "@/lib/contractors/updateContractorIntelligence";
 import { executeContractorDocumentAnalysis } from "@/lib/documents/executeContractorDocumentAnalysis";
+import { buildContractorDocumentDownloadUrl } from "@/lib/documents/contractorDocumentDownloadUrl";
 import { getFirebaseAdmin, getFirebaseStorageBucket } from "@/lib/firebase/admin";
 import { sendWhatsAppMessage } from "@/lib/notifications/sendWhatsApp";
 import { AuthorizationError, assertCanAccessContractor, requireAuthorizedUser } from "@/lib/server/authz";
@@ -80,10 +81,7 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    const [fileUrl] = await file.getSignedUrl({
-      action: "read",
-      expires: Date.now() + 1000 * 60 * 60 * 24 * 365 * 10,
-    });
+    const fileUrl = buildContractorDocumentDownloadUrl(contractorId, documentType);
 
     const documentRef = db
       .collection("contractors")

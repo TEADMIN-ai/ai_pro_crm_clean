@@ -138,8 +138,8 @@ export async function POST(req: NextRequest) {
     const userRecord = await auth.createUser({
       displayName: contactPerson,
       email,
-      password: "Temp123!",
     });
+    const passwordResetLink = await auth.generatePasswordResetLink(email);
 
     const contractorId = userRecord.uid;
     const createdAt = Date.now();
@@ -215,6 +215,7 @@ export async function POST(req: NextRequest) {
         contractorId,
         uid: contractorId,
         contractor: contractorRecord,
+        passwordResetLink,
       },
       { status: 201 }
     );

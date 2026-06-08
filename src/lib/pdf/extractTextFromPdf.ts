@@ -1,4 +1,3 @@
-import { PDFParse } from "pdf-parse";
 import { runOCR } from "@/server/services/ocrService";
 import { loadPdfJsForNode } from "./loadPdfJsForNode";
 
@@ -122,6 +121,7 @@ async function extractTextWithPdfJs(buffer: Buffer): Promise<{ text: string; pag
 async function extractTextWithPdfParseDetailed(
   buffer: Buffer
 ): Promise<{ text: string; pageCount: number }> {
+  const { PDFParse } = await import("pdf-parse");
   const parser = new PDFParse({ data: buffer });
   const result = await withTimeout(parser.getText(), PDF_TEXT_TIMEOUT_MS, "pdf_parse");
   return {
@@ -149,14 +149,14 @@ export async function extractTextFromPdfDetailed(
     bytes: buffer.length,
   });
 
-  let pageCount = 0;
-  let pdfParseText = "";
   let pdfJsText = "";
+  let pdfParseText = "";
+  let pageCount = 0;
 
   try {
-    const result = await extractTextWithPdfParseDetailed(buffer);
+    const result = await extractTextWithPdfJs(buffer);
     pageCount = result.pageCount;
-    pdfParseText = result.text;
+    pdfJsText = result.text;
 
     console.log("[PDF_PAGE_COUNT]", {
       filename,
@@ -165,36 +165,36 @@ export async function extractTextFromPdfDetailed(
 
     console.log("[PDF_TEXT_LENGTH]", {
       filename,
-      parser: "pdf-parse",
-      textLength: pdfParseText.length,
+      parser: "pdfjs",
+      textLength: pdfJsText.length,
       pageCount,
     });
   } catch (error) {
     console.error("[PDF_TEXT_EXTRACTION]", {
       filename,
-      stage: "pdf_parse_error",
+      stage: "pdfjs_error",
       bytes: buffer.length,
       pageCount,
       error: error instanceof Error ? error.message : error,
     });
   }
 
-  if (pdfParseText.length < minTextLength) {
+  if (pdfJsText.length < minTextLength) {
     try {
-      const result = await extractTextWithPdfJs(buffer);
+      const result = await extractTextWithPdfParseDetailed(buffer);
       pageCount = pageCount || result.pageCount;
-      pdfJsText = result.text;
+      pdfParseText = result.text;
 
       console.log("[PDF_TEXT_LENGTH]", {
         filename,
-        parser: "pdfjs",
-        textLength: pdfJsText.length,
+        parser: "pdf-parse",
+        textLength: pdfParseText.length,
         pageCount,
       });
     } catch (error) {
       console.error("[PDF_TEXT_EXTRACTION]", {
         filename,
-        stage: "pdfjs_error",
+        stage: "pdf_parse_error",
         bytes: buffer.length,
         pageCount,
         error: error instanceof Error ? error.message : error,

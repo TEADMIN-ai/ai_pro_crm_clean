@@ -24,7 +24,6 @@ export async function authFetch(url: string, options: RequestInit = {}) {
 
   if (user) {
     token = await user.getIdToken();
-    console.log("Sending token:", token.substring(0, 20));
   } else {
     token = getStoredAuthToken();
   }

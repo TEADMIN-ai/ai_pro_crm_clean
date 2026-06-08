@@ -2,8 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { Resend } from "resend";
 import { AuthorizationError, requireAuthorizedUser } from "@/lib/server/authz";
 
-console.log("RESEND KEY:", process.env.RESEND_API_KEY);
-
 const resendKey = process.env.RESEND_API_KEY;
 
 let resend = null;
@@ -51,7 +49,10 @@ export async function POST(req: NextRequest) {
       ],
     });
 
-    console.log("RESEND RESPONSE:", response);
+    console.info("Tender pack email sent", {
+      id: response.data?.id ?? null,
+      error: response.error ? response.error.name : null,
+    });
 
     return NextResponse.json({
       success: true,

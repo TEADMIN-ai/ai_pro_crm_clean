@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getFirebaseAdmin } from "@/lib/firebase/admin";
-import { AuthorizationError, requireAuthorizedUser } from "@/lib/server/authz";
+import { AuthorizationError, assertCanAccessContractor, requireAuthorizedUser } from "@/lib/server/authz";
 import { extractTextFromPdf } from "@/lib/documents/extractTextFromPdf";
 import { validateDocument } from "@/lib/documents/validateCompliance";
 
@@ -31,6 +31,8 @@ export async function POST(
     if (typeof contractorId !== "string" || contractorId.trim().length === 0) {
       return NextResponse.json({ error: "invalid_contractor_id" }, { status: 400 });
     }
+
+    assertCanAccessContractor(user, contractorId);
 
     if (!(file instanceof File)) {
       return NextResponse.json({ error: "Missing file" }, { status: 400 });

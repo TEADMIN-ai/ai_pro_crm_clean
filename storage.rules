@@ -1,18 +1,36 @@
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
+    function isPrivileged() {
+      return request.auth != null
+        && (
+          request.auth.token.admin == true
+          || request.auth.token.role in ["admin", "manager", "staff"]
+        );
+    }
 
-    // 🔒 Contractor Isolation
     match /contractors/{contractorId}/{allPaths=**} {
-      allow read, write: if request.auth != null
-        && request.auth.uid == contractorId;
+      allow read, write: if false;
     }
 
-    // 🧠 Admin Full Access
+    match /tenders/{ownerUid}/{allPaths=**} {
+      allow read, write: if false;
+    }
+
+    match /tenderPacks/{contractorId}/{allPaths=**} {
+      allow read, write: if false;
+    }
+
+    match /tender-pack-tests/{contractorId}/{allPaths=**} {
+      allow read, write: if false;
+    }
+
+    match /dealFiles/{companyId}/{dealId}/{allPaths=**} {
+      allow read, write: if isPrivileged();
+    }
+
     match /{allPaths=**} {
-      allow read, write: if request.auth != null
-        && request.auth.token.admin == true;
+      allow read, write: if false;
     }
-
   }
 }

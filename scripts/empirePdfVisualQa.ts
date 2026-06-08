@@ -7,8 +7,9 @@ import { PDFDocument } from "pdf-lib";
 import { getBoundingBoxTemplate } from "@/lib/empirePdf/boundingBoxes";
 import { fillTemplateWithIntelligence } from "@/lib/empirePdf/intelligentFillEngine";
 import { EMPIRE_PDF_QA_SCENARIOS } from "@/lib/empirePdf/qa/scenarios";
+import { compareEmpirePdfVisualLayout, type EmpirePdfVisualRegressionReport } from "@/lib/empirePdf/qa/visualRegression";
 import { EMPIRE_PDF_TEMPLATE_REGISTRY } from "@/lib/empirePdf/templates";
-import type { EngineDebugField, SemanticValueKey } from "@/lib/empirePdf/templates";
+import type { EngineDebugField, IntelligentFillResult, SemanticValueKey } from "@/lib/empirePdf/templates";
 
 loadEnvConfig(process.cwd());
 
@@ -24,6 +25,8 @@ type QaTemplateResult = {
   warnings: string[];
   averageConfidence: number;
   renderedFieldCount: number;
+  qaReport: IntelligentFillResult["qaReport"];
+  visualRegression: EmpirePdfVisualRegressionReport;
   debugFields: Array<{
     fieldKey: string;
     sourceField: string;
@@ -43,6 +46,8 @@ type QaTemplateResult = {
     y: number;
     width: number | null;
     height: number | null;
+    renderedBounds: EngineDebugField["renderedBounds"] | null;
+    boundingBox: EngineDebugField["boundingBox"] | null;
     fontSize: number;
     lineHeight: number | null;
     fieldVersion: string | null;
@@ -118,6 +123,8 @@ function serializeDebugField(field: EngineDebugField, semanticKey: SemanticValue
     y: field.y,
     width: field.width ?? null,
     height: field.height ?? null,
+    renderedBounds: field.renderedBounds ?? null,
+    boundingBox: field.boundingBox ?? null,
     fontSize: field.fontSize,
     lineHeight: field.lineHeight ?? null,
     fieldVersion: field.fieldVersion ?? null,
@@ -212,6 +219,18 @@ function buildCoverageSummary(results: QaScenarioResult[]) {
   });
 }
 
+function buildDocumentQaSummary(results: QaScenarioResult[]) {
+  return results.flatMap((scenario) =>
+    scenario.templates.map((template) => ({
+      scenarioId: scenario.scenarioId,
+      document: template.formId,
+      qaReport: template.qaReport,
+      driftScore: template.visualRegression.driftScore,
+      driftEventCount: template.visualRegression.driftEvents.length,
+    }))
+  );
+}
+
 function buildMarkdownReport(results: QaScenarioResult[]) {
   const alignment = buildAlignmentReview(results);
   const coverage = buildCoverageSummary(results);
@@ -242,11 +261,28 @@ function buildMarkdownReport(results: QaScenarioResult[]) {
 
     for (const template of scenario.templates) {
       lines.push(
-        `- ${template.formId}: warnings=${template.warningCount}, rendered=${template.renderedFieldCount}, confidence=${template.averageConfidence.toFixed(2)}`
+        `- ${template.formId}: warnings=${template.warningCount}, rendered=${template.renderedFieldCount}, confidence=${template.averageConfidence.toFixed(
+          2
+        )}, placement=${template.qaReport?.placementAccuracy ?? 0}, drift=${template.visualRegression.driftScore}`
       );
       lines.push(`  normal: [${path.basename(template.pdfPath)}](./${toWindowsRelativePath(template.pdfPath)})`);
       lines.push(`  debug: [${path.basename(template.debugPdfPath)}](./${toWindowsRelativePath(template.debugPdfPath)})`);
     }
+  }
+
+  lines.push("");
+  lines.push("## Calibration QA Scores");
+  lines.push("");
+  lines.push("| Scenario | Document | Placement | Overflow | Checkbox Issues | Missing | Confidence | Drift |");
+  lines.push("| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |");
+  for (const item of buildDocumentQaSummary(results)) {
+    lines.push(
+      `| \`${item.scenarioId}\` | ${item.document} | ${item.qaReport?.placementAccuracy ?? 0} | ${
+        item.qaReport?.overflowEvents ?? 0
+      } | ${item.qaReport?.checkboxAlignmentIssues ?? 0} | ${item.qaReport?.missingFields ?? 0} | ${
+        item.qaReport?.calibrationConfidence ?? 0
+      } | ${item.driftScore} |`
+    );
   }
 
   lines.push("");
@@ -289,14 +325,14 @@ function buildMarkdownReport(results: QaScenarioResult[]) {
 function buildHtmlReport(results: QaScenarioResult[]) {
   const scenarioSections = results
     .map((scenario) => {
-      const templateLinks = scenario.templates
+  const templateLinks = scenario.templates
         .map(
           (template) => `
           <li>
             <strong>${template.formId}</strong>
             <span>warnings=${template.warningCount}, rendered=${template.renderedFieldCount}, confidence=${template.averageConfidence.toFixed(
               2
-            )}</span>
+            )}, placement=${template.qaReport?.placementAccuracy ?? 0}, drift=${template.visualRegression.driftScore}</span>
             <div><a href="./${toWindowsRelativePath(template.pdfPath)}">Normal PDF</a></div>
             <div><a href="./${toWindowsRelativePath(template.debugPdfPath)}">Debug PDF</a></div>
           </li>`
@@ -439,6 +475,10 @@ async function renderTemplateScenario(params: {
 
   await writeFile(pdfPath, Buffer.from(normalResult.pdfBytes));
   await writeFile(debugPdfPath, Buffer.from(debugResult.pdfBytes));
+  const visualRegression = compareEmpirePdfVisualLayout({
+    baseline: normalResult.result.debugFields,
+    candidate: debugResult.result.debugFields,
+  });
 
   return {
     templateKey: params.templateKey,
@@ -450,6 +490,8 @@ async function renderTemplateScenario(params: {
     warnings: debugResult.result.warnings,
     averageConfidence: debugResult.result.averageConfidence,
     renderedFieldCount: debugResult.result.renderedFieldCount,
+    qaReport: debugResult.result.qaReport,
+    visualRegression,
     debugFields: debugResult.result.debugFields.map((field) =>
       serializeDebugField(
         field,
@@ -513,6 +555,7 @@ async function main() {
     scenarios: scenarioResults,
     alignmentReview: buildAlignmentReview(scenarioResults),
     calibratedFieldCoverage: buildCoverageSummary(scenarioResults),
+    documentQaSummary: buildDocumentQaSummary(scenarioResults),
   };
 
   await writeFile(path.join(OUTPUT_ROOT, "qa-report.json"), JSON.stringify(report, null, 2));

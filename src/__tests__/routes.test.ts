@@ -21,6 +21,14 @@ describe("API_ROUTES integrity", () => {
     expect(API_ROUTES.TENDER_PACK_GENERATE).toBe("/api/tender-pack/generate");
   });
 
+  test("TENDER_PACK_REQUESTS route is correct", () => {
+    expect(API_ROUTES.TENDER_PACK_REQUESTS).toBe("/api/tender-pack/requests");
+  });
+
+  test("TENDER_PACK_REQUEST_DETAIL builds correctly", () => {
+    expect(API_ROUTES.TENDER_PACK_REQUEST_DETAIL("request 1")).toBe("/api/tender-pack/requests/request%201");
+  });
+
   test("CONTRACTOR_DOCUMENTS builds correctly", () => {
     const contractorId = "test123";
     const expected = "/api/contractors/test123/documents";

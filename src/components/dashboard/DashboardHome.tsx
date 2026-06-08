@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import ContractorOnboardingView from "@/components/contractors/ContractorOnboardingView";
+import { useAuth } from "@/context/AuthContext";
 import { authFetch } from "@/lib/client/authFetch";
 import { API_ROUTES } from "@/lib/routes";
 import DealChart from "./DealChart";
@@ -56,11 +58,17 @@ function getStatusBadgeClasses(status?: string): string {
 }
 
 export default function DashboardHome() {
+  const { loading: authLoading, role, contractorId } = useAuth();
   const [data, setData] = useState<Summary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (authLoading || role === "contractor") {
+      setLoading(false);
+      return;
+    }
+
     const controller = new AbortController();
     const timeoutId = window.setTimeout(() => {
       controller.abort();
@@ -102,7 +110,25 @@ export default function DashboardHome() {
       window.clearTimeout(timeoutId);
       controller.abort();
     };
-  }, []);
+  }, [authLoading, role]);
+
+  if (authLoading) {
+    return (
+      <div className="dashboard-panel rounded-[28px] p-6 text-slate-300">
+        <p className="text-sm font-medium">Loading dashboard...</p>
+      </div>
+    );
+  }
+
+  if (role === "contractor") {
+    return contractorId ? (
+      <ContractorOnboardingView contractorId={contractorId} />
+    ) : (
+      <div className="rounded-2xl border border-amber-200 bg-amber-50 p-6 text-sm text-amber-900">
+        Contractor profile is still syncing. Refresh shortly if this remains visible.
+      </div>
+    );
+  }
 
   if (loading) {
     return (
