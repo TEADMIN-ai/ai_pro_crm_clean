@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import "@/lib/firebase/admin";
 import { getAuth } from "firebase-admin/auth";
 
 export const runtime = "nodejs";

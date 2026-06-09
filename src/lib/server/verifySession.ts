@@ -1,5 +1,6 @@
 import { cookies } from "next/headers";
 import type { DecodedIdToken } from "firebase-admin/auth";
+import "@/lib/firebase/admin";
 import { getAuth } from "firebase-admin/auth";
 
 export async function verifySessionValue(session: string): Promise<DecodedIdToken | null> {

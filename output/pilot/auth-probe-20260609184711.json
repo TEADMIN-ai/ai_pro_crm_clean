@@ -1,0 +1,60 @@
+{
+  "runId": "auth-probe-20260609184711",
+  "baseUrl": "https://ai-pro-crm-clean.vercel.app",
+  "uid": "z0yX8cyt38hkfa60UEyNTOiX2812",
+  "cookieSetByLogin": true,
+  "cookieHeaderRedacted": "session=redacted",
+  "steps": [
+    {
+      "name": "login",
+      "path": "/api/auth/login",
+      "status": 200,
+      "ok": true,
+      "durationMs": 3237,
+      "setCookiePresent": true,
+      "body": {
+        "success": true,
+        "uid": "z0yX8cyt38hkfa60UEyNTOiX2812"
+      }
+    },
+    {
+      "name": "me_bearer",
+      "path": "/api/me",
+      "status": 200,
+      "ok": true,
+      "durationMs": 2285,
+      "setCookiePresent": false,
+      "body": {
+        "uid": "z0yX8cyt38hkfa60UEyNTOiX2812",
+        "email": "ckaraniete.za@gmail.com",
+        "role": "admin",
+        "contractorId": "z0yX8cyt38hkfa60UEyNTOiX2812"
+      }
+    },
+    {
+      "name": "auth_debug_bearer",
+      "path": "/api/auth/debug",
+      "status": 200,
+      "ok": true,
+      "durationMs": 904,
+      "setCookiePresent": false,
+      "body": {
+        "sessionExists": true,
+        "userId": "z0yX8cyt38hkfa60UEyNTOiX2812"
+      }
+    },
+    {
+      "name": "auth_health_bearer",
+      "path": "/api/auth/health",
+      "status": 200,
+      "ok": true,
+      "durationMs": 1108,
+      "setCookiePresent": false,
+      "body": {
+        "firebaseAdminInitialized": true,
+        "envValid": true,
+        "sessionCookieWorking": true
+      }
+    }
+  ]
+}

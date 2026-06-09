@@ -4,8 +4,6 @@ import { normalizeContractorId, resolveRole } from "@/lib/auth/userProfile";
 import { getFirebaseAdmin } from "@/lib/firebase/admin";
 export const runtime = "nodejs";
 
-const PROFILE_READ_TIMEOUT_MS = 1500;
-
 function extractBearerToken(authorizationHeader: string | null): string | null {
   if (!authorizationHeader) {
     return null;
@@ -18,29 +16,6 @@ function extractBearerToken(authorizationHeader: string | null): string | null {
   }
 
   return token;
-}
-
-async function withTimeout<T>(
-  promise: Promise<T>,
-  timeoutMs: number,
-  label: string,
-): Promise<T> {
-  let timeoutId: ReturnType<typeof setTimeout> | undefined;
-
-  try {
-    return await Promise.race([
-      promise,
-      new Promise<T>((_, reject) => {
-        timeoutId = setTimeout(() => {
-          reject(new Error(`${label} timed out after ${timeoutMs}ms`));
-        }, timeoutMs);
-      }),
-    ]);
-  } finally {
-    if (timeoutId) {
-      clearTimeout(timeoutId);
-    }
-  }
 }
 
 export async function GET(request: NextRequest) {
@@ -64,25 +39,31 @@ export async function GET(request: NextRequest) {
     console.info("[/api/me] BEFORE FIRESTORE READ", { uid: decodedToken.uid });
 
     let profileData: Record<string, unknown> = {};
+    const firestoreReadStartedAt = Date.now();
 
     try {
-      const profileSnapshot = await withTimeout(
-        getFirebaseAdmin().collection("users").doc(decodedToken.uid).get(),
-        PROFILE_READ_TIMEOUT_MS,
-        "users profile read",
-      );
+      console.info("[/api/me] FIRESTORE READ START", { uid: decodedToken.uid });
+      const profileSnapshot = await getFirebaseAdmin()
+        .collection("users")
+        .doc(decodedToken.uid)
+        .get();
+      const firestoreReadDurationMs = Date.now() - firestoreReadStartedAt;
       profileData = profileSnapshot.exists
         ? ((profileSnapshot.data() ?? {}) as Record<string, unknown>)
         : {};
-      console.info("[/api/me] AFTER FIRESTORE READ", {
+      console.info("[/api/me] FIRESTORE READ SUCCESS", {
         uid: decodedToken.uid,
         profileExists: profileSnapshot.exists,
+        durationMs: firestoreReadDurationMs,
       });
     } catch (profileError) {
-      console.error("[/api/me] FIRESTORE READ FAILED_OR_TIMED_OUT", {
+      const firestoreReadDurationMs = Date.now() - firestoreReadStartedAt;
+      console.error("[/api/me] FIRESTORE READ FAILURE", {
         uid: decodedToken.uid,
+        durationMs: firestoreReadDurationMs,
         error: profileError,
       });
+      return NextResponse.json({ error: "PROFILE_LOOKUP_FAILED" }, { status: 500 });
     }
 
     console.info("[/api/me] BEFORE ROLE RESOLUTION", { uid: decodedToken.uid });
