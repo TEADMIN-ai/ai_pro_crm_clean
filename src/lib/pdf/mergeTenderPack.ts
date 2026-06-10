@@ -15,19 +15,70 @@ type TenderDealData = {
   id: string;
   title: string;
   value: number | null;
-  readinessScore: number;
+  readinessScore: number | null;
   missingDocs: string[];
-  riskLevel: string;
+  missingRequirements?: string[];
+  riskLevel: string | null;
+  riskGrade?: string | null;
+  tenderLockStatus?: string | null;
+  complianceApproved?: boolean | null;
   suggestions: string[];
+  status?: string | null;
+  compliance?: TenderPackComplianceInput | null;
+  intelligence?: TenderPackComplianceInput["intelligence"] | null;
 };
 
 type TenderContractorData = {
   id: string;
   companyName: string;
   registrationNumber: string | null;
+  companyRegistrationNumber?: string | null;
+  csdNumber?: string | null;
   bbbeeStatus: string | null;
   contactPerson?: string | null;
+  contactName?: string | null;
+  email?: string | null;
+  contactEmail?: string | null;
+  phone?: string | null;
+  contactPhone?: string | null;
+  telephone?: string | null;
   directorName?: string | null;
+  readinessScore?: number | null;
+  tenderLockStatus?: string | null;
+  complianceApproved?: boolean | null;
+  riskGrade?: string | null;
+  docsMissing?: number | null;
+  missingDocumentTypes?: string[] | null;
+  missingCriticalDocuments?: string[] | null;
+  explainableSummary?: string | null;
+  blockedReasons?: string[] | null;
+  reviewRecommendations?: string[] | null;
+  complianceDocumentBreakdown?: TenderPackComplianceInput["intelligence"]["documentBreakdown"];
+  documents?: TenderPackComplianceInput["legacyDocuments"] | null;
+};
+
+type TenderPackComplianceInput = {
+  readinessScore?: number | null;
+  tenderLockStatus?: string | null;
+  complianceApproved?: boolean | null;
+  riskGrade?: string | null;
+  docsMissing?: number | null;
+  missingDocumentTypes?: string[] | null;
+  expiredDocumentCount?: number | null;
+  legacyDocuments?: Record<string, { valid?: boolean; uploaded?: boolean; status?: string; documentType?: string }> | null;
+  intelligence: {
+    riskGrade?: string | null;
+    explainableSummary?: string | null;
+    blockedReasons?: string[] | null;
+    reviewRecommendations?: string[] | null;
+    documentBreakdown?: Array<{
+      documentType?: string;
+      label?: string;
+      status?: string;
+      reason?: string | null;
+      suggestions?: string[];
+    }> | null;
+  };
 };
 
 function getString(value: unknown): string {
@@ -54,10 +105,17 @@ function normalizeDealData(deal: MergedPackDealSource): TenderDealData {
     id: deal.id,
     title: getString(deal.title) || getString(deal.name) || deal.id,
     value: getNumber(deal.value),
-    readinessScore: getNumber(deal.readinessScore) ?? 0,
-    missingDocs: getStringArray(deal.missingDocs),
-    riskLevel: getString(deal.riskLevel) || "LOW",
+    readinessScore: getNumber(deal.readinessScore),
+    missingDocs: getStringArray(deal.missingDocs).length > 0
+      ? getStringArray(deal.missingDocs)
+      : getStringArray(deal.missingRequirements),
+    missingRequirements: getStringArray(deal.missingRequirements),
+    riskLevel: getString(deal.riskLevel) || null,
+    riskGrade: getOptionalString(deal.riskGrade),
+    tenderLockStatus: getOptionalString(deal.tenderLockStatus),
+    complianceApproved: typeof deal.complianceApproved === "boolean" ? deal.complianceApproved : null,
     suggestions: getStringArray(deal.suggestions),
+    status: getOptionalString(deal.status),
   };
 }
 
@@ -72,6 +130,11 @@ function normalizeContractorData(contractor: MergedPackContractorSource): Tender
     registrationNumber:
       getOptionalString(contractor.registrationNumber) ??
       getOptionalString(contractor.companyRegistrationNumber),
+    companyRegistrationNumber:
+      getOptionalString(contractor.companyRegistrationNumber),
+    csdNumber:
+      getOptionalString(contractor.csdNumber) ??
+      getOptionalString(contractor.csdRegistrationNumber),
     bbbeeStatus:
       getOptionalString(contractor.bbbeeStatus) ??
       getOptionalString(contractor.bbbeeLevel) ??
@@ -79,10 +142,40 @@ function normalizeContractorData(contractor: MergedPackContractorSource): Tender
     contactPerson:
       getOptionalString(contractor.contactPerson) ??
       getOptionalString(contractor.contactName),
+    contactName:
+      getOptionalString(contractor.contactName),
+    email:
+      getOptionalString(contractor.email) ??
+      getOptionalString(contractor.contactEmail),
+    contactEmail:
+      getOptionalString(contractor.contactEmail),
+    phone:
+      getOptionalString(contractor.phone) ??
+      getOptionalString(contractor.contactPhone),
+    contactPhone:
+      getOptionalString(contractor.contactPhone),
+    telephone:
+      getOptionalString(contractor.telephone),
     directorName:
       getOptionalString(contractor.directorName) ??
       getOptionalString(contractor.contactPerson) ??
       getOptionalString(contractor.contactName),
+    readinessScore: getNumber(contractor.readinessScore),
+    tenderLockStatus: getOptionalString(contractor.tenderLockStatus),
+    complianceApproved: typeof contractor.complianceApproved === "boolean" ? contractor.complianceApproved : null,
+    riskGrade: getOptionalString(contractor.riskGrade),
+    docsMissing: getNumber(contractor.docsMissing),
+    missingDocumentTypes: getStringArray(contractor.missingDocumentTypes),
+    missingCriticalDocuments: getStringArray(contractor.missingCriticalDocuments),
+    explainableSummary: getOptionalString(contractor.explainableSummary),
+    blockedReasons: getStringArray(contractor.blockedReasons),
+    reviewRecommendations: getStringArray(contractor.reviewRecommendations),
+    complianceDocumentBreakdown: Array.isArray(contractor.complianceDocumentBreakdown)
+      ? contractor.complianceDocumentBreakdown as TenderPackComplianceInput["intelligence"]["documentBreakdown"]
+      : null,
+    documents: contractor.documents && typeof contractor.documents === "object"
+      ? contractor.documents as TenderPackComplianceInput["legacyDocuments"]
+      : null,
   };
 }
 
@@ -139,8 +232,13 @@ export function getMergedPackTemplateIds(_deal: MergedPackDealSource): string[] 
 export async function generateMergedPack(
   deal: MergedPackDealSource,
   contractor: MergedPackContractorSource,
+  compliance?: TenderPackComplianceInput | null,
 ): Promise<Uint8Array> {
-  const normalizedDeal = normalizeDealData(deal);
+  const normalizedDeal = {
+    ...normalizeDealData(deal),
+    compliance: compliance ?? null,
+    intelligence: compliance?.intelligence ?? null,
+  };
   const normalizedContractor = normalizeContractorData(contractor);
 
   const summaryBytes = await generateTenderPdf(normalizedDeal, normalizedContractor);

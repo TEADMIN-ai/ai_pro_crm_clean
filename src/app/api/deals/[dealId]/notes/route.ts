@@ -7,6 +7,7 @@ import {
   requireAuthorizedUser,
 } from "@/lib/server/authz";
 import { getDealById } from "@/server/services/dealService";
+import { recordAuditLog } from "@/server/services/auditLogService";
 
 function getString(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
@@ -90,6 +91,17 @@ export async function POST(
       createdBy: actor.uid,
       role: actor.role,
       createdAt: Date.now(),
+    });
+
+    await recordAuditLog({
+      userId: actor.uid,
+      action: "DEAL_NOTE_CREATED",
+      entityType: "deal",
+      entityId: dealId,
+      metadata: {
+        noteId: noteRef.id,
+        role: actor.role,
+      },
     });
 
     return NextResponse.json({ success: true, id: noteRef.id }, { status: 201 });

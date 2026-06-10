@@ -128,19 +128,51 @@ export async function POST(request: NextRequest) {
 
     const empirePdfGenerationEnabled = isEmpirePdfGenerationEnabled();
     const templateKey = empirePdfGenerationEnabled ? "summary-sbd1-sbd4" : "simple";
+    const pdfCompliance = {
+      readinessScore: compliance.readinessScore,
+      tenderLockStatus: compliance.tenderLockStatus,
+      complianceApproved: compliance.complianceApproved,
+      riskGrade: compliance.intelligence.riskGrade,
+      docsMissing: compliance.docsMissing,
+      missingDocumentTypes: compliance.missingDocumentTypes,
+      expiredDocumentCount: compliance.expiredDocumentCount,
+      legacyDocuments: compliance.legacyDocuments,
+      intelligence: compliance.intelligence,
+    };
     const pdfBytes = empirePdfGenerationEnabled
-      ? await generateMergedPack(deal, contractor)
+      ? await generateMergedPack(deal, contractor, pdfCompliance)
       : await generateSimplePack(
           {
             id: deal.id,
             title: typeof deal.title === "string" ? deal.title : undefined,
             status: typeof deal.status === "string" ? deal.status : undefined,
             contractorId,
+            readinessScore: compliance.readinessScore,
+            tenderLockStatus: compliance.tenderLockStatus,
+            complianceApproved: compliance.complianceApproved,
+            riskGrade: compliance.intelligence.riskGrade,
+            docsMissing: compliance.docsMissing,
+            missingDocs: unresolvedDocuments,
+            missingRequirements: unresolvedDocuments,
+            suggestions: compliance.intelligence.reviewRecommendations,
+            compliance: pdfCompliance,
           },
           {
             id: contractor.id,
             name: typeof contractor.name === "string" ? contractor.name : undefined,
             companyName: typeof contractor.companyName === "string" ? contractor.companyName : undefined,
+            csdNumber:
+              typeof contractor.csdNumber === "string"
+                ? contractor.csdNumber
+                : typeof contractor.csdRegistrationNumber === "string"
+                  ? contractor.csdRegistrationNumber
+                  : undefined,
+            contactPerson:
+              typeof contractor.contactPerson === "string"
+                ? contractor.contactPerson
+                : typeof contractor.contactName === "string"
+                  ? contractor.contactName
+                  : undefined,
             email:
               typeof contractor.email === "string"
                 ? contractor.email
@@ -159,6 +191,18 @@ export async function POST(request: NextRequest) {
                 : typeof contractor.companyRegistrationNumber === "string"
                   ? contractor.companyRegistrationNumber
                   : undefined,
+            readinessScore: compliance.readinessScore,
+            tenderLockStatus: compliance.tenderLockStatus,
+            complianceApproved: compliance.complianceApproved,
+            riskGrade: compliance.intelligence.riskGrade,
+            docsMissing: compliance.docsMissing,
+            missingDocumentTypes: compliance.missingDocumentTypes,
+            missingCriticalDocuments: compliance.intelligence.missingCriticalDocuments,
+            explainableSummary: compliance.intelligence.explainableSummary,
+            blockedReasons: compliance.intelligence.blockedReasons,
+            reviewRecommendations: compliance.intelligence.reviewRecommendations,
+            complianceDocumentBreakdown: compliance.intelligence.documentBreakdown,
+            documents: compliance.legacyDocuments,
           }
         );
 

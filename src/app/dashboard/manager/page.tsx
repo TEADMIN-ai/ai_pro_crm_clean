@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import HeroBanner from "@/components/hero/HeroBanner";
 import PipelineChart from "@/components/charts/PipelineChart";
 import RevenueKpiRow from "@/components/Kpi/RevenueKpiRow";
@@ -60,6 +61,14 @@ export default function ManagerDashboardPage() {
           <IdentityCardHeader title="Manager Identity" subtitle="Pipeline oversight and compliance gating">
             <Badge tone="info">Total Deals {totalDeals}</Badge>
             <Badge tone={unassignedDeals > 0 ? "warning" : "success"}>Unassigned {unassignedDeals}</Badge>
+          </IdentityCardHeader>
+        </Card>
+
+        <Card>
+          <IdentityCardHeader title="Contractor Onboarding" subtitle="Create contractor users and onboarding invitations">
+            <Link href="/dashboard/contractors" className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white no-underline">
+              Create Contractor User
+            </Link>
           </IdentityCardHeader>
         </Card>
 

@@ -88,6 +88,13 @@ export async function POST(req: NextRequest) {
         status: typeof dealData.status === "string" ? dealData.status : undefined,
         contractorId,
         analysis: normalizeDealAnalysis(dealData.analysis),
+        readinessScore: typeof contractorData.readinessScore === "number" ? contractorData.readinessScore : undefined,
+        tenderLockStatus: typeof contractorData.tenderLockStatus === "string" ? contractorData.tenderLockStatus : undefined,
+        complianceApproved: typeof contractorData.complianceApproved === "boolean" ? contractorData.complianceApproved : undefined,
+        riskGrade: typeof contractorData.riskGrade === "string" ? contractorData.riskGrade : undefined,
+        docsMissing: typeof contractorData.docsMissing === "number" ? contractorData.docsMissing : undefined,
+        missingDocs: Array.isArray(contractorData.missingDocumentTypes) ? contractorData.missingDocumentTypes : undefined,
+        suggestions: Array.isArray(contractorData.reviewRecommendations) ? contractorData.reviewRecommendations : undefined,
       },
       {
         id: contractorDoc.id,
@@ -116,6 +123,35 @@ export async function POST(req: NextRequest) {
             : typeof contractorData.companyRegistrationNumber === "string"
               ? contractorData.companyRegistrationNumber
               : undefined,
+        csdNumber:
+          typeof contractorData.csdNumber === "string"
+            ? contractorData.csdNumber
+            : typeof contractorData.csdRegistrationNumber === "string"
+              ? contractorData.csdRegistrationNumber
+              : undefined,
+        contactPerson:
+          typeof contractorData.contactPerson === "string"
+            ? contractorData.contactPerson
+            : typeof contractorData.contactName === "string"
+              ? contractorData.contactName
+              : undefined,
+        readinessScore: typeof contractorData.readinessScore === "number" ? contractorData.readinessScore : undefined,
+        tenderLockStatus: typeof contractorData.tenderLockStatus === "string" ? contractorData.tenderLockStatus : undefined,
+        complianceApproved: typeof contractorData.complianceApproved === "boolean" ? contractorData.complianceApproved : undefined,
+        riskGrade: typeof contractorData.riskGrade === "string" ? contractorData.riskGrade : undefined,
+        docsMissing: typeof contractorData.docsMissing === "number" ? contractorData.docsMissing : undefined,
+        missingDocumentTypes: Array.isArray(contractorData.missingDocumentTypes) ? contractorData.missingDocumentTypes : undefined,
+        missingCriticalDocuments: Array.isArray(contractorData.missingCriticalDocuments) ? contractorData.missingCriticalDocuments : undefined,
+        explainableSummary: typeof contractorData.explainableSummary === "string" ? contractorData.explainableSummary : undefined,
+        blockedReasons: Array.isArray(contractorData.blockedReasons) ? contractorData.blockedReasons : undefined,
+        reviewRecommendations: Array.isArray(contractorData.reviewRecommendations) ? contractorData.reviewRecommendations : undefined,
+        complianceDocumentBreakdown: Array.isArray(contractorData.complianceDocumentBreakdown)
+          ? contractorData.complianceDocumentBreakdown
+          : undefined,
+        documents:
+          contractorData.documents && typeof contractorData.documents === "object"
+            ? contractorData.documents
+            : undefined,
       },
     );
 

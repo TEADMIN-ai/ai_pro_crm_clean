@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import type { Deal } from "@/types/deal";
 import { computeAdminMetrics } from "@/lib/intelligence/admin/computeAdminMetrics";
 import { computeRevenueHealthScore } from "@/lib/kpis/revenueHealthScore";
@@ -54,6 +55,14 @@ export default function AdminDashboardPage() {
             <Badge tone={toneForScore(revenueHealth)}>Revenue Health {revenueHealth.toFixed(1)}%</Badge>
             <Badge tone={toneForScore(100 - avgRisk)}>Risk {avgRisk.toFixed(1)}</Badge>
             <Badge tone="info">Deals {deals.length}</Badge>
+          </IdentityCardHeader>
+        </Card>
+
+        <Card>
+          <IdentityCardHeader title="Contractor Onboarding" subtitle="Create contractor users and onboarding invitations">
+            <Link href="/dashboard/contractors" className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white no-underline">
+              Create Contractor User
+            </Link>
           </IdentityCardHeader>
         </Card>
 

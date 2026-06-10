@@ -29,15 +29,67 @@ type TenderDealData = {
   missingDocs: string[];
   riskLevel: string;
   suggestions: string[];
+  tenderLockStatus?: string | null;
+  complianceApproved?: boolean | null;
+  riskGrade?: string | null;
+  compliance?: {
+    readinessScore: number;
+    tenderLockStatus: string;
+    complianceApproved: boolean;
+    riskGrade: string;
+    docsMissing: number;
+    missingDocumentTypes: string[];
+    expiredDocumentCount: number;
+    legacyDocuments: Record<string, { valid?: boolean; uploaded?: boolean; status?: string; documentType?: string }>;
+    intelligence: {
+      riskGrade: string;
+      explainableSummary: string;
+      blockedReasons: string[];
+      reviewRecommendations: string[];
+      documentBreakdown: Array<{
+        documentType: string;
+        label: string;
+        status: string;
+        reason: string | null;
+        suggestions: string[];
+      }>;
+    };
+  };
 };
 
 type TenderContractorData = {
   id: string;
   companyName: string;
   registrationNumber: string | null;
+  companyRegistrationNumber?: string | null;
+  csdNumber?: string | null;
   bbbeeStatus: string | null;
   contactPerson?: string | null;
+  contactName?: string | null;
+  email?: string | null;
+  contactEmail?: string | null;
+  phone?: string | null;
+  contactPhone?: string | null;
+  telephone?: string | null;
   directorName?: string | null;
+  readinessScore?: number | null;
+  tenderLockStatus?: string | null;
+  complianceApproved?: boolean | null;
+  riskGrade?: string | null;
+  docsMissing?: number | null;
+  missingDocumentTypes?: string[] | null;
+  missingCriticalDocuments?: string[] | null;
+  explainableSummary?: string | null;
+  blockedReasons?: string[] | null;
+  reviewRecommendations?: string[] | null;
+  complianceDocumentBreakdown?: Array<{
+    documentType: string;
+    label: string;
+    status: string;
+    reason: string | null;
+    suggestions: string[];
+  }>;
+  documents?: Record<string, { valid?: boolean; uploaded?: boolean; status?: string; documentType?: string }> | null;
 };
 
 type SupportingDocumentRecord = {
@@ -448,6 +500,17 @@ export async function POST(request: NextRequest) {
     }
 
     const contractorData = contractorSnapshot.data() ?? {};
+    const pdfCompliance = {
+      readinessScore: compliance.readinessScore,
+      tenderLockStatus: compliance.tenderLockStatus,
+      complianceApproved: compliance.complianceApproved,
+      riskGrade: compliance.intelligence.riskGrade,
+      docsMissing: compliance.docsMissing,
+      missingDocumentTypes: compliance.missingDocumentTypes,
+      expiredDocumentCount: compliance.expiredDocumentCount,
+      legacyDocuments: compliance.legacyDocuments,
+      intelligence: compliance.intelligence,
+    };
 
     const deal: TenderDealData = {
       id: dealSnapshot.id,
@@ -455,8 +518,15 @@ export async function POST(request: NextRequest) {
       value: getNumber(dealData.value),
       readinessScore,
       missingDocs: unresolvedDocuments,
-      riskLevel: getString(dealData.riskLevel) || "LOW",
-      suggestions: getStringArray(dealData.suggestions),
+      riskLevel: compliance.intelligence.riskGrade,
+      riskGrade: compliance.intelligence.riskGrade,
+      tenderLockStatus: compliance.tenderLockStatus,
+      complianceApproved: compliance.complianceApproved,
+      suggestions:
+        compliance.intelligence.reviewRecommendations.length > 0
+          ? compliance.intelligence.reviewRecommendations
+          : getStringArray(dealData.suggestions),
+      compliance: pdfCompliance,
     };
 
     const contractor: TenderContractorData = {
@@ -469,6 +539,11 @@ export async function POST(request: NextRequest) {
       registrationNumber:
         getOptionalString(contractorData.registrationNumber) ??
         getOptionalString(contractorData.companyRegistrationNumber),
+      companyRegistrationNumber:
+        getOptionalString(contractorData.companyRegistrationNumber),
+      csdNumber:
+        getOptionalString(contractorData.csdNumber) ??
+        getOptionalString(contractorData.csdRegistrationNumber),
       bbbeeStatus:
         getOptionalString(contractorData.bbbeeStatus) ??
         getOptionalString(contractorData.bbbeeLevel) ??
@@ -476,10 +551,36 @@ export async function POST(request: NextRequest) {
       contactPerson:
         getOptionalString(contractorData.contactPerson) ??
         getOptionalString(contractorData.contactName),
+      contactName:
+        getOptionalString(contractorData.contactName),
+      email:
+        getOptionalString(contractorData.email) ??
+        getOptionalString(contractorData.contactEmail),
+      contactEmail:
+        getOptionalString(contractorData.contactEmail),
+      phone:
+        getOptionalString(contractorData.phone) ??
+        getOptionalString(contractorData.contactPhone),
+      contactPhone:
+        getOptionalString(contractorData.contactPhone),
+      telephone:
+        getOptionalString(contractorData.telephone),
       directorName:
         getOptionalString(contractorData.directorName) ??
         getOptionalString(contractorData.contactPerson) ??
         getOptionalString(contractorData.contactName),
+      readinessScore: compliance.readinessScore,
+      tenderLockStatus: compliance.tenderLockStatus,
+      complianceApproved: compliance.complianceApproved,
+      riskGrade: compliance.intelligence.riskGrade,
+      docsMissing: compliance.docsMissing,
+      missingDocumentTypes: compliance.missingDocumentTypes,
+      missingCriticalDocuments: compliance.intelligence.missingCriticalDocuments,
+      explainableSummary: compliance.intelligence.explainableSummary,
+      blockedReasons: compliance.intelligence.blockedReasons,
+      reviewRecommendations: compliance.intelligence.reviewRecommendations,
+      complianceDocumentBreakdown: compliance.intelligence.documentBreakdown,
+      documents: compliance.legacyDocuments,
     };
 
     stageTracker.start("summary_generated");

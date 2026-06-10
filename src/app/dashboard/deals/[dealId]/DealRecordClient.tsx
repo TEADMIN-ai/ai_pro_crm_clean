@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { authFetch } from "@/lib/client/authFetch";
 import { API_ROUTES } from "@/lib/routes";
+import DealNotes from "@/components/DealNotes";
 
 type DealDetail = {
   id: string;
@@ -236,6 +237,8 @@ export default function DealRecordClient({ dealId }: { dealId: string }) {
           </div>
         </div>
       </section>
+
+      <DealNotes dealId={deal.id} />
     </div>
   );
 }
