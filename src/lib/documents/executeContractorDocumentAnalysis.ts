@@ -73,6 +73,100 @@ function normalizeExtractedFields(fields: Record<string, string | null> | undefi
   return extractedFields;
 }
 
+function pickField(fields: Record<string, string | null>, keys: string[]): string | null {
+  for (const key of keys) {
+    const value = fields[key];
+    if (typeof value === "string" && value.trim().length > 0) {
+      return value.trim();
+    }
+  }
+
+  return null;
+}
+
+function buildContractorProfileSyncUpdates(args: {
+  documentType: SupportedDocumentType;
+  fields: Record<string, string | null>;
+  storagePath: string;
+  updatedAt: Date;
+}): Record<string, unknown> {
+  const updates: Record<string, unknown> = {
+    lastDocumentUpdateAt: args.updatedAt.toISOString(),
+    lastDocumentType: args.documentType,
+    lastDocumentStoragePath: args.storagePath,
+    updatedAt: args.updatedAt.toISOString(),
+  };
+  const registrationNumber = pickField(args.fields, [
+    "registrationNumber",
+    "companyRegistrationNumber",
+    "employerRegistrationNumber",
+  ]);
+  const csdNumber = pickField(args.fields, ["csdNumber", "csdMNumber", "mNumber"]);
+
+  if (registrationNumber) {
+    updates.registrationNumber = registrationNumber;
+    updates.companyRegistrationNumber = registrationNumber;
+  }
+
+  if (csdNumber) {
+    updates.csdNumber = csdNumber;
+    updates.csdMNumber = csdNumber;
+    updates.mNumber = csdNumber;
+  }
+
+  if (args.documentType === "taxClearance") {
+    const taxPin = pickField(args.fields, ["taxPin", "tcsPin"]);
+    const taxNumber = pickField(args.fields, ["taxNumber", "taxpayerReference", "taxReferenceNumber"]);
+    const taxpayerName = pickField(args.fields, ["taxpayerName", "companyName"]);
+
+    if (taxPin) {
+      updates.taxPin = taxPin;
+    }
+    if (taxNumber) {
+      updates.taxNumber = taxNumber;
+      updates.taxReferenceNumber = taxNumber;
+    }
+    if (taxpayerName) {
+      updates.taxpayerName = taxpayerName;
+    }
+  }
+
+  if (args.documentType === "cipc" && registrationNumber) {
+    const companyName = pickField(args.fields, ["companyName"]);
+    if (companyName) {
+      updates.registeredCompanyName = companyName;
+    }
+  }
+
+  if (args.documentType === "bbbee") {
+    const beeLevel = pickField(args.fields, ["beeLevel"]);
+    if (beeLevel) {
+      updates.bbbeeLevel = beeLevel;
+    }
+  }
+
+  if (args.documentType === "coida") {
+    const coidaRegistrationNumber = pickField(args.fields, ["employerRegistrationNumber", "registrationNumber"]);
+    if (coidaRegistrationNumber) {
+      updates.coidaRegistrationNumber = coidaRegistrationNumber;
+    }
+  }
+
+  if (args.documentType === "bankConfirmation") {
+    const bankName = pickField(args.fields, ["bankName"]);
+    const accountHolder = pickField(args.fields, ["accountHolder"]);
+    const accountNumber = pickField(args.fields, ["accountNumber"]);
+    const branchCode = pickField(args.fields, ["branchCode"]);
+
+    if (bankName) updates.bankName = bankName;
+    if (accountHolder) updates.bankAccountHolder = accountHolder;
+    if (accountNumber) updates.bankAccountNumber = accountNumber;
+    if (branchCode) updates.bankBranchCode = branchCode;
+  }
+
+  return updates;
+}
+
 function buildVerificationPersistence(
   result: Awaited<ReturnType<typeof verifyStoredContractorDocument>>,
   actorEmail?: string | null
@@ -101,6 +195,12 @@ function buildVerificationPersistence(
     taxComplianceCapable: result.taxClassification?.complianceCapable ?? null,
     taxSupportingOnly: result.taxClassification?.supportingOnly ?? null,
     readinessImpactReason: result.taxClassification?.readinessImpactReason ?? null,
+    extractionSource: result.extractionSource ?? null,
+    extractionMethod: result.extractionSource === "OCR" ? "ocr" : result.extractionSource === "PDF_TEXT" ? "pdf-parse" : null,
+    extractedTextLength: result.extractedTextLength ?? 0,
+    directTextLength: result.directTextLength ?? 0,
+    ocrTextLength: result.ocrTextLength ?? 0,
+    pageCount: result.pageCount ?? 0,
   };
 }
 
@@ -280,15 +380,26 @@ export async function executeContractorDocumentAnalysis(params: {
       });
     }
 
+    const analysisUpdatedAt = new Date();
     await documentRef.set(
       {
         ...verificationPersistence,
         auditTrail,
         extractedFields,
         analysisTimestamp: Date.now(),
-        updatedAt: new Date(),
+        updatedAt: analysisUpdatedAt,
       },
       { merge: true }
+    );
+
+    await db.collection("contractors").doc(contractorId).set(
+      buildContractorProfileSyncUpdates({
+        documentType: documentType as SupportedDocumentType,
+        fields: extractedFields,
+        storagePath,
+        updatedAt: analysisUpdatedAt,
+      }),
+      { merge: true },
     );
 
     const persistedSnapshot = await documentRef.get();
@@ -377,6 +488,15 @@ export async function executeContractorDocumentAnalysis(params: {
         updatedAt: new Date(),
       },
       { merge: true }
+    );
+    await db.collection("contractors").doc(contractorId).set(
+      {
+        lastDocumentUpdateAt: new Date().toISOString(),
+        lastDocumentType: documentType,
+        lastDocumentStoragePath: storagePath ?? null,
+        updatedAt: new Date().toISOString(),
+      },
+      { merge: true },
     );
 
     emitGovernanceEvent({

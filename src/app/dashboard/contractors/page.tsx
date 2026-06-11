@@ -19,6 +19,7 @@ type ContractorListItem = {
   status?: string | null;
   createdAt?: string | number | null;
   updatedAt?: string | number | null;
+  lastDocumentUpdateAt?: string | number | null;
   logoUrl?: string | null;
   businessLogoUrl?: string | null;
 };
@@ -53,6 +54,7 @@ export default function ContractorsPage() {
   const [createBusy, setCreateBusy] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
   const [createdInviteLink, setCreatedInviteLink] = useState<string | null>(null);
+  const [createdEmailSent, setCreatedEmailSent] = useState<boolean | null>(null);
 
   useEffect(() => {
     authFetch(API_ROUTES.CONTRACTORS, { cache: "no-store" })
@@ -89,6 +91,7 @@ export default function ContractorsPage() {
     event.preventDefault();
     setCreateError(null);
     setCreatedInviteLink(null);
+    setCreatedEmailSent(null);
 
     const companyName = createForm.companyName.trim();
     const contactPerson = createForm.contactPerson.trim();
@@ -126,6 +129,7 @@ export default function ContractorsPage() {
         contractor?: ContractorListItem;
         contractorId?: string;
         passwordResetLink?: string;
+        emailSent?: boolean;
       } | null;
 
       if (!response.ok || payload?.success !== true || !payload.contractor) {
@@ -134,6 +138,7 @@ export default function ContractorsPage() {
 
       setContractors((current) => [payload.contractor as ContractorListItem, ...current]);
       setCreatedInviteLink(payload.passwordResetLink ?? null);
+      setCreatedEmailSent(payload.emailSent ?? false);
       setCreateForm(EMPTY_CREATE_FORM);
     } catch (createErrorValue) {
       setCreateError(createErrorValue instanceof Error ? createErrorValue.message : "Failed to create contractor user.");
@@ -219,7 +224,9 @@ export default function ContractorsPage() {
               {createError ? <p className="mt-3 text-sm font-medium text-rose-200">{createError}</p> : null}
               {createdInviteLink ? (
                 <div className="mt-3 rounded-lg border border-emerald-400/30 bg-emerald-950/40 p-3 text-sm text-emerald-100">
-                  <p className="font-semibold">Onboarding invitation generated.</p>
+                  <p className="font-semibold">
+                    {createdEmailSent ? "Onboarding email sent." : "Onboarding invitation generated for manual recovery."}
+                  </p>
                   <a href={createdInviteLink} className="break-all text-emerald-200 underline">
                     {createdInviteLink}
                   </a>
@@ -253,7 +260,7 @@ export default function ContractorsPage() {
                 csdNumber={contractor.csdNumber ?? contractor.csdMNumber}
                 onboardedAt={contractor.createdAt}
                 status={contractor.status}
-                lastDocumentUpdateAt={contractor.updatedAt}
+                lastDocumentUpdateAt={contractor.lastDocumentUpdateAt ?? contractor.updatedAt}
                 logoUrl={contractor.logoUrl ?? contractor.businessLogoUrl}
               />
             );

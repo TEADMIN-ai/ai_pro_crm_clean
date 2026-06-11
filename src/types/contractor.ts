@@ -5,8 +5,11 @@ export interface Contractor {
   name?: string | null;
   companyName?: string | null;
   companyRegistrationNumber?: string | null;
+  registrationNumber?: string | null;
   bbbeeLevel?: string | null;
   taxPin?: string | null;
+  taxNumber?: string | null;
+  taxReferenceNumber?: string | null;
   taxpayerName?: string | null;
   taxClearanceExpiry?: number | null;
   coidaRegistrationNumber?: string | null;
@@ -37,4 +40,7 @@ export interface Contractor {
   createdAt?: number | null;
   createdBy?: string | null;
   updatedAt?: string | null;
+  lastDocumentUpdateAt?: string | null;
+  lastDocumentType?: string | null;
+  lastDocumentStoragePath?: string | null;
 }

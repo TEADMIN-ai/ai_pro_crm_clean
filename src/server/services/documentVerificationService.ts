@@ -17,6 +17,11 @@ export type VerificationResult = {
     hasBBBEE: boolean;
     hasCOIDA: boolean;
   };
+  extractionSource?: PdfExtractionSource;
+  extractedTextLength?: number;
+  directTextLength?: number;
+  ocrTextLength?: number;
+  pageCount?: number;
   taxClassification?: TaxDocumentClassification;
   suggestions: string[];
 };
@@ -121,12 +126,18 @@ export async function verifyStoredContractorDocument(
 
   let text = "";
   let extractionSource: "PDF_TEXT" | "OCR" | "EMPTY" = "EMPTY";
+  let directTextLength = 0;
+  let ocrTextLength = 0;
+  let pageCount = 0;
   try {
     const extraction = await extractTextFromPdfDetailed(buffer, {
       filename: `${documentType || "document"}.pdf`,
     });
     text = extraction.text;
     extractionSource = extraction.source;
+    directTextLength = extraction.directTextLength;
+    ocrTextLength = extraction.ocrTextLength;
+    pageCount = extraction.pageCount;
   } catch (error) {
     console.error("Verification text extraction failed:", error);
 
@@ -140,6 +151,11 @@ export async function verifyStoredContractorDocument(
       missingFields,
       extractedFields,
       compliance,
+      extractionSource: "EMPTY",
+      extractedTextLength: 0,
+      directTextLength: 0,
+      ocrTextLength: 0,
+      pageCount: 0,
       taxClassification: undefined,
       suggestions: [...REVIEW_SUGGESTIONS],
     };
@@ -175,6 +191,11 @@ export async function verifyStoredContractorDocument(
       missingFields,
       extractedFields,
       compliance,
+      extractionSource,
+      extractedTextLength: 0,
+      directTextLength,
+      ocrTextLength,
+      pageCount,
       taxClassification: undefined,
       suggestions: [...REVIEW_SUGGESTIONS],
     };
@@ -240,6 +261,13 @@ export async function verifyStoredContractorDocument(
       result,
     });
 
+    addCommonExtractedFields(result.extractedFields, trimmedText);
+    result.extractionSource = extractionSource;
+    result.extractedTextLength = trimmedText.length;
+    result.directTextLength = directTextLength;
+    result.ocrTextLength = ocrTextLength;
+    result.pageCount = pageCount;
+
     return result;
   } catch (error) {
     console.error("Verification scoring failed:", error);
@@ -253,6 +281,11 @@ export async function verifyStoredContractorDocument(
       missingFields,
       extractedFields,
       compliance,
+      extractionSource,
+      extractedTextLength: trimmedText.length,
+      directTextLength,
+      ocrTextLength,
+      pageCount,
       taxClassification: undefined,
       suggestions: [...REVIEW_SUGGESTIONS],
     };
@@ -558,6 +591,38 @@ function uniqueStrings(values: string[]): string[] {
 function extractCIPCNumber(text: string): string | null {
   const match = text.match(/\b(?:\d{4}\s*\/\s*\d{5,7}\s*\/\s*\d{2}|K\d{10})\b/i);
   return match ? match[0] : null;
+}
+
+function extractCsdNumber(text: string): string | null {
+  const contextual = extractFirstMatch(text, [
+    /\b(?:csd|central supplier database|supplier number|supplier no|m number|m-number)\b[\s\S]{0,80}\b(M[A-Z0-9]{7,15})\b/i,
+  ]);
+
+  if (contextual) {
+    return contextual.toUpperCase();
+  }
+
+  const fallback = text.match(/\bM[A-Z0-9]{7,15}\b/i);
+  return fallback ? fallback[0].toUpperCase() : null;
+}
+
+function addCommonExtractedFields(fields: Record<string, any>, text: string) {
+  const registrationNumber = fields.registrationNumber ?? fields.companyRegistrationNumber ?? extractCIPCNumber(text);
+  const csdNumber = fields.csdNumber ?? fields.csdMNumber ?? fields.mNumber ?? extractCsdNumber(text);
+
+  if (registrationNumber && !fields.registrationNumber) {
+    fields.registrationNumber = registrationNumber;
+  }
+
+  if (registrationNumber && !fields.companyRegistrationNumber) {
+    fields.companyRegistrationNumber = registrationNumber;
+  }
+
+  if (csdNumber) {
+    fields.csdNumber = csdNumber;
+    fields.csdMNumber = csdNumber;
+    fields.mNumber = csdNumber;
+  }
 }
 
 function assessCipcEvidence(text: string): CipcAssessment {

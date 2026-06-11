@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAuth } from "firebase-admin/auth";
 import { getFirebaseAdmin } from "@/lib/firebase/admin";
 import { ensureContractorAuthLinkage } from "@/lib/contractors/contractorAuthLink";
+import { sendContractorOnboardingEmail } from "@/lib/email/contractorOnboardingEmail";
 import { listContractors } from "@/server/services/contractorService";
 import { AuthorizationError, assertPrivilegedRole, requireAuthorizedUser } from "@/lib/server/authz";
 
@@ -209,9 +210,57 @@ export async function POST(req: NextRequest) {
       throw writeError;
     }
 
+    let onboardingLinkPersisted = true;
+    await db.collection("contractors").doc(contractorId).set(
+      {
+        onboardingLink: passwordResetLink,
+        onboardingLinkGenerated: true,
+        onboardingLinkGeneratedAt: updatedAt,
+      },
+      { merge: true },
+    ).catch((persistError) => {
+      onboardingLinkPersisted = false;
+      console.error("ONBOARDING_LINK_PERSIST_FAILURE", {
+        contractorUid: contractorId,
+        recipientEmail: email,
+        error: persistError instanceof Error ? persistError.message : "Unknown persistence error",
+      });
+    });
+
+    const emailResult = await sendContractorOnboardingEmail({
+      contractorId,
+      email,
+      contactPerson,
+      companyName,
+      onboardingLink: passwordResetLink,
+    });
+
+    await db.collection("contractors").doc(contractorId).set(
+      {
+        onboardingEmailSent: emailResult.emailSent,
+        onboardingEmailSentAt: emailResult.emailSent ? new Date().toISOString() : null,
+        onboardingEmailError: emailResult.error,
+        onboardingEmailResendId: emailResult.resendResponseId,
+      },
+      { merge: true },
+    ).catch((persistError) => {
+      console.error("ONBOARDING_EMAIL_STATUS_PERSIST_FAILURE", {
+        contractorUid: contractorId,
+        recipientEmail: email,
+        resendResponseId: emailResult.resendResponseId,
+        error: persistError instanceof Error ? persistError.message : "Unknown persistence error",
+      });
+    });
+
     return NextResponse.json(
       {
         success: true,
+        contractorCreated: true,
+        emailSent: emailResult.emailSent,
+        onboardingLinkGenerated: true,
+        onboardingLinkPersisted,
+        resendResponseId: emailResult.resendResponseId,
+        emailError: emailResult.error,
         contractorId,
         uid: contractorId,
         contractor: contractorRecord,
