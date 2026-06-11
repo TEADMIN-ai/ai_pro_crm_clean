@@ -24,6 +24,7 @@
     "set:admin": "ts-node scripts/bootstrapAdminRole.ts"
   },
   "dependencies": {
+    "@napi-rs/canvas": "^0.1.99",
     "firebase": "^10.12.0",
     "firebase-admin": "^13.6.1",
     "jspdf": "^4.2.1",

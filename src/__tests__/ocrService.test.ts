@@ -23,14 +23,18 @@ jest.mock("openai", () => {
 
 describe("ocrService", () => {
   const originalApiKey = process.env.OPENAI_API_KEY;
+  const originalDocumentModel = process.env.OPENAI_DOCUMENT_MODEL;
 
   beforeEach(() => {
+    jest.resetModules();
     process.env.OPENAI_API_KEY = "test-key";
+    delete process.env.OPENAI_DOCUMENT_MODEL;
     responsesCreate.mockReset();
   });
 
   afterAll(() => {
     process.env.OPENAI_API_KEY = originalApiKey;
+    process.env.OPENAI_DOCUMENT_MODEL = originalDocumentModel;
   });
 
   test("sends PDF buffers through responses.input_file.file_data", async () => {
@@ -67,5 +71,31 @@ describe("ocrService", () => {
     expect(responsesCreate.mock.calls[0][0].input[0].content[0].image_url).toMatch(
       /^data:image\/png;base64,/
     );
+  });
+
+  test("falls back to the source default model when configured model is not accessible", async () => {
+    process.env.OPENAI_DOCUMENT_MODEL = "gpt-4o-mini";
+    const OpenAI = (await import("openai")).default as unknown as {
+      APIError: new (message?: string) => Error;
+    };
+    const modelError = Object.assign(new OpenAI.APIError("model not found"), {
+      status: 403,
+      code: "model_not_found",
+      type: "invalid_request_error",
+      param: null,
+    });
+    responsesCreate
+      .mockRejectedValueOnce(modelError)
+      .mockResolvedValueOnce({ output_text: "Fallback OCR text" });
+
+    const { runOCR } = await import("@/server/services/ocrService");
+
+    const pdfBuffer = Buffer.from("%PDF-1.7 sample", "ascii");
+    const result = await runOCR(pdfBuffer, { filename: "registration" });
+
+    expect(result).toBe("Fallback OCR text");
+    expect(responsesCreate).toHaveBeenCalledTimes(2);
+    expect(responsesCreate.mock.calls[0][0].model).toBe("gpt-4o-mini");
+    expect(responsesCreate.mock.calls[1][0].model).toBe("gpt-4.1-mini");
   });
 });
