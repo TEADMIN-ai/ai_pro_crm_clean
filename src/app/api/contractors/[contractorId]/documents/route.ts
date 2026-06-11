@@ -138,6 +138,16 @@ function normalizeDocument(id: string, data: Record<string, unknown>): Contracto
         : undefined,
     extractedTextLength:
       typeof data.extractedTextLength === "number" ? data.extractedTextLength : undefined,
+    directTextLength:
+      typeof data.directTextLength === "number" ? data.directTextLength : undefined,
+    ocrTextLength:
+      typeof data.ocrTextLength === "number" ? data.ocrTextLength : undefined,
+    pageCount:
+      typeof data.pageCount === "number" ? data.pageCount : undefined,
+    extractionSource:
+      data.extractionSource === "PDF_TEXT" || data.extractionSource === "OCR" || data.extractionSource === "EMPTY"
+        ? data.extractionSource
+        : undefined,
     status: typeof data.status === "string" ? data.status : undefined,
   };
 

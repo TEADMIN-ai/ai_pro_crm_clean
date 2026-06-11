@@ -2,6 +2,7 @@
 const nextConfig = {
   devIndicators: false,
   reactStrictMode: true,
+  serverExternalPackages: ["@napi-rs/canvas", "pdfjs-dist", "pdf-parse"],
   images: {
     remotePatterns: [
       {

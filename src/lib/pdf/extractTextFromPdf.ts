@@ -130,6 +130,56 @@ async function extractTextWithPdfParseDetailed(
   };
 }
 
+function decodePdfEscapedString(value: string): string {
+  return value
+    .replace(/\\([nrtbf()\\])/g, (_, escaped: string) => {
+      switch (escaped) {
+        case "n":
+          return "\n";
+        case "r":
+          return "\r";
+        case "t":
+          return "\t";
+        case "b":
+        case "f":
+          return "";
+        default:
+          return escaped;
+      }
+    })
+    .replace(/\\([0-7]{1,3})/g, (_, octal: string) =>
+      String.fromCharCode(Number.parseInt(octal, 8))
+    );
+}
+
+function extractTextWithRawPdfScan(buffer: Buffer): { text: string; pageCount: number } {
+  const content = buffer.toString("latin1");
+  const pageCount = Math.max(0, (content.match(/\/Type\s*\/Page\b/g) ?? []).length);
+  const segments: string[] = [];
+  const literalPattern = /\((?:\\.|[^\\()])*\)\s*T[jJ]/g;
+  const arrayPattern = /\[((?:\s*(?:\((?:\\.|[^\\()])*\)|-?\d+(?:\.\d+)?)\s*)+)\]\s*TJ/g;
+
+  for (const match of content.matchAll(literalPattern)) {
+    const raw = match[0].replace(/\s*T[jJ]\s*$/, "");
+    segments.push(decodePdfEscapedString(raw.slice(1, -1)));
+  }
+
+  for (const match of content.matchAll(arrayPattern)) {
+    const arrayContent = match[1] ?? "";
+    const parts = [...arrayContent.matchAll(/\((?:\\.|[^\\()])*\)/g)].map((part) =>
+      decodePdfEscapedString(part[0].slice(1, -1))
+    );
+    if (parts.length) {
+      segments.push(parts.join(""));
+    }
+  }
+
+  return {
+    text: normalizeExtractedText(segments.join("\n")),
+    pageCount,
+  };
+}
+
 export async function extractTextFromPdfDetailed(
   binary: Buffer | Uint8Array,
   options?: PdfExtractionOptions
@@ -151,6 +201,7 @@ export async function extractTextFromPdfDetailed(
 
   let pdfJsText = "";
   let pdfParseText = "";
+  let rawScanText = "";
   let pageCount = 0;
 
   try {
@@ -202,8 +253,39 @@ export async function extractTextFromPdfDetailed(
     }
   }
 
-  const directText = pdfParseText.length >= pdfJsText.length ? pdfParseText : pdfJsText;
-  const directParser = pdfParseText.length >= pdfJsText.length ? "pdf-parse" : "pdfjs";
+  if (Math.max(pdfJsText.length, pdfParseText.length) < minTextLength) {
+    try {
+      const result = extractTextWithRawPdfScan(buffer);
+      pageCount = pageCount || result.pageCount;
+      rawScanText = result.text;
+
+      console.log("[PDF_TEXT_LENGTH]", {
+        filename,
+        parser: "raw-pdf-scan",
+        textLength: rawScanText.length,
+        pageCount,
+      });
+    } catch (error) {
+      console.error("[PDF_TEXT_EXTRACTION]", {
+        filename,
+        stage: "raw_pdf_scan_error",
+        bytes: buffer.length,
+        pageCount,
+        error: error instanceof Error ? error.message : error,
+      });
+    }
+  }
+
+  const directCandidates = [
+    { parser: "pdfjs", text: pdfJsText },
+    { parser: "pdf-parse", text: pdfParseText },
+    { parser: "raw-pdf-scan", text: rawScanText },
+  ];
+  const bestDirectCandidate = directCandidates.reduce((best, candidate) =>
+    candidate.text.length > best.text.length ? candidate : best
+  );
+  const directText = bestDirectCandidate.text;
+  const directParser = bestDirectCandidate.parser;
 
   if (hasMeaningfulDirectText(directText, minTextLength)) {
     console.log("[PDF_TEXT_EXTRACTION]", {

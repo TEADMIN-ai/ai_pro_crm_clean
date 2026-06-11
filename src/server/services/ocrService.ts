@@ -1,7 +1,7 @@
 import OpenAI from "openai";
 
-const FALLBACK_OPENAI_MODEL = "gpt-4.1-mini";
-const DEFAULT_OPENAI_MODEL = process.env.OPENAI_DOCUMENT_MODEL || FALLBACK_OPENAI_MODEL;
+export const OCR_MODEL_CANDIDATES = ["gpt-4.1", "gpt-4o", "gpt-4-turbo"] as const;
+const DEFAULT_OPENAI_MODEL = OCR_MODEL_CANDIDATES[0];
 
 type OcrOptions = {
   filename?: string;
@@ -42,7 +42,7 @@ function getRuntimeDiagnostics() {
   return {
     nodeVersion: process.version,
     openAiApiKeyConfigured: Boolean(process.env.OPENAI_API_KEY?.trim()),
-    model: DEFAULT_OPENAI_MODEL,
+    modelCandidates: [...OCR_MODEL_CANDIDATES],
   };
 }
 
@@ -180,11 +180,7 @@ function toLoggableError(error: unknown) {
   return { error };
 }
 
-function shouldRetryWithFallbackModel(error: unknown, attemptedModel: string): boolean {
-  if (attemptedModel === FALLBACK_OPENAI_MODEL) {
-    return false;
-  }
-
+function isModelAccessError(error: unknown): boolean {
   if (error instanceof OpenAI.APIError) {
     return error.status === 403 && error.code === "model_not_found";
   }
@@ -212,6 +208,52 @@ async function createOcrResponse(
       },
     ],
   });
+}
+
+export async function detectAvailableOcrModel(): Promise<string | null> {
+  const client = getOpenAIClient();
+  if (!client) {
+    return null;
+  }
+
+  for (const model of OCR_MODEL_CANDIDATES) {
+    try {
+      console.log("[OCR_MODEL_SELECTED]", {
+        model,
+        purpose: "health_check",
+      });
+
+      await client.responses.create({
+        model,
+        input: [
+          {
+            role: "user",
+            content: [
+              {
+                type: "input_text",
+                text: "Return OK.",
+              },
+            ],
+          },
+        ],
+        max_output_tokens: 8,
+      });
+
+      console.log("[OCR_MODEL_SUCCESS]", {
+        model,
+        purpose: "health_check",
+      });
+      return model;
+    } catch (error) {
+      console.warn("[OCR_MODEL_FAILED]", {
+        model,
+        purpose: "health_check",
+        error: toLoggableError(error),
+      });
+    }
+  }
+
+  return null;
 }
 
 export async function runOCR(buffer: Buffer, options?: OcrOptions): Promise<string> {
@@ -278,7 +320,7 @@ export async function runOCR(buffer: Buffer, options?: OcrOptions): Promise<stri
     pageCount: options?.pageCount ?? null,
     inputType: input.inputType,
     requestPath: input.requestPath,
-    model: DEFAULT_OPENAI_MODEL,
+    modelCandidates: [...OCR_MODEL_CANDIDATES],
   });
 
   try {
@@ -293,26 +335,39 @@ export async function runOCR(buffer: Buffer, options?: OcrOptions): Promise<stri
       ...runtimeDiagnostics,
     });
 
-    let response;
-    let resolvedModel = DEFAULT_OPENAI_MODEL;
+    let response: Awaited<ReturnType<typeof createOcrResponse>> | null = null;
+    let resolvedModel: string | null = null;
+    let lastError: unknown = null;
 
-    try {
-      response = await createOcrResponse(client, resolvedModel, input);
-    } catch (error) {
-      if (!shouldRetryWithFallbackModel(error, resolvedModel)) {
-        throw error;
+    for (const model of OCR_MODEL_CANDIDATES) {
+      try {
+        console.log("[OCR_MODEL_SELECTED]", {
+          filename: input.filename,
+          model,
+        });
+        response = await createOcrResponse(client, model, input);
+        resolvedModel = model;
+        console.log("[OCR_MODEL_SUCCESS]", {
+          filename: input.filename,
+          model,
+        });
+        break;
+      } catch (error) {
+        lastError = error;
+        console.warn("[OCR_MODEL_FAILED]", {
+          filename: input.filename,
+          model,
+          error: toLoggableError(error),
+        });
+
+        if (!isModelAccessError(error)) {
+          break;
+        }
       }
+    }
 
-      console.warn("[OCR_MODEL_FALLBACK]", {
-        filename: input.filename,
-        attemptedModel: resolvedModel,
-        fallbackModel: FALLBACK_OPENAI_MODEL,
-        reason: "model_not_found",
-        error: toLoggableError(error),
-      });
-
-      resolvedModel = FALLBACK_OPENAI_MODEL;
-      response = await createOcrResponse(client, resolvedModel, input);
+    if (!response || !resolvedModel) {
+      throw lastError instanceof Error ? lastError : new Error("No OCR model succeeded");
     }
 
     const text = typeof response.output_text === "string" ? response.output_text.trim() : "";
@@ -323,8 +378,8 @@ export async function runOCR(buffer: Buffer, options?: OcrOptions): Promise<stri
       bytes: buffer.length,
       pageCount: options?.pageCount ?? null,
       openAIReached: true,
-      ...runtimeDiagnostics,
       resolvedModel,
+      ...runtimeDiagnostics,
     });
 
     console.log("[OCR_TEXT_LENGTH]", {

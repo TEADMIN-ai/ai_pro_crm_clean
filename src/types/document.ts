@@ -142,8 +142,12 @@ export interface ContractorDocument {
   validationErrors?: string[];
   analysisTimestamp?: number;
   extractionMethod?: "pdf-parse" | "ocr";
+  extractionSource?: "PDF_TEXT" | "OCR" | "EMPTY";
   extractedText?: string;
   extractedTextLength?: number;
+  directTextLength?: number;
+  ocrTextLength?: number;
+  pageCount?: number;
 
   /**
    * Direct file URL used by the dashboard and execution APIs

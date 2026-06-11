@@ -73,8 +73,7 @@ describe("ocrService", () => {
     );
   });
 
-  test("falls back to the source default model when configured model is not accessible", async () => {
-    process.env.OPENAI_DOCUMENT_MODEL = "gpt-4o-mini";
+  test("tries OCR models in runtime order until one succeeds", async () => {
     const OpenAI = (await import("openai")).default as unknown as {
       APIError: new (message?: string) => Error;
     };
@@ -86,6 +85,7 @@ describe("ocrService", () => {
     });
     responsesCreate
       .mockRejectedValueOnce(modelError)
+      .mockRejectedValueOnce(modelError)
       .mockResolvedValueOnce({ output_text: "Fallback OCR text" });
 
     const { runOCR } = await import("@/server/services/ocrService");
@@ -94,8 +94,9 @@ describe("ocrService", () => {
     const result = await runOCR(pdfBuffer, { filename: "registration" });
 
     expect(result).toBe("Fallback OCR text");
-    expect(responsesCreate).toHaveBeenCalledTimes(2);
-    expect(responsesCreate.mock.calls[0][0].model).toBe("gpt-4o-mini");
-    expect(responsesCreate.mock.calls[1][0].model).toBe("gpt-4.1-mini");
+    expect(responsesCreate).toHaveBeenCalledTimes(3);
+    expect(responsesCreate.mock.calls[0][0].model).toBe("gpt-4.1");
+    expect(responsesCreate.mock.calls[1][0].model).toBe("gpt-4o");
+    expect(responsesCreate.mock.calls[2][0].model).toBe("gpt-4-turbo");
   });
 });

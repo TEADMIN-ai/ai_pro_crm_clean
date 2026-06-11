@@ -225,6 +225,14 @@ export default function ContractorDocumentUploader({
                 Status: {currentDocument?.verified ? "AI Processed" : currentDocument?.fileUrl ? "Uploaded" : "Not uploaded"}
                 {reprocessStatus[documentType] ? ` - ${reprocessStatus[documentType]}` : ""}
               </div>
+              {currentDocument?.fileUrl ? (
+                <div style={{ display: "grid", gap: 4, fontSize: 12, color: "#475569" }}>
+                  <span>Extraction Source: {currentDocument.extractionSource ?? "Not recorded"}</span>
+                  <span>Text Length: {currentDocument.extractedTextLength ?? 0} chars</span>
+                  <span>OCR Length: {currentDocument.ocrTextLength ?? 0} chars</span>
+                  <span>Last Analysis Time: {currentDocument.analysisTimestamp ? new Date(currentDocument.analysisTimestamp).toLocaleString("en-ZA") : "Not recorded"}</span>
+                </div>
+              ) : null}
             </div>
           );
         })}

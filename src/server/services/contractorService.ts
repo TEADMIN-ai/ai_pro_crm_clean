@@ -252,6 +252,16 @@ export async function listContractorDocuments(contractorId: string) {
       extractedText: asString(data.extractedText),
       extractedTextLength:
         typeof data.extractedTextLength === "number" ? data.extractedTextLength : undefined,
+      directTextLength:
+        typeof data.directTextLength === "number" ? data.directTextLength : undefined,
+      ocrTextLength:
+        typeof data.ocrTextLength === "number" ? data.ocrTextLength : undefined,
+      pageCount:
+        typeof data.pageCount === "number" ? data.pageCount : undefined,
+      extractionSource:
+        data.extractionSource === "PDF_TEXT" || data.extractionSource === "OCR" || data.extractionSource === "EMPTY"
+          ? data.extractionSource
+          : undefined,
       status: asString(data.status),
     };
 

@@ -561,6 +561,14 @@ function DocumentRow({
         <p className="mt-1 text-xs text-slate-500">
           {documentStatus(document)} {document.updatedAt ? `- updated ${formatDate(document.updatedAt)}` : ""}
         </p>
+        {document.fileUrl ? (
+          <div className="mt-2 grid gap-1 text-xs text-slate-500 sm:grid-cols-2">
+            <span>Extraction Source: {document.extractionSource ?? "Not recorded"}</span>
+            <span>Text Length: {document.extractedTextLength ?? 0} chars</span>
+            <span>OCR Length: {document.ocrTextLength ?? 0} chars</span>
+            <span>Last Analysis Time: {formatDate(document.analysisTimestamp)}</span>
+          </div>
+        ) : null}
         {openError ? <p className="mt-1 text-xs font-medium text-rose-600">{openError}</p> : null}
         {reprocessStatus ? <p className="mt-1 text-xs font-medium text-slate-600">{reprocessStatus}</p> : null}
       </div>
