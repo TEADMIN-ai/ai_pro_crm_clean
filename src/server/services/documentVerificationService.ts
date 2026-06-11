@@ -171,6 +171,16 @@ export async function verifyStoredContractorDocument(
   }
 
   const trimmedText = text.trim();
+  console.log("[EXTRACTION_TEXT_PREVIEW]", {
+    documentType,
+    extractionSource,
+    directTextLength,
+    ocrTextLength,
+    extractedTextLength: trimmedText.length,
+    pageCount,
+    preview: trimmedText.slice(0, 500),
+  });
+
   console.log("[AI_VALIDATION_INPUT]", {
     documentType,
     extractionSource,
@@ -1757,6 +1767,9 @@ function logVerificationDecision(params: {
 }) {
   console.log("[VERIFICATION_DECISION]", {
     documentType: params.documentType,
+    extractedTextLength: params.result.extractedTextLength ?? params.textLength,
+    verificationResult: params.result.status,
+    reviewReason: params.result.reason ?? null,
     textLength: params.textLength,
     weightedSignals: params.signals.map((signal) => ({
       key: signal.key,
