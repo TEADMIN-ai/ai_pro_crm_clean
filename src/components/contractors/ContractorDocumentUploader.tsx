@@ -8,6 +8,7 @@ import {
   SUPPORTED_DOCUMENT_TYPES,
   type SupportedDocumentType,
 } from "@/lib/compliance/contractorCompliance";
+import { API_ROUTES } from "@/lib/apiRoutes";
 import { authFetch } from "@/lib/client/authFetch";
 import { uploadContractorDocument } from "@/lib/contractors/uploadContractorDocument";
 import type { ContractorDocument } from "@/types/document";
@@ -26,6 +27,8 @@ export default function ContractorDocumentUploader({
   const [files, setFiles] = useState<Partial<Record<SupportedDocumentType, File>>>({});
   const [uploadingType, setUploadingType] = useState<SupportedDocumentType | null>(null);
   const [openingType, setOpeningType] = useState<SupportedDocumentType | null>(null);
+  const [reprocessingType, setReprocessingType] = useState<SupportedDocumentType | null>(null);
+  const [reprocessStatus, setReprocessStatus] = useState<Partial<Record<SupportedDocumentType, string>>>({});
   const [error, setError] = useState<string | null>(null);
 
   const documentsByType = useMemo(() => {
@@ -112,6 +115,42 @@ export default function ContractorDocumentUploader({
     }
   }
 
+  async function handleReprocess(documentType: SupportedDocumentType) {
+    if (reprocessingType) {
+      return;
+    }
+
+    try {
+      setReprocessingType(documentType);
+      setReprocessStatus((current) => ({ ...current, [documentType]: "Processing..." }));
+      setError(null);
+
+      const response = await authFetch(API_ROUTES.CONTRACTOR_DOCUMENT_EXECUTE(contractorId, documentType), {
+        method: "POST",
+        headers: {
+          Accept: "application/json",
+        },
+        cache: "no-store",
+      });
+      const payload = (await response.json().catch(() => null)) as { error?: string } | null;
+
+      if (!response.ok) {
+        throw new Error(payload?.error ?? `Reprocess failed with ${response.status}`);
+      }
+
+      setReprocessStatus((current) => ({ ...current, [documentType]: "Success" }));
+
+      if (onUploadedAction) {
+        await onUploadedAction();
+      }
+    } catch (reprocessError) {
+      setReprocessStatus((current) => ({ ...current, [documentType]: "Failed" }));
+      setError(reprocessError instanceof Error ? reprocessError.message : "Reprocess failed");
+    } finally {
+      setReprocessingType(null);
+    }
+  }
+
   return (
     <Card>
       <h2>Compliance Documents</h2>
@@ -163,18 +202,28 @@ export default function ContractorDocumentUploader({
                 </button>
 
                 {currentDocument?.fileUrl && (
-                  <button
-                    type="button"
-                    disabled={openingType === documentType}
-                    onClick={() => handleView(documentType, currentDocument)}
-                  >
-                    {openingType === documentType ? "Opening..." : "View document"}
-                  </button>
+                  <>
+                    <button
+                      type="button"
+                      disabled={openingType === documentType}
+                      onClick={() => handleView(documentType, currentDocument)}
+                    >
+                      {openingType === documentType ? "Opening..." : "View document"}
+                    </button>
+                    <button
+                      type="button"
+                      disabled={reprocessingType === documentType}
+                      onClick={() => handleReprocess(documentType)}
+                    >
+                      {reprocessingType === documentType ? "Processing..." : "Reprocess"}
+                    </button>
+                  </>
                 )}
               </div>
 
               <div style={{ fontSize: 13, opacity: 0.8 }}>
                 Status: {currentDocument?.verified ? "AI Processed" : currentDocument?.fileUrl ? "Uploaded" : "Not uploaded"}
+                {reprocessStatus[documentType] ? ` - ${reprocessStatus[documentType]}` : ""}
               </div>
             </div>
           );

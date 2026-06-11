@@ -250,6 +250,13 @@ export async function executeContractorDocumentAnalysis(params: {
     throw new Error("Unsupported documentType");
   }
 
+  console.log("[DOCUMENT_ANALYSIS_STARTED]", {
+    source: "executeContractorDocumentAnalysis",
+    contractorId,
+    documentId: documentType,
+    documentType,
+  });
+
   emitGovernanceEvent({
     eventId: crypto.randomUUID(),
     eventVersion: "v1",

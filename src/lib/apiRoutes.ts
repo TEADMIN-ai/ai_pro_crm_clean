@@ -20,6 +20,8 @@ export const API_ROUTES = {
     `/api/contractors/${encodeURIComponent(contractorId)}/acknowledgements`,
   CONTRACTOR_DOCUMENT_REVIEW: (contractorId: string, documentType: string) =>
     `/api/contractor-documents/${encodeURIComponent(contractorId)}/${encodeURIComponent(documentType)}/review`,
+  CONTRACTOR_DOCUMENT_EXECUTE: (contractorId: string, documentType: string) =>
+    `/api/contractor-documents/${encodeURIComponent(contractorId)}/${encodeURIComponent(documentType)}/execute`,
   DEALS: "/api/deals",
   DEAL_DETAIL: (dealId: string) => `/api/deals/${encodeURIComponent(dealId)}`,
   DEAL_ANALYZE: (id: string) => `/api/deals/${encodeURIComponent(id)}/analyze`,

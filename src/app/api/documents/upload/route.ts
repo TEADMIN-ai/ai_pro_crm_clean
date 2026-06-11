@@ -53,10 +53,13 @@ export async function POST(req: NextRequest) {
     const contractorId = String(formData.get("contractorId") ?? "").trim();
     const documentType = normalizeSupportedDocumentType(formData.get("documentType"));
 
-    console.log("[UPLOAD_RECEIVED]", {
+    console.log("[DOCUMENT_UPLOAD_RECEIVED]", {
       hasFile: uploadedFile instanceof File,
       contractorId,
       documentType,
+      fileName: uploadedFile instanceof File ? uploadedFile.name : null,
+      fileSize: uploadedFile instanceof File ? uploadedFile.size : null,
+      contentType: uploadedFile instanceof File ? uploadedFile.type || null : null,
     });
 
     if (
@@ -141,7 +144,15 @@ export async function POST(req: NextRequest) {
       performedBy: user.email?.trim() || user.uid,
     });
 
-    console.log("[UPLOAD_PERSISTED]", {
+    console.log("[DOCUMENT_UPLOAD_SAVED]", {
+      contractorId,
+      documentId: documentRef.id,
+      documentType,
+      storagePath: file.name,
+    });
+
+    console.log("[DOCUMENT_ANALYSIS_TRIGGERED]", {
+      source: "documents_upload_route",
       contractorId,
       documentId: documentRef.id,
       documentType,
@@ -154,6 +165,22 @@ export async function POST(req: NextRequest) {
       actorEmail: user.email,
       actorId: user.uid,
       writeActivity: false,
+    });
+
+    console.log("[DOCUMENT_ANALYSIS_COMPLETED]", {
+      source: "documents_upload_route",
+      contractorId,
+      documentId: documentRef.id,
+      documentType,
+      storagePath: file.name,
+      validationStatus: execution.result.status,
+      verified: execution.result.verified,
+      directTextLength: execution.result.directTextLength ?? 0,
+      ocrTextLength: execution.result.ocrTextLength ?? 0,
+      extractedTextLength: execution.result.extractedTextLength ?? 0,
+      extractionSource: execution.result.extractionSource ?? null,
+      readinessScore: execution.summary.readinessScore,
+      tenderLockStatus: execution.summary.tenderLockStatus,
     });
     const intelligenceSummary = await updateContractorIntelligence(db, contractorId, {
       precomputedSummary: execution.summary,
@@ -291,6 +318,10 @@ Please log in to your dashboard and resolve this issue immediately.
       return jsonError(error.message, error.status);
     }
 
+    console.error("[DOCUMENT_ANALYSIS_FAILED]", {
+      source: "documents_upload_route",
+      error: error instanceof Error ? error.message : String(error),
+    });
     console.error("Upload failed:", error);
     return jsonError(error instanceof Error ? error.message : "Upload failed", 500);
   }

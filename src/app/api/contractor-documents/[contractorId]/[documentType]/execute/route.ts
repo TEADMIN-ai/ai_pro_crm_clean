@@ -34,6 +34,14 @@ export async function POST(
 
     assertCanAccessContractor(user, contractorId);
 
+    console.log("[DOCUMENT_ANALYSIS_TRIGGERED]", {
+      source: "contractor_document_execute_route",
+      contractorId,
+      documentId: documentType,
+      documentType,
+      actorId: user.uid,
+    });
+
     const execution = await executeContractorDocumentAnalysis({
       contractorId,
       documentType,
@@ -41,14 +49,36 @@ export async function POST(
       actorId: user.uid,
     });
 
+    console.log("[DOCUMENT_ANALYSIS_COMPLETED]", {
+      source: "contractor_document_execute_route",
+      contractorId,
+      documentId: documentType,
+      documentType,
+      validationStatus: execution.result.status,
+      verified: execution.result.verified,
+      directTextLength: execution.result.directTextLength ?? 0,
+      ocrTextLength: execution.result.ocrTextLength ?? 0,
+      extractedTextLength: execution.result.extractedTextLength ?? 0,
+      extractionSource: execution.result.extractionSource ?? null,
+      readinessScore: execution.summary.readinessScore,
+      tenderLockStatus: execution.summary.tenderLockStatus,
+    });
+
     return NextResponse.json(
       {
         contractorId,
+        documentId: documentType,
         documentType,
         status: "execution_triggered",
         validationStatus: execution.result.status,
         verified: execution.result.verified,
         extractedFields: execution.extractedFields,
+        extraction: {
+          directTextLength: execution.result.directTextLength ?? 0,
+          ocrTextLength: execution.result.ocrTextLength ?? 0,
+          extractedTextLength: execution.result.extractedTextLength ?? 0,
+          extractionSource: execution.result.extractionSource ?? null,
+        },
         readiness: {
           readinessScore: execution.summary.readinessScore,
           tenderLockStatus: execution.summary.tenderLockStatus,
@@ -63,7 +93,10 @@ export async function POST(
       return jsonError(error.message, error.status);
     }
 
-    console.error("Contractor document execution failed:", error);
+    console.error("[DOCUMENT_ANALYSIS_FAILED]", {
+      source: "contractor_document_execute_route",
+      error: error instanceof Error ? error.message : String(error),
+    });
     return jsonError("Failed to execute contractor document analysis", 500);
   }
 }

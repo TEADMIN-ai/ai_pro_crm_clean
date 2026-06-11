@@ -347,7 +347,7 @@ export default function ContractorOnboardingView({ contractorId }: Props) {
                       <div className="mt-4 space-y-3">
                         {group.documents.length ? (
                           group.documents.map((document) => (
-                            <DocumentRow key={document.id} document={document} />
+                            <DocumentRow key={document.id} contractorId={contractorId} document={document} onReprocessed={loadOnboarding} />
                           ))
                         ) : (
                           <p className="rounded-lg border border-dashed border-slate-300 bg-white px-3 py-3 text-sm text-slate-500">
@@ -365,7 +365,7 @@ export default function ContractorOnboardingView({ contractorId }: Props) {
                   <h2 className="font-semibold text-slate-900">Other Contractor-Uploaded Documents</h2>
                   <div className="mt-3 divide-y divide-slate-100">
                     {groupedDocuments.uncategorized.map((document) => (
-                      <DocumentRow key={document.id} document={document} />
+                      <DocumentRow key={document.id} contractorId={contractorId} document={document} onReprocessed={loadOnboarding} />
                     ))}
                   </div>
                 </div>
@@ -465,9 +465,19 @@ function buildDocumentViewRequestUrl(fileUrl: string): string {
   return `${fileUrl}${separator}format=json`;
 }
 
-function DocumentRow({ document }: { document: ContractorDocument }) {
+function DocumentRow({
+  contractorId,
+  document,
+  onReprocessed,
+}: {
+  contractorId: string;
+  document: ContractorDocument;
+  onReprocessed: () => Promise<void>;
+}) {
   const [isOpening, setIsOpening] = useState(false);
+  const [isReprocessing, setIsReprocessing] = useState(false);
   const [openError, setOpenError] = useState<string | null>(null);
+  const [reprocessStatus, setReprocessStatus] = useState<string | null>(null);
 
   async function openDocument() {
     if (!document.fileUrl || isOpening) {
@@ -510,6 +520,40 @@ function DocumentRow({ document }: { document: ContractorDocument }) {
     }
   }
 
+  async function reprocessDocument() {
+    const documentType = clean(document.documentType) || clean(document.docType) || clean(document.id);
+    if (!documentType || isReprocessing) {
+      return;
+    }
+
+    setIsReprocessing(true);
+    setReprocessStatus("Processing...");
+    setOpenError(null);
+
+    try {
+      const response = await authFetch(API_ROUTES.CONTRACTOR_DOCUMENT_EXECUTE(contractorId, documentType), {
+        method: "POST",
+        headers: {
+          Accept: "application/json",
+        },
+        cache: "no-store",
+      });
+      const payload = (await response.json().catch(() => null)) as { error?: string } | null;
+
+      if (!response.ok) {
+        throw new Error(payload?.error ?? `Reprocess failed with ${response.status}`);
+      }
+
+      setReprocessStatus("Success");
+      await onReprocessed();
+    } catch (error) {
+      setReprocessStatus("Failed");
+      setOpenError(error instanceof Error ? error.message : "Unable to reprocess document.");
+    } finally {
+      setIsReprocessing(false);
+    }
+  }
+
   return (
     <div className="flex flex-col gap-3 rounded-lg border border-slate-200 bg-white px-3 py-3 sm:flex-row sm:items-center sm:justify-between">
       <div className="min-w-0">
@@ -518,16 +562,27 @@ function DocumentRow({ document }: { document: ContractorDocument }) {
           {documentStatus(document)} {document.updatedAt ? `- updated ${formatDate(document.updatedAt)}` : ""}
         </p>
         {openError ? <p className="mt-1 text-xs font-medium text-rose-600">{openError}</p> : null}
+        {reprocessStatus ? <p className="mt-1 text-xs font-medium text-slate-600">{reprocessStatus}</p> : null}
       </div>
       {document.fileUrl ? (
-        <button
-          type="button"
-          onClick={openDocument}
-          disabled={isOpening}
-          className="inline-flex shrink-0 justify-center rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-xs font-semibold text-sky-700 hover:bg-sky-100"
-        >
-          {isOpening ? "Opening..." : "View"}
-        </button>
+        <div className="flex shrink-0 gap-2">
+          <button
+            type="button"
+            onClick={openDocument}
+            disabled={isOpening}
+            className="inline-flex justify-center rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-xs font-semibold text-sky-700 hover:bg-sky-100 disabled:opacity-60"
+          >
+            {isOpening ? "Opening..." : "View"}
+          </button>
+          <button
+            type="button"
+            onClick={reprocessDocument}
+            disabled={isReprocessing}
+            className="inline-flex justify-center rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 disabled:opacity-60"
+          >
+            {isReprocessing ? "Processing..." : "Reprocess"}
+          </button>
+        </div>
       ) : null}
     </div>
   );
