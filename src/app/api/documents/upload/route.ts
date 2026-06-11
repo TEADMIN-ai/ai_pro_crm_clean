@@ -10,6 +10,10 @@ import { getFirebaseAdmin, getFirebaseStorageBucket } from "@/lib/firebase/admin
 import { sendWhatsAppMessage } from "@/lib/notifications/sendWhatsApp";
 import { AuthorizationError, assertCanAccessContractor, requireAuthorizedUser } from "@/lib/server/authz";
 
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+export const maxDuration = 60;
+
 function jsonError(message: string, status = 500) {
   return NextResponse.json({ error: message }, { status });
 }

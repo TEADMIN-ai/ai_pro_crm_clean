@@ -362,11 +362,16 @@ export async function executeContractorDocumentAnalysis(params: {
 
     console.log("[AI_ANALYSIS_COMPLETE]", {
       contractorId,
+      documentId: documentType,
       documentType,
       validationStatus: result.status,
       verified: result.verified,
       confidenceScore: result.score,
       missingFields: result.missingFields,
+      directTextLength: result.directTextLength ?? 0,
+      ocrTextLength: result.ocrTextLength ?? 0,
+      extractedTextLength: result.extractedTextLength ?? 0,
+      extractionSource: result.extractionSource ?? null,
     });
 
     if (verificationAudit.skippedDuplicate) {
@@ -404,6 +409,21 @@ export async function executeContractorDocumentAnalysis(params: {
 
     const persistedSnapshot = await documentRef.get();
     const persistedData = (persistedSnapshot.data() ?? {}) as Record<string, unknown>;
+
+    console.log("[DOCUMENT_EXTRACTION_EVIDENCE]", {
+      contractorId,
+      documentId: persistedSnapshot.id,
+      documentType,
+      storagePath,
+      validationStatus: result.status,
+      reviewReason: result.reason ?? null,
+      directTextLength: result.directTextLength ?? 0,
+      ocrTextLength: result.ocrTextLength ?? 0,
+      extractedTextLength: result.extractedTextLength ?? 0,
+      extractionSource: result.extractionSource ?? null,
+      extractedFieldKeys: Object.keys(extractedFields),
+      verificationAnalysisReached: (result.extractedTextLength ?? 0) > 0,
+    });
 
     console.log("[DOC_VERIFY_WRITEBACK]", {
       contractorId,

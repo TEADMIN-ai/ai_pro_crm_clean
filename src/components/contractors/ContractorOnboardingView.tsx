@@ -454,7 +454,62 @@ export default function ContractorOnboardingView({ contractorId }: Props) {
   );
 }
 
+type ContractorDocumentViewUrlResponse = {
+  success?: boolean;
+  url?: string;
+  error?: string;
+};
+
+function buildDocumentViewRequestUrl(fileUrl: string): string {
+  const separator = fileUrl.includes("?") ? "&" : "?";
+  return `${fileUrl}${separator}format=json`;
+}
+
 function DocumentRow({ document }: { document: ContractorDocument }) {
+  const [isOpening, setIsOpening] = useState(false);
+  const [openError, setOpenError] = useState<string | null>(null);
+
+  async function openDocument() {
+    if (!document.fileUrl || isOpening) {
+      return;
+    }
+
+    const popup = window.open("about:blank", "_blank");
+    if (popup) {
+      popup.opener = null;
+    }
+    setIsOpening(true);
+    setOpenError(null);
+
+    try {
+      const response = await authFetch(buildDocumentViewRequestUrl(document.fileUrl), {
+        method: "GET",
+        headers: {
+          Accept: "application/json",
+        },
+        cache: "no-store",
+      });
+      const payload = (await response.json().catch(() => null)) as ContractorDocumentViewUrlResponse | null;
+
+      if (!response.ok || payload?.success !== true || !payload.url) {
+        throw new Error(payload?.error ?? `Unable to open document (${response.status})`);
+      }
+
+      if (popup) {
+        popup.location.href = payload.url;
+      } else {
+        window.open(payload.url, "_blank", "noopener,noreferrer");
+      }
+    } catch (error) {
+      if (popup) {
+        popup.close();
+      }
+      setOpenError(error instanceof Error ? error.message : "Unable to open document.");
+    } finally {
+      setIsOpening(false);
+    }
+  }
+
   return (
     <div className="flex flex-col gap-3 rounded-lg border border-slate-200 bg-white px-3 py-3 sm:flex-row sm:items-center sm:justify-between">
       <div className="min-w-0">
@@ -462,16 +517,17 @@ function DocumentRow({ document }: { document: ContractorDocument }) {
         <p className="mt-1 text-xs text-slate-500">
           {documentStatus(document)} {document.updatedAt ? `- updated ${formatDate(document.updatedAt)}` : ""}
         </p>
+        {openError ? <p className="mt-1 text-xs font-medium text-rose-600">{openError}</p> : null}
       </div>
       {document.fileUrl ? (
-        <a
-          href={document.fileUrl}
-          target="_blank"
-          rel="noreferrer"
+        <button
+          type="button"
+          onClick={openDocument}
+          disabled={isOpening}
           className="inline-flex shrink-0 justify-center rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-xs font-semibold text-sky-700 hover:bg-sky-100"
         >
-          View
-        </a>
+          {isOpening ? "Opening..." : "View"}
+        </button>
       ) : null}
     </div>
   );

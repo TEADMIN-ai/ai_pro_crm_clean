@@ -37,6 +37,14 @@ function getOpenAIClient(): OpenAI | null {
   return apiKey ? new OpenAI({ apiKey }) : null;
 }
 
+function getRuntimeDiagnostics() {
+  return {
+    nodeVersion: process.version,
+    openAiApiKeyConfigured: Boolean(process.env.OPENAI_API_KEY?.trim()),
+    model: DEFAULT_OPENAI_MODEL,
+  };
+}
+
 function hasExtension(filename: string): boolean {
   return /\.[a-z0-9]+$/i.test(filename);
 }
@@ -172,6 +180,15 @@ function toLoggableError(error: unknown) {
 }
 
 export async function runOCR(buffer: Buffer, options?: OcrOptions): Promise<string> {
+  const runtimeDiagnostics = getRuntimeDiagnostics();
+
+  console.log("[OCR_ENV_CHECK]", {
+    filename: options?.filename ?? "document",
+    bytes: buffer.length,
+    pageCount: options?.pageCount ?? null,
+    ...runtimeDiagnostics,
+  });
+
   if (!buffer.length) {
     console.log("[OCR_TEXT_LENGTH]", {
       filename: options?.filename ?? "document",
@@ -184,7 +201,11 @@ export async function runOCR(buffer: Buffer, options?: OcrOptions): Promise<stri
 
   const client = getOpenAIClient();
   if (!client) {
-    console.warn("OCR skipped: OPENAI_API_KEY is not configured");
+    console.warn("[OCR_SKIPPED]", {
+      filename: options?.filename ?? "document",
+      reason: "missing_api_key",
+      ...runtimeDiagnostics,
+    });
     console.log("[OCR_TEXT_LENGTH]", {
       filename: options?.filename ?? "document",
       textLength: 0,
@@ -197,10 +218,12 @@ export async function runOCR(buffer: Buffer, options?: OcrOptions): Promise<stri
 
   const input = buildSupportedInput(buffer, options);
   if (!input) {
-    console.warn("OCR skipped: unsupported OCR input", {
+    console.warn("[OCR_SKIPPED]", {
       filename: options?.filename ?? "document",
+      reason: "unsupported_input",
       mimeType: options?.mimeType ?? null,
       bytes: buffer.length,
+      ...runtimeDiagnostics,
     });
     console.log("[OCR_TEXT_LENGTH]", {
       filename: options?.filename ?? "document",
@@ -224,6 +247,17 @@ export async function runOCR(buffer: Buffer, options?: OcrOptions): Promise<stri
   });
 
   try {
+    console.log("[OCR_REQUEST_START]", {
+      filename: input.filename,
+      mimeType: input.mimeType,
+      inputType: input.inputType,
+      requestPath: input.requestPath,
+      bytes: buffer.length,
+      pageCount: options?.pageCount ?? null,
+      openAIReached: true,
+      ...runtimeDiagnostics,
+    });
+
     const response = await client.responses.create({
       model: DEFAULT_OPENAI_MODEL,
       input: [
@@ -241,6 +275,15 @@ export async function runOCR(buffer: Buffer, options?: OcrOptions): Promise<stri
     });
     const text = typeof response.output_text === "string" ? response.output_text.trim() : "";
 
+    console.log("[OCR_REQUEST_SUCCESS]", {
+      filename: input.filename,
+      textLength: text.length,
+      bytes: buffer.length,
+      pageCount: options?.pageCount ?? null,
+      openAIReached: true,
+      ...runtimeDiagnostics,
+    });
+
     console.log("[OCR_TEXT_LENGTH]", {
       filename: input.filename,
       textLength: text.length,
@@ -255,6 +298,8 @@ export async function runOCR(buffer: Buffer, options?: OcrOptions): Promise<stri
       inputType: input.inputType,
       filename: input.filename,
       mimeType: input.mimeType,
+      openAIReached: true,
+      ...runtimeDiagnostics,
       error: toLoggableError(error),
     });
     console.log("[OCR_TEXT_LENGTH]", {

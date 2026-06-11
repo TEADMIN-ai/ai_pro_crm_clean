@@ -8,6 +8,7 @@ import {
   SUPPORTED_DOCUMENT_TYPES,
   type SupportedDocumentType,
 } from "@/lib/compliance/contractorCompliance";
+import { authFetch } from "@/lib/client/authFetch";
 import { uploadContractorDocument } from "@/lib/contractors/uploadContractorDocument";
 import type { ContractorDocument } from "@/types/document";
 
@@ -24,6 +25,7 @@ export default function ContractorDocumentUploader({
 }: Props) {
   const [files, setFiles] = useState<Partial<Record<SupportedDocumentType, File>>>({});
   const [uploadingType, setUploadingType] = useState<SupportedDocumentType | null>(null);
+  const [openingType, setOpeningType] = useState<SupportedDocumentType | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const documentsByType = useMemo(() => {
@@ -60,6 +62,53 @@ export default function ContractorDocumentUploader({
       setError(uploadError instanceof Error ? uploadError.message : "Upload failed");
     } finally {
       setUploadingType(null);
+    }
+  }
+
+  async function handleView(documentType: SupportedDocumentType, document: ContractorDocument) {
+    if (!document.fileUrl || openingType) {
+      return;
+    }
+
+    const separator = document.fileUrl.includes("?") ? "&" : "?";
+    const popup = window.open("about:blank", "_blank");
+    if (popup) {
+      popup.opener = null;
+    }
+
+    try {
+      setOpeningType(documentType);
+      setError(null);
+
+      const response = await authFetch(`${document.fileUrl}${separator}format=json`, {
+        method: "GET",
+        headers: {
+          Accept: "application/json",
+        },
+        cache: "no-store",
+      });
+      const payload = (await response.json().catch(() => null)) as {
+        success?: boolean;
+        url?: string;
+        error?: string;
+      } | null;
+
+      if (!response.ok || payload?.success !== true || !payload.url) {
+        throw new Error(payload?.error ?? `Unable to open document (${response.status})`);
+      }
+
+      if (popup) {
+        popup.location.href = payload.url;
+      } else {
+        window.open(payload.url, "_blank", "noopener,noreferrer");
+      }
+    } catch (viewError) {
+      if (popup) {
+        popup.close();
+      }
+      setError(viewError instanceof Error ? viewError.message : "Failed to open document");
+    } finally {
+      setOpeningType(null);
     }
   }
 
@@ -114,9 +163,13 @@ export default function ContractorDocumentUploader({
                 </button>
 
                 {currentDocument?.fileUrl && (
-                  <a href={currentDocument.fileUrl} target="_blank" rel="noreferrer noopener">
-                    View document
-                  </a>
+                  <button
+                    type="button"
+                    disabled={openingType === documentType}
+                    onClick={() => handleView(documentType, currentDocument)}
+                  >
+                    {openingType === documentType ? "Opening..." : "View document"}
+                  </button>
                 )}
               </div>
 
