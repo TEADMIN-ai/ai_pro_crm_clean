@@ -22,6 +22,7 @@ const EMPTY_OVERVIEW: IntelligenceCenterOverview = {
     userActivityToday: 0,
   },
   auditLogs: [],
+  recentTeamActivity: [],
   decisionLogs: [],
   systemMetrics: [],
   complianceAlerts: [],
@@ -45,6 +46,7 @@ export default function IntelligenceCenterPage() {
   const [overview, setOverview] = useState<IntelligenceCenterOverview>(EMPTY_OVERVIEW);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [bulkStatus, setBulkStatus] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -80,6 +82,31 @@ export default function IntelligenceCenterPage() {
       cancelled = true;
     };
   }, []);
+
+  async function reprocessFailedDocuments() {
+    try {
+      setBulkStatus("Reprocessing failed documents...");
+      const response = await authFetch("/api/contractor-documents/reprocess-failed", {
+        method: "POST",
+        credentials: "include",
+        cache: "no-store",
+      });
+      const data = (await response.json().catch(() => null)) as {
+        reprocessed?: number;
+        failed?: number;
+        scanned?: number;
+        error?: string;
+      } | null;
+
+      if (!response.ok) {
+        throw new Error(data?.error ?? `Bulk reprocess failed (${response.status})`);
+      }
+
+      setBulkStatus(`Reprocessed ${data?.reprocessed ?? 0} of ${data?.scanned ?? 0}; failed ${data?.failed ?? 0}.`);
+    } catch (bulkError) {
+      setBulkStatus(bulkError instanceof Error ? bulkError.message : "Bulk reprocess failed");
+    }
+  }
 
   const latestDecision = overview.decisionLogs[0] ?? null;
   const averageApiDuration = useMemo(() => {
@@ -132,6 +159,36 @@ export default function IntelligenceCenterPage() {
               </Link>
             </div>
           </IdentityCardHeader>
+        </Card>
+
+        <Card>
+          <IdentityCardHeader title="Recent Team Activity" subtitle="Latest operational actions across contractor workspaces">
+            <button
+              type="button"
+              onClick={reprocessFailedDocuments}
+              className="rounded-lg bg-amber-600 px-3 py-2 text-sm font-semibold text-white"
+            >
+              Reprocess Failed Documents
+            </button>
+          </IdentityCardHeader>
+          {bulkStatus ? <p className="mt-3 text-sm text-slate-300">{bulkStatus}</p> : null}
+          <div className="mt-4 grid gap-3">
+            {overview.recentTeamActivity.slice(0, 8).map((activity) => (
+              <div key={activity.id} className="rounded-lg border border-slate-700 bg-slate-900/40 px-4 py-3">
+                <p className="text-sm font-semibold text-slate-100">
+                  {String(activity.metadata.actorName ?? "System")} - {activity.label}
+                </p>
+                <p className="mt-1 text-xs text-slate-400">
+                  {activity.contractorId || "n/a"} {activity.targetId ? `- ${activity.targetId}` : ""} - {new Date(activity.timestamp).toLocaleString()}
+                </p>
+              </div>
+            ))}
+            {overview.recentTeamActivity.length === 0 ? (
+              <p className="rounded-lg border border-dashed border-slate-700 px-4 py-3 text-sm text-slate-400">
+                No recent team activity recorded yet.
+              </p>
+            ) : null}
+          </div>
         </Card>
 
         <Card>

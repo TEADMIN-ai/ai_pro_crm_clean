@@ -12,6 +12,11 @@ import {
   getLatestValidContractorSignature,
 } from "@/server/services/contractorAcknowledgementService";
 import { getContractorById, listContractorDocuments } from "@/server/services/contractorService";
+import {
+  buildContractorOperationalTimeline,
+  buildLastAction,
+  listContractorCommandNotes,
+} from "@/server/services/contractorCommandCenterService";
 
 function jsonError(message: string, status = 500) {
   return NextResponse.json({ error: message }, { status });
@@ -96,13 +101,16 @@ export async function GET(
     }
 
     const contractorRole = user.role === "contractor";
-    const [documents, deals, notes, acknowledgement, signaturePayload] = await Promise.all([
+    const [documents, deals, notes, commandNotes, timeline, acknowledgement, signaturePayload] = await Promise.all([
       listContractorDocuments(contractorId),
       listDealsForUser(user),
       listContractorNotes(contractorId, contractorRole),
+      contractorRole ? Promise.resolve([]) : listContractorCommandNotes(contractorId),
+      contractorRole ? Promise.resolve([]) : buildContractorOperationalTimeline(contractorId),
       getLatestContractorAcknowledgement(contractorId),
       getLatestValidContractorSignature(contractorId),
     ]);
+    const lastAction = contractorRole ? null : buildLastAction(timeline);
 
     const linkedDeals = deals
       .filter((deal) => deal.contractorId === contractorId)
@@ -127,6 +135,9 @@ export async function GET(
         contractor,
         documents,
         notes,
+        commandNotes,
+        timeline,
+        lastAction,
         linkedDeals,
         acknowledgement,
         signaturePayload,

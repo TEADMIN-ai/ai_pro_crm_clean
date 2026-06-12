@@ -68,6 +68,13 @@ export async function POST(
       return jsonError(error.message, 404);
     }
 
+    if (
+      error instanceof Error &&
+      (error.message === "Approval note is required" || error.message === "Rejection reason is required")
+    ) {
+      return jsonError(error.message, 400);
+    }
+
     console.error("Manual document review failed:", error);
     return jsonError("Failed to apply manual document review", 500);
   }

@@ -80,6 +80,7 @@ export type IntelligenceCenterOverview = {
     userActivityToday: number;
   };
   auditLogs: IntelligenceAuditLog[];
+  recentTeamActivity: ContractorTimelineItem[];
   decisionLogs: DecisionLog[];
   systemMetrics: SystemMetric[];
   complianceAlerts: ComplianceIntelligenceAlert[];

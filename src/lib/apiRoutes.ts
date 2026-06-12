@@ -18,10 +18,13 @@ export const API_ROUTES = {
     `/api/contractors/${encodeURIComponent(contractorId)}/onboarding`,
   CONTRACTOR_ACKNOWLEDGEMENTS: (contractorId: string) =>
     `/api/contractors/${encodeURIComponent(contractorId)}/acknowledgements`,
+  CONTRACTOR_NOTES: (contractorId: string) =>
+    `/api/contractors/${encodeURIComponent(contractorId)}/notes`,
   CONTRACTOR_DOCUMENT_REVIEW: (contractorId: string, documentType: string) =>
     `/api/contractor-documents/${encodeURIComponent(contractorId)}/${encodeURIComponent(documentType)}/review`,
   CONTRACTOR_DOCUMENT_EXECUTE: (contractorId: string, documentType: string) =>
     `/api/contractor-documents/${encodeURIComponent(contractorId)}/${encodeURIComponent(documentType)}/execute`,
+  CONTRACTOR_DOCUMENTS_REPROCESS_FAILED: "/api/contractor-documents/reprocess-failed",
   DEALS: "/api/deals",
   DEAL_DETAIL: (dealId: string) => `/api/deals/${encodeURIComponent(dealId)}`,
   DEAL_ANALYZE: (id: string) => `/api/deals/${encodeURIComponent(id)}/analyze`,

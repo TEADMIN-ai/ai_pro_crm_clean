@@ -105,6 +105,12 @@ export interface ContractorDocument {
   verified?: boolean;
   verifiedAt?: number;
   verifiedBy?: string;
+  verificationMethod?: "AI" | "MANUAL";
+  verificationStatus?: "VERIFIED_MANUAL" | "REJECTED_MANUAL" | string;
+  verificationNote?: string;
+  rejectedBy?: string;
+  rejectedAt?: number;
+  rejectionReason?: string;
   validationError?: string;
   reviewReason?: string;
   reviewedBy?: string;

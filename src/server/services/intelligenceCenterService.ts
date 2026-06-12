@@ -7,6 +7,7 @@ import type {
   IntelligenceCenterOverview,
   SystemMetric,
 } from "@/types/intelligenceCenter";
+import { listRecentTeamActivity } from "@/server/services/contractorCommandCenterService";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const EXPIRING_SOON_MS = 30 * DAY_MS;
@@ -149,12 +150,13 @@ function buildComplianceAlert(args: {
 
 export async function getIntelligenceCenterOverview(): Promise<IntelligenceCenterOverview> {
   const now = Date.now();
-  const [contractors, auditSnapshot, decisionSnapshot, metricsSnapshot, tenderPackSnapshot] = await Promise.all([
+  const [contractors, auditSnapshot, decisionSnapshot, metricsSnapshot, tenderPackSnapshot, recentTeamActivity] = await Promise.all([
     listContractors(),
     safeCollection("auditLogs"),
     safeCollection("decisionLogs"),
     safeCollection("systemMetrics"),
     getFirebaseAdmin().collection("tenderPackRequests").limit(200).get(),
+    listRecentTeamActivity(),
   ]);
 
   const documentGroups = await Promise.all(
@@ -205,6 +207,7 @@ export async function getIntelligenceCenterOverview(): Promise<IntelligenceCente
   return {
     metrics,
     auditLogs,
+    recentTeamActivity,
     decisionLogs,
     systemMetrics,
     complianceAlerts,

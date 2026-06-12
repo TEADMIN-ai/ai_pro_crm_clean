@@ -208,6 +208,15 @@ export async function listContractorDocuments(contractorId: string) {
       verified: data.verified === true || hasTimestamp(data.verifiedAt),
       verifiedAt: toMillis(data.verifiedAt),
       verifiedBy: asString(data.verifiedBy),
+      verificationMethod:
+        data.verificationMethod === "AI" || data.verificationMethod === "MANUAL"
+          ? data.verificationMethod
+          : undefined,
+      verificationStatus: asString(data.verificationStatus),
+      verificationNote: asString(data.verificationNote),
+      rejectedBy: asString(data.rejectedBy),
+      rejectedAt: toMillis(data.rejectedAt),
+      rejectionReason: asString(data.rejectionReason),
       validationStatus:
         data.validationStatus === "PASS" || data.validationStatus === "REVIEW" || data.validationStatus === "FAIL"
           ? data.validationStatus

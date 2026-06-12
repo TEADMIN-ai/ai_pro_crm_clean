@@ -9,6 +9,7 @@ import { API_ROUTES } from "@/lib/apiRoutes";
 import { authFetch } from "@/lib/client/authFetch";
 import type { ContractorTenderSummary } from "@/types/deal";
 import type { ContractorDocument } from "@/types/document";
+import type { ContractorTimelineItem } from "@/types/intelligenceCenter";
 
 type ContractorRecord = {
   id?: string;
@@ -33,6 +34,27 @@ type ContractorNote = {
   note: string;
   contractorVisible: boolean;
   createdAt?: string | null;
+};
+
+type ContractorCommandNote = {
+  id: string;
+  contractorId: string;
+  authorId: string;
+  authorName: string;
+  authorRole: string;
+  noteType: "INFO" | "ACTION_REQUIRED" | "CLIENT_CONTACT" | "APPROVAL" | "WARNING" | "REJECTION";
+  title: string;
+  message: string;
+  createdAt: string;
+};
+
+type ContractorLastAction = {
+  id: string;
+  actionType: string;
+  summary: string;
+  performedBy: string;
+  timestamp: string;
+  nextAction: string;
 };
 
 type AcknowledgementRecord = {
@@ -65,6 +87,9 @@ type OnboardingPayload = {
   contractor: ContractorRecord;
   documents: ContractorDocument[];
   notes: ContractorNote[];
+  commandNotes: ContractorCommandNote[];
+  timeline: ContractorTimelineItem[];
+  lastAction: ContractorLastAction | null;
   linkedDeals: LinkedDeal[];
   acknowledgement: AcknowledgementRecord | null;
   viewer: {
@@ -120,8 +145,18 @@ function documentLabel(document: ContractorDocument): string {
 }
 
 function documentStatus(document: ContractorDocument): string {
+  if (document.verificationStatus === "VERIFIED_MANUAL") return "Manually Verified";
+  if (document.verificationStatus === "REJECTED_MANUAL") return "Rejected";
   if (document.verified) return "Verified";
+  if (document.validationStatus === "REVIEW" || document.manualDecisionAvailable) return "Pending Review";
   return clean(document.status) || (document.fileUrl ? "Uploaded" : "Missing");
+}
+
+function documentStatusClasses(document: ContractorDocument): string {
+  if (document.verificationStatus === "VERIFIED_MANUAL") return "border-sky-200 bg-sky-50 text-sky-700";
+  if (document.verificationStatus === "REJECTED_MANUAL" || document.validationStatus === "FAIL") return "border-rose-200 bg-rose-50 text-rose-700";
+  if (document.verified || document.validationStatus === "PASS") return "border-emerald-200 bg-emerald-50 text-emerald-700";
+  return "border-amber-200 bg-amber-50 text-amber-800";
 }
 
 function getLastDocumentUpdate(documents: ContractorDocument[]): number | null {
@@ -168,6 +203,10 @@ export default function ContractorOnboardingView({ contractorId }: Props) {
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [authorityConfirmed, setAuthorityConfirmed] = useState(false);
   const [signing, setSigning] = useState(false);
+  const [noteType, setNoteType] = useState<ContractorCommandNote["noteType"]>("INFO");
+  const [noteTitle, setNoteTitle] = useState("");
+  const [noteMessage, setNoteMessage] = useState("");
+  const [savingNote, setSavingNote] = useState(false);
 
   async function loadOnboarding() {
     const response = await authFetch(API_ROUTES.CONTRACTOR_ONBOARDING(contractorId), {
@@ -249,6 +288,38 @@ export default function ContractorOnboardingView({ contractorId }: Props) {
     }
   }
 
+  async function submitCommandNote(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setSavingNote(true);
+    setError(null);
+
+    try {
+      const response = await authFetch(API_ROUTES.CONTRACTOR_NOTES(contractorId), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          noteType,
+          title: noteTitle,
+          message: noteMessage,
+        }),
+      });
+      const result = (await response.json().catch(() => null)) as { error?: string } | null;
+
+      if (!response.ok) {
+        throw new Error(result?.error ?? "Unable to save command note.");
+      }
+
+      setNoteType("INFO");
+      setNoteTitle("");
+      setNoteMessage("");
+      await loadOnboarding();
+    } catch (noteError) {
+      setError(noteError instanceof Error ? noteError.message : "Unable to save command note.");
+    } finally {
+      setSavingNote(false);
+    }
+  }
+
   function openUpload(documentType?: string) {
     setSelectedDocType(documentType ?? null);
     setIsUploadOpen(true);
@@ -300,6 +371,8 @@ export default function ContractorOnboardingView({ contractorId }: Props) {
           href={`/dashboard/contractors/${encodeURIComponent(contractorId)}`}
         />
 
+        {payload.lastAction ? <LastActionBanner action={payload.lastAction} /> : null}
+
         <section className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
           <div className="space-y-6">
             <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -347,7 +420,7 @@ export default function ContractorOnboardingView({ contractorId }: Props) {
                       <div className="mt-4 space-y-3">
                         {group.documents.length ? (
                           group.documents.map((document) => (
-                            <DocumentRow key={document.id} contractorId={contractorId} document={document} onReprocessed={loadOnboarding} />
+                            <DocumentRow key={document.id} contractorId={contractorId} document={document} onUpdated={loadOnboarding} canReview={payload.viewer.isPrivileged} />
                           ))
                         ) : (
                           <p className="rounded-lg border border-dashed border-slate-300 bg-white px-3 py-3 text-sm text-slate-500">
@@ -365,7 +438,7 @@ export default function ContractorOnboardingView({ contractorId }: Props) {
                   <h2 className="font-semibold text-slate-900">Other Contractor-Uploaded Documents</h2>
                   <div className="mt-3 divide-y divide-slate-100">
                     {groupedDocuments.uncategorized.map((document) => (
-                      <DocumentRow key={document.id} contractorId={contractorId} document={document} onReprocessed={loadOnboarding} />
+                      <DocumentRow key={document.id} contractorId={contractorId} document={document} onUpdated={loadOnboarding} canReview={payload.viewer.isPrivileged} />
                     ))}
                   </div>
                 </div>
@@ -373,6 +446,7 @@ export default function ContractorOnboardingView({ contractorId }: Props) {
             </div>
 
             <LinkedDealsPanel deals={payload.linkedDeals} />
+            <ContractorTimelinePanel timeline={payload.timeline} />
           </div>
 
           <aside className="space-y-6">
@@ -418,6 +492,20 @@ export default function ContractorOnboardingView({ contractorId }: Props) {
               onAuthorityConfirmedChange={setAuthorityConfirmed}
               onSubmit={submitAcknowledgement}
             />
+
+            {payload.viewer.isPrivileged ? (
+              <CommandLogPanel
+                notes={payload.commandNotes}
+                noteType={noteType}
+                noteTitle={noteTitle}
+                noteMessage={noteMessage}
+                savingNote={savingNote}
+                onNoteTypeChange={setNoteType}
+                onNoteTitleChange={setNoteTitle}
+                onNoteMessageChange={setNoteMessage}
+                onSubmit={submitCommandNote}
+              />
+            ) : null}
 
             <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
               <h2 className="text-lg font-semibold text-slate-950">Visible Staff Notes</h2>
@@ -465,17 +553,153 @@ function buildDocumentViewRequestUrl(fileUrl: string): string {
   return `${fileUrl}${separator}format=json`;
 }
 
+function LastActionBanner({ action }: { action: ContractorLastAction }) {
+  return (
+    <section className="rounded-2xl border border-sky-200 bg-sky-50 p-5 shadow-sm">
+      <div className="grid gap-4 md:grid-cols-[1.2fr_1fr_1fr]">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-sky-700">Last Action</p>
+          <h2 className="mt-1 text-lg font-semibold text-slate-950">{action.summary}</h2>
+          <p className="mt-2 text-sm text-slate-700">Next Action: {action.nextAction}</p>
+        </div>
+        <div className="rounded-xl border border-sky-100 bg-white p-3">
+          <p className="text-xs font-semibold text-slate-500">Performed By</p>
+          <p className="mt-1 text-sm font-semibold text-slate-900">{action.performedBy}</p>
+          <p className="mt-2 text-xs font-semibold text-slate-500">Action Type</p>
+          <p className="mt-1 text-sm text-slate-800">{action.actionType}</p>
+        </div>
+        <div className="rounded-xl border border-sky-100 bg-white p-3">
+          <p className="text-xs font-semibold text-slate-500">Timestamp</p>
+          <p className="mt-1 text-sm font-semibold text-slate-900">{formatDate(action.timestamp)}</p>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+const NOTE_TYPES: ContractorCommandNote["noteType"][] = [
+  "INFO",
+  "ACTION_REQUIRED",
+  "CLIENT_CONTACT",
+  "APPROVAL",
+  "WARNING",
+  "REJECTION",
+];
+
+function CommandLogPanel(props: {
+  notes: ContractorCommandNote[];
+  noteType: ContractorCommandNote["noteType"];
+  noteTitle: string;
+  noteMessage: string;
+  savingNote: boolean;
+  onNoteTypeChange: (value: ContractorCommandNote["noteType"]) => void;
+  onNoteTitleChange: (value: string) => void;
+  onNoteMessageChange: (value: string) => void;
+  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+}) {
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <h2 className="text-lg font-semibold text-slate-950">Contractor Command Log</h2>
+      <form className="mt-4 space-y-3" onSubmit={props.onSubmit}>
+        <select
+          value={props.noteType}
+          onChange={(event) => props.onNoteTypeChange(event.target.value as ContractorCommandNote["noteType"])}
+          className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm text-slate-900"
+        >
+          {NOTE_TYPES.map((type) => (
+            <option key={type} value={type}>{type.replace(/_/g, " ")}</option>
+          ))}
+        </select>
+        <input
+          value={props.noteTitle}
+          onChange={(event) => props.onNoteTitleChange(event.target.value)}
+          placeholder="Title"
+          className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm text-slate-900"
+          required
+        />
+        <textarea
+          value={props.noteMessage}
+          onChange={(event) => props.onNoteMessageChange(event.target.value)}
+          placeholder="Message"
+          className="min-h-24 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm text-slate-900"
+          required
+        />
+        <button
+          type="submit"
+          disabled={props.savingNote}
+          className="w-full rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white disabled:bg-slate-300"
+        >
+          {props.savingNote ? "Saving..." : "Add Command Note"}
+        </button>
+      </form>
+
+      <div className="mt-5 space-y-3">
+        {props.notes.slice(0, 6).map((note) => (
+          <div key={note.id} className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+            <div className="flex items-start justify-between gap-3">
+              <p className="font-semibold text-slate-900">{note.title}</p>
+              <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[11px] font-semibold text-slate-600">
+                {note.noteType.replace(/_/g, " ")}
+              </span>
+            </div>
+            <p className="mt-2 text-sm text-slate-700">{note.message}</p>
+            <p className="mt-2 text-xs text-slate-500">
+              {note.authorName} - {formatDate(note.createdAt)}
+            </p>
+          </div>
+        ))}
+        {props.notes.length === 0 ? (
+          <p className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-4 text-sm text-slate-500">
+            No command notes recorded.
+          </p>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function ContractorTimelinePanel({ timeline }: { timeline: ContractorTimelineItem[] }) {
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <h2 className="text-lg font-semibold text-slate-950">Unified Contractor Timeline</h2>
+      <div className="mt-4 space-y-3">
+        {timeline.slice(0, 16).map((item) => (
+          <div key={item.id} className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+            <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <p className="font-semibold text-slate-900">{item.label}</p>
+                <p className="mt-1 text-sm text-slate-600">
+                  {String(item.metadata.documentType ?? item.metadata.title ?? item.targetId ?? "Contractor")}
+                </p>
+              </div>
+              <p className="text-xs font-medium text-slate-500">{formatDate(item.timestamp)}</p>
+            </div>
+          </div>
+        ))}
+        {timeline.length === 0 ? (
+          <p className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-4 text-sm text-slate-500">
+            No operational timeline events recorded yet.
+          </p>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
 function DocumentRow({
   contractorId,
   document,
-  onReprocessed,
+  onUpdated,
+  canReview,
 }: {
   contractorId: string;
   document: ContractorDocument;
-  onReprocessed: () => Promise<void>;
+  onUpdated: () => Promise<void>;
+  canReview: boolean;
 }) {
   const [isOpening, setIsOpening] = useState(false);
   const [isReprocessing, setIsReprocessing] = useState(false);
+  const [isReviewing, setIsReviewing] = useState(false);
   const [openError, setOpenError] = useState<string | null>(null);
   const [reprocessStatus, setReprocessStatus] = useState<string | null>(null);
 
@@ -545,7 +769,7 @@ function DocumentRow({
       }
 
       setReprocessStatus("Success");
-      await onReprocessed();
+      await onUpdated();
     } catch (error) {
       setReprocessStatus("Failed");
       setOpenError(error instanceof Error ? error.message : "Unable to reprocess document.");
@@ -554,12 +778,57 @@ function DocumentRow({
     }
   }
 
+  async function applyManualDecision(action: "approve" | "reject") {
+    if (isReviewing) return;
+
+    const documentType = clean(document.documentType) || clean(document.docType) || clean(document.id);
+    const promptLabel = action === "approve" ? "Approval note" : "Decline reason";
+    const note = window.prompt(`${promptLabel} for ${documentLabel(document)}`);
+    if (!documentType || !note?.trim()) {
+      setOpenError(`${promptLabel} is required.`);
+      return;
+    }
+
+    setIsReviewing(true);
+    setOpenError(null);
+
+    try {
+      const response = await authFetch(API_ROUTES.CONTRACTOR_DOCUMENT_REVIEW(contractorId, documentType), {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        body: JSON.stringify({
+          action,
+          reviewReason: note.trim(),
+        }),
+      });
+      const result = (await response.json().catch(() => null)) as { error?: string } | null;
+
+      if (!response.ok) {
+        throw new Error(result?.error ?? `Manual ${action} failed (${response.status})`);
+      }
+
+      await onUpdated();
+    } catch (error) {
+      setOpenError(error instanceof Error ? error.message : `Unable to ${action} document.`);
+    } finally {
+      setIsReviewing(false);
+    }
+  }
+
   return (
     <div className="flex flex-col gap-3 rounded-lg border border-slate-200 bg-white px-3 py-3 sm:flex-row sm:items-center sm:justify-between">
       <div className="min-w-0">
-        <p className="truncate text-sm font-semibold text-slate-900">{documentLabel(document)}</p>
+        <div className="flex flex-wrap items-center gap-2">
+          <p className="truncate text-sm font-semibold text-slate-900">{documentLabel(document)}</p>
+          <span className={`rounded-full border px-2 py-0.5 text-[11px] font-semibold ${documentStatusClasses(document)}`}>
+            {documentStatus(document)}
+          </span>
+        </div>
         <p className="mt-1 text-xs text-slate-500">
-          {documentStatus(document)} {document.updatedAt ? `- updated ${formatDate(document.updatedAt)}` : ""}
+          {document.updatedAt ? `Updated ${formatDate(document.updatedAt)}` : "No update timestamp"}
         </p>
         {document.fileUrl ? (
           <div className="mt-2 grid gap-1 text-xs text-slate-500 sm:grid-cols-2">
@@ -573,7 +842,7 @@ function DocumentRow({
         {reprocessStatus ? <p className="mt-1 text-xs font-medium text-slate-600">{reprocessStatus}</p> : null}
       </div>
       {document.fileUrl ? (
-        <div className="flex shrink-0 gap-2">
+        <div className="flex shrink-0 flex-wrap gap-2">
           <button
             type="button"
             onClick={openDocument}
@@ -590,6 +859,26 @@ function DocumentRow({
           >
             {isReprocessing ? "Processing..." : "Reprocess"}
           </button>
+          {canReview ? (
+            <>
+              <button
+                type="button"
+                onClick={() => applyManualDecision("approve")}
+                disabled={isReviewing}
+                className="inline-flex justify-center rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-xs font-semibold text-sky-700 hover:bg-sky-100 disabled:opacity-60"
+              >
+                {isReviewing ? "Saving..." : "Approve"}
+              </button>
+              <button
+                type="button"
+                onClick={() => applyManualDecision("reject")}
+                disabled={isReviewing}
+                className="inline-flex justify-center rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700 hover:bg-rose-100 disabled:opacity-60"
+              >
+                {isReviewing ? "Saving..." : "Decline"}
+              </button>
+            </>
+          ) : null}
         </div>
       ) : null}
     </div>

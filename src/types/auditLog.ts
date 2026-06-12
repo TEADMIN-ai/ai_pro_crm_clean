@@ -5,6 +5,11 @@ export type AuditLogAction =
   | "MANUAL_VERIFICATION_APPROVED"
   | "MANUAL_VERIFICATION_REJECTED"
   | "MANUAL_VERIFICATION_REUPLOAD_REQUESTED"
+  | "ACCOUNT_NOTE_CREATED"
+  | "DOCUMENT_APPROVED_MANUAL"
+  | "DOCUMENT_REJECTED_MANUAL"
+  | "CLIENT_CONTACT_RECORDED"
+  | "FAILED_DOCUMENT_REPROCESSED"
   | "TENDER_PACK_REQUEST_CREATED"
   | "TENDER_PACK_REQUEST_STATUS_CHANGED"
   | "TENDER_PACK_REQUEST_GENERATED"
@@ -27,6 +32,7 @@ export type AuditLogAction =
 
 export type AuditLogEntityType =
   | "auth"
+  | "contractor"
   | "document"
   | "compliance"
   | "tenderPackRequest"

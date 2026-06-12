@@ -6,6 +6,7 @@ import { AUTHORITY_CLASSIFICATIONS, ROUTE_CLASSIFICATIONS } from "@/lib/governan
 import { createGovernanceContext, type GovernanceContext } from "@/lib/governance/context";
 import { emitGovernanceEvent } from "@/lib/governance/emitter";
 import { recordAuditLog } from "@/server/services/auditLogService";
+import { createContractorCommandNote } from "@/server/services/contractorCommandCenterService";
 import {
   getContractorDocument,
   upsertContractorDocument,
@@ -52,6 +53,15 @@ function normalizeDocument(contractorId: string, documentId: string, data: Recor
     verified: data.verified === true || typeof toMillis(data.verifiedAt) === "number",
     verifiedAt: toMillis(data.verifiedAt),
     verifiedBy: asString(data.verifiedBy),
+    verificationMethod:
+      data.verificationMethod === "AI" || data.verificationMethod === "MANUAL"
+        ? data.verificationMethod
+        : undefined,
+    verificationStatus: asString(data.verificationStatus),
+    verificationNote: asString(data.verificationNote),
+    rejectedBy: asString(data.rejectedBy),
+    rejectedAt: toMillis(data.rejectedAt),
+    rejectionReason: asString(data.rejectionReason),
     validationStatus:
       data.validationStatus === "PASS" || data.validationStatus === "REVIEW" || data.validationStatus === "FAIL"
         ? data.validationStatus
@@ -116,6 +126,12 @@ function buildReviewUpdate(action: ManualVerificationAction, reviewReason: strin
         verified: true,
         verifiedAt: nowIso,
         verifiedBy: actor.email?.trim() || "unknown",
+        verificationMethod: "MANUAL" as const,
+        verificationStatus: "VERIFIED_MANUAL" as const,
+        verificationNote: reviewReason ?? null,
+        rejectedBy: null,
+        rejectedAt: null,
+        rejectionReason: null,
         validationStatus: "PASS" as const,
         status: "verified",
         validationError: null,
@@ -130,6 +146,12 @@ function buildReviewUpdate(action: ManualVerificationAction, reviewReason: strin
         verified: false,
         verifiedAt: null,
         verifiedBy: null,
+        verificationMethod: "MANUAL" as const,
+        verificationStatus: "REJECTED_MANUAL" as const,
+        verificationNote: null,
+        rejectedBy: actor.email?.trim() || actor.uid,
+        rejectedAt: nowIso,
+        rejectionReason: reviewReason ?? "Manual verification rejected",
         validationStatus: "FAIL" as const,
         status: "invalid",
         validationError: reviewReason ?? "Manual verification rejected",
@@ -143,6 +165,12 @@ function buildReviewUpdate(action: ManualVerificationAction, reviewReason: strin
         verified: false,
         verifiedAt: null,
         verifiedBy: null,
+        verificationMethod: "MANUAL" as const,
+        verificationStatus: "REJECTED_MANUAL" as const,
+        verificationNote: null,
+        rejectedBy: actor.email?.trim() || actor.uid,
+        rejectedAt: nowIso,
+        rejectionReason: reviewReason ?? "Manual reviewer requested a new upload",
         validationStatus: "REVIEW" as const,
         status: "uploaded",
         validationError: reviewReason ?? "Manual reviewer requested a new upload",
@@ -188,7 +216,15 @@ export async function applyManualDocumentVerification(params: {
         ? current.status
         : "uploaded";
 
-  const reviewUpdate = buildReviewUpdate(params.action, params.reviewReason?.trim() || undefined, params.actor);
+  const trimmedReason = params.reviewReason?.trim() || undefined;
+  if (params.action === "approve" && !trimmedReason) {
+    throw new Error("Approval note is required");
+  }
+  if ((params.action === "reject" || params.action === "request_reupload") && !trimmedReason) {
+    throw new Error("Rejection reason is required");
+  }
+
+  const reviewUpdate = buildReviewUpdate(params.action, trimmedReason, params.actor);
   const manualAudit = params.action === "approve"
     ? applyVerificationAuditTrail({
         existingAuditTrail: current.auditTrail,
@@ -241,11 +277,47 @@ export async function applyManualDocumentVerification(params: {
       contractorId: params.contractorId,
       previousStatus,
       newStatus: payload.validationStatus,
-      reviewReason: params.reviewReason?.trim() || null,
+      reviewReason: trimmedReason ?? null,
       reviewedBy: payload.reviewedBy,
       reviewedAt: payload.reviewedAt.toISOString(),
+      verificationMethod: "MANUAL",
+      verificationStatus: payload.verificationStatus,
     },
   });
+
+  if (params.action === "approve" || params.action === "reject") {
+    await recordAuditLog({
+      userId: params.actor.uid,
+      action: params.action === "approve" ? "DOCUMENT_APPROVED_MANUAL" : "DOCUMENT_REJECTED_MANUAL",
+      entityType: "document",
+      entityId: params.documentType,
+      metadata: {
+        contractorId: params.contractorId,
+        documentType: params.documentType,
+        verificationMethod: "MANUAL",
+        verificationStatus: payload.verificationStatus,
+        reviewReason: trimmedReason ?? null,
+        reviewedBy: payload.reviewedBy,
+        reviewedAt: payload.reviewedAt.toISOString(),
+      },
+    });
+  }
+
+  try {
+    await createContractorCommandNote({
+      contractorId: params.contractorId,
+      noteType: params.action === "approve" ? "APPROVAL" : "REJECTION",
+      title: params.action === "approve" ? `Approved ${params.documentType}` : `Declined ${params.documentType}`,
+      message: trimmedReason ?? "Manual verification decision recorded.",
+      actor: params.actor,
+    });
+  } catch (error) {
+    console.warn("[contractor-command-log] manual verification note write failed", {
+      contractorId: params.contractorId,
+      documentType: params.documentType,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
 
   await recalculateContractorCompliance(getFirebaseAdmin(), params.contractorId, governanceContext);
 
