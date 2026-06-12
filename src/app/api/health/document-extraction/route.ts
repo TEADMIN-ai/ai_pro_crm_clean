@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { detectAvailableOcrModel } from "@/server/services/ocrService";
+import { detectAvailableOcrProvider } from "@/server/services/ocrService";
 import { loadPdfJsForNode } from "@/lib/pdf/loadPdfJsForNode";
 
 export const runtime = "nodejs";
@@ -26,17 +26,19 @@ async function canLoadPdfJs(): Promise<boolean> {
 }
 
 export async function GET() {
-  const [canvasLoaded, pdfjsLoaded, availableModel] = await Promise.all([
+  const [canvasLoaded, pdfjsLoaded, ocrProviderStatus] = await Promise.all([
     canLoadCanvas(),
     canLoadPdfJs(),
-    detectAvailableOcrModel(),
+    detectAvailableOcrProvider(),
   ]);
+  const localOcrAvailable = ocrProviderStatus.provider === "tesseract";
 
   return NextResponse.json(
     {
       pdfExtractionAvailable: pdfjsLoaded,
-      ocrAvailable: Boolean(availableModel),
-      availableModel,
+      ocrAvailable: Boolean(ocrProviderStatus.availableModel) || localOcrAvailable,
+      availableModel: ocrProviderStatus.availableModel,
+      ocrProvider: ocrProviderStatus.provider,
       canvasLoaded,
       pdfjsLoaded,
     },

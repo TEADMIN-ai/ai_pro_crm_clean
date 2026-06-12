@@ -7,7 +7,7 @@ const __dirname = path.dirname(__filename);
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   devIndicators: false,
-  serverExternalPackages: ["@napi-rs/canvas", "pdfjs-dist", "pdf-parse"],
+  serverExternalPackages: ["@napi-rs/canvas", "pdfjs-dist", "pdf-parse", "tesseract.js", "tesseract.js-core"],
   webpack: (config) => {
     config.resolve.alias = {
       ...(config.resolve.alias ?? {}),

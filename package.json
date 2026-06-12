@@ -39,6 +39,7 @@
     "react-dom": "^18.3.0",
     "recharts": "^3.7.0",
     "resend": "^6.10.0",
+    "tesseract.js": "^7.0.0",
     "uuid": "^13.0.0"
   },
   "devDependencies": {
