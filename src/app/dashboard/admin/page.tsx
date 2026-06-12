@@ -67,6 +67,14 @@ export default function AdminDashboardPage() {
         </Card>
 
         <Card>
+          <IdentityCardHeader title="Intelligence Center" subtitle="Open the isolated audit, decision, compliance, report, and system telemetry console">
+            <Link href="/dashboard/intelligence" className="rounded-lg bg-cyan-600 px-4 py-2 text-sm font-semibold text-white no-underline">
+              Open Intelligence Center
+            </Link>
+          </IdentityCardHeader>
+        </Card>
+
+        <Card>
           <h2>Compliance Score Summary</h2>
           <div className="compliance-summary">
             <div className="compliance-summary-item">
