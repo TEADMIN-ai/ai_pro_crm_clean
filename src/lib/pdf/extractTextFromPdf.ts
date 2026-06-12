@@ -1,9 +1,18 @@
+import path from "node:path";
+import { pathToFileURL } from "node:url";
+
 import { runOCR } from "@/server/services/ocrService";
 import { loadPdfJsForNode } from "./loadPdfJsForNode";
 
 const MIN_DIRECT_TEXT_LENGTH = 24;
 const PDF_TEXT_TIMEOUT_MS = 15000;
 const OCR_TIMEOUT_MS = 45000;
+const PDFJS_CMAP_URL = pathToFileURL(
+  path.join(process.cwd(), "node_modules", "pdfjs-dist", "cmaps") + path.sep
+).href;
+const PDFJS_STANDARD_FONT_DATA_URL = pathToFileURL(
+  path.join(process.cwd(), "node_modules", "pdfjs-dist", "standard_fonts") + path.sep
+).href;
 export type PdfExtractionSource = "PDF_TEXT" | "OCR" | "EMPTY";
 
 export type PdfExtractionResult = {
@@ -19,14 +28,38 @@ type PdfExtractionOptions = {
   minTextLength?: number;
 };
 
-function normalizeExtractedText(value: string): string {
-  return value
+function textPreview(value: string): string {
+  return value.replace(/\s+/g, " ").trim().slice(0, 500);
+}
+
+function logNormalization(filename: string, parser: string, input: string, output: string) {
+  console.log("[NORMALIZATION_INPUT_LENGTH]", {
+    filename,
+    parser,
+    textLength: input.length,
+  });
+
+  console.log("[NORMALIZATION_OUTPUT_LENGTH]", {
+    filename,
+    parser,
+    textLength: output.length,
+  });
+}
+
+function normalizeExtractedText(value: string, context?: { filename: string; parser: string }): string {
+  const normalized = value
     .replace(/\u0000/g, "")
     .replace(/\r/g, "")
     .replace(/[ \t]+\n/g, "\n")
     .replace(/\n{3,}/g, "\n\n")
     .replace(/[ \t]{2,}/g, " ")
     .trim();
+
+  if (context) {
+    logNormalization(context.filename, context.parser, value, normalized);
+  }
+
+  return normalized;
 }
 
 function hasMeaningfulDirectText(value: string, minTextLength: number): boolean {
@@ -56,7 +89,10 @@ async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: str
   }
 }
 
-async function extractTextWithPdfJs(buffer: Buffer): Promise<{ text: string; pageCount: number }> {
+async function extractTextWithPdfJs(
+  buffer: Buffer,
+  filename: string
+): Promise<{ text: string; pageCount: number }> {
   const runtime = await loadPdfJsForNode("pdf.extractTextFromPdf");
   const pdfjs = runtime.pdfjs;
   const loadingTask = pdfjs.getDocument({
@@ -65,6 +101,9 @@ async function extractTextWithPdfJs(buffer: Buffer): Promise<{ text: string; pag
     useWorkerFetch: false,
     isEvalSupported: false,
     disableFontFace: true,
+    cMapUrl: PDFJS_CMAP_URL,
+    cMapPacked: true,
+    standardFontDataUrl: PDFJS_STANDARD_FONT_DATA_URL,
     isOffscreenCanvasSupported: false,
     isImageDecoderSupported: false,
     verbosity: 0,
@@ -73,6 +112,13 @@ async function extractTextWithPdfJs(buffer: Buffer): Promise<{ text: string; pag
 
   try {
     const pageTexts: string[] = [];
+
+    console.log("[PDFJS_PAGE_COUNT]", {
+      filename,
+      pageCount: document.numPages,
+      specifier: runtime.specifier,
+      compatibilityMode: runtime.compatibilityMode,
+    });
 
     for (let pageNumber = 1; pageNumber <= document.numPages; pageNumber += 1) {
       const page = await document.getPage(pageNumber);
@@ -95,17 +141,46 @@ async function extractTextWithPdfJs(buffer: Buffer): Promise<{ text: string; pag
           return textItem.hasEOL ? `${value}\n` : value;
         });
 
-        pageTexts.push(segments.join(" "));
+        const pageText = segments.join(" ");
+        console.log("[PDFJS_PAGE_TEXT_LENGTH]", {
+          filename,
+          pageNumber,
+          textLength: pageText.length,
+          itemCount: content.items.length,
+        });
+        console.log("[PDFJS_PAGE_TEXT_PREVIEW]", {
+          filename,
+          pageNumber,
+          preview: textPreview(pageText),
+        });
+
+        pageTexts.push(pageText);
       } finally {
         page.cleanup();
       }
     }
 
+    const joinedText = pageTexts.join("\n\n");
+    const normalizedText = normalizeExtractedText(joinedText, { filename, parser: "pdfjs" });
+
+    console.log("[PDFJS_EXTRACTION_SUCCESS]", {
+      filename,
+      pageCount: document.numPages,
+      textLength: normalizedText.length,
+      preview: textPreview(normalizedText),
+    });
+
     return {
-      text: normalizeExtractedText(pageTexts.join("\n\n")),
+      text: normalizedText,
       pageCount: document.numPages,
     };
   } catch (error) {
+    console.error("[PDFJS_EXTRACTION_FAILURE]", {
+      filename,
+      specifier: runtime.specifier,
+      compatibilityMode: runtime.compatibilityMode,
+      error: error instanceof Error ? error.message : String(error),
+    });
     console.warn("[PDF_TEXT_EXTRACTION]", {
       stage: "pdfjs_text_extraction_failed",
       specifier: runtime.specifier,
@@ -119,14 +194,80 @@ async function extractTextWithPdfJs(buffer: Buffer): Promise<{ text: string; pag
 }
 
 async function extractTextWithPdfParseDetailed(
-  buffer: Buffer
+  buffer: Buffer,
+  filename: string
 ): Promise<{ text: string; pageCount: number }> {
   const { PDFParse } = await import("pdf-parse");
   const parser = new PDFParse({ data: buffer });
-  const result = await withTimeout(parser.getText(), PDF_TEXT_TIMEOUT_MS, "pdf_parse");
+  try {
+    const result = await withTimeout(parser.getText(), PDF_TEXT_TIMEOUT_MS, "pdf_parse");
+    const rawText = result.text || "";
+    const text = normalizeExtractedText(rawText, { filename, parser: "pdf-parse" });
+    const pageCount =
+      typeof result.total === "number" && Number.isFinite(result.total) ? result.total : 0;
+
+    console.log("[PDFPARSE_TEXT_LENGTH]", {
+      filename,
+      textLength: text.length,
+      pageCount,
+    });
+    console.log("[PDFPARSE_TEXT_PREVIEW]", {
+      filename,
+      preview: textPreview(text),
+    });
+    console.log("[PDFPARSE_SUCCESS]", {
+      filename,
+      textLength: text.length,
+      pageCount,
+    });
+
+    return {
+      text,
+      pageCount,
+    };
+  } catch (error) {
+    console.error("[PDFPARSE_FAILURE]", {
+      filename,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    throw error;
+  } finally {
+    await parser.destroy();
+  }
+}
+
+function buildExtractionResult(params: {
+  filename: string;
+  text: string;
+  source: PdfExtractionSource;
+  pageCount: number;
+  directTextLength: number;
+  ocrTextLength: number;
+}): PdfExtractionResult {
+  const result: PdfExtractionResult = {
+    text: params.text,
+    source: params.source,
+    pageCount: params.pageCount,
+    directTextLength: params.directTextLength,
+    ocrTextLength: params.ocrTextLength,
+  };
+
+  console.log("[RETURNED_TEXT_LENGTH]", {
+    filename: params.filename,
+    textLength: result.text.length,
+    extractionSource: result.source,
+  });
+
+  console.log("[DOCUMENT_EXTRACTION_EVIDENCE]", {
+    filename: params.filename,
+    directTextLength: result.directTextLength,
+    ocrTextLength: result.ocrTextLength,
+    extractedTextLength: result.text.length,
+    extractionSource: result.source,
+  });
+
   return {
-    text: normalizeExtractedText(result.text || ""),
-    pageCount: typeof result.total === "number" && Number.isFinite(result.total) ? result.total : 0,
+    ...result,
   };
 }
 
@@ -199,13 +340,23 @@ export async function extractTextFromPdfDetailed(
     bytes: buffer.length,
   });
 
+  console.log("[PDF_DOWNLOAD_SUCCESS]", {
+    filename,
+    bytes: buffer.length,
+  });
+
+  console.log("[PDF_BYTES_LENGTH]", {
+    filename,
+    bytes: buffer.length,
+  });
+
   let pdfJsText = "";
   let pdfParseText = "";
   let rawScanText = "";
   let pageCount = 0;
 
   try {
-    const result = await extractTextWithPdfJs(buffer);
+    const result = await extractTextWithPdfJs(buffer, filename);
     pageCount = result.pageCount;
     pdfJsText = result.text;
 
@@ -232,7 +383,7 @@ export async function extractTextFromPdfDetailed(
 
   if (pdfJsText.length < minTextLength) {
     try {
-      const result = await extractTextWithPdfParseDetailed(buffer);
+      const result = await extractTextWithPdfParseDetailed(buffer, filename);
       pageCount = pageCount || result.pageCount;
       pdfParseText = result.text;
 
@@ -304,13 +455,14 @@ export async function extractTextFromPdfDetailed(
       parser: directParser,
     });
 
-    return {
+    return buildExtractionResult({
+      filename,
       text: directText,
       source: "PDF_TEXT",
       pageCount,
       directTextLength: directText.length,
       ocrTextLength: 0,
-    };
+    });
   }
 
   console.log("[OCR_FALLBACK]", {
@@ -364,22 +516,24 @@ export async function extractTextFromPdfDetailed(
   });
 
   if (ocrText.length > 0) {
-    return {
+    return buildExtractionResult({
+      filename,
       text: ocrText,
       source: "OCR",
       pageCount,
       directTextLength: directText.length,
       ocrTextLength: ocrText.length,
-    };
+    });
   }
 
-  return {
+  return buildExtractionResult({
+    filename,
     text: directText,
     source: directText.length > 0 ? "PDF_TEXT" : "EMPTY",
     pageCount,
     directTextLength: directText.length,
     ocrTextLength: 0,
-  };
+  });
 }
 
 export async function extractTextFromPdf(

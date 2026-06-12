@@ -214,6 +214,16 @@ async function downloadContractorDocumentBuffer(storagePath: string): Promise<Bu
     bytes: fileBuffer.length,
   });
 
+  console.log("[PDF_DOWNLOAD_SUCCESS]", {
+    storagePath,
+    bytes: fileBuffer.length,
+  });
+
+  console.log("[PDF_BYTES_LENGTH]", {
+    storagePath,
+    bytes: fileBuffer.length,
+  });
+
   return fileBuffer;
 }
 
