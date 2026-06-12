@@ -103,13 +103,26 @@ type Props = {
   contractorId: string;
 };
 
-const DOCUMENT_GROUPS: Array<{ key: string; title: string; matches: string[]; uploadType?: string }> = [
-  { key: "registration", title: "Registration Documents", matches: ["cipc", "registration", "companyregistration"], uploadType: "cipc" },
-  { key: "tax", title: "Tax Documents", matches: ["tax", "taxclearance", "tcspin"], uploadType: "taxClearance" },
-  { key: "csd", title: "CSD Documents", matches: ["csd", "csdmnumber"] },
-  { key: "bbbee", title: "B-BBEE", matches: ["bbbee", "bbee"], uploadType: "bbbee" },
-  { key: "coida", title: "COIDA", matches: ["coida"], uploadType: "coida" },
-  { key: "bank", title: "Bank Confirmation", matches: ["bank", "bankconfirmation", "bankletter"], uploadType: "bankConfirmation" },
+type DocumentGroup = {
+  key: string;
+  title: string;
+  matches: string[];
+  uploadType?: string;
+  uploadLabel?: string;
+};
+
+type UploadTarget = {
+  documentType: string;
+  displayLabel: string;
+};
+
+const DOCUMENT_GROUPS: DocumentGroup[] = [
+  { key: "registration", title: "Registration Documents", matches: ["cipc", "registration", "companyregistration"], uploadType: "cipc", uploadLabel: "CIPC" },
+  { key: "tax", title: "Tax Documents", matches: ["tax", "taxclearance", "tcspin"], uploadType: "taxClearance", uploadLabel: "Tax Clearance" },
+  { key: "csd", title: "CSD Documents", matches: ["csd", "csdmnumber"], uploadType: "coida", uploadLabel: "CSD" },
+  { key: "bbbee", title: "B-BBEE", matches: ["bbbee", "bbee"], uploadType: "bbbee", uploadLabel: "BBBEE" },
+  { key: "coida", title: "COIDA", matches: ["coida"], uploadType: "coida", uploadLabel: "COIDA" },
+  { key: "bank", title: "Bank Confirmation", matches: ["bank", "bankconfirmation", "bankletter"], uploadType: "bankConfirmation", uploadLabel: "Bank Confirmation" },
   { key: "cidb", title: "CIDB", matches: ["cidb"] },
 ];
 
@@ -187,6 +200,19 @@ function groupDocuments(documents: ContractorDocument[]) {
   return { grouped, contractorUploaded, requestedMissing, uncategorized };
 }
 
+function resolveUploadTarget(group: DocumentGroup, firstDocument?: ContractorDocument): UploadTarget | null {
+  const documentType = clean(firstDocument?.documentType) || clean(firstDocument?.docType) || clean(group.uploadType);
+
+  if (!documentType) {
+    return null;
+  }
+
+  return {
+    documentType,
+    displayLabel: group.uploadLabel ?? group.title,
+  };
+}
+
 function getCompanyName(contractor: ContractorRecord): string {
   return clean(contractor.companyName) || clean(contractor.name) || "Contractor";
 }
@@ -198,6 +224,7 @@ export default function ContractorOnboardingView({ contractorId }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [isUploadOpen, setIsUploadOpen] = useState(false);
   const [selectedDocType, setSelectedDocType] = useState<string | null>(null);
+  const [selectedDocLabel, setSelectedDocLabel] = useState<string | null>(null);
   const [signedByName, setSignedByName] = useState("");
   const [signedByCapacity, setSignedByCapacity] = useState("");
   const [acceptedTerms, setAcceptedTerms] = useState(false);
@@ -320,8 +347,9 @@ export default function ContractorOnboardingView({ contractorId }: Props) {
     }
   }
 
-  function openUpload(documentType?: string) {
+  function openUpload(documentType?: string, documentLabel?: string) {
     setSelectedDocType(documentType ?? null);
+    setSelectedDocLabel(documentLabel ?? null);
     setIsUploadOpen(true);
   }
 
@@ -397,6 +425,7 @@ export default function ContractorOnboardingView({ contractorId }: Props) {
               <div className="mt-5 grid grid-cols-1 gap-4 lg:grid-cols-2">
                 {groupedDocuments.grouped.map((group) => {
                   const firstDocument = group.documents[0];
+                  const uploadTarget = resolveUploadTarget(group, firstDocument);
                   return (
                     <div key={group.key} className="rounded-xl border border-slate-200 bg-slate-50 p-4">
                       <div className="flex items-start justify-between gap-3">
@@ -406,10 +435,10 @@ export default function ContractorOnboardingView({ contractorId }: Props) {
                             {group.documents.length ? `${group.documents.length} record(s)` : "No file on record"}
                           </p>
                         </div>
-                        {canUpload ? (
+                        {canUpload && uploadTarget ? (
                           <button
                             type="button"
-                            onClick={() => openUpload(firstDocument?.documentType ?? group.uploadType)}
+                            onClick={() => openUpload(uploadTarget.documentType, uploadTarget.displayLabel)}
                             className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100"
                           >
                             Upload
@@ -463,7 +492,7 @@ export default function ContractorOnboardingView({ contractorId }: Props) {
                       {canUpload ? (
                         <button
                           type="button"
-                          onClick={() => openUpload(document.documentType ?? document.docType)}
+                          onClick={() => openUpload(document.documentType ?? document.docType, document.documentType ?? document.docType)}
                           className="mt-3 rounded-lg border border-amber-300 bg-white px-3 py-2 text-xs font-semibold text-amber-900 hover:bg-amber-100"
                         >
                           Upload Replacement
@@ -533,10 +562,12 @@ export default function ContractorOnboardingView({ contractorId }: Props) {
         onClose={() => {
           setIsUploadOpen(false);
           setSelectedDocType(null);
+          setSelectedDocLabel(null);
           void loadOnboarding();
         }}
         contractor={uploadContractor}
         docType={selectedDocType}
+        selectedLabel={selectedDocLabel}
       />
     </>
   );

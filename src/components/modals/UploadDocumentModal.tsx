@@ -15,6 +15,7 @@ type UploadDocumentModalProps = {
   onClose: () => void;
   contractor: ContractorLike | null;
   docType: string | null;
+  selectedLabel?: string | null;
 };
 
 export default function UploadDocumentModal({
@@ -22,6 +23,7 @@ export default function UploadDocumentModal({
   onClose,
   contractor,
   docType,
+  selectedLabel,
 }: UploadDocumentModalProps) {
   const [isUploading, setIsUploading] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -55,6 +57,7 @@ export default function UploadDocumentModal({
   }
 
   const contractorName = contractor.companyName?.trim() || contractor.name?.trim() || contractor.id || "Contractor";
+  const displayLabel = selectedLabel?.trim() || docType?.toUpperCase() || "-";
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center bg-slate-900/40 px-4 py-16">
@@ -62,7 +65,7 @@ export default function UploadDocumentModal({
         <div className="flex items-start justify-between gap-4">
           <div>
             <h2 className="text-lg font-bold text-slate-900">
-              Upload {docType?.toUpperCase()} Document
+              Upload {displayLabel} Document
             </h2>
             <p className="mt-1 text-sm text-slate-600">
               Contractor: {contractorName}
@@ -81,7 +84,7 @@ export default function UploadDocumentModal({
           <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
             Selected Document Type
           </p>
-          <p className="mt-1 text-sm font-medium text-slate-800">{docType?.toUpperCase() || "-"}</p>
+          <p className="mt-1 text-sm font-medium text-slate-800">{displayLabel}</p>
         </div>
 
         <input
