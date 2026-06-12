@@ -5,6 +5,7 @@ import {
 } from "@/lib/compliance/contractorCompliance";
 import { applyVerificationAuditTrail } from "@/lib/documents/verificationAuditTrail";
 import { getFirebaseAdmin, getFirebaseStorageBucket } from "@/lib/firebase/admin";
+import { recordDocumentExtractionDiagnostic } from "@/lib/pdf/documentExtractionDiagnostics";
 import { AUTHORITY_CLASSIFICATIONS, ROUTE_CLASSIFICATIONS } from "@/lib/governance/classification";
 import { createGovernanceContext, type GovernanceContext } from "@/lib/governance/context";
 import { emitGovernanceEvent } from "@/lib/governance/emitter";
@@ -204,27 +205,75 @@ function buildVerificationPersistence(
   };
 }
 
-async function downloadContractorDocumentBuffer(storagePath: string): Promise<Buffer> {
+async function downloadContractorDocumentBuffer(args: {
+  storagePath: string;
+  contractorId: string;
+  documentType: SupportedDocumentType;
+  fileName: string;
+  diagnosticId?: string | null;
+}): Promise<Buffer> {
+  const startedAt = Date.now();
+  await recordDocumentExtractionDiagnostic({
+    diagnosticId: args.diagnosticId ?? undefined,
+    contractorId: args.contractorId,
+    documentType: args.documentType,
+    storagePath: args.storagePath,
+    fileName: args.fileName,
+    step: "UPLOAD",
+    enteredAt: new Date().toISOString(),
+    metadata: { stage: "storage_download_start" },
+  });
   const bucket = getFirebaseStorageBucket();
-  const [buffer] = await bucket.file(storagePath).download();
-  const fileBuffer = Buffer.from(buffer);
+  try {
+    const [buffer] = await bucket.file(args.storagePath).download();
+    const fileBuffer = Buffer.from(buffer);
 
-  console.log("[PDF_DOWNLOAD]", {
-    storagePath,
-    bytes: fileBuffer.length,
-  });
+    console.log("[PDF_DOWNLOAD]", {
+      storagePath: args.storagePath,
+      bytes: fileBuffer.length,
+    });
 
-  console.log("[PDF_DOWNLOAD_SUCCESS]", {
-    storagePath,
-    bytes: fileBuffer.length,
-  });
+    console.log("[PDF_DOWNLOAD_SUCCESS]", {
+      storagePath: args.storagePath,
+      bytes: fileBuffer.length,
+    });
 
-  console.log("[PDF_BYTES_LENGTH]", {
-    storagePath,
-    bytes: fileBuffer.length,
-  });
+    console.log("[PDF_BYTES_LENGTH]", {
+      storagePath: args.storagePath,
+      bytes: fileBuffer.length,
+    });
 
-  return fileBuffer;
+    await recordDocumentExtractionDiagnostic({
+      diagnosticId: args.diagnosticId ?? undefined,
+      contractorId: args.contractorId,
+      documentType: args.documentType,
+      storagePath: args.storagePath,
+      fileName: args.fileName,
+      step: "UPLOAD",
+      exitedAt: new Date().toISOString(),
+      success: true,
+      timingMs: Date.now() - startedAt,
+      metadata: { stage: "storage_download_complete", bytes: fileBuffer.length },
+    });
+
+    return fileBuffer;
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    await recordDocumentExtractionDiagnostic({
+      diagnosticId: args.diagnosticId ?? undefined,
+      contractorId: args.contractorId,
+      documentType: args.documentType,
+      storagePath: args.storagePath,
+      fileName: args.fileName,
+      step: "UPLOAD",
+      exitedAt: new Date().toISOString(),
+      success: false,
+      errorMessage,
+      timingMs: Date.now() - startedAt,
+      metadata: { stage: "storage_download_failed" },
+    });
+    throw error;
+  }
 }
 
 export async function executeContractorDocumentAnalysis(params: {
@@ -331,7 +380,26 @@ export async function executeContractorDocumentAnalysis(params: {
   }
 
   try {
-    const buffer = await downloadContractorDocumentBuffer(storagePath);
+    const fileName = storagePath.split("/").filter(Boolean).pop() ?? `${documentType}.pdf`;
+    const diagnosticId = `${contractorId}_${documentType}_${Date.now()}`;
+    const buffer = await downloadContractorDocumentBuffer({
+      storagePath,
+      contractorId,
+      documentType: documentType as SupportedDocumentType,
+      fileName,
+      diagnosticId,
+    });
+    const analysisStepStartedAt = Date.now();
+    await recordDocumentExtractionDiagnostic({
+      diagnosticId,
+      contractorId,
+      documentType,
+      storagePath,
+      fileName,
+      step: "ANALYSIS_EXECUTION",
+      enteredAt: new Date().toISOString(),
+      metadata: { source: "executeContractorDocumentAnalysis" },
+    });
     const result = await verifyStoredContractorDocument(buffer, documentType as SupportedDocumentType, {
       companyName:
         asString(contractorData.companyName) ??
@@ -350,6 +418,28 @@ export async function executeContractorDocumentAnalysis(params: {
         ...asStringArray(contractorData.directorName),
         ...asStringArray(contractorData.contactName),
       ],
+      extractionDiagnostics: {
+        contractorId,
+        documentType,
+        storagePath,
+        fileName,
+        diagnosticId,
+      },
+    });
+    await recordDocumentExtractionDiagnostic({
+      diagnosticId,
+      contractorId,
+      documentType,
+      storagePath,
+      fileName,
+      step: "ANALYSIS_EXECUTION",
+      exitedAt: new Date().toISOString(),
+      success: true,
+      timingMs: Date.now() - analysisStepStartedAt,
+      pdfTextLength: result.directTextLength ?? 0,
+      ocrTextLength: result.ocrTextLength ?? 0,
+      pageCount: result.pageCount ?? 0,
+      finalExtractionSource: result.extractionSource ?? null,
     });
     const extractedFields = normalizeExtractedFields(
       result.extractedFields as Record<string, string | null> | undefined

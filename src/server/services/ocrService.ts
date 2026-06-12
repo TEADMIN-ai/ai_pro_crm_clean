@@ -18,6 +18,18 @@ type OcrOptions = {
   filename?: string;
   mimeType?: string;
   pageCount?: number;
+  onDiagnostic?: (event: {
+    step: string;
+    success?: boolean | null;
+    errorMessage?: string | null;
+    renderSuccess?: boolean | null;
+    renderFailureReason?: string | null;
+    ocrStarted?: boolean | null;
+    ocrCompleted?: boolean | null;
+    ocrTextLength?: number | null;
+    ocrFailureReason?: string | null;
+    metadata?: Record<string, unknown>;
+  }) => void | Promise<void>;
 };
 
 type SupportedOcrInput =
@@ -342,7 +354,30 @@ export async function detectAvailableOcrProvider(): Promise<{
   };
 }
 
-async function renderPdfPagesToPngBuffers(buffer: Buffer, filename: string): Promise<Buffer[]> {
+async function emitOcrDiagnostic(options: OcrOptions | undefined, event: Parameters<NonNullable<OcrOptions["onDiagnostic"]>>[0]) {
+  try {
+    await options?.onDiagnostic?.(event);
+  } catch (error) {
+    console.warn("[OCR_DIAGNOSTIC_CALLBACK_FAILED]", {
+      step: event.step,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+}
+
+async function renderPdfPagesToPngBuffers(buffer: Buffer, filename: string, options?: OcrOptions): Promise<Buffer[]> {
+  const startedAt = Date.now();
+  console.log("[OCR_PDF_RENDER_ENTER]", {
+    filename,
+    bytes: buffer.length,
+    maxPages: MAX_LOCAL_OCR_PDF_PAGES,
+  });
+  await emitOcrDiagnostic(options, {
+    step: "PDF_PAGE_RENDER",
+    renderSuccess: null,
+    metadata: { maxPages: MAX_LOCAL_OCR_PDF_PAGES },
+  });
+
   const [{ createCanvas }, { pdfjs }] = await Promise.all([
     import("@napi-rs/canvas"),
     loadPdfJsForNode("ocr.local.pdf-render"),
@@ -358,38 +393,70 @@ async function renderPdfPagesToPngBuffers(buffer: Buffer, filename: string): Pro
   const pageCount = Math.min(Number(pdf.numPages) || 0, MAX_LOCAL_OCR_PDF_PAGES);
   const renderedPages: Buffer[] = [];
 
-  for (let pageNumber = 1; pageNumber <= pageCount; pageNumber += 1) {
-    const page = await pdf.getPage(pageNumber);
-    const viewport = page.getViewport({ scale: PDF_RENDER_SCALE });
-    const canvas = createCanvas(Math.ceil(viewport.width), Math.ceil(viewport.height));
-    const canvasContext = canvas.getContext("2d");
+  try {
+    for (let pageNumber = 1; pageNumber <= pageCount; pageNumber += 1) {
+      const page = await pdf.getPage(pageNumber);
+      const viewport = page.getViewport({ scale: PDF_RENDER_SCALE });
+      const canvas = createCanvas(Math.ceil(viewport.width), Math.ceil(viewport.height));
+      const canvasContext = canvas.getContext("2d");
 
-    await page.render({
-      canvasContext,
-      viewport,
-      canvas,
-    }).promise;
+      await page.render({
+        canvasContext,
+        viewport,
+        canvas,
+      }).promise;
 
-    renderedPages.push(canvas.toBuffer("image/png"));
+      renderedPages.push(canvas.toBuffer("image/png"));
+      page.cleanup?.();
+    }
+
+    await pdf.destroy?.();
+
+    console.log("[LOCAL_OCR_PDF_RENDERED]", {
+      filename,
+      renderedPages: renderedPages.length,
+      maxPages: MAX_LOCAL_OCR_PDF_PAGES,
+      timingMs: Date.now() - startedAt,
+    });
+    console.log("[OCR_PDF_RENDER_EXIT]", {
+      filename,
+      success: renderedPages.length > 0,
+      renderedPages: renderedPages.length,
+      timingMs: Date.now() - startedAt,
+    });
+    await emitOcrDiagnostic(options, {
+      step: "PDF_PAGE_RENDER",
+      success: renderedPages.length > 0,
+      renderSuccess: renderedPages.length > 0,
+      renderFailureReason: renderedPages.length > 0 ? null : "no_pages_rendered",
+      metadata: { renderedPages: renderedPages.length, pdfPages: Number(pdf.numPages) || 0 },
+    });
+
+    return renderedPages;
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    await pdf.destroy?.();
+    console.error("[OCR_PDF_RENDER_FAILURE]", {
+      filename,
+      error: errorMessage,
+      timingMs: Date.now() - startedAt,
+    });
+    await emitOcrDiagnostic(options, {
+      step: "PDF_PAGE_RENDER",
+      success: false,
+      renderSuccess: false,
+      renderFailureReason: errorMessage,
+    });
+    throw error;
   }
-
-  await pdf.destroy?.();
-
-  console.log("[LOCAL_OCR_PDF_RENDERED]", {
-    filename,
-    renderedPages: renderedPages.length,
-    maxPages: MAX_LOCAL_OCR_PDF_PAGES,
-  });
-
-  return renderedPages;
 }
 
-async function buildLocalOcrImages(buffer: Buffer, input: SupportedOcrInput): Promise<Buffer[]> {
+async function buildLocalOcrImages(buffer: Buffer, input: SupportedOcrInput, options?: OcrOptions): Promise<Buffer[]> {
   if (input.inputType === "image") {
     return [buffer];
   }
 
-  return renderPdfPagesToPngBuffers(buffer, input.filename);
+  return renderPdfPagesToPngBuffers(buffer, input.filename, options);
 }
 
 async function runLocalOCR(buffer: Buffer, input: SupportedOcrInput, options?: OcrOptions): Promise<string> {
@@ -401,7 +468,7 @@ async function runLocalOCR(buffer: Buffer, input: SupportedOcrInput, options?: O
 
   try {
     const { createWorker } = await import("tesseract.js");
-    const images = await buildLocalOcrImages(buffer, input);
+    const images = await buildLocalOcrImages(buffer, input, options);
     await mkdir(TESSERACT_CACHE_PATH, { recursive: true });
     const worker = await createWorker("eng", 1, {
       cachePath: TESSERACT_CACHE_PATH,
@@ -448,6 +515,13 @@ async function runLocalOCR(buffer: Buffer, input: SupportedOcrInput, options?: O
       filename: input.filename,
       inputType: input.inputType,
       error: toLoggableError(error),
+    });
+    await emitOcrDiagnostic(options, {
+      step: "OCR_EXECUTION",
+      success: false,
+      ocrCompleted: true,
+      ocrTextLength: 0,
+      ocrFailureReason: error instanceof Error ? error.message : String(error),
     });
     return "";
   }
@@ -544,6 +618,7 @@ async function runOpenAIOCR(
 
 export async function runOCR(buffer: Buffer, options?: OcrOptions): Promise<string> {
   const runtimeDiagnostics = getRuntimeDiagnostics();
+  const ocrStartedAt = Date.now();
 
   console.log("[OCR_ENV_CHECK]", {
     filename: options?.filename ?? "document",
@@ -558,6 +633,14 @@ export async function runOCR(buffer: Buffer, options?: OcrOptions): Promise<stri
       textLength: 0,
       bytes: 0,
       pageCount: options?.pageCount ?? null,
+    });
+    await emitOcrDiagnostic(options, {
+      step: "OCR_EXECUTION",
+      success: false,
+      ocrStarted: false,
+      ocrCompleted: true,
+      ocrTextLength: 0,
+      ocrFailureReason: "empty_buffer",
     });
     return "";
   }
@@ -578,6 +661,15 @@ export async function runOCR(buffer: Buffer, options?: OcrOptions): Promise<stri
       pageCount: options?.pageCount ?? null,
       skipped: "unsupported_input",
     });
+    await emitOcrDiagnostic(options, {
+      step: "OCR_EXECUTION",
+      success: false,
+      ocrStarted: false,
+      ocrCompleted: true,
+      ocrTextLength: 0,
+      ocrFailureReason: "unsupported_input",
+      metadata: { mimeType: options?.mimeType ?? null },
+    });
     return "";
   }
 
@@ -591,6 +683,17 @@ export async function runOCR(buffer: Buffer, options?: OcrOptions): Promise<stri
     requestPath: input.requestPath,
     modelCandidates: [...OCR_MODEL_CANDIDATES],
   });
+  await emitOcrDiagnostic(options, {
+    step: "OCR_EXECUTION",
+    ocrStarted: true,
+    ocrCompleted: false,
+    metadata: {
+      inputType: input.inputType,
+      requestPath: input.requestPath,
+      mimeType: input.mimeType,
+      openAiApiKeyConfigured: runtimeDiagnostics.openAiApiKeyConfigured,
+    },
+  });
 
   const client = getOpenAIClient();
   if (client) {
@@ -602,6 +705,18 @@ export async function runOCR(buffer: Buffer, options?: OcrOptions): Promise<stri
         bytes: buffer.length,
         pageCount: options?.pageCount ?? null,
         provider: OPENAI_OCR_PROVIDER,
+      });
+      await emitOcrDiagnostic(options, {
+        step: "OCR_EXECUTION",
+        success: openAiText.length > 0,
+        ocrStarted: true,
+        ocrCompleted: true,
+        ocrTextLength: openAiText.length,
+        ocrFailureReason: openAiText.length > 0 ? null : "openai_returned_empty_text",
+        metadata: {
+          provider: OPENAI_OCR_PROVIDER,
+          timingMs: Date.now() - ocrStartedAt,
+        },
       });
       return openAiText;
     }
@@ -621,5 +736,18 @@ export async function runOCR(buffer: Buffer, options?: OcrOptions): Promise<stri
     });
   }
 
-  return runLocalOCR(buffer, input, options);
+  const localText = await runLocalOCR(buffer, input, options);
+  await emitOcrDiagnostic(options, {
+    step: "OCR_EXECUTION",
+    success: localText.length > 0,
+    ocrStarted: true,
+    ocrCompleted: true,
+    ocrTextLength: localText.length,
+    ocrFailureReason: localText.length > 0 ? null : "local_ocr_returned_empty_text",
+    metadata: {
+      provider: LOCAL_OCR_PROVIDER,
+      timingMs: Date.now() - ocrStartedAt,
+    },
+  });
+  return localText;
 }

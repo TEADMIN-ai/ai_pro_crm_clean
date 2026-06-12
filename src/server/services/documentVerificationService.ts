@@ -31,6 +31,13 @@ export type VerificationContext = {
   registrationNumber?: string | null;
   contactPerson?: string | null;
   relatedParties?: string[] | null;
+  extractionDiagnostics?: {
+    contractorId?: string | null;
+    documentType?: string | null;
+    storagePath?: string | null;
+    fileName?: string | null;
+    diagnosticId?: string | null;
+  };
 };
 
 type WeightedSignal = {
@@ -131,7 +138,11 @@ export async function verifyStoredContractorDocument(
   let pageCount = 0;
   try {
     const extraction = await extractTextFromPdfDetailed(buffer, {
-      filename: `${documentType || "document"}.pdf`,
+      filename: context?.extractionDiagnostics?.fileName ?? `${documentType || "document"}.pdf`,
+      contractorId: context?.extractionDiagnostics?.contractorId,
+      documentType: context?.extractionDiagnostics?.documentType ?? documentType,
+      storagePath: context?.extractionDiagnostics?.storagePath,
+      diagnosticId: context?.extractionDiagnostics?.diagnosticId,
     });
     text = extraction.text;
     extractionSource = extraction.source;

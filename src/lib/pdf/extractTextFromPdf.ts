@@ -2,6 +2,10 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 
 import { runOCR } from "@/server/services/ocrService";
+import {
+  recordDocumentExtractionDiagnostic,
+  type DocumentExtractionDiagnosticUpdate,
+} from "@/lib/pdf/documentExtractionDiagnostics";
 import { loadPdfJsForNode } from "./loadPdfJsForNode";
 
 const MIN_DIRECT_TEXT_LENGTH = 24;
@@ -26,6 +30,10 @@ export type PdfExtractionResult = {
 type PdfExtractionOptions = {
   filename?: string;
   minTextLength?: number;
+  contractorId?: string | null;
+  documentType?: string | null;
+  storagePath?: string | null;
+  diagnosticId?: string | null;
 };
 
 function textPreview(value: string): string {
@@ -328,6 +336,38 @@ export async function extractTextFromPdfDetailed(
   const buffer = Buffer.isBuffer(binary) ? binary : Buffer.from(binary);
   const filename = options?.filename?.trim() || "document.pdf";
   const minTextLength = options?.minTextLength ?? MIN_DIRECT_TEXT_LENGTH;
+  let diagnosticId = options?.diagnosticId?.trim() || null;
+  const diagnosticBase = (): DocumentExtractionDiagnosticUpdate => ({
+    diagnosticId: diagnosticId ?? undefined,
+    contractorId: options?.contractorId ?? null,
+    documentType: options?.documentType ?? null,
+    storagePath: options?.storagePath ?? null,
+    fileName: filename,
+  });
+  const updateDiagnostic = async (update: DocumentExtractionDiagnosticUpdate) => {
+    const savedId = await recordDocumentExtractionDiagnostic({
+      ...diagnosticBase(),
+      ...update,
+    });
+    diagnosticId = savedId ?? diagnosticId;
+  };
+  const extractionStartedAt = Date.now();
+
+  await updateDiagnostic({
+    step: "PDF_EXTRACTION",
+    enteredAt: new Date().toISOString(),
+    pageCount: null,
+    pdfTextLength: 0,
+    ocrAttempted: false,
+    ocrStarted: false,
+    ocrCompleted: false,
+    ocrTextLength: 0,
+    renderSuccess: null,
+    renderFailureReason: null,
+    ocrFailureReason: null,
+    finalExtractionSource: null,
+    metadata: { bytes: buffer.length },
+  });
 
   console.log("[PDF_TEXT_EXTRACTION]", {
     filename,
@@ -359,6 +399,12 @@ export async function extractTextFromPdfDetailed(
     const result = await extractTextWithPdfJs(buffer, filename);
     pageCount = result.pageCount;
     pdfJsText = result.text;
+    await updateDiagnostic({
+      step: "PDF_EXTRACTION",
+      pageCount,
+      pdfTextLength: pdfJsText.length,
+      metadata: { parser: "pdfjs", timingMs: Date.now() - extractionStartedAt },
+    });
 
     console.log("[PDF_PAGE_COUNT]", {
       filename,
@@ -372,6 +418,12 @@ export async function extractTextFromPdfDetailed(
       pageCount,
     });
   } catch (error) {
+    await updateDiagnostic({
+      step: "PDF_EXTRACTION",
+      pageCount,
+      errorMessage: error instanceof Error ? error.message : String(error),
+      metadata: { parser: "pdfjs", timingMs: Date.now() - extractionStartedAt },
+    });
     console.error("[PDF_TEXT_EXTRACTION]", {
       filename,
       stage: "pdfjs_error",
@@ -386,6 +438,12 @@ export async function extractTextFromPdfDetailed(
       const result = await extractTextWithPdfParseDetailed(buffer, filename);
       pageCount = pageCount || result.pageCount;
       pdfParseText = result.text;
+      await updateDiagnostic({
+        step: "PDF_EXTRACTION",
+        pageCount,
+        pdfTextLength: Math.max(pdfJsText.length, pdfParseText.length),
+        metadata: { parser: "pdf-parse", timingMs: Date.now() - extractionStartedAt },
+      });
 
       console.log("[PDF_TEXT_LENGTH]", {
         filename,
@@ -394,6 +452,12 @@ export async function extractTextFromPdfDetailed(
         pageCount,
       });
     } catch (error) {
+      await updateDiagnostic({
+        step: "PDF_EXTRACTION",
+        pageCount,
+        errorMessage: error instanceof Error ? error.message : String(error),
+        metadata: { parser: "pdf-parse", timingMs: Date.now() - extractionStartedAt },
+      });
       console.error("[PDF_TEXT_EXTRACTION]", {
         filename,
         stage: "pdf_parse_error",
@@ -409,6 +473,12 @@ export async function extractTextFromPdfDetailed(
       const result = extractTextWithRawPdfScan(buffer);
       pageCount = pageCount || result.pageCount;
       rawScanText = result.text;
+      await updateDiagnostic({
+        step: "PDF_EXTRACTION",
+        pageCount,
+        pdfTextLength: Math.max(pdfJsText.length, pdfParseText.length, rawScanText.length),
+        metadata: { parser: "raw-pdf-scan", timingMs: Date.now() - extractionStartedAt },
+      });
 
       console.log("[PDF_TEXT_LENGTH]", {
         filename,
@@ -417,6 +487,12 @@ export async function extractTextFromPdfDetailed(
         pageCount,
       });
     } catch (error) {
+      await updateDiagnostic({
+        step: "PDF_EXTRACTION",
+        pageCount,
+        errorMessage: error instanceof Error ? error.message : String(error),
+        metadata: { parser: "raw-pdf-scan", timingMs: Date.now() - extractionStartedAt },
+      });
       console.error("[PDF_TEXT_EXTRACTION]", {
         filename,
         stage: "raw_pdf_scan_error",
@@ -437,8 +513,25 @@ export async function extractTextFromPdfDetailed(
   );
   const directText = bestDirectCandidate.text;
   const directParser = bestDirectCandidate.parser;
+  const meaningfulDirectText = hasMeaningfulDirectText(directText, minTextLength);
+  await updateDiagnostic({
+    step: "OCR_TRIGGER_DECISION",
+    pageCount,
+    pdfTextLength: directText.length,
+    ocrAttempted: !meaningfulDirectText,
+    metadata: {
+      directParser,
+      minTextLength,
+      meaningfulDirectText,
+      reason: meaningfulDirectText
+        ? "direct_text_available"
+        : directText.length > 0
+          ? "direct_text_not_meaningful"
+          : "direct_text_empty",
+    },
+  });
 
-  if (hasMeaningfulDirectText(directText, minTextLength)) {
+  if (meaningfulDirectText) {
     console.log("[PDF_TEXT_EXTRACTION]", {
       filename,
       stage: "direct_text_selected",
@@ -455,7 +548,7 @@ export async function extractTextFromPdfDetailed(
       parser: directParser,
     });
 
-    return buildExtractionResult({
+    const result = buildExtractionResult({
       filename,
       text: directText,
       source: "PDF_TEXT",
@@ -463,6 +556,19 @@ export async function extractTextFromPdfDetailed(
       directTextLength: directText.length,
       ocrTextLength: 0,
     });
+    await updateDiagnostic({
+      step: "ANALYSIS_EXECUTION",
+      pageCount,
+      pdfTextLength: directText.length,
+      ocrAttempted: false,
+      ocrStarted: false,
+      ocrCompleted: false,
+      ocrTextLength: 0,
+      finalExtractionSource: result.source,
+      success: true,
+      timingMs: Date.now() - extractionStartedAt,
+    });
+    return result;
   }
 
   console.log("[OCR_FALLBACK]", {
@@ -488,11 +594,38 @@ export async function extractTextFromPdfDetailed(
         filename,
         mimeType: "application/pdf",
         pageCount,
+        onDiagnostic: (event) =>
+          updateDiagnostic({
+            step: event.step,
+            success: event.success ?? undefined,
+            errorMessage: event.errorMessage ?? null,
+            pageCount,
+            pdfTextLength: directText.length,
+            ocrAttempted: true,
+            ocrStarted: event.ocrStarted ?? undefined,
+            ocrCompleted: event.ocrCompleted ?? undefined,
+            ocrTextLength: event.ocrTextLength ?? undefined,
+            renderSuccess: event.renderSuccess ?? undefined,
+            renderFailureReason: event.renderFailureReason ?? undefined,
+            ocrFailureReason: event.ocrFailureReason ?? undefined,
+            metadata: event.metadata,
+          }),
       }),
       OCR_TIMEOUT_MS,
       "ocr"
     ));
   } catch (error) {
+    await updateDiagnostic({
+      step: "OCR_EXECUTION",
+      pageCount,
+      pdfTextLength: directText.length,
+      ocrAttempted: true,
+      ocrCompleted: true,
+      ocrTextLength: 0,
+      ocrFailureReason: error instanceof Error ? error.message : String(error),
+      success: false,
+      timingMs: Date.now() - extractionStartedAt,
+    });
     console.error("[OCR_FALLBACK]", {
       filename,
       pageCount,
@@ -516,7 +649,7 @@ export async function extractTextFromPdfDetailed(
   });
 
   if (ocrText.length > 0) {
-    return buildExtractionResult({
+    const result = buildExtractionResult({
       filename,
       text: ocrText,
       source: "OCR",
@@ -524,9 +657,21 @@ export async function extractTextFromPdfDetailed(
       directTextLength: directText.length,
       ocrTextLength: ocrText.length,
     });
+    await updateDiagnostic({
+      step: "ANALYSIS_EXECUTION",
+      pageCount,
+      pdfTextLength: directText.length,
+      ocrAttempted: true,
+      ocrCompleted: true,
+      ocrTextLength: ocrText.length,
+      finalExtractionSource: result.source,
+      success: true,
+      timingMs: Date.now() - extractionStartedAt,
+    });
+    return result;
   }
 
-  return buildExtractionResult({
+  const result = buildExtractionResult({
     filename,
     text: directText,
     source: directText.length > 0 ? "PDF_TEXT" : "EMPTY",
@@ -534,6 +679,19 @@ export async function extractTextFromPdfDetailed(
     directTextLength: directText.length,
     ocrTextLength: 0,
   });
+  await updateDiagnostic({
+    step: "ANALYSIS_EXECUTION",
+    pageCount,
+    pdfTextLength: directText.length,
+    ocrAttempted: true,
+    ocrCompleted: true,
+    ocrTextLength: 0,
+    ocrFailureReason: "ocr_returned_empty_text",
+    finalExtractionSource: result.source,
+    success: false,
+    timingMs: Date.now() - extractionStartedAt,
+  });
+  return result;
 }
 
 export async function extractTextFromPdf(

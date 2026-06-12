@@ -17,6 +17,7 @@ import {
 import { ROUTE_CLASSIFICATIONS, MUTATION_CLASSIFICATIONS } from "@/lib/governance/classification";
 import { emitGovernanceEvent } from "@/lib/governance/emitter";
 import { withGovernanceObservation } from "@/lib/governance/observer";
+import { recordDocumentExtractionDiagnostic } from "@/lib/pdf/documentExtractionDiagnostics";
 import { recalculateContractorCompliance } from "@/lib/server/recalculateContractorCompliance";
 import {
   getContractorDocument,
@@ -235,6 +236,7 @@ export async function POST(
 
     const fileNameFromStoragePath = getFileNameFromStoragePath(storagePath);
     const now = new Date();
+    const uploadStartedAt = Date.now();
     await upsertContractorDocument(
       contractorId,
       documentType,
@@ -264,6 +266,21 @@ export async function POST(
         isExpired: false,
       },
     );
+    await recordDocumentExtractionDiagnostic({
+      contractorId,
+      documentType,
+      storagePath,
+      fileName: fileNameFromStoragePath,
+      step: "UPLOAD",
+      enteredAt: now.toISOString(),
+      exitedAt: new Date().toISOString(),
+      success: true,
+      timingMs: Date.now() - uploadStartedAt,
+      metadata: {
+        documentName: documentName || `${getDocumentTypeLabel(documentType)}.pdf`,
+        stage: "document_metadata_registered",
+      },
+    });
 
     await logActivity({
       contractorId,
