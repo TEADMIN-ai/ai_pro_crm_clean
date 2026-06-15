@@ -116,6 +116,23 @@ describe("ocrService", () => {
     expect(responsesCreate.mock.calls[2][0].model).toBe("gpt-4-turbo");
   });
 
+  test("falls back to local Tesseract OCR when OpenAI returns empty text", async () => {
+    responsesCreate.mockResolvedValue({ output_text: "" });
+    tesseractRecognize.mockResolvedValue({ data: { text: "Local OCR text" } });
+
+    const { runOCR } = await import("@/server/services/ocrService");
+
+    const pngBuffer = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00]);
+    const result = await runOCR(pngBuffer, { filename: "registration" });
+
+    expect(result).toBe("Local OCR text");
+    expect(responsesCreate).toHaveBeenCalledTimes(1);
+    expect(tesseractCreateWorker).toHaveBeenCalledWith("eng", 1, {
+      cachePath: expect.stringContaining("tesseract-cache"),
+    });
+    expect(tesseractRecognize).toHaveBeenCalledWith(expect.any(Buffer));
+  });
+
   test("falls back to local Tesseract OCR when OpenAI models are unavailable", async () => {
     const OpenAI = (await import("openai")).default as unknown as {
       APIError: new (message?: string) => Error;

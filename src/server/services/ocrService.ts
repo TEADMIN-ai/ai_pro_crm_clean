@@ -9,7 +9,8 @@ export const OCR_MODEL_CANDIDATES = ["gpt-4.1", "gpt-4o", "gpt-4-turbo"] as cons
 const LOCAL_OCR_PROVIDER = "tesseract" as const;
 const OPENAI_OCR_PROVIDER = "openai" as const;
 const MAX_LOCAL_OCR_PDF_PAGES = 3;
-const PDF_RENDER_SCALE = 2;
+const PDF_RENDER_SCALE = 3;
+const SPARSE_TEXT_PSM = "11" as unknown as import("tesseract.js").PSM;
 const TESSERACT_CACHE_PATH = path.join(os.tmpdir(), "tesseract-cache");
 
 export type OcrProvider = typeof OPENAI_OCR_PROVIDER | typeof LOCAL_OCR_PROVIDER;
@@ -365,7 +366,12 @@ async function emitOcrDiagnostic(options: OcrOptions | undefined, event: Paramet
   }
 }
 
-async function renderPdfPagesToPngBuffers(buffer: Buffer, filename: string, options?: OcrOptions): Promise<Buffer[]> {
+async function renderPdfPagesToPngBuffers(
+  buffer: Buffer,
+  filename: string,
+  options?: OcrOptions,
+  renderScale = PDF_RENDER_SCALE,
+): Promise<Buffer[]> {
   const startedAt = Date.now();
   console.log("[OCR_PDF_RENDER_ENTER]", {
     filename,
@@ -396,7 +402,7 @@ async function renderPdfPagesToPngBuffers(buffer: Buffer, filename: string, opti
   try {
     for (let pageNumber = 1; pageNumber <= pageCount; pageNumber += 1) {
       const page = await pdf.getPage(pageNumber);
-      const viewport = page.getViewport({ scale: PDF_RENDER_SCALE });
+      const viewport = page.getViewport({ scale: renderScale });
       const canvas = createCanvas(Math.ceil(viewport.width), Math.ceil(viewport.height));
       const canvasContext = canvas.getContext("2d");
 
@@ -473,6 +479,13 @@ async function runLocalOCR(buffer: Buffer, input: SupportedOcrInput, options?: O
     const worker = await createWorker("eng", 1, {
       cachePath: TESSERACT_CACHE_PATH,
     });
+    if (typeof worker.setParameters === "function") {
+      await worker.setParameters({
+        tessedit_pageseg_mode: SPARSE_TEXT_PSM,
+        preserve_interword_spaces: "1",
+        user_defined_dpi: "300",
+      });
+    }
     const texts: string[] = [];
 
     try {
@@ -613,6 +626,18 @@ async function runOpenAIOCR(
     ...runtimeDiagnostics,
   });
 
+  if (!text.length) {
+    console.warn("[OCR_PROVIDER_FAILED]", {
+      provider: OPENAI_OCR_PROVIDER,
+      filename: input.filename,
+      model: resolvedModel,
+      error: {
+        message: "openai_returned_empty_text",
+      },
+    });
+    return null;
+  }
+
   return text;
 }
 
@@ -698,7 +723,7 @@ export async function runOCR(buffer: Buffer, options?: OcrOptions): Promise<stri
   const client = getOpenAIClient();
   if (client) {
     const openAiText = await runOpenAIOCR(client, buffer, input, runtimeDiagnostics, options);
-    if (openAiText !== null) {
+    if (openAiText !== null && openAiText.length > 0) {
       console.log("[OCR_TEXT_LENGTH]", {
         filename: input.filename,
         textLength: openAiText.length,
@@ -725,7 +750,7 @@ export async function runOCR(buffer: Buffer, options?: OcrOptions): Promise<stri
       from: OPENAI_OCR_PROVIDER,
       to: LOCAL_OCR_PROVIDER,
       filename: input.filename,
-      reason: "openai_unavailable",
+      reason: openAiText === null ? "openai_unavailable" : "openai_returned_empty_text",
     });
   } else {
     console.warn("[OCR_PROVIDER_FALLBACK]", {
@@ -736,7 +761,55 @@ export async function runOCR(buffer: Buffer, options?: OcrOptions): Promise<stri
     });
   }
 
-  const localText = await runLocalOCR(buffer, input, options);
+  let localText = await runLocalOCR(buffer, input, options);
+  if (localText.length === 0 && input.inputType === "pdf") {
+    console.warn("[OCR_PROVIDER_FALLBACK]", {
+      from: LOCAL_OCR_PROVIDER,
+      to: LOCAL_OCR_PROVIDER,
+      filename: input.filename,
+      reason: "local_ocr_returned_empty_text_retry_high_res",
+    });
+
+    const highResOptions = {
+      ...options,
+      filename: input.filename,
+    };
+    const highResImages = await renderPdfPagesToPngBuffers(buffer, input.filename, highResOptions, 4);
+    if (highResImages.length > 0) {
+      const { createWorker } = await import("tesseract.js");
+      await mkdir(TESSERACT_CACHE_PATH, { recursive: true });
+      const worker = await createWorker("eng", 1, {
+        cachePath: TESSERACT_CACHE_PATH,
+      });
+
+      try {
+        if (typeof worker.setParameters === "function") {
+          await worker.setParameters({
+            tessedit_pageseg_mode: SPARSE_TEXT_PSM,
+            preserve_interword_spaces: "1",
+            user_defined_dpi: "400",
+          });
+        }
+
+        const retryTexts: string[] = [];
+        for (const [index, image] of highResImages.entries()) {
+          const result = await worker.recognize(image);
+          const text = typeof result.data?.text === "string" ? result.data.text.trim() : "";
+          retryTexts.push(text);
+          console.log("[LOCAL_OCR_PAGE_RESULT]", {
+            filename: input.filename,
+            pageIndex: index,
+            textLength: text.length,
+            retry: true,
+          });
+        }
+
+        localText = retryTexts.filter(Boolean).join("\n\n").trim();
+      } finally {
+        await worker.terminate();
+      }
+    }
+  }
   await emitOcrDiagnostic(options, {
     step: "OCR_EXECUTION",
     success: localText.length > 0,
