@@ -1,4 +1,5 @@
 import OpenAI from "openai";
+import { randomUUID } from "node:crypto";
 import { mkdir } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -8,6 +9,7 @@ import { extractTextFromPdfDetailed } from "@/lib/pdf/extractTextFromPdf";
 import { getFirebaseAdmin, getFirebaseStorageBucket } from "@/lib/firebase/admin";
 import {
   OCR_MODEL_CANDIDATES,
+  runOCRDetailed,
 } from "@/server/services/ocrService";
 import {
   calculateVehicleFinanceTrainingConfidence,
@@ -27,6 +29,7 @@ import type {
 import {
   VEHICLE_FINANCE_TRAINING_DOCUMENT_COLLECTION,
   VEHICLE_FINANCE_TRAINING_RESULT_COLLECTION,
+  VEHICLE_FINANCE_TRAINING_VALIDATION_JOB_COLLECTION,
 } from "../types";
 
 const MAX_LOCAL_OCR_PDF_PAGES = 3;
@@ -234,23 +237,169 @@ async function updateTrainingDocumentStatus(documentId: string, status: VehicleF
     .set({ status }, { merge: true });
 }
 
-export async function runVehicleFinanceTrainingValidationForDocument(
+export async function getVehicleFinanceTrainingDocumentById(documentId: string): Promise<VehicleFinanceTrainingDocument | null> {
+  const snapshot = await getFirebaseAdmin()
+    .collection(VEHICLE_FINANCE_TRAINING_DOCUMENT_COLLECTION)
+    .doc(documentId)
+    .get();
+
+  if (!snapshot.exists) {
+    return null;
+  }
+
+  return {
+    documentId: snapshot.id,
+    ...(snapshot.data() ?? {}),
+  } as VehicleFinanceTrainingDocument;
+}
+
+async function createVehicleFinanceTrainingValidationJob(documentId: string): Promise<import("../types").VehicleFinanceTrainingValidationJob> {
+  const jobId = `${documentId}-${randomUUID()}`;
+  const timestamp = new Date().toISOString();
+  const job = {
+    jobId,
+    documentId,
+    status: "QUEUED" as const,
+    createdAt: timestamp,
+    updatedAt: timestamp,
+    startedAt: null,
+    completedAt: null,
+    errorMessage: null,
+    resultDocumentId: null,
+  };
+
+  await getFirebaseAdmin()
+    .collection(VEHICLE_FINANCE_TRAINING_VALIDATION_JOB_COLLECTION)
+    .doc(jobId)
+    .set(job);
+
+  return job;
+}
+
+async function getVehicleFinanceTrainingValidationJob(jobId: string): Promise<import("../types").VehicleFinanceTrainingValidationJob | null> {
+  const snapshot = await getFirebaseAdmin()
+    .collection(VEHICLE_FINANCE_TRAINING_VALIDATION_JOB_COLLECTION)
+    .doc(jobId)
+    .get();
+
+  if (!snapshot.exists) {
+    return null;
+  }
+
+  return {
+    jobId: snapshot.id,
+    ...(snapshot.data() ?? {}),
+  } as import("../types").VehicleFinanceTrainingValidationJob;
+}
+
+async function updateVehicleFinanceTrainingValidationJob(
+  jobId: string,
+  update: Partial<import("../types").VehicleFinanceTrainingValidationJob>,
+) {
+  await getFirebaseAdmin()
+    .collection(VEHICLE_FINANCE_TRAINING_VALIDATION_JOB_COLLECTION)
+    .doc(jobId)
+    .set(
+      {
+        ...update,
+        updatedAt: new Date().toISOString(),
+      },
+      { merge: true },
+    );
+}
+
+async function claimVehicleFinanceTrainingValidationJob(jobId: string) {
+  const jobRef = getFirebaseAdmin().collection(VEHICLE_FINANCE_TRAINING_VALIDATION_JOB_COLLECTION).doc(jobId);
+  const timestamp = new Date().toISOString();
+
+  return getFirebaseAdmin().runTransaction(async (transaction) => {
+    const snapshot = await transaction.get(jobRef);
+    if (!snapshot.exists) {
+      return null;
+    }
+
+    const job = snapshot.data() as import("../types").VehicleFinanceTrainingValidationJob;
+    if (job.status !== "QUEUED") {
+      return null;
+    }
+
+    transaction.set(
+      jobRef,
+      {
+        status: "PROCESSING",
+        startedAt: timestamp,
+        updatedAt: timestamp,
+      },
+      { merge: true },
+    );
+
+    return {
+      ...job,
+      status: "PROCESSING" as const,
+      startedAt: timestamp,
+      updatedAt: timestamp,
+    };
+  });
+}
+
+function logTrainingStage(stage: string, documentId: string, documentCategory: string, payload: Record<string, unknown>) {
+  console.log("[vehicle-finance-training] stageStarted", {
+    stage,
+    documentId,
+    documentCategory,
+    ...payload,
+  });
+}
+
+function logTrainingStageCompleted(
+  stage: string,
+  documentId: string,
+  documentCategory: string,
+  durationMs: number,
+  payload: Record<string, unknown>,
+) {
+  console.log("[vehicle-finance-training] stageCompleted", {
+    stage,
+    documentId,
+    documentCategory,
+    durationMs,
+    ...payload,
+  });
+}
+
+function logTrainingStageFailed(
+  stage: string,
+  documentId: string,
+  documentCategory: string,
+  durationMs: number,
+  payload: Record<string, unknown>,
+) {
+  console.log("[vehicle-finance-training] validationFailed", {
+    stage,
+    documentId,
+    documentCategory,
+    durationMs,
+    ...payload,
+  });
+}
+
+async function processVehicleFinanceTrainingDocument(
   document: VehicleFinanceTrainingDocument,
 ): Promise<VehicleFinanceTrainingResult> {
   const template = getVehicleFinanceTrainingTemplate(document.category);
-  const bucket = getFirebaseStorageBucket();
-  const file = bucket.file(document.storagePath);
+  const filename = document.filename || "document.pdf";
+  const storageBucket = getFirebaseStorageBucket();
+  const file = storageBucket.file(document.storagePath);
+
+  const downloadStartedAt = Date.now();
+  logTrainingStage("storageDownload", document.documentId, document.category, {
+    storagePath: document.storagePath,
+  });
   const [, fileResult] = await Promise.allSettled([file.getMetadata(), file.download()]);
 
   if (fileResult.status !== "fulfilled") {
-    console.log("[vehicle-finance-training] validationFailed", {
-      documentId: document.documentId,
-      documentCategory: document.category,
-      pdfTextLength: 0,
-      openAiTextLength: 0,
-      tesseractTextLength: 0,
-      finalTextLength: 0,
-      reason: "Training file download failed",
+    logTrainingStageFailed("storageDownload", document.documentId, document.category, Date.now() - downloadStartedAt, {
+      error: "Training file download failed",
     });
 
     const failure: VehicleFinanceTrainingResult = {
@@ -277,101 +426,122 @@ export async function runVehicleFinanceTrainingValidationForDocument(
   }
 
   const buffer = Buffer.from(fileResult.value[0] as Uint8Array);
-  const filename = document.filename || "document.pdf";
+
+  const pdfStageStartedAt = Date.now();
+  logTrainingStage("pdfExtraction", document.documentId, document.category, {
+    filename,
+    bytes: buffer.length,
+  });
   const pdfExtraction = await extractTextFromPdfDetailed(buffer, {
     filename,
     documentType: document.category,
     storagePath: document.storagePath,
+    skipOcrFallback: true,
   });
-  console.log("[vehicle-finance-training] documentCategory", {
-    documentId: document.documentId,
-    documentCategory: document.category,
-  });
-  console.log("[vehicle-finance-training] pdfTextLength", {
-    documentId: document.documentId,
-    documentCategory: document.category,
+  logTrainingStageCompleted("pdfExtraction", document.documentId, document.category, Date.now() - pdfStageStartedAt, {
     pdfTextLength: pdfExtraction.text.length,
-  });
-  const openAiText = await runOpenAiOcr(buffer, filename);
-  console.log("[vehicle-finance-training] openAiTextLength", {
-    documentId: document.documentId,
-    documentCategory: document.category,
-    openAiTextLength: openAiText.length,
-  });
-  const tesseractText = await runTesseractOcr(buffer, filename);
-  console.log("[vehicle-finance-training] tesseractTextLength", {
-    documentId: document.documentId,
-    documentCategory: document.category,
-    tesseractTextLength: tesseractText.length,
+    pageCount: pdfExtraction.pageCount,
+    extractionSource: pdfExtraction.source,
   });
 
-  const candidateTexts = [
-    { method: "PDF_TEXT" as const, text: pdfExtraction.text ?? "" },
-    { method: "OPENAI_OCR" as const, text: openAiText },
-    { method: "TESSERACT_OCR" as const, text: tesseractText },
-  ];
-
-  const candidates = candidateTexts.map((candidate) => {
-    const extractedFields = extractVehicleFinanceTrainingFields(document.category, candidate.text);
-    const fieldCoverage = template.requiredFields.filter((field) => (extractedFields[field] ?? "").trim()).length /
-      template.requiredFields.length;
-    return {
-      ...candidate,
-      extractedFields,
-      fieldCoverage,
-      similarity:
-        candidate.method === "PDF_TEXT"
-          ? compareTextSimilarity(candidate.text, openAiText || tesseractText)
-          : compareTextSimilarity(candidate.text, pdfExtraction.text || ""),
-    };
+  const ocrStageStartedAt = Date.now();
+  logTrainingStage("ocrFallback", document.documentId, document.category, {
+    filename,
+    bytes: buffer.length,
+    pageCount: pdfExtraction.pageCount,
+    triggered: pdfExtraction.text.length < 24,
+  });
+  const ocrResult = pdfExtraction.text.length < 24
+    ? await runOCRDetailed(buffer, {
+        filename,
+        mimeType: "application/pdf",
+        pageCount: pdfExtraction.pageCount,
+      })
+    : {
+        text: "",
+        provider: null,
+        openAiTextLength: 0,
+        tesseractTextLength: 0,
+      };
+  logTrainingStageCompleted("ocrFallback", document.documentId, document.category, Date.now() - ocrStageStartedAt, {
+    openAiTextLength: ocrResult.openAiTextLength,
+    tesseractTextLength: ocrResult.tesseractTextLength,
+    finalTextLength: ocrResult.text.length,
+    provider: ocrResult.provider,
+    skipped: pdfExtraction.text.length >= 24,
   });
 
-  const bestCandidate = chooseBestCandidate(candidates);
-  const missingFields = getVehicleFinanceTrainingMissingFields(template, bestCandidate.extractedFields);
+  const finalText =
+    pdfExtraction.text.length >= 24
+      ? pdfExtraction.text
+      : ocrResult.text;
+
+  const finalSource =
+    pdfExtraction.text.length >= 24
+      ? "PDF_TEXT"
+      : ocrResult.provider === "openai"
+        ? "OPENAI_OCR"
+        : ocrResult.provider === "tesseract"
+          ? "TESSERACT_OCR"
+          : "COMBINED";
+
+  const scoringStageStartedAt = Date.now();
+  logTrainingStage("validationScoring", document.documentId, document.category, {
+    finalTextLength: finalText.length,
+  });
+  const extractedFields = extractVehicleFinanceTrainingFields(document.category, finalText);
+  const missingFields = getVehicleFinanceTrainingMissingFields(template, extractedFields);
   const validationErrors = missingFields.map((field) => `${field} missing`);
-  if (!bestCandidate.text.trim()) {
+  if (!finalText.trim()) {
     validationErrors.unshift("No readable text extracted");
   }
-  console.log("[vehicle-finance-training] finalTextLength", {
-    documentId: document.documentId,
-    documentCategory: document.category,
-    finalTextLength: bestCandidate.text.length,
-  });
-
   const confidenceScore = calculateVehicleFinanceTrainingConfidence({
     template,
-    extractedFields: bestCandidate.extractedFields,
-    extractedText: bestCandidate.text,
+    extractedFields,
+    extractedText: finalText,
   });
-  const passedValidation = bestCandidate.text.trim().length > 0 && missingFields.length === 0;
+  const passedValidation = finalText.trim().length > 0 && missingFields.length === 0;
+  logTrainingStageCompleted("validationScoring", document.documentId, document.category, Date.now() - scoringStageStartedAt, {
+    confidenceScore,
+    passedValidation,
+    missingFields,
+  });
 
   const result: VehicleFinanceTrainingResult = {
     documentId: document.documentId,
     category: document.category,
-    extractionMethod: bestCandidate.method,
-    extractedTextLength: bestCandidate.text.length,
-    extractedFields: bestCandidate.extractedFields,
+    extractionMethod: finalSource,
+    extractedTextLength: finalText.length,
+    extractedFields,
     confidenceScore,
     passedValidation,
     validationErrors,
     createdAt: new Date().toISOString(),
     pdfTextLength: pdfExtraction.text.length,
-    openAiOcrTextLength: openAiText.length,
-    tesseractOcrTextLength: tesseractText.length,
-    selectedTextPreview: textPreview(bestCandidate.text),
+    openAiOcrTextLength: ocrResult.openAiTextLength,
+    tesseractOcrTextLength: ocrResult.tesseractTextLength,
+    selectedTextPreview: textPreview(finalText),
     missingFields,
     expectedFields: [...template.requiredFields],
   };
 
+  const writeStageStartedAt = Date.now();
+  logTrainingStage("firestoreResultWrite", document.documentId, document.category, {
+    resultCollection: VEHICLE_FINANCE_TRAINING_RESULT_COLLECTION,
+  });
   await saveTrainingResult(result);
   await updateTrainingDocumentStatus(document.documentId, passedValidation ? "VALIDATED" : "NEEDS_REVIEW");
+  logTrainingStageCompleted("firestoreResultWrite", document.documentId, document.category, Date.now() - writeStageStartedAt, {
+    passedValidation,
+    confidenceScore,
+  });
 
   console.log("[VEHICLE_FINANCE_TRAINING_VALIDATION]", {
     documentId: document.documentId,
     category: document.category,
     pdfTextLength: pdfExtraction.text.length,
-    openAiOcrTextLength: openAiText.length,
-    tesseractOcrTextLength: tesseractText.length,
+    openAiOcrTextLength: ocrResult.openAiTextLength,
+    tesseractOcrTextLength: ocrResult.tesseractTextLength,
     extractionMethod: result.extractionMethod,
     passedValidation: result.passedValidation,
     confidenceScore: result.confidenceScore,
@@ -380,15 +550,98 @@ export async function runVehicleFinanceTrainingValidationForDocument(
   return result;
 }
 
+export async function processVehicleFinanceTrainingValidationJob(jobId: string) {
+  const claimedJob = await claimVehicleFinanceTrainingValidationJob(jobId);
+  if (!claimedJob) {
+    return null;
+  }
+
+  const job = await getVehicleFinanceTrainingValidationJob(jobId);
+  if (!job) {
+    return null;
+  }
+
+  const jobStart = Date.now();
+  console.log("[vehicle-finance-training] validationStarted", {
+    jobId,
+    documentId: job.documentId,
+    documentsFound: 1,
+  });
+
+  const documentStageStartedAt = Date.now();
+  logTrainingStage("documentLookup", job.documentId, "unknown", {
+    jobId,
+  });
+  const document = await getVehicleFinanceTrainingDocumentById(job.documentId);
+  logTrainingStageCompleted("documentLookup", job.documentId, document?.category ?? "unknown", Date.now() - documentStageStartedAt, {
+    found: Boolean(document),
+  });
+
+  if (!document) {
+    const errorMessage = "Training document not found";
+    await updateVehicleFinanceTrainingValidationJob(jobId, {
+      status: "FAILED",
+      completedAt: new Date().toISOString(),
+      errorMessage,
+    });
+    console.log("[vehicle-finance-training] validationFailed", {
+      jobId,
+      documentId: job.documentId,
+      documentsFound: 1,
+      error: errorMessage,
+    });
+    return null;
+  }
+
+  try {
+    const result = await processVehicleFinanceTrainingDocument(document);
+    await updateVehicleFinanceTrainingValidationJob(jobId, {
+      status: "PROCESSED",
+      completedAt: new Date().toISOString(),
+      errorMessage: null,
+      resultDocumentId: result.documentId,
+    });
+    console.log("[vehicle-finance-training] validationCompleted", {
+      jobId,
+      documentId: job.documentId,
+      durationMs: Date.now() - jobStart,
+      pdfTextLength: result.pdfTextLength ?? 0,
+      openAiTextLength: result.openAiOcrTextLength ?? 0,
+      tesseractTextLength: result.tesseractOcrTextLength ?? 0,
+      finalTextLength: result.extractedTextLength,
+      confidenceScore: result.confidenceScore,
+    });
+    return result;
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    await updateVehicleFinanceTrainingValidationJob(jobId, {
+      status: "FAILED",
+      completedAt: new Date().toISOString(),
+      errorMessage,
+    });
+    console.log("[vehicle-finance-training] validationFailed", {
+      jobId,
+      documentId: job.documentId,
+      durationMs: Date.now() - jobStart,
+      error: errorMessage,
+    });
+    return null;
+  }
+}
+
+export async function runVehicleFinanceTrainingValidationForDocument(
+  document: VehicleFinanceTrainingDocument,
+): Promise<VehicleFinanceTrainingResult> {
+  return processVehicleFinanceTrainingDocument(document);
+}
+
 export async function runVehicleFinanceTrainingValidation(documentId?: string) {
   const documents = await listVehicleFinanceTrainingDocuments();
   const targets = documentId ? documents.filter((document) => document.documentId === documentId) : documents;
-  const results: VehicleFinanceTrainingResult[] = [];
 
   console.log("[vehicle-finance-training] validationStarted", {
     documentId: documentId ?? null,
     documentsFound: documents.length,
-    targetsFound: targets.length,
   });
 
   if (targets.length === 0) {
@@ -405,53 +658,61 @@ export async function runVehicleFinanceTrainingValidation(documentId?: string) {
     };
   }
 
+  const queuedDocumentIds: string[] = [];
   for (const document of targets) {
-    try {
-      results.push(await runVehicleFinanceTrainingValidationForDocument(document));
-    } catch (error) {
-      console.error("[vehicle-finance-training] validationFailed", {
-        documentId: document.documentId,
-        documentCategory: document.category,
-        error: error instanceof Error ? error.message : String(error),
-      });
-
-      const failure: VehicleFinanceTrainingResult = {
-        documentId: document.documentId,
-        category: document.category,
-        extractionMethod: "PDF_TEXT",
-        extractedTextLength: 0,
-        extractedFields: {},
-        confidenceScore: 0,
-        passedValidation: false,
-        validationErrors: [error instanceof Error ? error.message : "Validation failed"],
-        createdAt: new Date().toISOString(),
-        pdfTextLength: 0,
-        openAiOcrTextLength: 0,
-        tesseractOcrTextLength: 0,
-        selectedTextPreview: "",
-        missingFields: [...getVehicleFinanceTrainingTemplate(document.category).requiredFields],
-        expectedFields: [...getVehicleFinanceTrainingTemplate(document.category).requiredFields],
-      };
-
-      await saveTrainingResult(failure);
-      await updateTrainingDocumentStatus(document.documentId, "FAILED");
-      results.push(failure);
-    }
+    const job = await createVehicleFinanceTrainingValidationJob(document.documentId);
+    queuedDocumentIds.push(job.documentId);
+    void processVehicleFinanceTrainingValidationJob(job.jobId);
   }
-
-  const validationFailures = results.filter((result) => !result.passedValidation).length;
 
   console.log("[vehicle-finance-training] validationCompleted", {
     documentId: documentId ?? null,
     documentsFound: documents.length,
-    validationFailures,
-    resultsFound: results.length,
+    validationFailures: 0,
+    resultsFound: 0,
+    queuedDocumentIds,
   });
 
   return {
-    processed: results.length,
-    results,
+    processed: queuedDocumentIds.length,
+    results: [],
+    queuedDocumentIds,
+    message: "Validation queued.",
   };
+}
+
+export async function queueVehicleFinanceTrainingValidation(documentId: string) {
+  const document = await getVehicleFinanceTrainingDocumentById(documentId);
+  if (!document) {
+    return null;
+  }
+
+  const job = await createVehicleFinanceTrainingValidationJob(documentId);
+  void processVehicleFinanceTrainingValidationJob(job.jobId);
+  return job;
+}
+
+export async function getVehicleFinanceTrainingValidationJobStatus(jobId: string) {
+  return getVehicleFinanceTrainingValidationJob(jobId);
+}
+
+export async function getLatestVehicleFinanceTrainingValidationJobForDocument(documentId: string) {
+  const snapshot = await getFirebaseAdmin()
+    .collection(VEHICLE_FINANCE_TRAINING_VALIDATION_JOB_COLLECTION)
+    .where("documentId", "==", documentId)
+    .orderBy("createdAt", "desc")
+    .limit(1)
+    .get();
+
+  if (snapshot.empty) {
+    return null;
+  }
+
+  const doc = snapshot.docs[0];
+  return {
+    jobId: doc.id,
+    ...(doc.data() ?? {}),
+  } as import("../types").VehicleFinanceTrainingValidationJob;
 }
 
 export async function listVehicleFinanceTrainingDocuments(): Promise<VehicleFinanceTrainingDocument[]> {
@@ -480,6 +741,22 @@ export async function listVehicleFinanceTrainingResults(): Promise<VehicleFinanc
       ...(doc.data() ?? {}),
     }) as VehicleFinanceTrainingResult)
     .sort((left, right) => right.createdAt.localeCompare(left.createdAt));
+}
+
+export async function getVehicleFinanceTrainingResultByDocumentId(documentId: string): Promise<VehicleFinanceTrainingResult | null> {
+  const snapshot = await getFirebaseAdmin()
+    .collection(VEHICLE_FINANCE_TRAINING_RESULT_COLLECTION)
+    .doc(documentId)
+    .get();
+
+  if (!snapshot.exists) {
+    return null;
+  }
+
+  return {
+    documentId: snapshot.id,
+    ...(snapshot.data() ?? {}),
+  } as VehicleFinanceTrainingResult;
 }
 
 export async function getVehicleFinanceTrainingOverview() {

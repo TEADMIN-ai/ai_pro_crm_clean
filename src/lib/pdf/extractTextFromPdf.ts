@@ -30,6 +30,7 @@ export type PdfExtractionResult = {
 type PdfExtractionOptions = {
   filename?: string;
   minTextLength?: number;
+  skipOcrFallback?: boolean;
   contractorId?: string | null;
   documentType?: string | null;
   storagePath?: string | null;
@@ -531,10 +532,10 @@ export async function extractTextFromPdfDetailed(
     },
   });
 
-  if (meaningfulDirectText) {
+  if (meaningfulDirectText || options?.skipOcrFallback) {
     console.log("[PDF_TEXT_EXTRACTION]", {
       filename,
-      stage: "direct_text_selected",
+      stage: options?.skipOcrFallback ? "direct_text_only" : "direct_text_selected",
       parser: directParser,
       pageCount,
       textLength: directText.length,

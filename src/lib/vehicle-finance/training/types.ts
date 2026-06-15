@@ -31,8 +31,11 @@ export const VEHICLE_FINANCE_TRAINING_STORAGE_FOLDERS: Record<VehicleFinanceTrai
 
 export const VEHICLE_FINANCE_TRAINING_DOCUMENT_COLLECTION = "vehicleFinanceTrainingDocuments";
 export const VEHICLE_FINANCE_TRAINING_RESULT_COLLECTION = "vehicleFinanceTrainingResults";
+export const VEHICLE_FINANCE_TRAINING_VALIDATION_JOB_COLLECTION = "vehicleFinanceTrainingValidationJobs";
 
 export type VehicleFinanceTrainingDocumentStatus = "UPLOADED" | "VALIDATED" | "FAILED" | "NEEDS_REVIEW";
+
+export type VehicleFinanceTrainingValidationJobStatus = "QUEUED" | "PROCESSING" | "PROCESSED" | "FAILED";
 
 export type VehicleFinanceTrainingDocument = {
   documentId: string;
@@ -66,6 +69,18 @@ export type VehicleFinanceTrainingResult = {
   selectedTextPreview?: string;
   missingFields?: string[];
   expectedFields?: string[];
+};
+
+export type VehicleFinanceTrainingValidationJob = {
+  jobId: string;
+  documentId: string;
+  status: VehicleFinanceTrainingValidationJobStatus;
+  createdAt: string;
+  updatedAt: string;
+  startedAt?: string | null;
+  completedAt?: string | null;
+  errorMessage?: string | null;
+  resultDocumentId?: string | null;
 };
 
 export type VehicleFinanceTrainingFieldKind =

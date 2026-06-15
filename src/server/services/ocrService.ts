@@ -15,6 +15,13 @@ const TESSERACT_CACHE_PATH = path.join(os.tmpdir(), "tesseract-cache");
 
 export type OcrProvider = typeof OPENAI_OCR_PROVIDER | typeof LOCAL_OCR_PROVIDER;
 
+export type OcrDetailedResult = {
+  text: string;
+  provider: OcrProvider | null;
+  openAiTextLength: number;
+  tesseractTextLength: number;
+};
+
 type OcrOptions = {
   filename?: string;
   mimeType?: string;
@@ -366,6 +373,23 @@ async function emitOcrDiagnostic(options: OcrOptions | undefined, event: Paramet
   }
 }
 
+function logStageStarted(stage: string, filename: string, metadata: Record<string, unknown> = {}) {
+  console.log("[vehicle-finance-training] stageStarted", {
+    stage,
+    filename,
+    ...metadata,
+  });
+}
+
+function logStageCompleted(stage: string, filename: string, durationMs: number, metadata: Record<string, unknown> = {}) {
+  console.log("[vehicle-finance-training] stageCompleted", {
+    stage,
+    filename,
+    durationMs,
+    ...metadata,
+  });
+}
+
 async function renderPdfPagesToPngBuffers(
   buffer: Buffer,
   filename: string,
@@ -466,6 +490,11 @@ async function buildLocalOcrImages(buffer: Buffer, input: SupportedOcrInput, opt
 }
 
 async function runLocalOCR(buffer: Buffer, input: SupportedOcrInput, options?: OcrOptions): Promise<string> {
+  const stageStartedAt = Date.now();
+  logStageStarted("tesseractOcr", input.filename, {
+    bytes: buffer.length,
+    pageCount: options?.pageCount ?? null,
+  });
   console.log("[OCR_PROVIDER_SELECTED]", {
     provider: LOCAL_OCR_PROVIDER,
     filename: input.filename,
@@ -513,6 +542,11 @@ async function runLocalOCR(buffer: Buffer, input: SupportedOcrInput, options?: O
       bytes: buffer.length,
       pageCount: options?.pageCount ?? null,
     });
+    logStageCompleted("tesseractOcr", input.filename, Date.now() - stageStartedAt, {
+      success: true,
+      textLength: text.length,
+      pageCount: options?.pageCount ?? null,
+    });
     console.log("[OCR_TEXT_LENGTH]", {
       filename: input.filename,
       textLength: text.length,
@@ -528,6 +562,11 @@ async function runLocalOCR(buffer: Buffer, input: SupportedOcrInput, options?: O
       filename: input.filename,
       inputType: input.inputType,
       error: toLoggableError(error),
+    });
+    logStageCompleted("tesseractOcr", input.filename, Date.now() - stageStartedAt, {
+      success: false,
+      textLength: 0,
+      pageCount: options?.pageCount ?? null,
     });
     await emitOcrDiagnostic(options, {
       step: "OCR_EXECUTION",
@@ -547,6 +586,11 @@ async function runOpenAIOCR(
   runtimeDiagnostics: ReturnType<typeof getRuntimeDiagnostics>,
   options?: OcrOptions,
 ): Promise<string | null> {
+  const stageStartedAt = Date.now();
+  logStageStarted("openAiOcr", input.filename, {
+    bytes: buffer.length,
+    pageCount: options?.pageCount ?? null,
+  });
   console.log("[OCR_PROVIDER_SELECTED]", {
     provider: OPENAI_OCR_PROVIDER,
     filename: input.filename,
@@ -601,6 +645,11 @@ async function runOpenAIOCR(
       filename: input.filename,
       error: toLoggableError(lastError ?? new Error("No OCR model succeeded")),
     });
+    logStageCompleted("openAiOcr", input.filename, Date.now() - stageStartedAt, {
+      success: false,
+      textLength: 0,
+      pageCount: options?.pageCount ?? null,
+    });
     return null;
   }
 
@@ -635,13 +684,23 @@ async function runOpenAIOCR(
         message: "openai_returned_empty_text",
       },
     });
+    logStageCompleted("openAiOcr", input.filename, Date.now() - stageStartedAt, {
+      success: false,
+      textLength: 0,
+      pageCount: options?.pageCount ?? null,
+    });
     return null;
   }
 
+  logStageCompleted("openAiOcr", input.filename, Date.now() - stageStartedAt, {
+    success: true,
+    textLength: text.length,
+    pageCount: options?.pageCount ?? null,
+  });
   return text;
 }
 
-export async function runOCR(buffer: Buffer, options?: OcrOptions): Promise<string> {
+export async function runOCRDetailed(buffer: Buffer, options?: OcrOptions): Promise<OcrDetailedResult> {
   const runtimeDiagnostics = getRuntimeDiagnostics();
   const ocrStartedAt = Date.now();
 
@@ -667,7 +726,12 @@ export async function runOCR(buffer: Buffer, options?: OcrOptions): Promise<stri
       ocrTextLength: 0,
       ocrFailureReason: "empty_buffer",
     });
-    return "";
+    return {
+      text: "",
+      provider: null,
+      openAiTextLength: 0,
+      tesseractTextLength: 0,
+    };
   }
 
   const input = buildSupportedInput(buffer, options);
@@ -695,7 +759,12 @@ export async function runOCR(buffer: Buffer, options?: OcrOptions): Promise<stri
       ocrFailureReason: "unsupported_input",
       metadata: { mimeType: options?.mimeType ?? null },
     });
-    return "";
+    return {
+      text: "",
+      provider: null,
+      openAiTextLength: 0,
+      tesseractTextLength: 0,
+    };
   }
 
   console.log("[OCR_FALLBACK]", {
@@ -743,7 +812,12 @@ export async function runOCR(buffer: Buffer, options?: OcrOptions): Promise<stri
           timingMs: Date.now() - ocrStartedAt,
         },
       });
-      return openAiText;
+      return {
+        text: openAiText,
+        provider: OPENAI_OCR_PROVIDER,
+        openAiTextLength: openAiText.length,
+        tesseractTextLength: 0,
+      };
     }
 
     console.warn("[OCR_PROVIDER_FALLBACK]", {
@@ -822,5 +896,15 @@ export async function runOCR(buffer: Buffer, options?: OcrOptions): Promise<stri
       timingMs: Date.now() - ocrStartedAt,
     },
   });
-  return localText;
+  return {
+    text: localText,
+    provider: localText.length > 0 ? LOCAL_OCR_PROVIDER : null,
+    openAiTextLength: client ? 0 : 0,
+    tesseractTextLength: localText.length,
+  };
+}
+
+export async function runOCR(buffer: Buffer, options?: OcrOptions): Promise<string> {
+  const result = await runOCRDetailed(buffer, options);
+  return result.text;
 }

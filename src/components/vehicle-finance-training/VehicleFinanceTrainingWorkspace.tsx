@@ -22,6 +22,26 @@ import type {
 
 type TrainingTab = "dataset" | "ocr-results" | "extraction-accuracy" | "validation-results";
 
+type VehicleFinanceValidationJobStatus = "QUEUED" | "PROCESSING" | "PROCESSED" | "FAILED";
+
+type ValidationQueueResponse = {
+  jobId: string;
+  documentId: string;
+  status: VehicleFinanceValidationJobStatus;
+  message?: string;
+  error?: string;
+};
+
+type ValidationStatusResponse = {
+  job: {
+    jobId: string;
+    documentId: string;
+    status: VehicleFinanceValidationJobStatus;
+    errorMessage?: string | null;
+  };
+  status: VehicleFinanceValidationJobStatus;
+};
+
 const EMPTY_OVERVIEW: VehicleFinanceTrainingOverview = {
   metrics: {
     ocrSuccessRate: 0,
@@ -60,6 +80,10 @@ function formatDate(value?: string | null): string {
 function getResultBadgeTone(result?: VehicleFinanceTrainingResult | null) {
   if (!result) return "warning" as const;
   return result.passedValidation ? "success" : "danger" as const;
+}
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 export default function VehicleFinanceTrainingWorkspace() {
@@ -159,9 +183,38 @@ export default function VehicleFinanceTrainingWorkspace() {
       const response = await authFetch(`/api/vehicle-finance/training/documents/${encodeURIComponent(documentId)}/validate`, {
         method: "POST",
       });
-      const payload = (await response.json().catch(() => null)) as { error?: string } | null;
-      if (!response.ok) {
+      const payload = (await response.json().catch(() => null)) as ValidationQueueResponse | null;
+      if (!response.ok && response.status !== 202) {
         throw new Error(payload?.error ?? `Training validation failed (${response.status})`);
+      }
+      if (!payload?.jobId) {
+        throw new Error("Training validation job was not created.");
+      }
+
+      let currentStatus = payload.status;
+      let attempts = 0;
+      while (currentStatus === "QUEUED" || currentStatus === "PROCESSING") {
+        // Sequential polling keeps the request path short while the worker completes.
+        // eslint-disable-next-line no-await-in-loop
+        await sleep(1000);
+        attempts += 1;
+        // eslint-disable-next-line no-await-in-loop
+        const statusResponse = await authFetch(
+          `/api/vehicle-finance/training/documents/${encodeURIComponent(documentId)}/validate?jobId=${encodeURIComponent(payload.jobId)}`,
+          { cache: "no-store" },
+        );
+        // eslint-disable-next-line no-await-in-loop
+        const statusPayload = (await statusResponse.json().catch(() => null)) as ValidationStatusResponse | null;
+        if (!statusResponse.ok || !statusPayload?.job) {
+          throw new Error(statusPayload?.job?.errorMessage ?? `Training validation status failed (${statusResponse.status})`);
+        }
+        currentStatus = statusPayload.job.status;
+        if (attempts >= 30 && (currentStatus === "QUEUED" || currentStatus === "PROCESSING")) {
+          throw new Error("Training validation is still processing.");
+        }
+      }
+      if (currentStatus === "FAILED") {
+        throw new Error("Training validation failed.");
       }
       if (options?.refreshAfter ?? true) {
         await refresh();

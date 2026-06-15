@@ -21,7 +21,7 @@ export async function POST(request: NextRequest) {
 
     if (documentId) {
       const summary = await runVehicleFinanceTrainingValidation(documentId);
-      return NextResponse.json(summary);
+      return NextResponse.json(summary, { status: 202 });
     }
 
     if (!documents.length) {
@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
       queuedDocumentIds: documents.map((document) => document.documentId),
       documentCount: documents.length,
       message: "Use /api/vehicle-finance/training/documents/{documentId}/validate for sequential validation.",
-    });
+    }, { status: 202 });
   } catch (error) {
     if (error instanceof AuthorizationError) {
       return NextResponse.json({ error: error.message }, { status: error.status });
