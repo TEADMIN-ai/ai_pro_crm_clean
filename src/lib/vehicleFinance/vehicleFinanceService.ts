@@ -606,6 +606,67 @@ export async function listVehicleFinanceApplications(): Promise<VehicleFinanceAp
     .sort((left, right) => right.createdAt.localeCompare(left.createdAt));
 }
 
+export async function getVehicleFinanceApplication(applicationId: string) {
+  const db = getFirebaseAdmin();
+  const applicationRef = db.collection(APPLICATION_COLLECTION).doc(applicationId);
+  const assessmentRef = db.collection(ASSESSMENT_COLLECTION).doc(applicationId);
+
+  const applicationSnapshot = await applicationRef.get();
+  const applicationExists = applicationSnapshot.exists;
+
+  console.log("[vehicle-finance] application lookup", {
+    applicationId,
+    applicationExists,
+  });
+
+  if (!applicationExists) {
+    throw new Error("Vehicle finance application not found");
+  }
+
+  const application = normalizeApplicationData(applicationId, (applicationSnapshot.data() ?? {}) as Record<string, unknown>);
+  const customerId = application.customerId.trim();
+
+  const [customerSnapshot, assessmentSnapshot, documentSnapshot] = await Promise.all([
+    customerId ? db.collection(CUSTOMER_COLLECTION).doc(customerId).get() : Promise.resolve(null),
+    assessmentRef.get(),
+    db.collection(DOCUMENT_COLLECTION).where("applicationId", "==", applicationId).get(),
+  ]);
+
+  const customerExists = Boolean(customerSnapshot?.exists);
+  const assessmentExists = assessmentSnapshot.exists;
+  const documentExists = documentSnapshot.size > 0;
+
+  console.log("[vehicle-finance] application resolution", {
+    applicationId,
+    documentExists,
+    customerExists,
+    assessmentExists,
+  });
+
+  const customer = customerSnapshot?.exists
+    ? normalizeCustomerData(customerSnapshot.id, (customerSnapshot.data() ?? {}) as Record<string, unknown>)
+    : null;
+  const assessment = assessmentSnapshot.exists
+    ? normalizeAssessmentData((assessmentSnapshot.data() ?? {}) as Record<string, unknown>)
+    : null;
+  const documents = documentSnapshot.docs
+    .map((doc) => normalizeDocumentData(doc.id, (doc.data() ?? {}) as Record<string, unknown>))
+    .sort((left, right) => right.uploadedAt.localeCompare(left.uploadedAt));
+
+  return {
+    application,
+    customer,
+    assessment,
+    documents,
+    flags: {
+      applicationExists,
+      documentExists,
+      customerExists,
+      assessmentExists,
+    },
+  };
+}
+
 export async function listVehicleFinanceDocuments(applicationId?: string): Promise<VehicleFinanceDocument[]> {
   const query = applicationId
     ? getFirebaseAdmin().collection(DOCUMENT_COLLECTION).where("applicationId", "==", applicationId)
