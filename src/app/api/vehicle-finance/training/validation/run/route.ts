@@ -19,6 +19,11 @@ export async function POST(request: NextRequest) {
       documentsFound: documents.length,
     });
 
+    if (documentId) {
+      const summary = await runVehicleFinanceTrainingValidation(documentId);
+      return NextResponse.json(summary);
+    }
+
     if (!documents.length) {
       console.log("[vehicle-finance-training] validationFailures", {
         documentId: documentId ?? null,
@@ -32,9 +37,12 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    const summary = await runVehicleFinanceTrainingValidation(documentId);
-
-    return NextResponse.json(summary);
+    return NextResponse.json({
+      processed: 0,
+      queuedDocumentIds: documents.map((document) => document.documentId),
+      documentCount: documents.length,
+      message: "Use /api/vehicle-finance/training/documents/{documentId}/validate for sequential validation.",
+    });
   } catch (error) {
     if (error instanceof AuthorizationError) {
       return NextResponse.json({ error: error.message }, { status: error.status });

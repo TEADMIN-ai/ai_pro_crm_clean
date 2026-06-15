@@ -148,17 +148,42 @@ export default function VehicleFinanceTrainingWorkspace() {
     }
   }
 
-  async function runRegression(documentId?: string) {
+  async function validateDocument(
+    documentId: string,
+    options?: { refreshAfter?: boolean; manageBusy?: boolean },
+  ) {
     try {
-      setBusy(documentId ? `run:${documentId}` : "run-all");
-      const response = await authFetch("/api/vehicle-finance/training/validation/run", {
+      if (options?.manageBusy ?? true) {
+        setBusy(`run:${documentId}`);
+      }
+      const response = await authFetch(`/api/vehicle-finance/training/documents/${encodeURIComponent(documentId)}/validate`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(documentId ? { documentId } : {}),
       });
       const payload = (await response.json().catch(() => null)) as { error?: string } | null;
       if (!response.ok) {
         throw new Error(payload?.error ?? `Training validation failed (${response.status})`);
+      }
+      if (options?.refreshAfter ?? true) {
+        await refresh();
+      }
+      return payload;
+    } catch (runError) {
+      setError(runError instanceof Error ? runError.message : "Training validation failed");
+      return null;
+    } finally {
+      if (options?.manageBusy ?? true) {
+        setBusy(null);
+      }
+    }
+  }
+
+  async function runRegression() {
+    try {
+      setBusy("run-all");
+      for (const document of documents) {
+        // Sequential on purpose: keeps each server request short and bounded.
+        // eslint-disable-next-line no-await-in-loop
+        await validateDocument(document.documentId, { refreshAfter: false, manageBusy: false });
       }
       await refresh();
     } catch (runError) {
@@ -334,7 +359,7 @@ export default function VehicleFinanceTrainingWorkspace() {
                           <td>
                             <button
                               type="button"
-                              onClick={() => void runRegression(document.documentId)}
+                              onClick={() => void validateDocument(document.documentId)}
                               disabled={busy === `run:${document.documentId}`}
                               className="rounded-md border border-slate-700 px-3 py-1 text-xs text-slate-200"
                             >
@@ -495,7 +520,7 @@ export default function VehicleFinanceTrainingWorkspace() {
                     <td>
                       <button
                         type="button"
-                        onClick={() => void runRegression(result.documentId)}
+                        onClick={() => void validateDocument(result.documentId)}
                         disabled={busy === `run:${result.documentId}`}
                         className="rounded-md border border-slate-700 px-3 py-1 text-xs text-slate-200"
                       >
