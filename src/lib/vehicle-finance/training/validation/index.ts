@@ -243,6 +243,16 @@ export async function runVehicleFinanceTrainingValidationForDocument(
   const [, fileResult] = await Promise.allSettled([file.getMetadata(), file.download()]);
 
   if (fileResult.status !== "fulfilled") {
+    console.log("[vehicle-finance-training] validationFailed", {
+      documentId: document.documentId,
+      documentCategory: document.category,
+      pdfTextLength: 0,
+      openAiTextLength: 0,
+      tesseractTextLength: 0,
+      finalTextLength: 0,
+      reason: "Training file download failed",
+    });
+
     const failure: VehicleFinanceTrainingResult = {
       documentId: document.documentId,
       category: document.category,
@@ -273,8 +283,27 @@ export async function runVehicleFinanceTrainingValidationForDocument(
     documentType: document.category,
     storagePath: document.storagePath,
   });
+  console.log("[vehicle-finance-training] documentCategory", {
+    documentId: document.documentId,
+    documentCategory: document.category,
+  });
+  console.log("[vehicle-finance-training] pdfTextLength", {
+    documentId: document.documentId,
+    documentCategory: document.category,
+    pdfTextLength: pdfExtraction.text.length,
+  });
   const openAiText = await runOpenAiOcr(buffer, filename);
+  console.log("[vehicle-finance-training] openAiTextLength", {
+    documentId: document.documentId,
+    documentCategory: document.category,
+    openAiTextLength: openAiText.length,
+  });
   const tesseractText = await runTesseractOcr(buffer, filename);
+  console.log("[vehicle-finance-training] tesseractTextLength", {
+    documentId: document.documentId,
+    documentCategory: document.category,
+    tesseractTextLength: tesseractText.length,
+  });
 
   const candidateTexts = [
     { method: "PDF_TEXT" as const, text: pdfExtraction.text ?? "" },
@@ -303,6 +332,11 @@ export async function runVehicleFinanceTrainingValidationForDocument(
   if (!bestCandidate.text.trim()) {
     validationErrors.unshift("No readable text extracted");
   }
+  console.log("[vehicle-finance-training] finalTextLength", {
+    documentId: document.documentId,
+    documentCategory: document.category,
+    finalTextLength: bestCandidate.text.length,
+  });
 
   const confidenceScore = calculateVehicleFinanceTrainingConfidence({
     template,
@@ -372,7 +406,37 @@ export async function runVehicleFinanceTrainingValidation(documentId?: string) {
   }
 
   for (const document of targets) {
-    results.push(await runVehicleFinanceTrainingValidationForDocument(document));
+    try {
+      results.push(await runVehicleFinanceTrainingValidationForDocument(document));
+    } catch (error) {
+      console.error("[vehicle-finance-training] validationFailed", {
+        documentId: document.documentId,
+        documentCategory: document.category,
+        error: error instanceof Error ? error.message : String(error),
+      });
+
+      const failure: VehicleFinanceTrainingResult = {
+        documentId: document.documentId,
+        category: document.category,
+        extractionMethod: "PDF_TEXT",
+        extractedTextLength: 0,
+        extractedFields: {},
+        confidenceScore: 0,
+        passedValidation: false,
+        validationErrors: [error instanceof Error ? error.message : "Validation failed"],
+        createdAt: new Date().toISOString(),
+        pdfTextLength: 0,
+        openAiOcrTextLength: 0,
+        tesseractOcrTextLength: 0,
+        selectedTextPreview: "",
+        missingFields: [...getVehicleFinanceTrainingTemplate(document.category).requiredFields],
+        expectedFields: [...getVehicleFinanceTrainingTemplate(document.category).requiredFields],
+      };
+
+      await saveTrainingResult(failure);
+      await updateTrainingDocumentStatus(document.documentId, "FAILED");
+      results.push(failure);
+    }
   }
 
   const validationFailures = results.filter((result) => !result.passedValidation).length;
