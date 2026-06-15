@@ -99,6 +99,7 @@ export type VehicleFinanceTrainingOverview = {
     averageConfidence: number;
     extractionAccuracy: number;
     failedDocuments: number;
+    failedExtractions: number;
     missingFields: number;
     totalDocuments: number;
     validatedDocuments: number;
@@ -106,4 +107,3 @@ export type VehicleFinanceTrainingOverview = {
   documents: VehicleFinanceTrainingDocument[];
   results: VehicleFinanceTrainingResult[];
 };
-

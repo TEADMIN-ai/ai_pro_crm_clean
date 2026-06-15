@@ -28,6 +28,7 @@ const EMPTY_OVERVIEW: VehicleFinanceTrainingOverview = {
     averageConfidence: 0,
     extractionAccuracy: 0,
     failedDocuments: 0,
+    failedExtractions: 0,
     missingFields: 0,
     totalDocuments: 0,
     validatedDocuments: 0,
@@ -291,6 +292,68 @@ export default function VehicleFinanceTrainingWorkspace() {
                 })}
               </tbody>
             </Table>
+
+            <div className="mt-6">
+              <IdentityCardHeader title="Uploaded Documents" subtitle="Manage the active dataset" />
+              <Table className="mt-4">
+                <thead>
+                  <tr>
+                    <th>Filename</th>
+                    <th>Category</th>
+                    <th>Uploaded</th>
+                    <th>Status</th>
+                    <th>OCR/Text</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {documents.length ? (
+                    documents.map((document) => {
+                      const result = results.find((item) => item.documentId === document.documentId) ?? null;
+                      return (
+                        <tr key={document.documentId}>
+                          <td>{document.filename}</td>
+                          <td>{getVehicleFinanceTrainingCategoryLabel(document.category)}</td>
+                          <td>{formatDate(document.uploadedAt)}</td>
+                          <td>
+                            <Badge
+                              tone={
+                                document.status === "VALIDATED"
+                                  ? "success"
+                                  : document.status === "NEEDS_REVIEW"
+                                    ? "warning"
+                                    : document.status === "FAILED"
+                                      ? "danger"
+                                      : "info"
+                              }
+                            >
+                              {document.status}
+                            </Badge>
+                          </td>
+                          <td>{result ? `${result.extractedTextLength} chars | ${result.extractionMethod}` : "Not processed"}</td>
+                          <td>
+                            <button
+                              type="button"
+                              onClick={() => void runRegression(document.documentId)}
+                              disabled={busy === `run:${document.documentId}`}
+                              className="rounded-md border border-slate-700 px-3 py-1 text-xs text-slate-200"
+                            >
+                              {busy === `run:${document.documentId}` ? "Running..." : "Validate"}
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  ) : (
+                    <tr>
+                      <td colSpan={6} className="text-sm text-slate-400">
+                        No training documents available.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </Table>
+            </div>
           </Card>
         </div>
       ) : null}
@@ -350,7 +413,8 @@ export default function VehicleFinanceTrainingWorkspace() {
               ["OCR Success Rate", `${overview.metrics.ocrSuccessRate}%`],
               ["Average Confidence", `${overview.metrics.averageConfidence}%`],
               ["Extraction Accuracy", `${overview.metrics.extractionAccuracy}%`],
-              ["Failed Documents", String(overview.metrics.failedDocuments)],
+              ["Failed Extractions", String(overview.metrics.failedExtractions)],
+              ["Total Documents", String(overview.metrics.totalDocuments)],
             ].map(([label, value]) => (
               <Card key={label}>
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">{label}</p>
@@ -397,6 +461,7 @@ export default function VehicleFinanceTrainingWorkspace() {
             </button>
             <Badge tone="info">{overview.metrics.validatedDocuments} validated</Badge>
             <Badge tone="warning">{overview.metrics.missingFields} missing fields</Badge>
+            <Badge tone="neutral">{overview.metrics.totalDocuments} total documents</Badge>
           </div>
 
           <Table className="mt-4">

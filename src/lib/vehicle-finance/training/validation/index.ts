@@ -351,9 +351,38 @@ export async function runVehicleFinanceTrainingValidation(documentId?: string) {
   const targets = documentId ? documents.filter((document) => document.documentId === documentId) : documents;
   const results: VehicleFinanceTrainingResult[] = [];
 
+  console.log("[vehicle-finance-training] validationStarted", {
+    documentId: documentId ?? null,
+    documentsFound: documents.length,
+    targetsFound: targets.length,
+  });
+
+  if (targets.length === 0) {
+    console.log("[vehicle-finance-training] validationCompleted", {
+      documentId: documentId ?? null,
+      documentsFound: documents.length,
+      validationFailures: 0,
+      resultsFound: 0,
+    });
+    return {
+      processed: 0,
+      results: [],
+      message: "No training documents available.",
+    };
+  }
+
   for (const document of targets) {
     results.push(await runVehicleFinanceTrainingValidationForDocument(document));
   }
+
+  const validationFailures = results.filter((result) => !result.passedValidation).length;
+
+  console.log("[vehicle-finance-training] validationCompleted", {
+    documentId: documentId ?? null,
+    documentsFound: documents.length,
+    validationFailures,
+    resultsFound: results.length,
+  });
 
   return {
     processed: results.length,
@@ -398,6 +427,7 @@ export async function getVehicleFinanceTrainingOverview() {
   const resultByDocumentId = new Map(results.map((result) => [result.documentId, result]));
   const validatedDocuments = results.filter((result) => result.passedValidation).length;
   const failedDocuments = results.filter((result) => !result.passedValidation).length;
+  const failedExtractions = failedDocuments;
   const ocrSuccessRate = results.length > 0 ? Math.round((results.filter((result) => result.extractedTextLength > 0).length / results.length) * 100) : 0;
   const averageConfidence = results.length > 0 ? Math.round(results.reduce((sum, result) => sum + result.confidenceScore, 0) / results.length) : 0;
   const extractionAccuracy = results.length > 0
@@ -417,6 +447,7 @@ export async function getVehicleFinanceTrainingOverview() {
       averageConfidence,
       extractionAccuracy,
       failedDocuments,
+      failedExtractions,
       missingFields,
       totalDocuments: documents.length,
       validatedDocuments,
