@@ -72,6 +72,11 @@ export default function Sidebar() {
                 },
               ]
             : []),
+          {
+            href: "/dashboard/vehicle-finance",
+            label: "Vehicle Finance",
+            active: pathname.startsWith("/dashboard/vehicle-finance"),
+          },
           ...(role === "admin"
             ? [
                 {

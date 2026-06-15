@@ -10,7 +10,7 @@ type GovernanceNavBadge = {
 };
 
 type DashboardNavItem = {
-  key: "overview" | "deals" | "contractors" | "tenderRequests" | "intelligence" | "governance" | "settings";
+  key: "overview" | "deals" | "contractors" | "vehicleFinance" | "tenderRequests" | "intelligence" | "governance" | "settings";
   href: string;
   label: string;
   match: (pathname: string) => boolean;
@@ -34,6 +34,12 @@ const DASHBOARD_NAV_ITEMS: DashboardNavItem[] = [
     href: "/dashboard/contractors",
     label: "Contractors",
     match: (pathname) => pathname.startsWith("/dashboard/contractors"),
+  },
+  {
+    key: "vehicleFinance",
+    href: "/dashboard/vehicle-finance",
+    label: "Vehicle Finance",
+    match: (pathname) => pathname.startsWith("/dashboard/vehicle-finance"),
   },
   {
     key: "tenderRequests",
@@ -77,6 +83,13 @@ function DashboardNavIcon({ itemKey, active }: { itemKey: DashboardNavItem["key"
         <svg viewBox="0 0 20 20" fill="none" className={`h-4 w-4 ${iconClassName}`} aria-hidden="true">
           <path d="M10 10a2.75 2.75 0 100-5.5 2.75 2.75 0 000 5.5z" stroke="currentColor" strokeWidth="1.5" />
           <path d="M5.5 15.5a4.5 4.5 0 019 0" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+        </svg>
+      );
+    case "vehicleFinance":
+      return (
+        <svg viewBox="0 0 20 20" fill="none" className={`h-4 w-4 ${iconClassName}`} aria-hidden="true">
+          <path d="M4.5 11.5h11l-1-4h-9l-1 4z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+          <path d="M6.25 11.5v2.25m7.5-2.25v2.25M5.5 15.5h9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
         </svg>
       );
     case "governance":
