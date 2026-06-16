@@ -231,6 +231,11 @@ export default function VehicleFinanceWorkspace({ initialSection }: Props) {
     [selectedDocuments],
   );
 
+  const selectedPayslipDocument = useMemo(
+    () => selectedDocuments.find((document) => document.documentType === "payslip") ?? null,
+    [selectedDocuments],
+  );
+
   const certificateByApplicationId = useMemo(() => {
     return new Map(certificates.map((certificate) => [certificate.applicationId, certificate]));
   }, [certificates]);
@@ -1108,6 +1113,153 @@ export default function VehicleFinanceWorkspace({ initialSection }: Props) {
                 })()
               ) : (
                 <p className="mt-4 text-sm text-slate-400">Upload a Green ID Book or Smart ID Card to view identity intelligence.</p>
+              )}
+            </Card>
+
+            <Card>
+              <IdentityCardHeader title="Payslip Intelligence" subtitle="Employment, income, deductions, and affordability inputs" />
+              {selectedPayslipDocument ? (
+                (() => {
+                  const intelligence = (selectedPayslipDocument.aiAnalysis as {
+                    payslipIntelligence?: {
+                      documentType?: string;
+                      classification?: { documentType?: string; confidence?: number; reasons?: string[] };
+                      extraction?: {
+                        employerName?: string | number | null;
+                        employeeName?: string | number | null;
+                        employeeNumber?: string | number | null;
+                        designation?: string | number | null;
+                        grossEarnings?: string | number | null;
+                        totalDeductions?: string | number | null;
+                        netPay?: string | number | null;
+                        payDate?: string | null;
+                        payPeriod?: string | null;
+                        benefits?: Array<{ type?: string; amount?: number | null; confidence?: number; sourceText?: string }>;
+                        deductions?: Array<{ type?: string; amount?: number | null; confidence?: number; sourceText?: string }>;
+                        confidence?: number;
+                        overallConfidence?: number;
+                        fields?: Record<string, { value?: string | number | null; confidence?: number; sourceText?: string }>;
+                      };
+                      verification?: { passed?: boolean; verificationScore?: number; flags?: string[] };
+                      crossDocumentPreparation?: {
+                        employeeName?: { value?: string | number | null; confidence?: number; sourceText?: string };
+                        surname?: { value?: string | number | null; confidence?: number; sourceText?: string };
+                      } | null;
+                      selectedText?: string;
+                    } | null;
+                  })?.payslipIntelligence ?? null;
+
+                  const extractionFields = intelligence?.extraction?.fields ?? {};
+                  const fieldValue = (key: string, fallback?: string | number | null) => extractionFields[key]?.value ?? fallback ?? "n/a";
+                  const fieldConfidence = (key: string, fallback?: number | null) => extractionFields[key]?.confidence ?? fallback ?? 0;
+
+                  return intelligence ? (
+                    <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                      <div className="rounded-xl border border-slate-700 bg-slate-950/60 p-4">
+                        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Employer</p>
+                        <p className="mt-2 text-sm text-slate-100">{String(fieldValue("employerName", intelligence.extraction?.employerName))}</p>
+                        <p className="mt-3 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Employee Name</p>
+                        <p className="mt-2 text-sm text-slate-100">{String(fieldValue("employeeName", intelligence.extraction?.employeeName))}</p>
+                      </div>
+
+                      <div className="rounded-xl border border-slate-700 bg-slate-950/60 p-4">
+                        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Employee Number</p>
+                        <p className="mt-2 text-sm text-slate-100">{String(fieldValue("employeeNumber", intelligence.extraction?.employeeNumber))}</p>
+                        <p className="mt-3 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Designation</p>
+                        <p className="mt-2 text-sm text-slate-100">{String(fieldValue("designation", intelligence.extraction?.designation))}</p>
+                      </div>
+
+                      <div className="rounded-xl border border-slate-700 bg-slate-950/60 p-4">
+                        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Gross Earnings</p>
+                        <p className="mt-2 text-sm text-slate-100">{String(fieldValue("grossEarnings", intelligence.extraction?.grossEarnings))}</p>
+                        <p className="mt-3 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Net Pay</p>
+                        <p className="mt-2 text-sm text-slate-100">{String(fieldValue("netPay", intelligence.extraction?.netPay))}</p>
+                      </div>
+
+                      <div className="rounded-xl border border-slate-700 bg-slate-950/60 p-4">
+                        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Total Deductions</p>
+                        <p className="mt-2 text-sm text-slate-100">{String(fieldValue("totalDeductions", intelligence.extraction?.totalDeductions))}</p>
+                        <p className="mt-3 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Pay Date</p>
+                        <p className="mt-2 text-sm text-slate-100">{String(fieldValue("payDate", intelligence.extraction?.payDate))}</p>
+                      </div>
+
+                      <div className="rounded-xl border border-slate-700 bg-slate-950/60 p-4">
+                        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Pay Period</p>
+                        <p className="mt-2 text-sm text-slate-100">{String(fieldValue("payPeriod", intelligence.extraction?.payPeriod))}</p>
+                        <p className="mt-3 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Verification Score</p>
+                        <p className="mt-2 text-sm text-slate-100">{intelligence.verification?.verificationScore ?? 0}</p>
+                      </div>
+
+                      <div className="rounded-xl border border-slate-700 bg-slate-950/60 p-4 md:col-span-2 xl:col-span-2">
+                        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Confidence</p>
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          {[
+                            ["Employer", fieldConfidence("employerName", intelligence.extraction?.confidence)],
+                            ["Employee", fieldConfidence("employeeName", intelligence.extraction?.confidence)],
+                            ["Number", fieldConfidence("employeeNumber", intelligence.extraction?.confidence)],
+                            ["Gross", fieldConfidence("grossEarnings", intelligence.extraction?.confidence)],
+                            ["Deductions", fieldConfidence("totalDeductions", intelligence.extraction?.confidence)],
+                            ["Net", fieldConfidence("netPay", intelligence.extraction?.confidence)],
+                            ["Pay Date", fieldConfidence("payDate", intelligence.extraction?.confidence)],
+                          ].map(([label, score]) => (
+                            <Badge key={label as string} tone="neutral">
+                              {label}: {score as number}%
+                            </Badge>
+                          ))}
+                        </div>
+                        <p className="mt-4 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Verification Flags</p>
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          {intelligence.verification?.flags?.length ? (
+                            intelligence.verification.flags.map((flag) => (
+                              <Badge key={flag} tone="warning">
+                                {flag}
+                              </Badge>
+                            ))
+                          ) : (
+                            <Badge tone="success">PASS</Badge>
+                          )}
+                        </div>
+                        <p className="mt-4 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Benefits</p>
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          {(intelligence.extraction?.benefits ?? []).length ? (
+                            intelligence.extraction?.benefits?.map((benefit) => (
+                              <Badge key={`${benefit.type}-${benefit.sourceText}`} tone="success">
+                                {benefit.type}: {benefit.amount ?? "n/a"}
+                              </Badge>
+                            ))
+                          ) : (
+                            <Badge tone="neutral">None detected</Badge>
+                          )}
+                        </div>
+                        <p className="mt-4 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Deductions</p>
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          {(intelligence.extraction?.deductions ?? []).length ? (
+                            intelligence.extraction?.deductions?.map((deduction) => (
+                              <Badge key={`${deduction.type}-${deduction.sourceText}`} tone="danger">
+                                {deduction.type}: {deduction.amount ?? "n/a"}
+                              </Badge>
+                            ))
+                          ) : (
+                            <Badge tone="neutral">None detected</Badge>
+                          )}
+                        </div>
+                        <p className="mt-4 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Cross-document prep</p>
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          <Badge tone="neutral">
+                            Employee: {String(intelligence.crossDocumentPreparation?.employeeName?.value ?? "n/a")}
+                          </Badge>
+                          <Badge tone="neutral">
+                            Surname: {String(intelligence.crossDocumentPreparation?.surname?.value ?? "n/a")}
+                          </Badge>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="mt-4 text-sm text-slate-400">Upload a payslip to view payslip intelligence.</p>
+                  );
+                })()
+              ) : (
+                <p className="mt-4 text-sm text-slate-400">Upload a payslip to view payslip intelligence.</p>
               )}
             </Card>
 

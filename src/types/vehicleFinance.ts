@@ -54,6 +54,7 @@ export type VehicleFinanceDocumentAnalysis = {
   documentClassification?: VehicleFinanceDocumentClassification | null;
   driverLicenceIntelligence?: VehicleFinanceDriverLicenceIntelligence | null;
   identityIntelligence?: VehicleFinanceIdentityDocumentIntelligence | null;
+  payslipIntelligence?: VehicleFinancePayslipIntelligence | null;
 };
 
 export type VehicleFinanceDocument = {
@@ -222,6 +223,66 @@ export type VehicleFinanceIdentityDocumentIntelligence = {
   fields?: VehicleFinanceIdentityStructuredExtraction;
 };
 
+export type VehicleFinancePayslipField = {
+  value: string | number | null;
+  confidence: number;
+  sourceText: string;
+};
+
+export type VehicleFinancePayslipLineItem = {
+  type: string;
+  amount: number | null;
+  confidence: number;
+  sourceText: string;
+};
+
+export type VehicleFinancePayslipStructuredExtraction = {
+  employerName: VehicleFinancePayslipField;
+  employeeName: VehicleFinancePayslipField;
+  employeeNumber: VehicleFinancePayslipField;
+  designation: VehicleFinancePayslipField;
+  grossEarnings: VehicleFinancePayslipField;
+  totalDeductions: VehicleFinancePayslipField;
+  netPay: VehicleFinancePayslipField;
+  payDate: VehicleFinancePayslipField;
+  payPeriod: VehicleFinancePayslipField;
+  benefits: VehicleFinancePayslipLineItem[];
+  deductions: VehicleFinancePayslipLineItem[];
+};
+
+export type VehicleFinancePayslipVerificationFlag =
+  | "MISSING_EMPLOYER"
+  | "MISSING_EMPLOYEE_NAME"
+  | "MISSING_GROSS_EARNINGS"
+  | "MISSING_NET_PAY"
+  | "MISSING_PAY_DATE";
+
+export type VehicleFinancePayslipVerification = {
+  passed: boolean;
+  verificationScore: number;
+  flags: VehicleFinancePayslipVerificationFlag[];
+};
+
+export type VehicleFinancePayslipCrossDocumentPreparation = {
+  employeeName: VehicleFinancePayslipField;
+  surname: VehicleFinancePayslipField;
+};
+
+export type VehicleFinancePayslipIntelligence = {
+  enabled: boolean;
+  featureFlag: boolean;
+  documentType: "PAYSLIP";
+  classification: VehicleFinanceDocumentClassification;
+  extraction: VehicleFinancePayslipStructuredExtraction;
+  verification: VehicleFinancePayslipVerification;
+  overallConfidence: number;
+  sourceText: string;
+  sourceTextLength: number;
+  selectedText: string;
+  crossDocumentPreparation?: VehicleFinancePayslipCrossDocumentPreparation | null;
+  fields?: VehicleFinancePayslipStructuredExtraction;
+};
+
 export const VEHICLE_FINANCE_IDENTITY_INTELLIGENCE_JOB_COLLECTION =
   "vehicleFinanceIdentityIntelligenceJobs";
 
@@ -232,6 +293,24 @@ export type VehicleFinanceIdentityIntelligenceJob = {
   applicationId: string;
   documentId: string;
   status: VehicleFinanceIdentityIntelligenceJobStatus;
+  createdAt: string;
+  updatedAt: string;
+  startedAt?: string | null;
+  completedAt?: string | null;
+  errorMessage?: string | null;
+  resultDocumentId?: string | null;
+};
+
+export const VEHICLE_FINANCE_PAYSLIP_INTELLIGENCE_JOB_COLLECTION =
+  "vehicleFinancePayslipIntelligenceJobs";
+
+export type VehicleFinancePayslipIntelligenceJobStatus = "QUEUED" | "PROCESSING" | "PROCESSED" | "FAILED";
+
+export type VehicleFinancePayslipIntelligenceJob = {
+  jobId: string;
+  applicationId: string;
+  documentId: string;
+  status: VehicleFinancePayslipIntelligenceJobStatus;
   createdAt: string;
   updatedAt: string;
   startedAt?: string | null;

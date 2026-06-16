@@ -9,35 +9,46 @@ import {
   getVehicleFinanceDriverLicenceIntelligenceJobStatus,
   processVehicleFinanceDriverLicenceIntelligenceJob,
 } from "@/lib/vehicle-finance/intelligence/driverLicenceIntelligenceJobs";
+import {
+  getLatestVehicleFinancePayslipIntelligenceJobForDocument,
+  getVehicleFinancePayslipIntelligenceDocument,
+  getVehicleFinancePayslipIntelligenceJobStatus,
+  processVehicleFinancePayslipIntelligenceJob,
+} from "@/lib/vehicle-finance/intelligence/payslipIntelligenceJobs";
 
 function jsonError(message: string, status = 500) {
   return NextResponse.json({ error: message }, { status });
 }
 
 async function buildResponse(applicationId: string, documentId: string) {
-  const job = await getLatestVehicleFinanceDriverLicenceIntelligenceJobForDocument(documentId);
+  const driverJob = await getLatestVehicleFinanceDriverLicenceIntelligenceJobForDocument(documentId);
+  const payslipJob = driverJob ? null : await getLatestVehicleFinancePayslipIntelligenceJobForDocument(documentId);
+  const job = driverJob ?? payslipJob;
   if (!job) {
     return NextResponse.json({ error: "Driver licence intelligence job not found" }, { status: 404 });
   }
 
   if (job.status === "QUEUED" || job.status === "PROCESSING") {
-    void processVehicleFinanceDriverLicenceIntelligenceJob(job.jobId);
+    void (driverJob ? processVehicleFinanceDriverLicenceIntelligenceJob(job.jobId) : processVehicleFinancePayslipIntelligenceJob(job.jobId));
   }
 
-  const document =
-    await getVehicleFinanceDriverLicenceIntelligenceDocument(job.documentId);
+  const document = driverJob
+    ? await getVehicleFinanceDriverLicenceIntelligenceDocument(job.documentId)
+    : await getVehicleFinancePayslipIntelligenceDocument(job.documentId);
   if (!document || document.applicationId !== applicationId) {
     return NextResponse.json({ error: "Driver licence intelligence job not found" }, { status: 404 });
   }
 
   const intelligence = document?.aiAnalysis && typeof document.aiAnalysis === "object"
-    ? (document.aiAnalysis as Record<string, unknown>).driverLicenceIntelligence ?? null
+    ? driverJob
+      ? (document.aiAnalysis as Record<string, unknown>).driverLicenceIntelligence ?? null
+      : (document.aiAnalysis as Record<string, unknown>).payslipIntelligence ?? null
     : null;
 
   return NextResponse.json({
     job,
     document,
-    driverLicenceIntelligence: intelligence,
+    ...(driverJob ? { driverLicenceIntelligence: intelligence } : { payslipIntelligence: intelligence }),
   });
 }
 
@@ -58,27 +69,33 @@ export async function GET(
 
     const jobId = request.nextUrl.searchParams.get("jobId")?.trim() || null;
     if (jobId) {
-      const job = await getVehicleFinanceDriverLicenceIntelligenceJobStatus(jobId);
+      const driverJob = await getVehicleFinanceDriverLicenceIntelligenceJobStatus(jobId);
+      const payslipJob = driverJob ? null : await getVehicleFinancePayslipIntelligenceJobStatus(jobId);
+      const job = driverJob ?? payslipJob;
       if (!job) {
         return NextResponse.json({ error: "Driver licence intelligence job not found" }, { status: 404 });
       }
 
       if (job.status === "QUEUED" || job.status === "PROCESSING") {
-        void processVehicleFinanceDriverLicenceIntelligenceJob(job.jobId);
+        void (driverJob ? processVehicleFinanceDriverLicenceIntelligenceJob(job.jobId) : processVehicleFinancePayslipIntelligenceJob(job.jobId));
       }
 
-      const document = await getVehicleFinanceDriverLicenceIntelligenceDocument(job.documentId);
+      const document = driverJob
+        ? await getVehicleFinanceDriverLicenceIntelligenceDocument(job.documentId)
+        : await getVehicleFinancePayslipIntelligenceDocument(job.documentId);
       if (!document || document.applicationId !== normalizedApplicationId) {
         return NextResponse.json({ error: "Driver licence intelligence job not found" }, { status: 404 });
       }
       const driverLicenceIntelligence = document?.aiAnalysis && typeof document.aiAnalysis === "object"
-        ? (document.aiAnalysis as Record<string, unknown>).driverLicenceIntelligence ?? null
+        ? driverJob
+          ? (document.aiAnalysis as Record<string, unknown>).driverLicenceIntelligence ?? null
+          : (document.aiAnalysis as Record<string, unknown>).payslipIntelligence ?? null
         : null;
 
       return NextResponse.json({
         job,
         document,
-        driverLicenceIntelligence,
+        ...(driverJob ? { driverLicenceIntelligence } : { payslipIntelligence: driverLicenceIntelligence }),
       });
     }
 

@@ -69,11 +69,20 @@ export function classifyVehicleFinanceDocument(text: string): VehicleFinanceDocu
   ]);
 
   const payslipSignals = countMatches(normalized, [
-    /\bgross\s+salary\b/,
-    /\bnet\s+salary\b/,
-    /\bpay(?:ment)?\s+date\b/,
+    /\bcompany\s+name\b/,
     /\bemployer\b/,
-    /\bemployee\s+number\b/,
+    /\bemployee\s+name\b/,
+    /\bemployee\s+(?:code|number|no\.?)\b/,
+    /\bstaff\s+(?:name|number)\b/,
+    /\bgross\s+salary\b/,
+    /\bgross\s+earnings\b/,
+    /\bnet\s+salary\b/,
+    /\bnet\s+pay\b/,
+    /\btotal\s+deductions\b/,
+    /\bpay(?:ment)?\s+date\b/,
+    /\bpaye\b/,
+    /\buif\b/,
+    /\bmedical\s+aid\b/,
   ]);
 
   const bankStatementSignals = countMatches(normalized, [

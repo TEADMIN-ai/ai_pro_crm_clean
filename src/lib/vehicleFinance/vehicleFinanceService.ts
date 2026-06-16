@@ -6,6 +6,7 @@ import { getFirebaseAdmin, getFirebaseStorageBucket } from "@/lib/firebase/admin
 import { getVehicleFinanceFeatureFlags } from "@/lib/vehicle-finance/config/featureFlags";
 import { queueVehicleFinanceDriverLicenceIntelligence } from "@/lib/vehicle-finance/intelligence/driverLicenceIntelligenceJobs";
 import { queueVehicleFinanceIdentityIntelligence } from "@/lib/vehicle-finance/intelligence/identityIntelligenceJobs";
+import { queueVehicleFinancePayslipIntelligence } from "@/lib/vehicle-finance/intelligence/payslipIntelligenceJobs";
 import type {
   VehicleFinanceApplication,
   VehicleFinanceAssessment,
@@ -812,6 +813,24 @@ export async function uploadVehicleFinanceDocument(args: {
     }
   }
 
+  let payslipIntelligenceJob: Awaited<ReturnType<typeof queueVehicleFinancePayslipIntelligence>> | null = null;
+  if (args.documentType === "payslip") {
+    try {
+      payslipIntelligenceJob = await queueVehicleFinancePayslipIntelligence(args.applicationId, saved.record.documentId);
+      console.log("[PAYSLIP_INTELLIGENCE_JOB_QUEUED]", {
+        applicationId: args.applicationId,
+        documentId: saved.record.documentId,
+        jobId: payslipIntelligenceJob.jobId,
+      });
+    } catch (error) {
+      console.warn("[vehicle-finance] payslip intelligence queue failed", {
+        applicationId: args.applicationId,
+        documentType: args.documentType,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
   await recordSystemMetric({
     metricType: "vehicle_finance_document_upload",
     route: "vehicle-finance.documents.upload",
@@ -821,7 +840,7 @@ export async function uploadVehicleFinanceDocument(args: {
     metadata: { documentType: args.documentType, extractionSource: extraction.source },
   });
 
-  return { ...saved.record, signedUrl: saved.signedUrl, intelligenceJob, identityIntelligenceJob };
+  return { ...saved.record, signedUrl: saved.signedUrl, intelligenceJob: intelligenceJob ?? payslipIntelligenceJob, identityIntelligenceJob };
 }
 
 export async function runVehicleFinanceAssessment(applicationId: string, actor: ActorContext) {

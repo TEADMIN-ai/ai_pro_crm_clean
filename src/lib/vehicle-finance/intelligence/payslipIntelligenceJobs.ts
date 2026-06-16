@@ -1,0 +1,301 @@
+import crypto from "node:crypto";
+
+import { getFirebaseAdmin, getFirebaseStorageBucket } from "@/lib/firebase/admin";
+import { buildVehicleFinancePayslipIntelligence } from "./payslipIntelligence";
+import type {
+  VehicleFinanceDocument,
+  VehicleFinanceDocumentAnalysis,
+  VehicleFinancePayslipIntelligenceJob,
+} from "@/types/vehicleFinance";
+import {
+  VEHICLE_FINANCE_DOCUMENT_TYPES,
+  VEHICLE_FINANCE_PAYSLIP_INTELLIGENCE_JOB_COLLECTION,
+} from "@/types/vehicleFinance";
+
+const DOCUMENT_COLLECTION = "vehicleFinanceDocuments";
+
+function asString(value: unknown): string {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function asNumber(value: unknown, fallback = 0): number {
+  return typeof value === "number" && Number.isFinite(value) ? value : fallback;
+}
+
+function toIso(value: unknown, fallback = Date.now()): string {
+  if (typeof value === "string" && value.trim()) {
+    const parsed = new Date(value).getTime();
+    return new Date(Number.isFinite(parsed) ? parsed : fallback).toISOString();
+  }
+
+  if (value && typeof value === "object" && "toMillis" in value && typeof (value as { toMillis?: () => number }).toMillis === "function") {
+    const millis = (value as { toMillis: () => number }).toMillis();
+    return new Date(Number.isFinite(millis) ? millis : fallback).toISOString();
+  }
+
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return new Date(value).toISOString();
+  }
+
+  return new Date(fallback).toISOString();
+}
+
+function normalizeDocumentData(id: string, data: Record<string, unknown>): VehicleFinanceDocument {
+  return {
+    documentId: id,
+    applicationId: asString(data.applicationId),
+    documentType: asString(data.documentType) as (typeof VEHICLE_FINANCE_DOCUMENT_TYPES)[number],
+    filePath: asString(data.filePath),
+    fileName: asString(data.fileName),
+    extractedText: asString(data.extractedText),
+    aiAnalysis: (data.aiAnalysis as VehicleFinanceDocumentAnalysis | Record<string, unknown>) ?? {},
+    uploadedAt: toIso(data.uploadedAt),
+    directTextLength: asNumber(data.directTextLength),
+    ocrTextLength: asNumber(data.ocrTextLength),
+    extractedTextLength: asNumber(data.extractedTextLength),
+    pageCount: asNumber(data.pageCount),
+    extractionSource: (asString(data.extractionSource) || "EMPTY") as VehicleFinanceDocument["extractionSource"],
+  };
+}
+
+function getJobRef(jobId: string) {
+  return getFirebaseAdmin().collection(VEHICLE_FINANCE_PAYSLIP_INTELLIGENCE_JOB_COLLECTION).doc(jobId);
+}
+
+export async function getVehicleFinancePayslipIntelligenceDocument(documentId: string): Promise<VehicleFinanceDocument | null> {
+  const snapshot = await getFirebaseAdmin().collection(DOCUMENT_COLLECTION).doc(documentId).get();
+  if (!snapshot.exists) {
+    return null;
+  }
+
+  return normalizeDocumentData(snapshot.id, (snapshot.data() ?? {}) as Record<string, unknown>);
+}
+
+async function updateVehicleFinanceDocumentIntelligence(
+  documentId: string,
+  update: Partial<VehicleFinanceDocument> & {
+    aiAnalysis?: VehicleFinanceDocumentAnalysis | Record<string, unknown>;
+  },
+) {
+  await getFirebaseAdmin()
+    .collection(DOCUMENT_COLLECTION)
+    .doc(documentId)
+    .set(
+      {
+        ...update,
+        updatedAt: new Date().toISOString(),
+      },
+      { merge: true },
+    );
+}
+
+export async function createVehicleFinancePayslipIntelligenceJob(applicationId: string, documentId: string) {
+  const jobId = `${documentId}-${crypto.randomUUID()}`;
+  const timestamp = new Date().toISOString();
+  const job: VehicleFinancePayslipIntelligenceJob = {
+    jobId,
+    applicationId,
+    documentId,
+    status: "QUEUED",
+    createdAt: timestamp,
+    updatedAt: timestamp,
+    startedAt: null,
+    completedAt: null,
+    errorMessage: null,
+    resultDocumentId: null,
+  };
+
+  await getJobRef(jobId).set(job);
+  return job;
+}
+
+async function getVehicleFinancePayslipIntelligenceJob(jobId: string): Promise<VehicleFinancePayslipIntelligenceJob | null> {
+  const snapshot = await getJobRef(jobId).get();
+  if (!snapshot.exists) {
+    return null;
+  }
+
+  return {
+    jobId: snapshot.id,
+    ...(snapshot.data() ?? {}),
+  } as VehicleFinancePayslipIntelligenceJob;
+}
+
+async function updateVehicleFinancePayslipIntelligenceJob(
+  jobId: string,
+  update: Partial<VehicleFinancePayslipIntelligenceJob>,
+) {
+  await getJobRef(jobId).set(
+    {
+      ...update,
+      updatedAt: new Date().toISOString(),
+    },
+    { merge: true },
+  );
+}
+
+async function claimVehicleFinancePayslipIntelligenceJob(jobId: string) {
+  const jobRef = getJobRef(jobId);
+  const timestamp = new Date().toISOString();
+
+  return getFirebaseAdmin().runTransaction(async (transaction) => {
+    const snapshot = await transaction.get(jobRef);
+    if (!snapshot.exists) {
+      return null;
+    }
+
+    const job = snapshot.data() as VehicleFinancePayslipIntelligenceJob;
+    if (job.status !== "QUEUED") {
+      return null;
+    }
+
+    transaction.set(
+      jobRef,
+      {
+        status: "PROCESSING",
+        startedAt: timestamp,
+        updatedAt: timestamp,
+      },
+      { merge: true },
+    );
+
+    return {
+      ...job,
+      status: "PROCESSING" as const,
+      startedAt: timestamp,
+      updatedAt: timestamp,
+    };
+  });
+}
+
+export async function processVehicleFinancePayslipIntelligenceJob(jobId: string) {
+  const claimedJob = await claimVehicleFinancePayslipIntelligenceJob(jobId);
+  if (!claimedJob) {
+    return null;
+  }
+
+  const job = await getVehicleFinancePayslipIntelligenceJob(jobId);
+  if (!job) {
+    return null;
+  }
+
+  console.log("[vehicle-finance] payslip intelligence job started", {
+    jobId,
+    applicationId: job.applicationId,
+    documentId: job.documentId,
+  });
+
+  const document = await getVehicleFinancePayslipIntelligenceDocument(job.documentId);
+  if (!document) {
+    const errorMessage = "Vehicle finance document not found";
+    await updateVehicleFinancePayslipIntelligenceJob(jobId, {
+      status: "FAILED",
+      completedAt: new Date().toISOString(),
+      errorMessage,
+    });
+    console.log("[vehicle-finance] payslip intelligence job failed", {
+      jobId,
+      applicationId: job.applicationId,
+      documentId: job.documentId,
+      error: errorMessage,
+    });
+    return null;
+  }
+
+  const storageBucket = getFirebaseStorageBucket();
+  const file = storageBucket.file(document.filePath);
+  const [fileBuffer] = await file.download();
+
+  const intelligence = await buildVehicleFinancePayslipIntelligence({
+    documentType: document.documentType,
+    extractedText: document.extractedText,
+    fileBuffer: Buffer.from(fileBuffer),
+    filename: document.fileName,
+    pageCount: document.pageCount,
+    documentIntegrityScore:
+      typeof (document.aiAnalysis as Partial<VehicleFinanceDocumentAnalysis>)?.documentIntegrityScore === "number"
+        ? ((document.aiAnalysis as Partial<VehicleFinanceDocumentAnalysis>).documentIntegrityScore as number)
+        : 0,
+  });
+
+  if (!intelligence) {
+    await updateVehicleFinancePayslipIntelligenceJob(jobId, {
+      status: "FAILED",
+      completedAt: new Date().toISOString(),
+      errorMessage: "Vehicle finance payslip intelligence was not generated",
+    });
+    return null;
+  }
+
+  const updatedText = intelligence.selectedText.trim() || document.extractedText.trim();
+  const updatedExtractionSource = intelligence.selectedText.trim() && updatedText !== document.extractedText.trim() ? "OCR" : document.extractionSource;
+  const existingAnalysis = (document.aiAnalysis as Partial<VehicleFinanceDocumentAnalysis>) ?? {};
+  const updatedAiAnalysis: VehicleFinanceDocumentAnalysis = {
+    documentType: document.documentType,
+    extractedTextLength: updatedText.length,
+    directTextLength: document.directTextLength,
+    ocrTextLength: updatedExtractionSource === "OCR" ? updatedText.length : document.ocrTextLength,
+    pageCount: document.pageCount,
+    extractionSource: updatedExtractionSource,
+    documentIntegrityScore: existingAnalysis.documentIntegrityScore ?? 0,
+    fraudIndicators: existingAnalysis.fraudIndicators ?? [],
+    integrityNotes: existingAnalysis.integrityNotes ?? [],
+    textQualityAssessment: intelligence.verification ? existingAnalysis.textQualityAssessment ?? null : existingAnalysis.textQualityAssessment ?? null,
+    documentClassification: intelligence.classification,
+    payslipIntelligence: intelligence,
+  };
+
+  await updateVehicleFinanceDocumentIntelligence(document.documentId, {
+    extractedText: updatedText,
+    directTextLength: document.directTextLength,
+    ocrTextLength: updatedAiAnalysis.ocrTextLength,
+    extractedTextLength: updatedText.length,
+    extractionSource: updatedExtractionSource,
+    aiAnalysis: updatedAiAnalysis,
+  });
+
+  await updateVehicleFinancePayslipIntelligenceJob(jobId, {
+    status: "PROCESSED",
+    completedAt: new Date().toISOString(),
+    errorMessage: null,
+    resultDocumentId: document.documentId,
+  });
+
+  console.log("[PAYSLIP_INTELLIGENCE_PERSISTED]", {
+    applicationId: job.applicationId,
+    documentId: document.documentId,
+    jobId,
+    persistedPayload: intelligence,
+  });
+
+  return intelligence;
+}
+
+export async function queueVehicleFinancePayslipIntelligence(applicationId: string, documentId: string) {
+  const job = await createVehicleFinancePayslipIntelligenceJob(applicationId, documentId);
+  void processVehicleFinancePayslipIntelligenceJob(job.jobId);
+  return job;
+}
+
+export async function getLatestVehicleFinancePayslipIntelligenceJobForDocument(documentId: string) {
+  const snapshot = await getFirebaseAdmin()
+    .collection(VEHICLE_FINANCE_PAYSLIP_INTELLIGENCE_JOB_COLLECTION)
+    .where("documentId", "==", documentId)
+    .orderBy("createdAt", "desc")
+    .limit(1)
+    .get();
+
+  if (snapshot.empty) {
+    return null;
+  }
+
+  const doc = snapshot.docs[0];
+  return {
+    jobId: doc.id,
+    ...(doc.data() ?? {}),
+  } as VehicleFinancePayslipIntelligenceJob;
+}
+
+export async function getVehicleFinancePayslipIntelligenceJobStatus(jobId: string) {
+  return getVehicleFinancePayslipIntelligenceJob(jobId);
+}
