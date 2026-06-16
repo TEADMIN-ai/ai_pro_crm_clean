@@ -59,7 +59,7 @@ export async function POST(
       { actorId: user.uid, actorRole: user.role, actorName: user.email ?? user.uid },
     );
 
-    return NextResponse.json({ document }, { status: 201 });
+    return NextResponse.json({ document }, { status: document.intelligenceJob ? 202 : 201 });
   } catch (error) {
     if (error instanceof AuthorizationError) {
       return jsonError(error.message, error.status);

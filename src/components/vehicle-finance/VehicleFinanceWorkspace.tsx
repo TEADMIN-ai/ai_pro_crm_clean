@@ -34,6 +34,21 @@ type VehicleFinanceOverview = {
   certificates: VehicleFinanceCertificate[];
 };
 
+type VehicleFinanceDriverLicenceIntelligenceJobResponse = {
+  jobId: string;
+  status: string;
+};
+
+type VehicleFinanceDriverLicenceIntelligenceStatusResponse = {
+  job?: {
+    jobId: string;
+    status: string;
+    errorMessage?: string | null;
+  };
+  document?: VehicleFinanceDocument | null;
+  driverLicenceIntelligence?: unknown;
+};
+
 type Section = "dashboard" | "customers" | "applications" | "document-verification" | "certificates" | "reports";
 
 type Props = {
@@ -105,6 +120,10 @@ function formatDate(value?: string | null): string {
     hour: "2-digit",
     minute: "2-digit",
   });
+}
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 export default function VehicleFinanceWorkspace({ initialSection }: Props) {
@@ -296,11 +315,49 @@ export default function VehicleFinanceWorkspace({ initialSection }: Props) {
           body: formData,
         },
       );
-      const payload = (await response.json().catch(() => null)) as { error?: string } | null;
+      const payload = (await response.json().catch(() => null)) as
+        | {
+            error?: string;
+            document?: VehicleFinanceDocument & {
+              intelligenceJob?: VehicleFinanceDriverLicenceIntelligenceJobResponse | null;
+            };
+          }
+        | null;
       if (!response.ok) {
         throw new Error(payload?.error ?? `Document upload failed (${response.status})`);
       }
+      const intelligenceJob = payload?.document?.intelligenceJob ?? null;
       setDocumentFiles((current) => ({ ...current, [documentType]: undefined }));
+      if (response.status === 202 && intelligenceJob?.jobId) {
+        let currentStatus = intelligenceJob.status;
+        let attempts = 0;
+
+        while (currentStatus === "QUEUED" || currentStatus === "PROCESSING") {
+          // Sequential polling keeps the request path short while the worker completes.
+          // eslint-disable-next-line no-await-in-loop
+          await sleep(1000);
+          attempts += 1;
+          // eslint-disable-next-line no-await-in-loop
+          const statusResponse = await authFetch(
+            `/api/vehicle-finance/applications/${encodeURIComponent(selectedApplicationId)}/documents/${encodeURIComponent(
+              payload?.document?.documentId ?? "",
+            )}/intelligence?jobId=${encodeURIComponent(intelligenceJob.jobId)}`,
+            { cache: "no-store" },
+          );
+          // eslint-disable-next-line no-await-in-loop
+          const statusPayload = (await statusResponse.json().catch(() => null)) as VehicleFinanceDriverLicenceIntelligenceStatusResponse | null;
+          if (!statusResponse.ok || !statusPayload?.job) {
+            throw new Error(statusPayload?.job?.errorMessage ?? `Driver licence intelligence status failed (${statusResponse.status})`);
+          }
+          currentStatus = statusPayload.job.status;
+          if (attempts >= 30 && (currentStatus === "QUEUED" || currentStatus === "PROCESSING")) {
+            throw new Error("Driver licence intelligence is still processing.");
+          }
+        }
+        if (currentStatus === "FAILED") {
+          throw new Error("Driver licence intelligence failed.");
+        }
+      }
       await refresh();
     } catch (uploadError) {
       setError(uploadError instanceof Error ? uploadError.message : "Document upload failed");

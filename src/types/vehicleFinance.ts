@@ -123,6 +123,24 @@ export type VehicleFinanceDriverLicenceIntelligence = {
   selectedText: string;
 };
 
+export const VEHICLE_FINANCE_DRIVER_LICENCE_INTELLIGENCE_JOB_COLLECTION =
+  "vehicleFinanceDriverLicenceIntelligenceJobs";
+
+export type VehicleFinanceDriverLicenceIntelligenceJobStatus = "QUEUED" | "PROCESSING" | "PROCESSED" | "FAILED";
+
+export type VehicleFinanceDriverLicenceIntelligenceJob = {
+  jobId: string;
+  applicationId: string;
+  documentId: string;
+  status: VehicleFinanceDriverLicenceIntelligenceJobStatus;
+  createdAt: string;
+  updatedAt: string;
+  startedAt?: string | null;
+  completedAt?: string | null;
+  errorMessage?: string | null;
+  resultDocumentId?: string | null;
+};
+
 export type VehicleFinanceAssessment = {
   applicationId: string;
   identityScore: number;

@@ -4,7 +4,7 @@ import { jsPDF } from "jspdf";
 import { extractTextFromPdfDetailed } from "@/lib/pdf/extractTextFromPdf";
 import { getFirebaseAdmin, getFirebaseStorageBucket } from "@/lib/firebase/admin";
 import { getVehicleFinanceFeatureFlags } from "@/lib/vehicle-finance/config/featureFlags";
-import { buildVehicleFinanceDriverLicenceIntelligence } from "@/lib/vehicle-finance/intelligence/driverLicenceIntelligence";
+import { queueVehicleFinanceDriverLicenceIntelligence } from "@/lib/vehicle-finance/intelligence/driverLicenceIntelligenceJobs";
 import type {
   VehicleFinanceApplication,
   VehicleFinanceAssessment,
@@ -14,7 +14,6 @@ import type {
   VehicleFinanceDocumentAnalysis,
   VehicleFinanceDocumentType,
   VehicleFinanceRiskLevel,
-  VehicleFinanceDriverLicenceIntelligence,
 } from "@/types/vehicleFinance";
 import { normalizeVehicleFinanceDocumentType, resolveVehicleFinanceRiskLevel } from "@/types/vehicleFinance";
 
@@ -737,6 +736,7 @@ export async function uploadVehicleFinanceDocument(args: {
     filename: args.fileName,
     documentType: args.documentType,
     storagePath: `vehicle-finance/${args.applicationId}/${args.fileName}`,
+    skipOcrFallback: true,
   });
 
   let extractedText = extraction.text ?? "";
@@ -751,48 +751,7 @@ export async function uploadVehicleFinanceDocument(args: {
     pageCount: extraction.pageCount,
     extractionSource: extraction.source,
   });
-
-  let driverLicenceIntelligence: VehicleFinanceDriverLicenceIntelligence | null = null;
   const featureFlags = getVehicleFinanceFeatureFlags();
-  if (featureFlags.ENABLE_VEHICLE_FINANCE_LICENCE_INTELLIGENCE && args.documentType === "driversLicense") {
-    try {
-      const applicationContext = await getVehicleFinanceApplication(args.applicationId);
-      driverLicenceIntelligence = await buildVehicleFinanceDriverLicenceIntelligence({
-        application: applicationContext.application,
-        customer: applicationContext.customer,
-        documentType: documentAnalysis.documentType,
-        extractedText,
-        directTextLength: extraction.directTextLength,
-        ocrTextLength: extraction.ocrTextLength,
-        pageCount: extraction.pageCount,
-        extractionSource: extraction.source,
-        fileBuffer: args.fileBuffer,
-        filename: args.fileName,
-        documentIntegrityScore: documentAnalysis.documentIntegrityScore,
-      });
-
-      if (driverLicenceIntelligence?.usedOcrFallback && driverLicenceIntelligence.selectedText.trim()) {
-        extractedText = driverLicenceIntelligence.selectedText;
-        finalOcrTextLength = extractedText.length;
-        finalExtractionSource = "OCR";
-        documentAnalysis.extractedTextLength = extractedText.length;
-        documentAnalysis.ocrTextLength = extractedText.length;
-        documentAnalysis.extractionSource = "OCR";
-      }
-    } catch (error) {
-      console.warn("[vehicle-finance] driver licence intelligence skipped", {
-        applicationId: args.applicationId,
-        documentType: args.documentType,
-        error: error instanceof Error ? error.message : String(error),
-      });
-    }
-  }
-
-  if (driverLicenceIntelligence) {
-    documentAnalysis.textQualityAssessment = driverLicenceIntelligence.textQuality;
-    documentAnalysis.documentClassification = driverLicenceIntelligence.classification;
-    documentAnalysis.driverLicenceIntelligence = driverLicenceIntelligence;
-  }
 
   const saved = await saveVehicleFinanceDocument({
     applicationId: args.applicationId,
@@ -816,13 +775,22 @@ export async function uploadVehicleFinanceDocument(args: {
     metadata: documentAnalysis,
   });
 
-  if (driverLicenceIntelligence) {
-    console.log("[INTELLIGENCE_PERSISTED]", {
-      applicationId: args.applicationId,
-      documentId: saved.record.documentId,
-      featureFlagEnabled: featureFlags.ENABLE_VEHICLE_FINANCE_LICENCE_INTELLIGENCE,
-      persistedPayload: documentAnalysis.driverLicenceIntelligence,
-    });
+  let intelligenceJob: Awaited<ReturnType<typeof queueVehicleFinanceDriverLicenceIntelligence>> | null = null;
+  if (featureFlags.ENABLE_VEHICLE_FINANCE_LICENCE_INTELLIGENCE && args.documentType === "driversLicense") {
+    try {
+      intelligenceJob = await queueVehicleFinanceDriverLicenceIntelligence(args.applicationId, saved.record.documentId);
+      console.log("[INTELLIGENCE_JOB_QUEUED]", {
+        applicationId: args.applicationId,
+        documentId: saved.record.documentId,
+        jobId: intelligenceJob.jobId,
+      });
+    } catch (error) {
+      console.warn("[vehicle-finance] driver licence intelligence queue failed", {
+        applicationId: args.applicationId,
+        documentType: args.documentType,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
   }
 
   await recordSystemMetric({
@@ -834,7 +802,7 @@ export async function uploadVehicleFinanceDocument(args: {
     metadata: { documentType: args.documentType, extractionSource: extraction.source },
   });
 
-  return { ...saved.record, signedUrl: saved.signedUrl };
+  return { ...saved.record, signedUrl: saved.signedUrl, intelligenceJob };
 }
 
 export async function runVehicleFinanceAssessment(applicationId: string, actor: ActorContext) {
