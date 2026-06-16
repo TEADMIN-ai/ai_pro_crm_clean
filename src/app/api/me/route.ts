@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAuth } from "firebase-admin/auth";
-import { normalizeContractorId, resolveRole } from "@/lib/auth/userProfile";
+import { normalizeContractorId, normalizeRole } from "@/lib/auth/userProfile";
 import { getFirebaseAdmin } from "@/lib/firebase/admin";
+import { resolveAuthorizedIdentity } from "@/lib/server/authz";
 export const runtime = "nodejs";
 
 function extractBearerToken(authorizationHeader: string | null): string | null {
@@ -68,16 +69,26 @@ export async function GET(request: NextRequest) {
 
     console.info("[/api/me] BEFORE ROLE RESOLUTION", { uid: decodedToken.uid });
 
-    const role = resolveRole(profileData.role, decodedToken.role);
-    const contractorId =
-      normalizeContractorId(profileData.contractorId) ??
-      normalizeContractorId(decodedToken.contractorId);
+    const resolved = await resolveAuthorizedIdentity({
+      uid: decodedToken.uid,
+      email: decodedToken.email ?? undefined,
+      role: decodedToken.role,
+      contractorId: decodedToken.contractorId,
+      profile: {
+        name: typeof profileData.name === "string" ? profileData.name : undefined,
+        email: typeof profileData.email === "string" ? profileData.email : undefined,
+        role: normalizeRole(profileData.role),
+        status: typeof profileData.status === "string" ? profileData.status : undefined,
+        contractorId: normalizeContractorId(profileData.contractorId),
+        createdAt: profileData.createdAt,
+      },
+    });
 
     const responseBody = {
-      uid: decodedToken.uid,
-      email: decodedToken.email ?? null,
-      role,
-      contractorId: contractorId ?? null,
+      uid: resolved.uid,
+      email: resolved.email ?? null,
+      role: resolved.role,
+      contractorId: resolved.contractorId ?? null,
     };
 
     console.info("[/api/me] RESPONSE SENT", responseBody);

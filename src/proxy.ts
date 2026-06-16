@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { normalizeRole } from "@/lib/auth/userProfile";
 import { isVehicleFinanceRole } from "@/lib/auth/roleUtils";
+import { AuthorizationError, resolveAuthorizedIdentity } from "@/lib/server/authz";
 import { verifySessionValue } from "@/lib/server/verifySession";
 
 export async function proxy(request: NextRequest) {
@@ -16,8 +16,24 @@ export async function proxy(request: NextRequest) {
   }
 
   const decoded = await verifySessionValue(session);
-  const role = normalizeRole(decoded?.role);
-  if (role === "guest") {
+  if (!decoded) {
+    return NextResponse.redirect(new URL("/login", request.url));
+  }
+
+  let role;
+  try {
+    role = (await resolveAuthorizedIdentity({
+      uid: decoded.uid,
+      email: typeof decoded.email === "string" ? decoded.email : undefined,
+      role: decoded.role,
+      contractorId: decoded.contractorId,
+    })).role;
+  } catch (error) {
+    if (error instanceof AuthorizationError) {
+      return NextResponse.redirect(new URL("/login", request.url));
+    }
+
+    console.error("[proxy] role resolution failed", error);
     return NextResponse.redirect(new URL("/login", request.url));
   }
 

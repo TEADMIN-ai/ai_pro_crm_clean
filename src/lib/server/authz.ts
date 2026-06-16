@@ -40,6 +40,38 @@ async function getUserProfile(uid: string): Promise<UserProfile | null> {
   };
 }
 
+export interface ResolvedIdentity {
+  uid: string;
+  email?: string;
+  role: UserRole;
+  contractorId?: string;
+  profile: UserProfile | null;
+}
+
+export async function resolveAuthorizedIdentity(args: {
+  uid: string;
+  email?: string;
+  role?: unknown;
+  contractorId?: unknown;
+  profile?: UserProfile | null;
+}): Promise<ResolvedIdentity> {
+  const profile = args.profile ?? (await getUserProfile(args.uid));
+  const role = resolveRole(profile?.role, args.role);
+  const contractorId = profile?.contractorId ?? normalizeContractorId(args.contractorId);
+
+  if (!role || role === "guest") {
+    throw new AuthorizationError("Invalid role", 403);
+  }
+
+  return {
+    uid: args.uid,
+    email: args.email,
+    role,
+    contractorId,
+    profile,
+  };
+}
+
 export async function requireAuthorizedUser(request: NextRequest): Promise<AuthorizedUser> {
   try {
     const decoded = await requireAuth(request);
@@ -48,36 +80,35 @@ export async function requireAuthorizedUser(request: NextRequest): Promise<Autho
       throw new AuthorizationError("unauthorized", 401);
     }
 
-    const profile = await getUserProfile(decoded.uid);
-    const role = resolveRole(profile?.role, decoded.role);
-    const contractorId = profile?.contractorId ?? normalizeContractorId(decoded.contractorId);
-
-    if (!role || role === "guest") {
-      throw new AuthorizationError("Invalid role", 403);
-    }
+    const resolved = await resolveAuthorizedIdentity({
+      uid: decoded.uid,
+      email: typeof decoded.email === "string" ? decoded.email : undefined,
+      role: decoded.role,
+      contractorId: decoded.contractorId,
+    });
 
     const linkage =
-      role === "contractor"
+      resolved.role === "contractor"
         ? await ensureContractorAuthLinkage({
-            uid: decoded.uid,
+            uid: resolved.uid,
             source: "authz.requireAuthorizedUser",
-            decodedRole: role,
-            decodedContractorId: contractorId,
-            decodedEmail: decoded.email,
-            profile,
+            decodedRole: resolved.role,
+            decodedContractorId: resolved.contractorId,
+            decodedEmail: resolved.email,
+            profile: resolved.profile,
             allowCreateMissingContractor: true,
           })
         : null;
-    const resolvedContractorId = linkage?.contractorId ?? contractorId;
+    const resolvedContractorId = linkage?.contractorId ?? resolved.contractorId;
 
-    if (role === "contractor" && !resolvedContractorId) {
+    if (resolved.role === "contractor" && !resolvedContractorId) {
       throw new AuthorizationError("unauthorized", 403);
     }
 
     return {
-      uid: decoded.uid,
-      email: typeof decoded.email === "string" ? decoded.email : undefined,
-      role,
+      uid: resolved.uid,
+      email: resolved.email,
+      role: resolved.role,
       contractorId: resolvedContractorId,
     };
   } catch (error) {
