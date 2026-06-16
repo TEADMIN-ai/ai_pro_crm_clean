@@ -783,6 +783,7 @@ export default function VehicleFinanceWorkspace({ initialSection }: Props) {
                         surname?: string | null;
                         idNumber?: string | null;
                         licenceNumber?: string | null;
+                        dateOfBirth?: string | null;
                         expiryDate?: string | null;
                         issueDate?: string | null;
                         gender?: string | null;
@@ -796,6 +797,15 @@ export default function VehicleFinanceWorkspace({ initialSection }: Props) {
                       };
                       verification?: { passed?: boolean; score?: number; flags?: string[] };
                       applicationComparison?: { passed?: boolean; flags?: string[] } | null;
+                      crossDocumentVerification?: {
+                        sourceDocumentType?: string;
+                        comparedDocumentType?: string;
+                        flags?: string[];
+                        fraudFlags?: string[];
+                        passed?: boolean;
+                        identityVerificationScore?: number;
+                        riskLevel?: string;
+                      } | null;
                       textQuality?: { confidence?: number; reasons?: string[]; flags?: string[] };
                       selectedText?: string;
                     } | null;
@@ -824,9 +834,11 @@ export default function VehicleFinanceWorkspace({ initialSection }: Props) {
                       </div>
 
                       <div className="rounded-xl border border-slate-700 bg-slate-950/60 p-4">
-                        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Issue Date</p>
+                        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Date Of Birth</p>
+                        <p className="mt-2 text-sm text-slate-100">{fieldValue("dateOfBirth", intelligence.extraction?.dateOfBirth)}</p>
+                        <p className="mt-3 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Issue Date</p>
                         <p className="mt-2 text-sm text-slate-100">{fieldValue("issueDate", intelligence.extraction?.issueDate)}</p>
-                        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Expiry Date</p>
+                        <p className="mt-3 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Expiry Date</p>
                         <p className="mt-2 text-sm text-slate-100">{fieldValue("expiryDate", intelligence.extraction?.expiryDate)}</p>
                         <p className="mt-3 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">OCR Confidence</p>
                         <p className="mt-2 text-sm text-slate-100">{intelligence.textQuality?.confidence ?? intelligence.extraction?.confidence ?? 0}%</p>
@@ -873,12 +885,46 @@ export default function VehicleFinanceWorkspace({ initialSection }: Props) {
                             <Badge tone="success">Matched</Badge>
                           )}
                         </div>
+                        <p className="mt-4 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Identity Cross-check</p>
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          {intelligence.crossDocumentVerification ? (
+                            <>
+                              <Badge tone={intelligence.crossDocumentVerification.passed ? "success" : "warning"}>
+                                {intelligence.crossDocumentVerification.riskLevel ?? "UNKNOWN"}
+                              </Badge>
+                              <Badge tone="neutral">
+                                Score: {intelligence.crossDocumentVerification.identityVerificationScore ?? 0}
+                              </Badge>
+                              {(intelligence.crossDocumentVerification.flags ?? []).length ? (
+                                intelligence.crossDocumentVerification.flags?.map((flag) => (
+                                  <Badge key={flag} tone="success">
+                                    {flag}
+                                  </Badge>
+                                ))
+                              ) : (
+                                <Badge tone="warning">No Match Flags</Badge>
+                              )}
+                              {(intelligence.crossDocumentVerification.fraudFlags ?? []).length ? (
+                                intelligence.crossDocumentVerification.fraudFlags?.map((flag) => (
+                                  <Badge key={flag} tone="danger">
+                                    {flag}
+                                  </Badge>
+                                ))
+                              ) : (
+                                <Badge tone="success">No Fraud Flags</Badge>
+                              )}
+                            </>
+                          ) : (
+                            <Badge tone="neutral">Pending identity comparison</Badge>
+                          )}
+                        </div>
                         <p className="mt-4 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Field Confidence</p>
                         <div className="mt-3 flex flex-wrap gap-2">
                           {[
                             ["Name", fieldConfidence("name", intelligence.extraction?.confidence)],
                             ["Surname", fieldConfidence("surname", intelligence.extraction?.confidence)],
                             ["ID", fieldConfidence("idNumber", intelligence.extraction?.confidence)],
+                            ["DOB", fieldConfidence("dateOfBirth", intelligence.extraction?.confidence)],
                             ["Licence", fieldConfidence("licenceNumber", intelligence.extraction?.confidence)],
                             ["Expiry", fieldConfidence("expiryDate", intelligence.extraction?.confidence)],
                             ["Gender", fieldConfidence("gender", intelligence.extraction?.confidence)],
@@ -925,6 +971,15 @@ export default function VehicleFinanceWorkspace({ initialSection }: Props) {
                       };
                       verification?: { passed?: boolean; score?: number; flags?: string[] };
                       integrityIndicators?: { photoDetected?: boolean; barcodeDetected?: boolean; cardNumberDetected?: boolean };
+                      crossDocumentVerification?: {
+                        sourceDocumentType?: string;
+                        comparedDocumentType?: string;
+                        flags?: string[];
+                        fraudFlags?: string[];
+                        passed?: boolean;
+                        identityVerificationScore?: number;
+                        riskLevel?: string;
+                      } | null;
                       sourceText?: string;
                     } | null;
                   })?.identityIntelligence ?? null;
@@ -1009,6 +1064,39 @@ export default function VehicleFinanceWorkspace({ initialSection }: Props) {
                               {label}: {score as number}%
                             </Badge>
                           ))}
+                        </div>
+                        <p className="mt-4 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Cross-document verification</p>
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          {intelligence.crossDocumentVerification ? (
+                            <>
+                              <Badge tone={intelligence.crossDocumentVerification.passed ? "success" : "warning"}>
+                                {intelligence.crossDocumentVerification.riskLevel ?? "UNKNOWN"}
+                              </Badge>
+                              <Badge tone="neutral">
+                                Score: {intelligence.crossDocumentVerification.identityVerificationScore ?? 0}
+                              </Badge>
+                              {(intelligence.crossDocumentVerification.flags ?? []).length ? (
+                                intelligence.crossDocumentVerification.flags?.map((flag) => (
+                                  <Badge key={flag} tone="success">
+                                    {flag}
+                                  </Badge>
+                                ))
+                              ) : (
+                                <Badge tone="warning">No Match Flags</Badge>
+                              )}
+                              {(intelligence.crossDocumentVerification.fraudFlags ?? []).length ? (
+                                intelligence.crossDocumentVerification.fraudFlags?.map((flag) => (
+                                  <Badge key={flag} tone="danger">
+                                    {flag}
+                                  </Badge>
+                                ))
+                              ) : (
+                                <Badge tone="success">No Fraud Flags</Badge>
+                              )}
+                            </>
+                          ) : (
+                            <Badge tone="neutral">Pending driver comparison</Badge>
+                          )}
                         </div>
                       </div>
                     </div>

@@ -69,6 +69,7 @@ describe("vehicle finance driver licence intelligence", () => {
     expect(extraction.surname).toBe("LEBATIE");
     expect(extraction.idNumber).toBe("83121110951084");
     expect(extraction.licenceNumber).toBe("000700832426");
+    expect(extraction.dateOfBirth).toBe("24-10-1983");
     expect(extraction.issueDate).toBe("24/03/2021");
     expect(extraction.expiryDate).toBe("11/03/2026");
     expect(extraction.licenceCode).toBe("1");
@@ -120,6 +121,7 @@ describe("vehicle finance driver licence intelligence", () => {
         surname: "Doe",
         idNumber: "9001015009087",
         licenceNumber: "DL123456",
+        dateOfBirth: "1990-01-01",
         issueDate: "2020-01-01",
         expiryDate: soonExpiry,
         licenceCode: "B",
@@ -132,6 +134,7 @@ describe("vehicle finance driver licence intelligence", () => {
           surname: { value: "Doe", confidence: 95, sourceText: "Surname: Doe" },
           idNumber: { value: "9001015009087", confidence: 98, sourceText: "ID Number: 9001015009087" },
           licenceNumber: { value: "DL123456", confidence: 95, sourceText: "Licence Number: DL123456" },
+          dateOfBirth: { value: "1990-01-01", confidence: 90, sourceText: "Date of Birth: 1990-01-01" },
           issueDate: { value: "2020-01-01", confidence: 90, sourceText: "Issue Date: 2020-01-01" },
           expiryDate: { value: soonExpiry, confidence: 90, sourceText: `Expiry Date: ${soonExpiry}` },
           licenceCode: { value: "B", confidence: 90, sourceText: "Licence Code: B" },
@@ -156,6 +159,7 @@ describe("vehicle finance driver licence intelligence", () => {
         surname: "Doe",
         idNumber: "9001015009087",
         licenceNumber: "DL123456",
+        dateOfBirth: "1990-01-01",
         issueDate: "2020-01-01",
         expiryDate: "2030-12-31",
         licenceCode: "B",
@@ -168,6 +172,7 @@ describe("vehicle finance driver licence intelligence", () => {
           surname: { value: "Doe", confidence: 95, sourceText: "Surname: Doe" },
           idNumber: { value: "9001015009087", confidence: 98, sourceText: "ID Number: 9001015009087" },
           licenceNumber: { value: "DL123456", confidence: 95, sourceText: "Licence Number: DL123456" },
+          dateOfBirth: { value: "1990-01-01", confidence: 90, sourceText: "Date of Birth: 1990-01-01" },
           issueDate: { value: "2020-01-01", confidence: 90, sourceText: "Issue Date: 2020-01-01" },
           expiryDate: { value: "2030-12-31", confidence: 90, sourceText: "Expiry Date: 2030-12-31" },
           licenceCode: { value: "B", confidence: 90, sourceText: "Licence Code: B" },

@@ -95,6 +95,7 @@ export type VehicleFinanceDriverLicenceExtraction = {
   surname: string | null;
   idNumber: string | null;
   licenceNumber: string | null;
+  dateOfBirth: string | null;
   issueDate: string | null;
   expiryDate: string | null;
   licenceCode: string | null;
@@ -102,7 +103,7 @@ export type VehicleFinanceDriverLicenceExtraction = {
   restriction?: string | null;
   country?: string | null;
   confidence: number;
-  fieldConfidence?: Partial<Record<"name" | "surname" | "idNumber" | "licenceNumber" | "issueDate" | "expiryDate" | "licenceCode" | "gender" | "restriction" | "country", number>>;
+  fieldConfidence?: Partial<Record<"name" | "surname" | "idNumber" | "licenceNumber" | "dateOfBirth" | "issueDate" | "expiryDate" | "licenceCode" | "gender" | "restriction" | "country", number>>;
   fields?: VehicleFinanceDriverLicenceStructuredExtraction;
 };
 
@@ -117,6 +118,23 @@ export type VehicleFinanceDriverLicenceComparison = {
   passed: boolean;
 };
 
+export type VehicleFinanceCrossDocumentVerificationFlag =
+  | "ID_MATCH"
+  | "DOB_MATCH"
+  | "GENDER_MATCH"
+  | "SURNAME_MATCH"
+  | "FORENAME_MATCH";
+
+export type VehicleFinanceCrossDocumentVerification = {
+  sourceDocumentType: "DRIVER_LICENCE";
+  comparedDocumentType: "GREEN_ID_BOOK" | "SMART_ID_CARD";
+  flags: VehicleFinanceCrossDocumentVerificationFlag[];
+  fraudFlags: string[];
+  passed: boolean;
+  identityVerificationScore: number;
+  riskLevel: VehicleFinanceRiskLevel;
+};
+
 export type VehicleFinanceDriverLicenceIntelligence = {
   enabled: boolean;
   featureFlag: boolean;
@@ -125,6 +143,7 @@ export type VehicleFinanceDriverLicenceIntelligence = {
   extraction: VehicleFinanceDriverLicenceExtraction;
   verification: VehicleFinanceDriverLicenceVerification;
   applicationComparison: VehicleFinanceDriverLicenceComparison | null;
+  crossDocumentVerification?: VehicleFinanceCrossDocumentVerification | null;
   usedOcrFallback: boolean;
   sourceTextLength: number;
   enhancedTextLength: number;
@@ -142,6 +161,7 @@ export type VehicleFinanceDriverLicenceStructuredExtraction = {
   surname: VehicleFinanceDriverLicenceField;
   idNumber: VehicleFinanceDriverLicenceField;
   licenceNumber: VehicleFinanceDriverLicenceField;
+  dateOfBirth: VehicleFinanceDriverLicenceField;
   issueDate: VehicleFinanceDriverLicenceField;
   expiryDate: VehicleFinanceDriverLicenceField;
   licenceCode: VehicleFinanceDriverLicenceField;
@@ -198,6 +218,7 @@ export type VehicleFinanceIdentityDocumentIntelligence = {
   sourceText: string;
   sourceTextLength: number;
   selectedText: string;
+  crossDocumentVerification?: VehicleFinanceCrossDocumentVerification | null;
   fields?: VehicleFinanceIdentityStructuredExtraction;
 };
 

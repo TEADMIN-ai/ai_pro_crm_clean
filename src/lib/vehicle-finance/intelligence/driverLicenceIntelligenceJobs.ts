@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 
 import { getFirebaseAdmin, getFirebaseStorageBucket } from "@/lib/firebase/admin";
+import { syncVehicleFinanceCrossDocumentVerification } from "./crossDocumentVerification";
 import { buildVehicleFinanceDriverLicenceIntelligence } from "./driverLicenceIntelligence";
 import type {
   VehicleFinanceApplication,
@@ -322,6 +323,16 @@ export async function processVehicleFinanceDriverLicenceIntelligenceJob(jobId: s
     extractionSource: updatedExtractionSource,
     aiAnalysis: updatedAiAnalysis,
   });
+
+  try {
+    await syncVehicleFinanceCrossDocumentVerification(job.applicationId);
+  } catch (error) {
+    console.warn("[vehicle-finance] cross-document verification sync failed", {
+      applicationId: job.applicationId,
+      documentId: document.documentId,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
 
   await updateVehicleFinanceDriverLicenceIntelligenceJob(jobId, {
     status: "PROCESSED",

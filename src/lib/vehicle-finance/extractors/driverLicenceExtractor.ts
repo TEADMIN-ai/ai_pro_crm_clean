@@ -8,6 +8,7 @@ export type DriverLicenceExtraction = {
   surname: string | null;
   idNumber: string | null;
   licenceNumber: string | null;
+  dateOfBirth: string | null;
   issueDate: string | null;
   expiryDate: string | null;
   licenceCode: string | null;
@@ -16,7 +17,10 @@ export type DriverLicenceExtraction = {
   country: string | null;
   confidence: number;
   fieldConfidence?: Partial<
-    Record<"name" | "surname" | "idNumber" | "licenceNumber" | "issueDate" | "expiryDate" | "licenceCode" | "gender" | "restriction" | "country", number>
+    Record<
+      "name" | "surname" | "idNumber" | "licenceNumber" | "dateOfBirth" | "issueDate" | "expiryDate" | "licenceCode" | "gender" | "restriction" | "country",
+      number
+    >
   >;
   fields?: VehicleFinanceDriverLicenceStructuredExtraction;
 };
@@ -26,6 +30,7 @@ type FieldName =
   | "surname"
   | "idNumber"
   | "licenceNumber"
+  | "dateOfBirth"
   | "issueDate"
   | "expiryDate"
   | "licenceCode"
@@ -480,6 +485,44 @@ function extractGender(lines: string[]): Candidate<string> | null {
   return null;
 }
 
+function isDateLike(value: string): boolean {
+  return /(?:\b\d{1,2}[\/.-]\d{1,2}[\/.-]\d{2,4}\b|\b\d{4}[\/.-]\d{2}[\/.-]\d{2}\b)/.test(value);
+}
+
+function extractDateOfBirth(lines: string[], text: string): Candidate<string> | null {
+  const labelled = extractStandaloneDate(text, [
+    /^\s*(?:dob|date\s+of\s+birth|birth\s+date)\s*[:.\-]?\s*(\d{1,2}[\/.-]\d{1,2}[\/.-]\d{2,4}|\d{4}[\/.-]\d{2}[\/.-]\d{2})$/i,
+  ]);
+  if (labelled) {
+    return { ...labelled, confidence: 95 };
+  }
+
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index];
+    if (!isDateLike(line)) {
+      continue;
+    }
+
+    if (/^\s*(?:valid\s+from|valid\s+to|valid\s+until|issue(?:d)?\s+date|date\s+of\s+issue|date\s+of\s+expiry|expiry\s+date|expires?\s+on)\b/i.test(line)) {
+      continue;
+    }
+
+    const previous = lines[index - 1] ?? "";
+    const next = lines[index + 1] ?? "";
+    const context = `${previous} ${line} ${next}`.toLowerCase();
+    if (/(female|male|sex|gender|id|identity|restriction|surname|name|birth)/.test(context)) {
+      return {
+        value: compactWhitespace(line),
+        confidence: /dob|birth/.test(context) ? 92 : 88,
+        source: "contextual_dob_line",
+        sourceText: line,
+      };
+    }
+  }
+
+  return null;
+}
+
 function extractRestriction(lines: string[]): Candidate<string> | null {
   const labelled = extractLabelledValue(lines, [
     /^\s*restrictions?\s*[:.\-]?\s*([A-Za-z0-9]+)$/i,
@@ -542,12 +585,13 @@ export function extractDriverLicenceDetails(text: string): DriverLicenceExtracti
     const idNumber = extractIdNumber(lines, normalized);
     const licenceCode = extractLicenceCode(lines, normalized);
     const licenceNumber = extractLicenceNumber(lines, normalized, idNumber?.value ?? null);
-    const gender = extractGender(lines);
-    const restriction = extractRestriction(lines);
-    const country = extractCountry(lines);
-    const rangeDates = extractJoinedRangeDates(normalized);
-    const standaloneIssueDate = extractStandaloneDate(normalized, [
-      /^\s*(?:issue(?:d)?\s+date|date\s+of\s+issue|valid\s+from)\s*[:.\-]?\s*(\d{1,2}[\/.-]\d{1,2}[\/.-]\d{2,4}|\d{4}[\/.-]\d{2}[\/.-]\d{2})$/i,
+  const gender = extractGender(lines);
+  const restriction = extractRestriction(lines);
+  const country = extractCountry(lines);
+  const dateOfBirth = extractDateOfBirth(lines, normalized);
+  const rangeDates = extractJoinedRangeDates(normalized);
+  const standaloneIssueDate = extractStandaloneDate(normalized, [
+    /^\s*(?:issue(?:d)?\s+date|date\s+of\s+issue|valid\s+from)\s*[:.\-]?\s*(\d{1,2}[\/.-]\d{1,2}[\/.-]\d{2,4}|\d{4}[\/.-]\d{2}[\/.-]\d{2})$/i,
     ]);
     const standaloneExpiryDate = extractStandaloneDate(normalized, [
       /^\s*(?:expiry\s+date|date\s+of\s+expiry|valid\s+to|valid\s+until|expires?\s+on)\s*[:.\-]?\s*(\d{1,2}[\/.-]\d{1,2}[\/.-]\d{2,4}|\d{4}[\/.-]\d{2}[\/.-]\d{2})$/i,
@@ -564,6 +608,7 @@ export function extractDriverLicenceDetails(text: string): DriverLicenceExtracti
       ["issueDate", issueDate ? { value: issueDate, confidence: standaloneIssueDate?.confidence ?? rangeDates?.confidence ?? 90, source: "date", sourceText: standaloneIssueDate?.sourceText ?? rangeDates?.sourceText } : null],
       ["expiryDate", expiryDate ? { value: expiryDate, confidence: standaloneExpiryDate?.confidence ?? rangeDates?.confidence ?? 90, source: "date", sourceText: standaloneExpiryDate?.sourceText ?? rangeDates?.sourceText } : null],
       ["licenceCode", licenceCode],
+      ["dateOfBirth", dateOfBirth],
       ["gender", gender],
       ["restriction", restriction],
       ["country", country],
@@ -580,6 +625,7 @@ export function extractDriverLicenceDetails(text: string): DriverLicenceExtracti
       fieldConfidence.gender ?? 0,
       fieldConfidence.restriction ?? 0,
       fieldConfidence.country ?? 0,
+      fieldConfidence.dateOfBirth ?? 0,
     ].filter((value) => value > 0);
 
     const weightedConfidence = clamp(
@@ -610,6 +656,7 @@ export function extractDriverLicenceDetails(text: string): DriverLicenceExtracti
       gender: pickSourceText(gender, gender?.value ?? ""),
       restriction: pickSourceText(restriction, restriction?.value ?? ""),
       country: pickSourceText(country, country?.value ?? ""),
+      dateOfBirth: pickSourceText(dateOfBirth, dateOfBirth?.value ?? ""),
     };
 
     const fields = {
@@ -617,6 +664,7 @@ export function extractDriverLicenceDetails(text: string): DriverLicenceExtracti
       surname: toFieldEvidence(surname?.value ?? null, fieldConfidence.surname ?? surname?.confidence ?? 0, fieldSourceText.surname),
       idNumber: toFieldEvidence(idNumber?.value ?? null, fieldConfidence.idNumber ?? idNumber?.confidence ?? 0, fieldSourceText.idNumber),
       licenceNumber: toFieldEvidence(licenceNumber?.value ?? null, fieldConfidence.licenceNumber ?? licenceNumber?.confidence ?? 0, fieldSourceText.licenceNumber),
+      dateOfBirth: toFieldEvidence(dateOfBirth?.value ?? null, fieldConfidence.dateOfBirth ?? dateOfBirth?.confidence ?? 0, fieldSourceText.dateOfBirth),
       issueDate: toFieldEvidence(issueDate, fieldConfidence.issueDate ?? standaloneIssueDate?.confidence ?? 0, fieldSourceText.issueDate),
       expiryDate: toFieldEvidence(expiryDate, fieldConfidence.expiryDate ?? standaloneExpiryDate?.confidence ?? 0, fieldSourceText.expiryDate),
       licenceCode: toFieldEvidence(licenceCode?.value ?? null, fieldConfidence.licenceCode ?? licenceCode?.confidence ?? 0, fieldSourceText.licenceCode),
@@ -630,6 +678,7 @@ export function extractDriverLicenceDetails(text: string): DriverLicenceExtracti
       surname: surname?.value ?? null,
       idNumber: idNumber?.value ?? null,
       licenceNumber: licenceNumber?.value ?? null,
+      dateOfBirth: dateOfBirth?.value ?? null,
       issueDate,
       expiryDate,
       licenceCode: licenceCode?.value ?? null,
@@ -646,6 +695,7 @@ export function extractDriverLicenceDetails(text: string): DriverLicenceExtracti
       surname: null,
       idNumber: null,
       licenceNumber: null,
+      dateOfBirth: null,
       issueDate: null,
       expiryDate: null,
       licenceCode: null,
@@ -659,6 +709,7 @@ export function extractDriverLicenceDetails(text: string): DriverLicenceExtracti
         surname: toFieldEvidence(null, 0, ""),
         idNumber: toFieldEvidence(null, 0, ""),
         licenceNumber: toFieldEvidence(null, 0, ""),
+        dateOfBirth: toFieldEvidence(null, 0, ""),
         issueDate: toFieldEvidence(null, 0, ""),
         expiryDate: toFieldEvidence(null, 0, ""),
         licenceCode: toFieldEvidence(null, 0, ""),

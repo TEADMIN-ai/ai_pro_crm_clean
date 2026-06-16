@@ -95,6 +95,7 @@ export async function buildVehicleFinanceDriverLicenceIntelligence(
         surname: null,
         idNumber: null,
         licenceNumber: null,
+        dateOfBirth: null,
         issueDate: null,
         expiryDate: null,
         licenceCode: null,
@@ -108,6 +109,7 @@ export async function buildVehicleFinanceDriverLicenceIntelligence(
           surname: { value: null, confidence: 0, sourceText: "" },
           idNumber: { value: null, confidence: 0, sourceText: "" },
           licenceNumber: { value: null, confidence: 0, sourceText: "" },
+          dateOfBirth: { value: null, confidence: 0, sourceText: "" },
           issueDate: { value: null, confidence: 0, sourceText: "" },
           expiryDate: { value: null, confidence: 0, sourceText: "" },
           licenceCode: { value: null, confidence: 0, sourceText: "" },
@@ -148,6 +150,6 @@ export async function buildVehicleFinanceDriverLicenceIntelligence(
     usedOcrFallback: needsFallback,
     sourceTextLength: args.extractedText.length,
     enhancedTextLength: enhancedText.length,
-    selectedText: enhancedText,
-  };
+      selectedText: enhancedText,
+    };
 }
