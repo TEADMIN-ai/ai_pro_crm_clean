@@ -3,6 +3,8 @@ import type { VehicleFinanceTextQualityAssessment } from "../ocr/textQualityAsse
 
 export type DriverLicenceVerificationFlag =
   | "EXPIRED_LICENCE"
+  | "LICENCE_EXPIRING_SOON"
+  | "LICENCE_EXPIRING_CRITICAL"
   | "MISSING_ID"
   | "MISSING_NAME"
   | "MISSING_LICENCE_NUMBER"
@@ -27,6 +29,20 @@ function isExpired(dateValue: string | null): boolean {
   return Number.isNaN(parsed.getTime()) ? false : parsed.getTime() < Date.now();
 }
 
+function daysUntilExpiry(dateValue: string | null): number | null {
+  if (!dateValue) {
+    return null;
+  }
+
+  const parsed = new Date(dateValue);
+  if (Number.isNaN(parsed.getTime())) {
+    return null;
+  }
+
+  const millisecondsPerDay = 1000 * 60 * 60 * 24;
+  return Math.floor((parsed.getTime() - Date.now()) / millisecondsPerDay);
+}
+
 export function verifyDriverLicenceExtraction(
   extraction: DriverLicenceExtraction,
   quality?: VehicleFinanceTextQualityAssessment | null,
@@ -49,9 +65,16 @@ export function verifyDriverLicenceExtraction(
     score -= 20;
   }
 
+  const expiryDays = daysUntilExpiry(extraction.expiryDate);
   if (isExpired(extraction.expiryDate)) {
     flags.push("EXPIRED_LICENCE");
     score -= 40;
+  } else if (typeof expiryDays === "number" && expiryDays <= 30) {
+    flags.push("LICENCE_EXPIRING_CRITICAL");
+    score -= 30;
+  } else if (typeof expiryDays === "number" && expiryDays <= 90) {
+    flags.push("LICENCE_EXPIRING_SOON");
+    score -= 15;
   }
 
   if (typeof quality?.confidence === "number" && quality.confidence < quality.confidenceThreshold) {

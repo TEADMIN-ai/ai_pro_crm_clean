@@ -779,7 +779,15 @@ export default function VehicleFinanceWorkspace({ initialSection }: Props) {
                         idNumber?: string | null;
                         licenceNumber?: string | null;
                         expiryDate?: string | null;
+                        issueDate?: string | null;
+                        gender?: string | null;
+                        restriction?: string | null;
+                        country?: string | null;
                         confidence?: number;
+                        fields?: Record<
+                          string,
+                          { value?: string | null; confidence?: number; sourceText?: string }
+                        >;
                       };
                       verification?: { passed?: boolean; score?: number; flags?: string[] };
                       applicationComparison?: { passed?: boolean; flags?: string[] } | null;
@@ -788,27 +796,44 @@ export default function VehicleFinanceWorkspace({ initialSection }: Props) {
                     } | null;
                   })?.driverLicenceIntelligence ?? null;
 
+                  const extractionFields = intelligence.extraction?.fields ?? {};
+                  const fieldValue = (key: string, fallback?: string | null) =>
+                    extractionFields[key]?.value ?? fallback ?? "n/a";
+                  const fieldConfidence = (key: string, fallback?: number | null) =>
+                    extractionFields[key]?.confidence ?? fallback ?? 0;
+
                   return intelligence ? (
                     <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
                       <div className="rounded-xl border border-slate-700 bg-slate-950/60 p-4">
                         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Name</p>
-                        <p className="mt-2 text-sm text-slate-100">{intelligence.extraction?.name ?? "n/a"}</p>
+                        <p className="mt-2 text-sm text-slate-100">{fieldValue("name", intelligence.extraction?.name)}</p>
                         <p className="mt-3 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Surname</p>
-                        <p className="mt-2 text-sm text-slate-100">{intelligence.extraction?.surname ?? "n/a"}</p>
+                        <p className="mt-2 text-sm text-slate-100">{fieldValue("surname", intelligence.extraction?.surname)}</p>
                       </div>
 
                       <div className="rounded-xl border border-slate-700 bg-slate-950/60 p-4">
                         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">ID Number</p>
-                        <p className="mt-2 text-sm text-slate-100">{intelligence.extraction?.idNumber ?? "n/a"}</p>
+                        <p className="mt-2 text-sm text-slate-100">{fieldValue("idNumber", intelligence.extraction?.idNumber)}</p>
                         <p className="mt-3 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Licence Number</p>
-                        <p className="mt-2 text-sm text-slate-100">{intelligence.extraction?.licenceNumber ?? "n/a"}</p>
+                        <p className="mt-2 text-sm text-slate-100">{fieldValue("licenceNumber", intelligence.extraction?.licenceNumber)}</p>
                       </div>
 
                       <div className="rounded-xl border border-slate-700 bg-slate-950/60 p-4">
+                        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Issue Date</p>
+                        <p className="mt-2 text-sm text-slate-100">{fieldValue("issueDate", intelligence.extraction?.issueDate)}</p>
                         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Expiry Date</p>
-                        <p className="mt-2 text-sm text-slate-100">{intelligence.extraction?.expiryDate ?? "n/a"}</p>
+                        <p className="mt-2 text-sm text-slate-100">{fieldValue("expiryDate", intelligence.extraction?.expiryDate)}</p>
                         <p className="mt-3 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">OCR Confidence</p>
                         <p className="mt-2 text-sm text-slate-100">{intelligence.textQuality?.confidence ?? intelligence.extraction?.confidence ?? 0}%</p>
+                      </div>
+
+                      <div className="rounded-xl border border-slate-700 bg-slate-950/60 p-4">
+                        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Gender</p>
+                        <p className="mt-2 text-sm text-slate-100">{fieldValue("gender", intelligence.extraction?.gender)}</p>
+                        <p className="mt-3 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Restriction</p>
+                        <p className="mt-2 text-sm text-slate-100">{fieldValue("restriction", intelligence.extraction?.restriction)}</p>
+                        <p className="mt-3 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Country</p>
+                        <p className="mt-2 text-sm text-slate-100">{fieldValue("country", intelligence.extraction?.country)}</p>
                       </div>
 
                       <div className="rounded-xl border border-slate-700 bg-slate-950/60 p-4">
@@ -842,6 +867,21 @@ export default function VehicleFinanceWorkspace({ initialSection }: Props) {
                           ) : (
                             <Badge tone="success">Matched</Badge>
                           )}
+                        </div>
+                        <p className="mt-4 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Field Confidence</p>
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          {[
+                            ["Name", fieldConfidence("name", intelligence.extraction?.confidence)],
+                            ["Surname", fieldConfidence("surname", intelligence.extraction?.confidence)],
+                            ["ID", fieldConfidence("idNumber", intelligence.extraction?.confidence)],
+                            ["Licence", fieldConfidence("licenceNumber", intelligence.extraction?.confidence)],
+                            ["Expiry", fieldConfidence("expiryDate", intelligence.extraction?.confidence)],
+                            ["Gender", fieldConfidence("gender", intelligence.extraction?.confidence)],
+                          ].map(([label, score]) => (
+                            <Badge key={label as string} tone="neutral">
+                              {label}: {score as number}%
+                            </Badge>
+                          ))}
                         </div>
                       </div>
                     </div>

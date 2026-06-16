@@ -98,7 +98,23 @@ export async function buildVehicleFinanceDriverLicenceIntelligence(
         issueDate: null,
         expiryDate: null,
         licenceCode: null,
+        gender: null,
+        restriction: null,
+        country: null,
         confidence: 0,
+        fieldConfidence: {},
+        fields: {
+          name: { value: null, confidence: 0, sourceText: "" },
+          surname: { value: null, confidence: 0, sourceText: "" },
+          idNumber: { value: null, confidence: 0, sourceText: "" },
+          licenceNumber: { value: null, confidence: 0, sourceText: "" },
+          issueDate: { value: null, confidence: 0, sourceText: "" },
+          expiryDate: { value: null, confidence: 0, sourceText: "" },
+          licenceCode: { value: null, confidence: 0, sourceText: "" },
+          gender: { value: null, confidence: 0, sourceText: "" },
+          restriction: { value: null, confidence: 0, sourceText: "" },
+          country: { value: null, confidence: 0, sourceText: "" },
+        },
       };
 
   console.log("[LICENCE_EXTRACTED]", {

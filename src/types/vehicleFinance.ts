@@ -95,8 +95,12 @@ export type VehicleFinanceDriverLicenceExtraction = {
   issueDate: string | null;
   expiryDate: string | null;
   licenceCode: string | null;
+  gender?: string | null;
+  restriction?: string | null;
+  country?: string | null;
   confidence: number;
-  fieldConfidence?: Partial<Record<"name" | "surname" | "idNumber" | "licenceNumber" | "issueDate" | "expiryDate" | "licenceCode", number>>;
+  fieldConfidence?: Partial<Record<"name" | "surname" | "idNumber" | "licenceNumber" | "issueDate" | "expiryDate" | "licenceCode" | "gender" | "restriction" | "country", number>>;
+  fields?: VehicleFinanceDriverLicenceStructuredExtraction;
 };
 
 export type VehicleFinanceDriverLicenceVerification = {
@@ -122,6 +126,25 @@ export type VehicleFinanceDriverLicenceIntelligence = {
   sourceTextLength: number;
   enhancedTextLength: number;
   selectedText: string;
+};
+
+export type VehicleFinanceDriverLicenceField = {
+  value: string | null;
+  confidence: number;
+  sourceText: string;
+};
+
+export type VehicleFinanceDriverLicenceStructuredExtraction = {
+  name: VehicleFinanceDriverLicenceField;
+  surname: VehicleFinanceDriverLicenceField;
+  idNumber: VehicleFinanceDriverLicenceField;
+  licenceNumber: VehicleFinanceDriverLicenceField;
+  issueDate: VehicleFinanceDriverLicenceField;
+  expiryDate: VehicleFinanceDriverLicenceField;
+  licenceCode: VehicleFinanceDriverLicenceField;
+  gender: VehicleFinanceDriverLicenceField;
+  restriction: VehicleFinanceDriverLicenceField;
+  country: VehicleFinanceDriverLicenceField;
 };
 
 export const VEHICLE_FINANCE_DRIVER_LICENCE_INTELLIGENCE_JOB_COLLECTION =

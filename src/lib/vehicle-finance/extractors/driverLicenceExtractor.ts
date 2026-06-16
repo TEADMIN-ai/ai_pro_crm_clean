@@ -1,3 +1,8 @@
+import type {
+  VehicleFinanceDriverLicenceField,
+  VehicleFinanceDriverLicenceStructuredExtraction,
+} from "@/types/vehicleFinance";
+
 export type DriverLicenceExtraction = {
   name: string | null;
   surname: string | null;
@@ -6,16 +11,33 @@ export type DriverLicenceExtraction = {
   issueDate: string | null;
   expiryDate: string | null;
   licenceCode: string | null;
+  gender: string | null;
+  restriction: string | null;
+  country: string | null;
   confidence: number;
-  fieldConfidence?: Partial<Record<"name" | "surname" | "idNumber" | "licenceNumber" | "issueDate" | "expiryDate" | "licenceCode", number>>;
+  fieldConfidence?: Partial<
+    Record<"name" | "surname" | "idNumber" | "licenceNumber" | "issueDate" | "expiryDate" | "licenceCode" | "gender" | "restriction" | "country", number>
+  >;
+  fields?: VehicleFinanceDriverLicenceStructuredExtraction;
 };
 
-type FieldName = "name" | "surname" | "idNumber" | "licenceNumber" | "issueDate" | "expiryDate" | "licenceCode";
+type FieldName =
+  | "name"
+  | "surname"
+  | "idNumber"
+  | "licenceNumber"
+  | "issueDate"
+  | "expiryDate"
+  | "licenceCode"
+  | "gender"
+  | "restriction"
+  | "country";
 
 type Candidate<T extends string = string> = {
   value: T;
   confidence: number;
   source: string;
+  sourceText?: string;
 };
 
 type DateRangeCandidate = {
@@ -25,6 +47,7 @@ type DateRangeCandidate = {
   };
   confidence: number;
   source: string;
+  sourceText?: string;
 };
 
 function clamp(value: number): number {
@@ -89,7 +112,7 @@ function firstMatchingLine(lines: string[], patterns: RegExp[]): Candidate<strin
       if (match?.[1]) {
         const value = compactWhitespace(match[1]);
         if (value) {
-          return { value, confidence: 95, source: pattern.source };
+          return { value, confidence: 95, source: pattern.source, sourceText: line };
         }
       }
     }
@@ -111,6 +134,7 @@ function extractJoinedRangeDates(text: string): DateRangeCandidate | null {
       },
       confidence: 92,
       source: rangePattern.source,
+      sourceText: compactWhitespace(match[0]),
     };
   }
 
@@ -125,6 +149,7 @@ function extractJoinedRangeDates(text: string): DateRangeCandidate | null {
       },
       confidence: 90,
       source: expiryOnlyPattern.source,
+      sourceText: compactWhitespace(expiryOnlyMatch[0]),
     };
   }
 
@@ -139,6 +164,7 @@ function extractJoinedRangeDates(text: string): DateRangeCandidate | null {
       },
       confidence: 90,
       source: issueOnlyPattern.source,
+      sourceText: compactWhitespace(issueOnlyMatch[0]),
     };
   }
 
@@ -155,6 +181,7 @@ function extractJoinedRangeDates(text: string): DateRangeCandidate | null {
       },
       confidence: 88,
       source: "bare_date_range",
+      sourceText: compactWhitespace(bareRange[0]),
     };
   }
 
@@ -165,6 +192,7 @@ function extractJoinedRangeDates(text: string): DateRangeCandidate | null {
     },
     confidence: match[2] ? 92 : 86,
     source: rangePattern.source,
+    sourceText: compactWhitespace(match[0]),
   };
 }
 
@@ -178,6 +206,7 @@ function extractStandaloneDate(text: string, patterns: RegExp[]): Candidate<stri
           value: compactWhitespace(match[1]),
           confidence: 90,
           source: pattern.source,
+          sourceText: line,
         };
       }
     }
@@ -189,6 +218,14 @@ function normalizeDigits(value: string): string {
   return value.replace(/[^\d]/g, "");
 }
 
+function normalizeLicenceDigits(value: string): string {
+  if (value.length === 13 && value.startsWith("0")) {
+    return value.slice(1);
+  }
+
+  return value;
+}
+
 function extractIdNumber(lines: string[], text: string): Candidate<string> | null {
   const labelled = firstMatchingLine(lines, [
     /^\s*(?:id|identity)\s*(?:no\.?|number)?\s*[:.\-]?\s*([0-9][0-9\s-]{5,20})$/i,
@@ -196,7 +233,7 @@ function extractIdNumber(lines: string[], text: string): Candidate<string> | nul
   if (labelled) {
     const digits = normalizeDigits(labelled.value);
     if (digits.length >= 8 && digits.length <= 15) {
-      return { value: digits, confidence: 95, source: labelled.source };
+      return { value: digits, confidence: 95, source: labelled.source, sourceText: labelled.sourceText ?? labelled.value };
     }
   }
 
@@ -206,13 +243,13 @@ function extractIdNumber(lines: string[], text: string): Candidate<string> | nul
   if (match?.[1]) {
     const digits = normalizeDigits(match[1]);
     if (digits.length >= 8 && digits.length <= 15) {
-      return { value: digits, confidence: 90, source: pattern.source };
+      return { value: digits, confidence: 90, source: pattern.source, sourceText: compactWhitespace(match[0]) };
     }
   }
 
   const fallbackDigits = compact.match(/\b\d{8,15}\b/)?.[0];
   if (fallbackDigits) {
-    return { value: fallbackDigits, confidence: 72, source: "fallback_digits" };
+    return { value: fallbackDigits, confidence: 72, source: "fallback_digits", sourceText: compact };
   }
 
   return null;
@@ -225,25 +262,25 @@ function extractLicenceCode(lines: string[], text: string): Candidate<string> | 
     /^\s*(?:code)\s*[:.\-]?\s*([A-Za-z0-9]+)$/i,
   ]);
   if (labelled) {
-    return { value: labelled.value, confidence: 94, source: labelled.source };
+    return { value: labelled.value, confidence: 94, source: labelled.source, sourceText: labelled.sourceText ?? labelled.value };
   }
 
   const linesWithLicence = lines.filter((line) => /licen[cs]e/i.test(line));
   for (const line of linesWithLicence) {
     const shortNumber = line.match(/\b(?:no\.?|class|code)\s*[:.\-]?\s*([A-Za-z0-9]{1,3})\b/i)?.[1];
     if (shortNumber) {
-      return { value: shortNumber.trim(), confidence: 82, source: "licence_line_short_number" };
+      return { value: shortNumber.trim(), confidence: 82, source: "licence_line_short_number", sourceText: line };
     }
   }
 
   const explicitSingleDigit = compactWhitespace(text).match(/\blicen[cs]e\s+no\.?\s*[:.\-]?\s*([A-Za-z0-9]{1,3})\b/i)?.[1];
   if (explicitSingleDigit) {
-    return { value: explicitSingleDigit.trim(), confidence: 80, source: "licence_no_short_value" };
+    return { value: explicitSingleDigit.trim(), confidence: 80, source: "licence_no_short_value", sourceText: compactWhitespace(text) };
   }
 
   const standaloneCode = compactWhitespace(text).match(/\bno\.?\s*[:.\-]?\s*([A-Za-z0-9]{1,3})\b/i)?.[1];
   if (standaloneCode) {
-    return { value: standaloneCode.trim(), confidence: 70, source: "standalone_code" };
+    return { value: standaloneCode.trim(), confidence: 70, source: "standalone_code", sourceText: compactWhitespace(text) };
   }
 
   return null;
@@ -258,15 +295,15 @@ function extractLicenceNumber(lines: string[], text: string, idNumber?: string |
     const cleaned = compactWhitespace(labelled.value).replace(/[^A-Za-z0-9]/g, "");
     const digits = normalizeDigits(labelled.value);
     if (/[A-Za-z]/.test(cleaned)) {
-      return { value: cleaned, confidence: 95, source: labelled.source };
+      return { value: cleaned, confidence: 95, source: labelled.source, sourceText: labelled.sourceText ?? labelled.value };
     }
 
     if (digits.length >= 6) {
-      return { value: digits, confidence: 95, source: labelled.source };
+      return { value: normalizeLicenceDigits(digits), confidence: 95, source: labelled.source, sourceText: labelled.sourceText ?? labelled.value };
     }
 
     if (cleaned) {
-      return { value: cleaned, confidence: 88, source: labelled.source };
+      return { value: cleaned, confidence: 88, source: labelled.source, sourceText: labelled.sourceText ?? labelled.value };
     }
   }
 
@@ -297,11 +334,11 @@ function extractLicenceNumber(lines: string[], text: string, idNumber?: string |
     }
 
     if (/\brestriction\b/.test(context) || /\blicen[cs]e\b/.test(context) || /\bvalid\b/.test(context)) {
-      return { value: digitsOnly, confidence: 92, source: "contextual_digit_line" };
+      return { value: normalizeLicenceDigits(digitsOnly), confidence: 92, source: "contextual_digit_line", sourceText: line };
     }
 
     if (digitsOnly.length >= 8) {
-      return { value: digitsOnly, confidence: 76, source: "standalone_digit_line" };
+      return { value: digitsOnly, confidence: 76, source: "standalone_digit_line", sourceText: line };
     }
   }
 
@@ -312,7 +349,7 @@ function extractLicenceNumber(lines: string[], text: string, idNumber?: string |
     .filter((candidate) => candidate.length >= 6 && candidate.length <= 15 && candidate !== idNumber) ?? [];
   if (digitCandidates.length > 0) {
     const best = digitCandidates.sort((left, right) => right.length - left.length)[0];
-    return { value: best, confidence: 70, source: "digit_candidate" };
+    return { value: normalizeLicenceDigits(best), confidence: 70, source: "digit_candidate", sourceText: compact };
   }
 
   return null;
@@ -366,8 +403,8 @@ function extractNameAndSurname(lines: string[]): { name: Candidate<string> | nul
   const surname = parts.length >= 2 ? parts[parts.length - 1] : null;
 
   return {
-    name: name ? { value: name, confidence: 78, source: "heuristic_name_line" } : null,
-    surname: surname ? { value: surname, confidence: 78, source: "heuristic_name_line" } : null,
+    name: name ? { value: name, confidence: 78, source: "heuristic_name_line", sourceText: candidate } : null,
+    surname: surname ? { value: surname, confidence: 78, source: "heuristic_name_line", sourceText: candidate } : null,
   };
 }
 
@@ -389,6 +426,114 @@ function buildConfidenceMap(entries: Array<[FieldName, Candidate<string> | null]
   return result;
 }
 
+function pickSourceText(candidate: Candidate<string> | null | undefined, fallback: string): string {
+  return compactWhitespace(candidate?.sourceText ?? candidate?.value ?? fallback);
+}
+
+function toFieldEvidence(value: string | null, confidence: number, sourceText: string): VehicleFinanceDriverLicenceField {
+  return {
+    value,
+    confidence: clamp(confidence),
+    sourceText: compactWhitespace(sourceText),
+  };
+}
+
+function extractLabelledValue(lines: string[], labels: RegExp[], confidence = 95): Candidate<string> | null {
+  const labelled = firstMatchingLine(lines, labels);
+  if (labelled) {
+    return { ...labelled, confidence };
+  }
+
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index];
+    if (!labels.some((pattern) => pattern.test(line))) {
+      continue;
+    }
+
+    const next = lines[index + 1] ?? "";
+    if (next) {
+      return {
+        value: next,
+        confidence: Math.max(70, confidence - 10),
+        source: "next_line",
+        sourceText: `${line} ${next}`,
+      };
+    }
+  }
+
+  return null;
+}
+
+function extractGender(lines: string[]): Candidate<string> | null {
+  for (const line of lines) {
+    const match = line.match(/\b(MALE|FEMALE)\b/i);
+    if (match?.[1]) {
+      return {
+        value: match[1].toUpperCase(),
+        confidence: 98,
+        source: "gender_line",
+        sourceText: line,
+      };
+    }
+  }
+
+  return null;
+}
+
+function extractRestriction(lines: string[]): Candidate<string> | null {
+  const labelled = extractLabelledValue(lines, [
+    /^\s*restrictions?\s*[:.\-]?\s*([A-Za-z0-9]+)$/i,
+  ], 95);
+  if (labelled) {
+    const cleaned = compactWhitespace(labelled.value).replace(/[^A-Za-z0-9]/g, "");
+    if (cleaned) {
+      return { ...labelled, value: cleaned };
+    }
+  }
+
+  for (const line of lines) {
+    if (/^\s*restrictions?\b/i.test(line)) {
+      const nextDigits = line.match(/restrictions?\s*[:.\-]?\s*([A-Za-z0-9]+)/i)?.[1];
+      if (nextDigits) {
+        return {
+          value: nextDigits.replace(/[^A-Za-z0-9]/g, ""),
+          confidence: 95,
+          source: "restriction_inline",
+          sourceText: line,
+        };
+      }
+    }
+  }
+
+  return null;
+}
+
+function extractCountry(lines: string[]): Candidate<string> | null {
+  for (const line of lines) {
+    if (/south\s+africa/i.test(line)) {
+      return {
+        value: "SOUTH AFRICA",
+        confidence: 98,
+        source: "country_indicator",
+        sourceText: line,
+      };
+    }
+  }
+
+  for (const line of lines) {
+    if (/\bza\b/i.test(line)) {
+      return {
+        value: "ZA",
+        confidence: 88,
+        source: "country_indicator",
+        sourceText: line,
+      };
+    }
+  }
+
+  return null;
+}
+
 export function extractDriverLicenceDetails(text: string): DriverLicenceExtraction {
   try {
     const normalized = normalizeText(text);
@@ -397,25 +542,31 @@ export function extractDriverLicenceDetails(text: string): DriverLicenceExtracti
     const idNumber = extractIdNumber(lines, normalized);
     const licenceCode = extractLicenceCode(lines, normalized);
     const licenceNumber = extractLicenceNumber(lines, normalized, idNumber?.value ?? null);
-  const rangeDates = extractJoinedRangeDates(normalized);
+    const gender = extractGender(lines);
+    const restriction = extractRestriction(lines);
+    const country = extractCountry(lines);
+    const rangeDates = extractJoinedRangeDates(normalized);
     const standaloneIssueDate = extractStandaloneDate(normalized, [
       /^\s*(?:issue(?:d)?\s+date|date\s+of\s+issue|valid\s+from)\s*[:.\-]?\s*(\d{1,2}[\/.-]\d{1,2}[\/.-]\d{2,4}|\d{4}[\/.-]\d{2}[\/.-]\d{2})$/i,
-    ])?.value;
+    ]);
     const standaloneExpiryDate = extractStandaloneDate(normalized, [
       /^\s*(?:expiry\s+date|date\s+of\s+expiry|valid\s+to|valid\s+until|expires?\s+on)\s*[:.\-]?\s*(\d{1,2}[\/.-]\d{1,2}[\/.-]\d{2,4}|\d{4}[\/.-]\d{2}[\/.-]\d{2})$/i,
-    ])?.value;
+    ]);
 
-    const issueDate = standaloneIssueDate ?? (rangeDates?.value.issueDate || null);
-    const expiryDate = standaloneExpiryDate ?? (rangeDates?.value.expiryDate || null);
+    const issueDate = standaloneIssueDate?.value ?? (rangeDates?.value.issueDate || null);
+    const expiryDate = standaloneExpiryDate?.value ?? (rangeDates?.value.expiryDate || null);
 
     const fieldConfidence = buildConfidenceMap([
       ["name", name],
       ["surname", surname],
       ["idNumber", idNumber],
       ["licenceNumber", licenceNumber],
-      ["issueDate", issueDate ? { value: issueDate, confidence: rangeDates ? rangeDates.confidence : 90, source: "date" } : null],
-      ["expiryDate", expiryDate ? { value: expiryDate, confidence: rangeDates ? rangeDates.confidence : 90, source: "date" } : null],
+      ["issueDate", issueDate ? { value: issueDate, confidence: standaloneIssueDate?.confidence ?? rangeDates?.confidence ?? 90, source: "date", sourceText: standaloneIssueDate?.sourceText ?? rangeDates?.sourceText } : null],
+      ["expiryDate", expiryDate ? { value: expiryDate, confidence: standaloneExpiryDate?.confidence ?? rangeDates?.confidence ?? 90, source: "date", sourceText: standaloneExpiryDate?.sourceText ?? rangeDates?.sourceText } : null],
       ["licenceCode", licenceCode],
+      ["gender", gender],
+      ["restriction", restriction],
+      ["country", country],
     ]);
 
     const confidenceSignals = [
@@ -426,9 +577,53 @@ export function extractDriverLicenceDetails(text: string): DriverLicenceExtracti
       fieldConfidence.issueDate ?? 0,
       fieldConfidence.expiryDate ?? 0,
       fieldConfidence.licenceCode ?? 0,
+      fieldConfidence.gender ?? 0,
+      fieldConfidence.restriction ?? 0,
+      fieldConfidence.country ?? 0,
     ].filter((value) => value > 0);
 
-    const overallConfidence = clamp(average(confidenceSignals) || 0);
+    const weightedConfidence = clamp(
+      average(
+        confidenceSignals.map((value, index) => {
+          if (index === 0 || index === 1) {
+            return value * 0.85;
+          }
+          if (index === 4 || index === 5) {
+            return value * 0.95;
+          }
+          if (index === 2 || index === 3 || index === 6) {
+            return value * 1;
+          }
+          return value * 0.9;
+        }),
+      ) || 0,
+    );
+
+    const fieldSourceText = {
+      name: pickSourceText(name, name?.value ?? ""),
+      surname: pickSourceText(surname, surname?.value ?? ""),
+      idNumber: pickSourceText(idNumber, idNumber?.value ?? ""),
+      licenceNumber: pickSourceText(licenceNumber, licenceNumber?.value ?? ""),
+      issueDate: pickSourceText(standaloneIssueDate, rangeDates?.sourceText ?? issueDate ?? ""),
+      expiryDate: pickSourceText(standaloneExpiryDate, rangeDates?.sourceText ?? expiryDate ?? ""),
+      licenceCode: pickSourceText(licenceCode, licenceCode?.value ?? ""),
+      gender: pickSourceText(gender, gender?.value ?? ""),
+      restriction: pickSourceText(restriction, restriction?.value ?? ""),
+      country: pickSourceText(country, country?.value ?? ""),
+    };
+
+    const fields = {
+      name: toFieldEvidence(name?.value ?? null, fieldConfidence.name ?? name?.confidence ?? 0, fieldSourceText.name),
+      surname: toFieldEvidence(surname?.value ?? null, fieldConfidence.surname ?? surname?.confidence ?? 0, fieldSourceText.surname),
+      idNumber: toFieldEvidence(idNumber?.value ?? null, fieldConfidence.idNumber ?? idNumber?.confidence ?? 0, fieldSourceText.idNumber),
+      licenceNumber: toFieldEvidence(licenceNumber?.value ?? null, fieldConfidence.licenceNumber ?? licenceNumber?.confidence ?? 0, fieldSourceText.licenceNumber),
+      issueDate: toFieldEvidence(issueDate, fieldConfidence.issueDate ?? standaloneIssueDate?.confidence ?? 0, fieldSourceText.issueDate),
+      expiryDate: toFieldEvidence(expiryDate, fieldConfidence.expiryDate ?? standaloneExpiryDate?.confidence ?? 0, fieldSourceText.expiryDate),
+      licenceCode: toFieldEvidence(licenceCode?.value ?? null, fieldConfidence.licenceCode ?? licenceCode?.confidence ?? 0, fieldSourceText.licenceCode),
+      gender: toFieldEvidence(gender?.value ?? null, fieldConfidence.gender ?? gender?.confidence ?? 0, fieldSourceText.gender),
+      restriction: toFieldEvidence(restriction?.value ?? null, fieldConfidence.restriction ?? restriction?.confidence ?? 0, fieldSourceText.restriction),
+      country: toFieldEvidence(country?.value ?? null, fieldConfidence.country ?? country?.confidence ?? 0, fieldSourceText.country),
+    } satisfies VehicleFinanceDriverLicenceStructuredExtraction;
 
     return {
       name: name?.value ?? null,
@@ -438,8 +633,12 @@ export function extractDriverLicenceDetails(text: string): DriverLicenceExtracti
       issueDate,
       expiryDate,
       licenceCode: licenceCode?.value ?? null,
-      confidence: overallConfidence,
+      gender: gender?.value ?? null,
+      restriction: restriction?.value ?? null,
+      country: country?.value ?? null,
+      confidence: weightedConfidence,
       fieldConfidence,
+      fields,
     };
   } catch {
     return {
@@ -450,8 +649,23 @@ export function extractDriverLicenceDetails(text: string): DriverLicenceExtracti
       issueDate: null,
       expiryDate: null,
       licenceCode: null,
+      gender: null,
+      restriction: null,
+      country: null,
       confidence: 0,
       fieldConfidence: {},
+      fields: {
+        name: toFieldEvidence(null, 0, ""),
+        surname: toFieldEvidence(null, 0, ""),
+        idNumber: toFieldEvidence(null, 0, ""),
+        licenceNumber: toFieldEvidence(null, 0, ""),
+        issueDate: toFieldEvidence(null, 0, ""),
+        expiryDate: toFieldEvidence(null, 0, ""),
+        licenceCode: toFieldEvidence(null, 0, ""),
+        gender: toFieldEvidence(null, 0, ""),
+        restriction: toFieldEvidence(null, 0, ""),
+        country: toFieldEvidence(null, 0, ""),
+      },
     };
   }
 }
