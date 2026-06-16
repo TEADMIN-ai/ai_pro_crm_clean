@@ -67,6 +67,7 @@ export async function buildVehicleFinanceBankStatementIntelligence(
     enabled: true,
     featureFlag: true,
     documentType: effectiveType,
+    bankFingerprint: extraction.bankFingerprint ?? null,
     classification: {
       ...classification,
       documentType: effectiveType,

@@ -1,3 +1,5 @@
+import type { VehicleFinanceBankName } from "@/lib/vehicle-finance/classification/bankStatementClassifier";
+
 export const VEHICLE_FINANCE_DOCUMENT_TYPES = [
   "saIdDocument",
   "greenIdBook",
@@ -290,6 +292,64 @@ export type VehicleFinanceBankField = {
   sourceText: string;
 };
 
+export type VehicleFinanceBankFingerprint = {
+  bankName: VehicleFinanceBankName;
+  documentVersion: string | null;
+  statementLayout: string | null;
+  confidence: number;
+  sourceText: string;
+  reasons: string[];
+};
+
+export type VehicleFinanceBankTransaction = {
+  date: string | null;
+  description: string;
+  category: string;
+  amount: number | null;
+  direction: "CREDIT" | "DEBIT" | "UNKNOWN";
+  runningBalance: number | null;
+  confidence: number;
+  sourceText: string;
+};
+
+export type VehicleFinanceBankSalaryIntelligence = {
+  averageSalary: VehicleFinanceBankField;
+  salaryFrequency: VehicleFinanceBankField;
+  salaryConsistency: VehicleFinanceBankField;
+  latestSalary: VehicleFinanceBankField;
+  salaryTrend: VehicleFinanceBankField;
+  salaryDeposits: VehicleFinanceBankLineItem[];
+  flags: string[];
+};
+
+export type VehicleFinanceBankCommitmentSummary = {
+  monthlyDebtCommitments: VehicleFinanceBankField;
+  monthlyInsuranceCommitments: VehicleFinanceBankField;
+  monthlyTelecomCommitments: VehicleFinanceBankField;
+  totalMonthlyCommitments: VehicleFinanceBankField;
+  recurringCommitments: VehicleFinanceBankLineItem[];
+};
+
+export type VehicleFinanceBankGamblingRisk = {
+  gamblingSpend: VehicleFinanceBankField;
+  gamblingFrequency: VehicleFinanceBankField;
+  gamblingPercentageOfIncome: VehicleFinanceBankField;
+  riskLevel: VehicleFinanceRiskLevel;
+  flags: string[];
+};
+
+export type VehicleFinanceBankAffordability = {
+  grossIncome: VehicleFinanceBankField;
+  netIncome: VehicleFinanceBankField;
+  monthlyCommitments: VehicleFinanceBankField;
+  disposableIncome: VehicleFinanceBankField;
+  affordabilityScore: VehicleFinanceBankField;
+  maxAffordableInstalment: VehicleFinanceBankField;
+  starterVehicle: VehicleFinanceBankField;
+  midRangeVehicle: VehicleFinanceBankField;
+  premiumVehicle: VehicleFinanceBankField;
+};
+
 export type VehicleFinanceBankLineItem = {
   type: string;
   amount: number | null;
@@ -299,7 +359,11 @@ export type VehicleFinanceBankLineItem = {
 };
 
 export type VehicleFinanceBankStatementStructuredExtraction = {
+  confidence?: number;
   bankName: VehicleFinanceBankField;
+  bankFingerprint?: VehicleFinanceBankFingerprint | null;
+  documentVersion?: VehicleFinanceBankField;
+  statementLayout?: VehicleFinanceBankField;
   accountHolder: VehicleFinanceBankField;
   accountNumber: VehicleFinanceBankField;
   statementPeriod: VehicleFinanceBankField;
@@ -307,9 +371,18 @@ export type VehicleFinanceBankStatementStructuredExtraction = {
   closingBalance: VehicleFinanceBankField;
   averageMonthlyIncome: VehicleFinanceBankField;
   disposableIncomeEstimate: VehicleFinanceBankField;
+  monthlyDebtCommitments?: VehicleFinanceBankField;
+  monthlyInsuranceCommitments?: VehicleFinanceBankField;
+  monthlyTelecomCommitments?: VehicleFinanceBankField;
   salaryDeposits: VehicleFinanceBankLineItem[];
   recurringCommitments: VehicleFinanceBankLineItem[];
   gamblingTransactions: VehicleFinanceBankLineItem[];
+  transactions?: VehicleFinanceBankTransaction[];
+  salaryIntelligence?: VehicleFinanceBankSalaryIntelligence | null;
+  commitmentSummary?: VehicleFinanceBankCommitmentSummary | null;
+  gamblingRisk?: VehicleFinanceBankGamblingRisk | null;
+  affordability?: VehicleFinanceBankAffordability | null;
+  crossDocumentPreparation?: VehicleFinanceBankStatementCrossDocumentPreparation | null;
 };
 
 export type VehicleFinanceBankStatementVerificationFlag =
@@ -337,6 +410,7 @@ export type VehicleFinanceBankStatementIntelligence = {
   enabled: boolean;
   featureFlag: boolean;
   documentType: "BANK_STATEMENT";
+  bankFingerprint?: VehicleFinanceBankFingerprint | null;
   classification: VehicleFinanceDocumentClassification;
   extraction: VehicleFinanceBankStatementStructuredExtraction;
   verification: VehicleFinanceBankStatementVerification;

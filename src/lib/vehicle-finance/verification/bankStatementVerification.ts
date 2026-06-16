@@ -1,4 +1,4 @@
-import type { BankStatementExtraction } from "../extractors/bankStatementExtractor";
+import type { VehicleFinanceBankStatementStructuredExtraction } from "@/types/vehicleFinance";
 
 export type VehicleFinanceBankStatementVerificationFlag =
   | "MISSING_ACCOUNT_HOLDER"
@@ -22,7 +22,9 @@ function missing(value: string | number | null | undefined): boolean {
   return value === null || value === undefined || String(value).trim() === "";
 }
 
-export function verifyBankStatementExtraction(extraction: BankStatementExtraction): VehicleFinanceBankStatementVerification {
+export function verifyBankStatementExtraction(
+  extraction: VehicleFinanceBankStatementStructuredExtraction,
+): VehicleFinanceBankStatementVerification {
   const flags: VehicleFinanceBankStatementVerificationFlag[] = [];
   let score = 100;
 

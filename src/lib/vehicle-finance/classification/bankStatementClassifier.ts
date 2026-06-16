@@ -6,6 +6,7 @@ export type VehicleFinanceBankName =
   | "NEDBANK"
   | "DISCOVERY"
   | "INVESTEC"
+  | "WESBANK"
   | "TYMEBANK"
   | "AFRICAN_BANK"
   | "UNKNOWN_BANK";
@@ -34,6 +35,7 @@ const BANK_SIGNALS: BankSignal[] = [
   { bankName: "NEDBANK", patterns: [/\bnedbank\b/i], reason: "Detected Nedbank branding" },
   { bankName: "DISCOVERY", patterns: [/\bdiscovery\s+bank\b/i], reason: "Detected Discovery Bank branding" },
   { bankName: "INVESTEC", patterns: [/\binvestec\b/i], reason: "Detected Investec branding" },
+  { bankName: "WESBANK", patterns: [/\bwesbank\b/i, /\bwes\s*bank\b/i, /\bvehicle\s+finance\b/i], reason: "Detected WesBank branding" },
   { bankName: "TYMEBANK", patterns: [/\btyme\s*bank\b/i], reason: "Detected TymeBank branding" },
   { bankName: "AFRICAN_BANK", patterns: [/\bafrican\s+bank\b/i], reason: "Detected African Bank branding" },
 ];

@@ -42,7 +42,7 @@ describe("vehicle finance bank statement intelligence", () => {
     expect(extraction.gamblingTransactions.length).toBe(0);
     expect(extraction.averageMonthlyIncome.value).toBeGreaterThan(0);
     expect(extraction.disposableIncomeEstimate.value).toBeGreaterThan(0);
-    expect(extraction.crossDocumentPreparation.employeeName.value).toBeNull();
+    expect(extraction.crossDocumentPreparation.employeeName.value).toBe("John Doe");
     expect(extraction.confidence).toBeGreaterThan(0);
   });
 
@@ -71,8 +71,6 @@ describe("vehicle finance bank statement intelligence", () => {
 
   test("flags missing fields when verification receives empty values", () => {
     const verification = verifyBankStatementExtraction({
-      documentType: "BANK_STATEMENT",
-      bankNameClassification: { bankName: "UNKNOWN_BANK", confidence: 0, reasons: [] },
       bankName: { value: null, confidence: 0, sourceText: "" },
       accountHolder: { value: null, confidence: 0, sourceText: "" },
       accountNumber: { value: null, confidence: 0, sourceText: "" },

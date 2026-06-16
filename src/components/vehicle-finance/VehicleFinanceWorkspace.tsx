@@ -1273,35 +1273,7 @@ export default function VehicleFinanceWorkspace({ initialSection }: Props) {
               <IdentityCardHeader title="Bank Statement Intelligence" subtitle="Income, commitments, and affordability inputs" />
               {selectedBankStatementDocument ? (
                 (() => {
-                  const intelligence = (selectedBankStatementDocument.aiAnalysis as {
-                    bankStatementIntelligence?: {
-                      documentType?: string;
-                      classification?: { bankName?: string; confidence?: number; reasons?: string[] };
-                      extraction?: {
-                        bankName?: { value?: string | number | null; confidence?: number; sourceText?: string };
-                        accountHolder?: { value?: string | number | null; confidence?: number; sourceText?: string };
-                        accountNumber?: { value?: string | number | null; confidence?: number; sourceText?: string };
-                        statementPeriod?: { value?: string | number | null; confidence?: number; sourceText?: string };
-                        openingBalance?: { value?: string | number | null; confidence?: number; sourceText?: string };
-                        closingBalance?: { value?: string | number | null; confidence?: number; sourceText?: string };
-                        averageMonthlyIncome?: { value?: string | number | null; confidence?: number; sourceText?: string };
-                        disposableIncomeEstimate?: { value?: string | number | null; confidence?: number; sourceText?: string };
-                        salaryDeposits?: Array<{ type?: string; amount?: number | null; date?: string | null; confidence?: number; sourceText?: string }>;
-                        recurringCommitments?: Array<{ type?: string; amount?: number | null; date?: string | null; confidence?: number; sourceText?: string }>;
-                        gamblingTransactions?: Array<{ type?: string; amount?: number | null; date?: string | null; confidence?: number; sourceText?: string }>;
-                        confidence?: number;
-                        fields?: Record<string, { value?: string | number | null; confidence?: number; sourceText?: string }>;
-                      };
-                      verification?: { passed?: boolean; verificationScore?: number; flags?: string[] };
-                      crossDocumentPreparation?: {
-                        employeeName?: { value?: string | number | null; confidence?: number; sourceText?: string };
-                        employerName?: { value?: string | number | null; confidence?: number; sourceText?: string };
-                        netPay?: { value?: string | number | null; confidence?: number; sourceText?: string };
-                      } | null;
-                      selectedText?: string;
-                      overallConfidence?: number;
-                    } | null;
-                  })?.bankStatementIntelligence ?? null;
+                  const intelligence = (selectedBankStatementDocument.aiAnalysis as any)?.bankStatementIntelligence ?? null;
 
                   const extractionFields = intelligence?.extraction?.fields ?? {};
                   const fieldValue = (key: string, fallback?: string | number | null) => extractionFields[key]?.value ?? fallback ?? "n/a";
@@ -1312,6 +1284,14 @@ export default function VehicleFinanceWorkspace({ initialSection }: Props) {
                       <div className="rounded-xl border border-slate-700 bg-slate-950/60 p-4">
                         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Bank Name</p>
                         <p className="mt-2 text-sm text-slate-100">{String(fieldValue("bankName", intelligence.classification?.bankName ?? null))}</p>
+                        <p className="mt-3 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Fingerprint</p>
+                        <p className="mt-2 text-sm text-slate-100">
+                          {String(intelligence.bankFingerprint?.bankName ?? intelligence.classification?.bankName ?? "n/a")}
+                        </p>
+                        <p className="mt-3 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Document Version</p>
+                        <p className="mt-2 text-sm text-slate-100">{String(intelligence.bankFingerprint?.documentVersion ?? "n/a")}</p>
+                        <p className="mt-3 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Statement Layout</p>
+                        <p className="mt-2 text-sm text-slate-100">{String(intelligence.bankFingerprint?.statementLayout ?? "n/a")}</p>
                         <p className="mt-3 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Account Holder</p>
                         <p className="mt-2 text-sm text-slate-100">
                           {String(fieldValue("accountHolder", intelligence.extraction?.accountHolder?.value ?? null))}
@@ -1369,6 +1349,74 @@ export default function VehicleFinanceWorkspace({ initialSection }: Props) {
                       </div>
 
                       <div className="rounded-xl border border-slate-700 bg-slate-950/60 p-4 md:col-span-2 xl:col-span-2">
+                        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Transaction Intelligence</p>
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          <Badge tone="neutral">Transactions: {intelligence.extraction?.transactions?.length ?? 0}</Badge>
+                          <Badge tone="success">
+                            Salary Deposits: {intelligence.extraction?.salaryIntelligence?.salaryDeposits?.length ?? intelligence.extraction?.salaryDeposits?.length ?? 0}
+                          </Badge>
+                          <Badge tone="warning">
+                            Recurring Commitments: {intelligence.extraction?.commitmentSummary?.recurringCommitments?.length ?? intelligence.extraction?.recurringCommitments?.length ?? 0}
+                          </Badge>
+                          <Badge tone="danger">
+                            Gambling Tx: {intelligence.extraction?.gamblingTransactions?.length ?? 0}
+                          </Badge>
+                        </div>
+                        <div className="mt-4 grid gap-2 md:grid-cols-2 xl:grid-cols-4">
+                          <p className="text-sm text-slate-200">
+                            Average Salary: {String(intelligence.extraction?.salaryIntelligence?.averageSalary?.value ?? intelligence.extraction?.averageMonthlyIncome?.value ?? "n/a")}
+                          </p>
+                          <p className="text-sm text-slate-200">
+                            Salary Frequency: {String(intelligence.extraction?.salaryIntelligence?.salaryFrequency?.value ?? "n/a")}
+                          </p>
+                          <p className="text-sm text-slate-200">
+                            Salary Trend: {String(intelligence.extraction?.salaryIntelligence?.salaryTrend?.value ?? "n/a")}
+                          </p>
+                          <p className="text-sm text-slate-200">
+                            Salary Consistency: {String(intelligence.extraction?.salaryIntelligence?.salaryConsistency?.value ?? "n/a")}
+                          </p>
+                          <p className="text-sm text-slate-200">
+                            Debt Commitments: {String(intelligence.extraction?.commitmentSummary?.monthlyDebtCommitments?.value ?? intelligence.extraction?.monthlyDebtCommitments?.value ?? "n/a")}
+                          </p>
+                          <p className="text-sm text-slate-200">
+                            Insurance Commitments: {String(intelligence.extraction?.commitmentSummary?.monthlyInsuranceCommitments?.value ?? intelligence.extraction?.monthlyInsuranceCommitments?.value ?? "n/a")}
+                          </p>
+                          <p className="text-sm text-slate-200">
+                            Telecom Commitments: {String(intelligence.extraction?.commitmentSummary?.monthlyTelecomCommitments?.value ?? intelligence.extraction?.monthlyTelecomCommitments?.value ?? "n/a")}
+                          </p>
+                          <p className="text-sm text-slate-200">
+                            Gambling Risk: {String(intelligence.extraction?.gamblingRisk?.riskLevel ?? "LOW")}
+                          </p>
+                        </div>
+                        <p className="mt-4 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Affordability</p>
+                        <div className="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+                          <p className="text-sm text-slate-200">
+                            Gross Income: {String(intelligence.extraction?.affordability?.grossIncome?.value ?? "n/a")}
+                          </p>
+                          <p className="text-sm text-slate-200">
+                            Net Income: {String(intelligence.extraction?.affordability?.netIncome?.value ?? "n/a")}
+                          </p>
+                          <p className="text-sm text-slate-200">
+                            Monthly Commitments: {String(intelligence.extraction?.affordability?.monthlyCommitments?.value ?? "n/a")}
+                          </p>
+                          <p className="text-sm text-slate-200">
+                            Disposable Income: {String(intelligence.extraction?.affordability?.disposableIncome?.value ?? "n/a")}
+                          </p>
+                          <p className="text-sm text-slate-200">
+                            Affordability Score: {String(intelligence.extraction?.affordability?.affordabilityScore?.value ?? intelligence.overallConfidence ?? 0)}
+                          </p>
+                          <p className="text-sm text-slate-200">
+                            Max Instalment: {String(intelligence.extraction?.affordability?.maxAffordableInstalment?.value ?? "n/a")}
+                          </p>
+                        </div>
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          <Badge tone="success">{String(intelligence.extraction?.affordability?.starterVehicle?.value ?? "Starter band unavailable")}</Badge>
+                          <Badge tone="warning">{String(intelligence.extraction?.affordability?.midRangeVehicle?.value ?? "Mid-range band unavailable")}</Badge>
+                          <Badge tone="neutral">{String(intelligence.extraction?.affordability?.premiumVehicle?.value ?? "Premium band unavailable")}</Badge>
+                        </div>
+                      </div>
+
+                      <div className="rounded-xl border border-slate-700 bg-slate-950/60 p-4 md:col-span-2 xl:col-span-2">
                         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Confidence</p>
                         <div className="mt-3 flex flex-wrap gap-2">
                           {[
@@ -1380,11 +1428,22 @@ export default function VehicleFinanceWorkspace({ initialSection }: Props) {
                             ["Closing", fieldConfidence("closingBalance", intelligence.extraction?.confidence)],
                             ["Income", fieldConfidence("averageMonthlyIncome", intelligence.extraction?.confidence)],
                             ["Disposable", fieldConfidence("disposableIncomeEstimate", intelligence.extraction?.confidence)],
+                            ["Salary", intelligence.extraction?.salaryIntelligence?.averageSalary?.confidence ?? 0],
+                            ["Debt", intelligence.extraction?.commitmentSummary?.totalMonthlyCommitments?.confidence ?? 0],
+                            ["Gambling", intelligence.extraction?.gamblingRisk?.gamblingSpend?.confidence ?? 0],
+                            ["Affordability", intelligence.extraction?.affordability?.affordabilityScore?.confidence ?? 0],
                           ].map(([label, score]) => (
                             <Badge key={label as string} tone="neutral">
                               {label}: {score as number}%
                             </Badge>
                           ))}
+                        </div>
+
+                        <p className="mt-4 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Evidence</p>
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          <Badge tone="neutral">{String(intelligence.bankFingerprint?.sourceText ?? intelligence.extraction?.bankName?.sourceText ?? "n/a")}</Badge>
+                          <Badge tone="neutral">{String(intelligence.extraction?.accountHolder?.sourceText ?? "n/a")}</Badge>
+                          <Badge tone="neutral">{String(intelligence.extraction?.statementPeriod?.sourceText ?? "n/a")}</Badge>
                         </div>
 
                         <p className="mt-4 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Salary Deposits</p>
@@ -1437,6 +1496,18 @@ export default function VehicleFinanceWorkspace({ initialSection }: Props) {
                           <Badge tone="neutral">
                             Net Pay: {String(intelligence.crossDocumentPreparation?.netPay?.value ?? "n/a")}
                           </Badge>
+                        </div>
+
+                        <p className="mt-4 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Transactions</p>
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          {(intelligence.extraction?.transactions ?? []).slice(0, 12).map((transaction: any, index: number) => (
+                            <Badge
+                              key={`${transaction.date ?? "date"}-${transaction.description ?? "tx"}-${index}`}
+                              tone={transaction.direction === "CREDIT" ? "success" : transaction.direction === "DEBIT" ? "danger" : "neutral"}
+                            >
+                              {String(transaction.date ?? "n/a")} {String(transaction.description ?? transaction.category ?? "Transaction")} {String(transaction.amount ?? "n/a")}
+                            </Badge>
+                          ))}
                         </div>
                       </div>
                     </div>

@@ -94,6 +94,8 @@ export function classifyVehicleFinanceDocument(text: string): VehicleFinanceDocu
     /\bnedbank\b/,
     /\bdiscovery\s+bank\b/,
     /\binvestec\b/,
+    /\bwesbank\b/,
+    /\bwes\s*bank\b/,
     /\btyme\s*bank\b/,
     /\bafrican\s+bank\b/,
     /\baccount\s+holder\b/,
