@@ -816,6 +816,15 @@ export async function uploadVehicleFinanceDocument(args: {
     metadata: documentAnalysis,
   });
 
+  if (driverLicenceIntelligence) {
+    console.log("[INTELLIGENCE_PERSISTED]", {
+      applicationId: args.applicationId,
+      documentId: saved.record.documentId,
+      featureFlagEnabled: featureFlags.ENABLE_VEHICLE_FINANCE_LICENCE_INTELLIGENCE,
+      persistedPayload: documentAnalysis.driverLicenceIntelligence,
+    });
+  }
+
   await recordSystemMetric({
     metricType: "vehicle_finance_document_upload",
     route: "vehicle-finance.documents.upload",
