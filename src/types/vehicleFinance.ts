@@ -55,6 +55,7 @@ export type VehicleFinanceDocumentAnalysis = {
   driverLicenceIntelligence?: VehicleFinanceDriverLicenceIntelligence | null;
   identityIntelligence?: VehicleFinanceIdentityDocumentIntelligence | null;
   payslipIntelligence?: VehicleFinancePayslipIntelligence | null;
+  bankStatementIntelligence?: VehicleFinanceBankStatementIntelligence | null;
 };
 
 export type VehicleFinanceDocument = {
@@ -283,6 +284,70 @@ export type VehicleFinancePayslipIntelligence = {
   fields?: VehicleFinancePayslipStructuredExtraction;
 };
 
+export type VehicleFinanceBankField = {
+  value: string | number | null;
+  confidence: number;
+  sourceText: string;
+};
+
+export type VehicleFinanceBankLineItem = {
+  type: string;
+  amount: number | null;
+  date?: string | null;
+  confidence: number;
+  sourceText: string;
+};
+
+export type VehicleFinanceBankStatementStructuredExtraction = {
+  bankName: VehicleFinanceBankField;
+  accountHolder: VehicleFinanceBankField;
+  accountNumber: VehicleFinanceBankField;
+  statementPeriod: VehicleFinanceBankField;
+  openingBalance: VehicleFinanceBankField;
+  closingBalance: VehicleFinanceBankField;
+  averageMonthlyIncome: VehicleFinanceBankField;
+  disposableIncomeEstimate: VehicleFinanceBankField;
+  salaryDeposits: VehicleFinanceBankLineItem[];
+  recurringCommitments: VehicleFinanceBankLineItem[];
+  gamblingTransactions: VehicleFinanceBankLineItem[];
+};
+
+export type VehicleFinanceBankStatementVerificationFlag =
+  | "MISSING_ACCOUNT_HOLDER"
+  | "MISSING_ACCOUNT_NUMBER"
+  | "NO_SALARY_DEPOSITS"
+  | "HIGH_GAMBLING_ACTIVITY"
+  | "HIGH_RECURRING_DEBT"
+  | "MISSING_STATEMENT_PERIOD";
+
+export type VehicleFinanceBankStatementVerification = {
+  verificationScore: number;
+  passed: boolean;
+  flags: VehicleFinanceBankStatementVerificationFlag[];
+};
+
+export type VehicleFinanceBankStatementCrossDocumentPreparation = {
+  employeeName: VehicleFinanceBankField;
+  employerName: VehicleFinanceBankField;
+  netPay: VehicleFinanceBankField;
+  salaryDeposits: VehicleFinanceBankLineItem[];
+};
+
+export type VehicleFinanceBankStatementIntelligence = {
+  enabled: boolean;
+  featureFlag: boolean;
+  documentType: "BANK_STATEMENT";
+  classification: VehicleFinanceDocumentClassification;
+  extraction: VehicleFinanceBankStatementStructuredExtraction;
+  verification: VehicleFinanceBankStatementVerification;
+  overallConfidence: number;
+  sourceText: string;
+  sourceTextLength: number;
+  selectedText: string;
+  crossDocumentPreparation?: VehicleFinanceBankStatementCrossDocumentPreparation | null;
+  fields?: VehicleFinanceBankStatementStructuredExtraction;
+};
+
 export const VEHICLE_FINANCE_IDENTITY_INTELLIGENCE_JOB_COLLECTION =
   "vehicleFinanceIdentityIntelligenceJobs";
 
@@ -311,6 +376,24 @@ export type VehicleFinancePayslipIntelligenceJob = {
   applicationId: string;
   documentId: string;
   status: VehicleFinancePayslipIntelligenceJobStatus;
+  createdAt: string;
+  updatedAt: string;
+  startedAt?: string | null;
+  completedAt?: string | null;
+  errorMessage?: string | null;
+  resultDocumentId?: string | null;
+};
+
+export const VEHICLE_FINANCE_BANK_STATEMENT_INTELLIGENCE_JOB_COLLECTION =
+  "vehicleFinanceBankStatementIntelligenceJobs";
+
+export type VehicleFinanceBankStatementIntelligenceJobStatus = "QUEUED" | "PROCESSING" | "PROCESSED" | "FAILED";
+
+export type VehicleFinanceBankStatementIntelligenceJob = {
+  jobId: string;
+  applicationId: string;
+  documentId: string;
+  status: VehicleFinanceBankStatementIntelligenceJobStatus;
   createdAt: string;
   updatedAt: string;
   startedAt?: string | null;

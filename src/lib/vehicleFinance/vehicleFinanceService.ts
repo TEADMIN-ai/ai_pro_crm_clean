@@ -7,6 +7,7 @@ import { getVehicleFinanceFeatureFlags } from "@/lib/vehicle-finance/config/feat
 import { queueVehicleFinanceDriverLicenceIntelligence } from "@/lib/vehicle-finance/intelligence/driverLicenceIntelligenceJobs";
 import { queueVehicleFinanceIdentityIntelligence } from "@/lib/vehicle-finance/intelligence/identityIntelligenceJobs";
 import { queueVehicleFinancePayslipIntelligence } from "@/lib/vehicle-finance/intelligence/payslipIntelligenceJobs";
+import { queueVehicleFinanceBankStatementIntelligence } from "@/lib/vehicle-finance/intelligence/bankStatementIntelligenceJobs";
 import type {
   VehicleFinanceApplication,
   VehicleFinanceAssessment,
@@ -831,6 +832,24 @@ export async function uploadVehicleFinanceDocument(args: {
     }
   }
 
+  let bankStatementIntelligenceJob: Awaited<ReturnType<typeof queueVehicleFinanceBankStatementIntelligence>> | null = null;
+  if (args.documentType === "bankStatement") {
+    try {
+      bankStatementIntelligenceJob = await queueVehicleFinanceBankStatementIntelligence(args.applicationId, saved.record.documentId);
+      console.log("[BANK_STATEMENT_INTELLIGENCE_JOB_QUEUED]", {
+        applicationId: args.applicationId,
+        documentId: saved.record.documentId,
+        jobId: bankStatementIntelligenceJob.jobId,
+      });
+    } catch (error) {
+      console.warn("[vehicle-finance] bank statement intelligence queue failed", {
+        applicationId: args.applicationId,
+        documentType: args.documentType,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
   await recordSystemMetric({
     metricType: "vehicle_finance_document_upload",
     route: "vehicle-finance.documents.upload",
@@ -840,7 +859,12 @@ export async function uploadVehicleFinanceDocument(args: {
     metadata: { documentType: args.documentType, extractionSource: extraction.source },
   });
 
-  return { ...saved.record, signedUrl: saved.signedUrl, intelligenceJob: intelligenceJob ?? payslipIntelligenceJob, identityIntelligenceJob };
+  return {
+    ...saved.record,
+    signedUrl: saved.signedUrl,
+    intelligenceJob: intelligenceJob ?? payslipIntelligenceJob ?? bankStatementIntelligenceJob,
+    identityIntelligenceJob,
+  };
 }
 
 export async function runVehicleFinanceAssessment(applicationId: string, actor: ActorContext) {

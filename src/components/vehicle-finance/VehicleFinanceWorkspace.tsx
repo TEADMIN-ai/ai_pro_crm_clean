@@ -236,6 +236,11 @@ export default function VehicleFinanceWorkspace({ initialSection }: Props) {
     [selectedDocuments],
   );
 
+  const selectedBankStatementDocument = useMemo(
+    () => selectedDocuments.find((document) => document.documentType === "bankStatement") ?? null,
+    [selectedDocuments],
+  );
+
   const certificateByApplicationId = useMemo(() => {
     return new Map(certificates.map((certificate) => [certificate.applicationId, certificate]));
   }, [certificates]);
@@ -312,6 +317,7 @@ export default function VehicleFinanceWorkspace({ initialSection }: Props) {
       setError("Choose a PDF before uploading.");
       return;
     }
+    const documentLabel = getVehicleFinanceDocumentLabel(documentType);
 
     try {
       setBusy(`upload:${documentType}`);
@@ -357,15 +363,15 @@ export default function VehicleFinanceWorkspace({ initialSection }: Props) {
           // eslint-disable-next-line no-await-in-loop
           const statusPayload = (await statusResponse.json().catch(() => null)) as VehicleFinanceDriverLicenceIntelligenceStatusResponse | null;
           if (!statusResponse.ok || !statusPayload?.job) {
-            throw new Error(statusPayload?.job?.errorMessage ?? `Driver licence intelligence status failed (${statusResponse.status})`);
+            throw new Error(statusPayload?.job?.errorMessage ?? `${documentLabel} intelligence status failed (${statusResponse.status})`);
           }
           currentStatus = statusPayload.job.status;
           if (attempts >= 30 && (currentStatus === "QUEUED" || currentStatus === "PROCESSING")) {
-            throw new Error("Driver licence intelligence is still processing.");
+            throw new Error(`${documentLabel} intelligence is still processing.`);
           }
         }
         if (currentStatus === "FAILED") {
-          throw new Error("Driver licence intelligence failed.");
+          throw new Error(`${documentLabel} intelligence failed.`);
         }
       }
       await refresh();
@@ -1260,6 +1266,186 @@ export default function VehicleFinanceWorkspace({ initialSection }: Props) {
                 })()
               ) : (
                 <p className="mt-4 text-sm text-slate-400">Upload a payslip to view payslip intelligence.</p>
+              )}
+            </Card>
+
+            <Card>
+              <IdentityCardHeader title="Bank Statement Intelligence" subtitle="Income, commitments, and affordability inputs" />
+              {selectedBankStatementDocument ? (
+                (() => {
+                  const intelligence = (selectedBankStatementDocument.aiAnalysis as {
+                    bankStatementIntelligence?: {
+                      documentType?: string;
+                      classification?: { bankName?: string; confidence?: number; reasons?: string[] };
+                      extraction?: {
+                        bankName?: { value?: string | number | null; confidence?: number; sourceText?: string };
+                        accountHolder?: { value?: string | number | null; confidence?: number; sourceText?: string };
+                        accountNumber?: { value?: string | number | null; confidence?: number; sourceText?: string };
+                        statementPeriod?: { value?: string | number | null; confidence?: number; sourceText?: string };
+                        openingBalance?: { value?: string | number | null; confidence?: number; sourceText?: string };
+                        closingBalance?: { value?: string | number | null; confidence?: number; sourceText?: string };
+                        averageMonthlyIncome?: { value?: string | number | null; confidence?: number; sourceText?: string };
+                        disposableIncomeEstimate?: { value?: string | number | null; confidence?: number; sourceText?: string };
+                        salaryDeposits?: Array<{ type?: string; amount?: number | null; date?: string | null; confidence?: number; sourceText?: string }>;
+                        recurringCommitments?: Array<{ type?: string; amount?: number | null; date?: string | null; confidence?: number; sourceText?: string }>;
+                        gamblingTransactions?: Array<{ type?: string; amount?: number | null; date?: string | null; confidence?: number; sourceText?: string }>;
+                        confidence?: number;
+                        fields?: Record<string, { value?: string | number | null; confidence?: number; sourceText?: string }>;
+                      };
+                      verification?: { passed?: boolean; verificationScore?: number; flags?: string[] };
+                      crossDocumentPreparation?: {
+                        employeeName?: { value?: string | number | null; confidence?: number; sourceText?: string };
+                        employerName?: { value?: string | number | null; confidence?: number; sourceText?: string };
+                        netPay?: { value?: string | number | null; confidence?: number; sourceText?: string };
+                      } | null;
+                      selectedText?: string;
+                      overallConfidence?: number;
+                    } | null;
+                  })?.bankStatementIntelligence ?? null;
+
+                  const extractionFields = intelligence?.extraction?.fields ?? {};
+                  const fieldValue = (key: string, fallback?: string | number | null) => extractionFields[key]?.value ?? fallback ?? "n/a";
+                  const fieldConfidence = (key: string, fallback?: number | null) => extractionFields[key]?.confidence ?? fallback ?? 0;
+
+                  return intelligence ? (
+                    <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                      <div className="rounded-xl border border-slate-700 bg-slate-950/60 p-4">
+                        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Bank Name</p>
+                        <p className="mt-2 text-sm text-slate-100">{String(fieldValue("bankName", intelligence.classification?.bankName ?? null))}</p>
+                        <p className="mt-3 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Account Holder</p>
+                        <p className="mt-2 text-sm text-slate-100">
+                          {String(fieldValue("accountHolder", intelligence.extraction?.accountHolder?.value ?? null))}
+                        </p>
+                      </div>
+
+                      <div className="rounded-xl border border-slate-700 bg-slate-950/60 p-4">
+                        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Account Number</p>
+                        <p className="mt-2 text-sm text-slate-100">
+                          {String(fieldValue("accountNumber", intelligence.extraction?.accountNumber?.value ?? null))}
+                        </p>
+                        <p className="mt-3 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Statement Period</p>
+                        <p className="mt-2 text-sm text-slate-100">
+                          {String(fieldValue("statementPeriod", intelligence.extraction?.statementPeriod?.value ?? null))}
+                        </p>
+                      </div>
+
+                      <div className="rounded-xl border border-slate-700 bg-slate-950/60 p-4">
+                        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Opening Balance</p>
+                        <p className="mt-2 text-sm text-slate-100">
+                          {String(fieldValue("openingBalance", intelligence.extraction?.openingBalance?.value ?? null))}
+                        </p>
+                        <p className="mt-3 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Closing Balance</p>
+                        <p className="mt-2 text-sm text-slate-100">
+                          {String(fieldValue("closingBalance", intelligence.extraction?.closingBalance?.value ?? null))}
+                        </p>
+                      </div>
+
+                      <div className="rounded-xl border border-slate-700 bg-slate-950/60 p-4">
+                        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Average Monthly Income</p>
+                        <p className="mt-2 text-sm text-slate-100">
+                          {String(fieldValue("averageMonthlyIncome", intelligence.extraction?.averageMonthlyIncome?.value ?? null))}
+                        </p>
+                        <p className="mt-3 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Disposable Income Estimate</p>
+                        <p className="mt-2 text-sm text-slate-100">
+                          {String(fieldValue("disposableIncomeEstimate", intelligence.extraction?.disposableIncomeEstimate?.value ?? null))}
+                        </p>
+                      </div>
+
+                      <div className="rounded-xl border border-slate-700 bg-slate-950/60 p-4">
+                        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Verification Score</p>
+                        <p className="mt-2 text-sm text-slate-100">{intelligence.verification?.verificationScore ?? 0}</p>
+                        <p className="mt-3 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Verification Flags</p>
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          {intelligence.verification?.flags?.length ? (
+                            intelligence.verification.flags.map((flag) => (
+                              <Badge key={flag} tone="warning">
+                                {flag}
+                              </Badge>
+                            ))
+                          ) : (
+                            <Badge tone="success">PASS</Badge>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="rounded-xl border border-slate-700 bg-slate-950/60 p-4 md:col-span-2 xl:col-span-2">
+                        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Confidence</p>
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          {[
+                            ["Bank", fieldConfidence("bankName", intelligence.extraction?.confidence)],
+                            ["Holder", fieldConfidence("accountHolder", intelligence.extraction?.confidence)],
+                            ["Account", fieldConfidence("accountNumber", intelligence.extraction?.confidence)],
+                            ["Period", fieldConfidence("statementPeriod", intelligence.extraction?.confidence)],
+                            ["Opening", fieldConfidence("openingBalance", intelligence.extraction?.confidence)],
+                            ["Closing", fieldConfidence("closingBalance", intelligence.extraction?.confidence)],
+                            ["Income", fieldConfidence("averageMonthlyIncome", intelligence.extraction?.confidence)],
+                            ["Disposable", fieldConfidence("disposableIncomeEstimate", intelligence.extraction?.confidence)],
+                          ].map(([label, score]) => (
+                            <Badge key={label as string} tone="neutral">
+                              {label}: {score as number}%
+                            </Badge>
+                          ))}
+                        </div>
+
+                        <p className="mt-4 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Salary Deposits</p>
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          {(intelligence.extraction?.salaryDeposits ?? []).length ? (
+                            intelligence.extraction?.salaryDeposits?.map((deposit, index) => (
+                              <Badge key={`${deposit.type}-${deposit.date ?? "date"}-${index}`} tone="success">
+                                {deposit.type}: {deposit.amount ?? "n/a"}
+                              </Badge>
+                            ))
+                          ) : (
+                            <Badge tone="neutral">None detected</Badge>
+                          )}
+                        </div>
+
+                        <p className="mt-4 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Recurring Commitments</p>
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          {(intelligence.extraction?.recurringCommitments ?? []).length ? (
+                            intelligence.extraction?.recurringCommitments?.map((commitment, index) => (
+                              <Badge key={`${commitment.type}-${commitment.date ?? "date"}-${index}`} tone="warning">
+                                {commitment.type}: {commitment.amount ?? "n/a"}
+                              </Badge>
+                            ))
+                          ) : (
+                            <Badge tone="neutral">None detected</Badge>
+                          )}
+                        </div>
+
+                        <p className="mt-4 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Gambling Transactions</p>
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          {(intelligence.extraction?.gamblingTransactions ?? []).length ? (
+                            intelligence.extraction?.gamblingTransactions?.map((transaction, index) => (
+                              <Badge key={`${transaction.type}-${transaction.date ?? "date"}-${index}`} tone="danger">
+                                {transaction.type}: {transaction.amount ?? "n/a"}
+                              </Badge>
+                            ))
+                          ) : (
+                            <Badge tone="success">None detected</Badge>
+                          )}
+                        </div>
+
+                        <p className="mt-4 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Cross-document prep</p>
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          <Badge tone="neutral">
+                            Employee: {String(intelligence.crossDocumentPreparation?.employeeName?.value ?? "n/a")}
+                          </Badge>
+                          <Badge tone="neutral">
+                            Employer: {String(intelligence.crossDocumentPreparation?.employerName?.value ?? "n/a")}
+                          </Badge>
+                          <Badge tone="neutral">
+                            Net Pay: {String(intelligence.crossDocumentPreparation?.netPay?.value ?? "n/a")}
+                          </Badge>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="mt-4 text-sm text-slate-400">Upload a bank statement to view bank statement intelligence.</p>
+                  );
+                })()
+              ) : (
+                <p className="mt-4 text-sm text-slate-400">Upload a bank statement to view bank statement intelligence.</p>
               )}
             </Card>
 

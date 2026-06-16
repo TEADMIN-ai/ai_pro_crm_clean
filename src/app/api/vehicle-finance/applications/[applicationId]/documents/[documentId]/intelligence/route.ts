@@ -15,40 +15,81 @@ import {
   getVehicleFinancePayslipIntelligenceJobStatus,
   processVehicleFinancePayslipIntelligenceJob,
 } from "@/lib/vehicle-finance/intelligence/payslipIntelligenceJobs";
+import {
+  getLatestVehicleFinanceBankStatementIntelligenceJobForDocument,
+  getVehicleFinanceBankStatementIntelligenceDocument,
+  getVehicleFinanceBankStatementIntelligenceJobStatus,
+  processVehicleFinanceBankStatementIntelligenceJob,
+} from "@/lib/vehicle-finance/intelligence/bankStatementIntelligenceJobs";
 
 function jsonError(message: string, status = 500) {
   return NextResponse.json({ error: message }, { status });
 }
 
+async function resolveIntelligenceContext(documentId: string, jobId?: string | null) {
+  const driverJob = jobId ? null : await getLatestVehicleFinanceDriverLicenceIntelligenceJobForDocument(documentId);
+  const payslipJob = driverJob || jobId ? null : await getLatestVehicleFinancePayslipIntelligenceJobForDocument(documentId);
+  const bankStatementJob = driverJob || payslipJob || jobId ? null : await getLatestVehicleFinanceBankStatementIntelligenceJobForDocument(documentId);
+  const job = driverJob ?? payslipJob ?? bankStatementJob;
+  return { driverJob, payslipJob, bankStatementJob, job };
+}
+
+async function resolveIntelligenceContextByJobId(jobId: string) {
+  const driverJob = await getVehicleFinanceDriverLicenceIntelligenceJobStatus(jobId);
+  const payslipJob = driverJob ? null : await getVehicleFinancePayslipIntelligenceJobStatus(jobId);
+  const bankStatementJob = driverJob || payslipJob ? null : await getVehicleFinanceBankStatementIntelligenceJobStatus(jobId);
+  const job = driverJob ?? payslipJob ?? bankStatementJob;
+  return { driverJob, payslipJob, bankStatementJob, job };
+}
+
+function getIntelligenceKey(driverJob: boolean, payslipJob: boolean, bankStatementJob: boolean) {
+  if (driverJob) return "driverLicenceIntelligence";
+  if (payslipJob) return "payslipIntelligence";
+  if (bankStatementJob) return "bankStatementIntelligence";
+  return null;
+}
+
 async function buildResponse(applicationId: string, documentId: string) {
-  const driverJob = await getLatestVehicleFinanceDriverLicenceIntelligenceJobForDocument(documentId);
-  const payslipJob = driverJob ? null : await getLatestVehicleFinancePayslipIntelligenceJobForDocument(documentId);
-  const job = driverJob ?? payslipJob;
+  const { driverJob, payslipJob, bankStatementJob, job } = await resolveIntelligenceContext(documentId);
   if (!job) {
-    return NextResponse.json({ error: "Driver licence intelligence job not found" }, { status: 404 });
+    return NextResponse.json({ error: "Vehicle finance intelligence job not found" }, { status: 404 });
   }
 
   if (job.status === "QUEUED" || job.status === "PROCESSING") {
-    void (driverJob ? processVehicleFinanceDriverLicenceIntelligenceJob(job.jobId) : processVehicleFinancePayslipIntelligenceJob(job.jobId));
+    void (
+      driverJob
+        ? processVehicleFinanceDriverLicenceIntelligenceJob(job.jobId)
+        : payslipJob
+          ? processVehicleFinancePayslipIntelligenceJob(job.jobId)
+          : processVehicleFinanceBankStatementIntelligenceJob(job.jobId)
+    );
   }
 
   const document = driverJob
     ? await getVehicleFinanceDriverLicenceIntelligenceDocument(job.documentId)
-    : await getVehicleFinancePayslipIntelligenceDocument(job.documentId);
+    : payslipJob
+      ? await getVehicleFinancePayslipIntelligenceDocument(job.documentId)
+      : await getVehicleFinanceBankStatementIntelligenceDocument(job.documentId);
   if (!document || document.applicationId !== applicationId) {
-    return NextResponse.json({ error: "Driver licence intelligence job not found" }, { status: 404 });
+    return NextResponse.json({ error: "Vehicle finance intelligence job not found" }, { status: 404 });
   }
 
   const intelligence = document?.aiAnalysis && typeof document.aiAnalysis === "object"
     ? driverJob
       ? (document.aiAnalysis as Record<string, unknown>).driverLicenceIntelligence ?? null
-      : (document.aiAnalysis as Record<string, unknown>).payslipIntelligence ?? null
+      : payslipJob
+        ? (document.aiAnalysis as Record<string, unknown>).payslipIntelligence ?? null
+        : (document.aiAnalysis as Record<string, unknown>).bankStatementIntelligence ?? null
     : null;
 
   return NextResponse.json({
     job,
     document,
-    ...(driverJob ? { driverLicenceIntelligence: intelligence } : { payslipIntelligence: intelligence }),
+    ...(driverJob
+      ? { driverLicenceIntelligence: intelligence }
+      : payslipJob
+        ? { payslipIntelligence: intelligence }
+        : { bankStatementIntelligence: intelligence }),
   });
 }
 
@@ -69,33 +110,42 @@ export async function GET(
 
     const jobId = request.nextUrl.searchParams.get("jobId")?.trim() || null;
     if (jobId) {
-      const driverJob = await getVehicleFinanceDriverLicenceIntelligenceJobStatus(jobId);
-      const payslipJob = driverJob ? null : await getVehicleFinancePayslipIntelligenceJobStatus(jobId);
-      const job = driverJob ?? payslipJob;
+      const { driverJob, payslipJob, bankStatementJob, job } = await resolveIntelligenceContextByJobId(jobId);
       if (!job) {
-        return NextResponse.json({ error: "Driver licence intelligence job not found" }, { status: 404 });
+        return NextResponse.json({ error: "Vehicle finance intelligence job not found" }, { status: 404 });
       }
 
       if (job.status === "QUEUED" || job.status === "PROCESSING") {
-        void (driverJob ? processVehicleFinanceDriverLicenceIntelligenceJob(job.jobId) : processVehicleFinancePayslipIntelligenceJob(job.jobId));
+        void (
+          driverJob
+            ? processVehicleFinanceDriverLicenceIntelligenceJob(job.jobId)
+            : payslipJob
+              ? processVehicleFinancePayslipIntelligenceJob(job.jobId)
+              : processVehicleFinanceBankStatementIntelligenceJob(job.jobId)
+        );
       }
 
       const document = driverJob
         ? await getVehicleFinanceDriverLicenceIntelligenceDocument(job.documentId)
-        : await getVehicleFinancePayslipIntelligenceDocument(job.documentId);
+        : payslipJob
+          ? await getVehicleFinancePayslipIntelligenceDocument(job.documentId)
+          : await getVehicleFinanceBankStatementIntelligenceDocument(job.documentId);
       if (!document || document.applicationId !== normalizedApplicationId) {
-        return NextResponse.json({ error: "Driver licence intelligence job not found" }, { status: 404 });
+        return NextResponse.json({ error: "Vehicle finance intelligence job not found" }, { status: 404 });
       }
-      const driverLicenceIntelligence = document?.aiAnalysis && typeof document.aiAnalysis === "object"
-        ? driverJob
-          ? (document.aiAnalysis as Record<string, unknown>).driverLicenceIntelligence ?? null
-          : (document.aiAnalysis as Record<string, unknown>).payslipIntelligence ?? null
+      const intelligenceKey = getIntelligenceKey(Boolean(driverJob), Boolean(payslipJob), Boolean(bankStatementJob));
+      const intelligence = document?.aiAnalysis && typeof document.aiAnalysis === "object" && intelligenceKey
+        ? (document.aiAnalysis as Record<string, unknown>)[intelligenceKey] ?? null
         : null;
 
       return NextResponse.json({
         job,
         document,
-        ...(driverJob ? { driverLicenceIntelligence } : { payslipIntelligence: driverLicenceIntelligence }),
+        ...(driverJob
+          ? { driverLicenceIntelligence: intelligence }
+          : payslipJob
+            ? { payslipIntelligence: intelligence }
+            : { bankStatementIntelligence: intelligence }),
       });
     }
 

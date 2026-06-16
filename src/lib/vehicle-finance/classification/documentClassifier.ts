@@ -86,6 +86,16 @@ export function classifyVehicleFinanceDocument(text: string): VehicleFinanceDocu
   ]);
 
   const bankStatementSignals = countMatches(normalized, [
+    /\bcapitec\b/,
+    /\bfnb\b/,
+    /\bfirst\s+national\s+bank\b/,
+    /\babsa\b/,
+    /\bstandard\s+bank\b/,
+    /\bnedbank\b/,
+    /\bdiscovery\s+bank\b/,
+    /\binvestec\b/,
+    /\btyme\s*bank\b/,
+    /\bafrican\s+bank\b/,
     /\baccount\s+holder\b/,
     /\baccount\s+number\b/,
     /\bstatement\s+period\b/,
