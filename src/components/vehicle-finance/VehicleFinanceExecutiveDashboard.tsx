@@ -41,6 +41,22 @@ type VehicleFinanceOverview = {
   certificates: VehicleFinanceCertificate[];
 };
 
+const DEFAULT_OVERVIEW: VehicleFinanceOverview = {
+  metrics: {
+    totalApplications: 0,
+    pendingVerification: 0,
+    verifiedApplications: 0,
+    fraudAlerts: 0,
+    approvalRatio: 0,
+    monthlyDealValue: 0,
+  },
+  customers: [],
+  applications: [],
+  documents: [],
+  assessments: [],
+  certificates: [],
+};
+
 function formatCurrency(value: number | null | undefined): string {
   return `R ${Number(value ?? 0).toLocaleString("en-ZA", { maximumFractionDigits: 0 })}`;
 }
@@ -194,11 +210,12 @@ export default function VehicleFinanceExecutiveDashboard() {
   const incomeVerificationScore = financeDecision.incomeVerificationScore;
   const employmentVerificationScore = financeDecision.employmentVerificationScore;
   const fraudScore = financeDecision.fraudRiskScore;
+  const dashboard = overview ?? DEFAULT_OVERVIEW;
   const applicationSummaryMetrics = [
-    ["Applications Today", overview.metrics.totalApplications],
-    ["Pending Verification", overview.metrics.pendingVerification],
-    ["Approved", overview.metrics.verifiedApplications],
-    ["Declined", overview.applications.filter((application) => application.applicationStatus === "REJECTED").length],
+    ["Applications Today", dashboard.metrics.totalApplications],
+    ["Pending Verification", dashboard.metrics.pendingVerification],
+    ["Approved", dashboard.metrics.verifiedApplications],
+    ["Declined", dashboard.applications.filter((application) => application.applicationStatus === "REJECTED").length],
     ["Average Affordability", affordability?.affordabilityScore?.value ?? financeDecision.financeReadinessScore],
   ] as const;
 
@@ -228,19 +245,15 @@ export default function VehicleFinanceExecutiveDashboard() {
     );
   }
 
-  if (error || !overview) {
-    return (
-      <div className="mx-auto max-w-7xl space-y-6 p-6 text-slate-200">
-        <Card>
-          <IdentityCardHeader title="Vehicle Finance Intelligence" subtitle="Executive dashboard unavailable" />
-          <p className="mt-4 text-sm text-slate-300">{error ?? "No data available."}</p>
-        </Card>
-      </div>
-    );
-  }
-
   return (
     <div className="mx-auto max-w-7xl space-y-6 p-4 pb-10 md:p-6 lg:p-8">
+      {error ? (
+        <Card>
+          <IdentityCardHeader title="Vehicle Finance Intelligence" subtitle="Executive dashboard unavailable" />
+          <p className="mt-4 text-sm text-slate-300">{error}</p>
+        </Card>
+      ) : null}
+
       <section className="relative overflow-hidden rounded-[32px] border border-cyan-400/20 bg-slate-950 shadow-[0_24px_90px_rgba(2,8,23,0.45)]">
         <div className="absolute inset-0">
           <Image
@@ -258,7 +271,7 @@ export default function VehicleFinanceExecutiveDashboard() {
         <div className="relative grid gap-8 px-6 py-8 lg:grid-cols-[1.2fr_0.8fr] lg:gap-10 lg:px-8 lg:py-10">
           <div className="flex flex-col justify-between gap-8">
             <div className="max-w-3xl">
-              <div className="flex flex-wrap items-center gap-4">
+                <div className="flex flex-wrap items-center gap-4">
                 <div className="flex items-center gap-3 rounded-full border border-cyan-300/20 bg-slate-950/50 px-4 py-2 backdrop-blur-md">
                   <Image
                     src="/images/logos/TE IN Partnership With Roar logo.png"
@@ -291,7 +304,7 @@ export default function VehicleFinanceExecutiveDashboard() {
             <div className="grid gap-3 sm:grid-cols-3">
               <Link href="/dashboard/vehicle-finance/customers" className="rounded-[22px] border border-cyan-300/20 bg-cyan-300/10 px-4 py-4 text-left no-underline backdrop-blur-md transition hover:bg-cyan-300/15">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-100/75">Customers</p>
-                <p className="mt-3 text-2xl font-semibold text-white">{overview.customers.length}</p>
+                <p className="mt-3 text-2xl font-semibold text-white">{dashboard.customers.length}</p>
               </Link>
               <Link href="/dashboard/vehicle-finance/applications" className="rounded-[22px] border border-white/10 bg-white/[0.06] px-4 py-4 text-left no-underline backdrop-blur-md transition hover:bg-white/[0.1]">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-300">Applications</p>
@@ -299,7 +312,7 @@ export default function VehicleFinanceExecutiveDashboard() {
               </Link>
               <Link href="/dashboard/vehicle-finance/reports" className="rounded-[22px] border border-emerald-300/20 bg-emerald-300/10 px-4 py-4 text-left no-underline backdrop-blur-md transition hover:bg-emerald-300/15">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-emerald-100/80">Reports</p>
-                <p className="mt-3 text-2xl font-semibold text-white">{overview.metrics.approvalRatio}%</p>
+                <p className="mt-3 text-2xl font-semibold text-white">{dashboard.metrics.approvalRatio}%</p>
               </Link>
             </div>
           </div>
@@ -392,10 +405,10 @@ export default function VehicleFinanceExecutiveDashboard() {
           <IdentityCardHeader title="Dealership Metrics" subtitle="Operational snapshot for Roar Cars SA" />
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
             {[
-              ["Applications Today", overview.metrics.totalApplications],
-              ["Pending Verification", overview.metrics.pendingVerification],
-              ["Approved", overview.metrics.verifiedApplications],
-              ["Declined", overview.applications.filter((application) => application.applicationStatus === "REJECTED").length],
+              ["Applications Today", dashboard.metrics.totalApplications],
+              ["Pending Verification", dashboard.metrics.pendingVerification],
+              ["Approved", dashboard.metrics.verifiedApplications],
+              ["Declined", dashboard.applications.filter((application) => application.applicationStatus === "REJECTED").length],
               ["Average Affordability", affordability?.affordabilityScore?.value ?? financeDecision.financeReadinessScore],
             ].map(([label, value]) => (
               <div key={label as string} className="rounded-xl border border-slate-700 bg-slate-950/60 p-4">
@@ -588,7 +601,7 @@ export default function VehicleFinanceExecutiveDashboard() {
               onChange={(event) => setSelectedApplicationId(event.target.value)}
               className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white"
             >
-              {overview.applications.map((application) => (
+              {dashboard.applications.map((application) => (
                 <option key={application.applicationId} value={application.applicationId}>
                   {application.applicationId} - {application.dealerName}
                 </option>
@@ -633,10 +646,10 @@ export default function VehicleFinanceExecutiveDashboard() {
           <IdentityCardHeader title="Dealer Reports" subtitle="Operational summary for Roar Cars SA" />
           <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
             {[
-              ["Applications Processed", overview.metrics.totalApplications],
-              ["Approved", overview.metrics.verifiedApplications],
-              ["Referred", overview.metrics.pendingVerification],
-              ["Declined", overview.applications.filter((application) => application.applicationStatus === "REJECTED").length],
+              ["Applications Processed", dashboard.metrics.totalApplications],
+              ["Approved", dashboard.metrics.verifiedApplications],
+              ["Referred", dashboard.metrics.pendingVerification],
+              ["Declined", dashboard.applications.filter((application) => application.applicationStatus === "REJECTED").length],
               ["Average Readiness Score", financeDecision.financeReadinessScore],
               ["Average Income", selectedCustomer?.monthlyIncome ?? 0],
               ["Average Instalment", affordability?.maxAffordableInstalment?.value ?? 0],
