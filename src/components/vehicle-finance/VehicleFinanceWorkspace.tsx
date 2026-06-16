@@ -7,6 +7,7 @@ import Badge from "@/components/ui/Badge";
 import Card, { IdentityCardHeader } from "@/components/ui/Card";
 import Table from "@/components/ui/Table";
 import { authFetch } from "@/lib/client/authFetch";
+import { buildVehicleFinanceDecisionFromIntelligence } from "@/lib/vehicle-finance/underwriting/decisionEngine";
 import {
   getVehicleFinanceDocumentLabel,
   VEHICLE_FINANCE_DOCUMENT_TYPES,
@@ -239,6 +240,42 @@ export default function VehicleFinanceWorkspace({ initialSection }: Props) {
   const selectedBankStatementDocument = useMemo(
     () => selectedDocuments.find((document) => document.documentType === "bankStatement") ?? null,
     [selectedDocuments],
+  );
+
+  const selectedDriverLicenceIntelligence = useMemo(
+    () => (selectedDriverLicenceDocument?.aiAnalysis as any)?.driverLicenceIntelligence ?? null,
+    [selectedDriverLicenceDocument],
+  );
+
+  const selectedIdentityIntelligence = useMemo(
+    () => (selectedIdentityDocument?.aiAnalysis as any)?.identityIntelligence ?? null,
+    [selectedIdentityDocument],
+  );
+
+  const selectedPayslipIntelligence = useMemo(
+    () => (selectedPayslipDocument?.aiAnalysis as any)?.payslipIntelligence ?? null,
+    [selectedPayslipDocument],
+  );
+
+  const selectedBankStatementIntelligence = useMemo(
+    () => (selectedBankStatementDocument?.aiAnalysis as any)?.bankStatementIntelligence ?? null,
+    [selectedBankStatementDocument],
+  );
+
+  const financeDecision = useMemo(
+    () =>
+      buildVehicleFinanceDecisionFromIntelligence({
+        driverLicence: selectedDriverLicenceIntelligence,
+        identity: selectedIdentityIntelligence,
+        payslip: selectedPayslipIntelligence,
+        bankStatement: selectedBankStatementIntelligence,
+      }),
+    [
+      selectedDriverLicenceIntelligence,
+      selectedIdentityIntelligence,
+      selectedPayslipIntelligence,
+      selectedBankStatementIntelligence,
+    ],
   );
 
   const certificateByApplicationId = useMemo(() => {
@@ -484,6 +521,52 @@ export default function VehicleFinanceWorkspace({ initialSection }: Props) {
               </Card>
             ))}
           </div>
+
+          <Card>
+            <IdentityCardHeader title="Executive Summary" subtitle="Single finance recommendation from all intelligence layers">
+              <div className="flex flex-wrap gap-2">
+                <Badge tone={financeDecision.riskLevel === "LOW" ? "success" : financeDecision.riskLevel === "MEDIUM" ? "warning" : "danger"}>
+                  {financeDecision.riskLevel}
+                </Badge>
+                <Badge tone={financeDecision.recommendedDecision === "PROCEED" ? "success" : financeDecision.recommendedDecision === "REFER" ? "warning" : "danger"}>
+                  {financeDecision.recommendedDecision}
+                </Badge>
+              </div>
+            </IdentityCardHeader>
+
+            <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              <div className="rounded-xl border border-slate-700 bg-slate-950/60 p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Finance Readiness Score</p>
+                <p className="mt-2 text-3xl font-semibold text-slate-50">{financeDecision.financeReadinessScore}</p>
+                <p className="mt-2 text-sm text-slate-400">{financeDecision.decisionReason}</p>
+              </div>
+
+              <div className="rounded-xl border border-slate-700 bg-slate-950/60 p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Verified Income</p>
+                <p className="mt-2 text-2xl font-semibold text-slate-50">{financeDecision.incomeVerified ? "YES" : "NO"}</p>
+                <p className="mt-2 text-sm text-slate-400">Match score: {financeDecision.incomeVerificationScore}%</p>
+                <p className="mt-2 text-sm text-slate-400">Disposable income: R {financeDecision.disposableIncome.toLocaleString("en-ZA")}</p>
+              </div>
+
+              <div className="rounded-xl border border-slate-700 bg-slate-950/60 p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Recommended Instalment</p>
+                <p className="mt-2 text-2xl font-semibold text-slate-50">R {financeDecision.recommendedInstalment.toLocaleString("en-ZA")}</p>
+                <p className="mt-2 text-sm text-slate-400">Fraud score: {financeDecision.fraudRiskScore}%</p>
+                <p className="mt-2 text-sm text-slate-400">Risk level: {financeDecision.riskLevel}</p>
+              </div>
+            </div>
+
+            <div className="mt-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Certification Requirements</p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {financeDecision.certificationRequirements.map((item) => (
+                  <Badge key={item} tone={item === "All certification requirements satisfied" ? "success" : "warning"}>
+                    {item}
+                  </Badge>
+                ))}
+              </div>
+            </div>
+          </Card>
 
           <Card>
             <IdentityCardHeader title="Recent Applications" subtitle="Current pipeline and fraud status">
