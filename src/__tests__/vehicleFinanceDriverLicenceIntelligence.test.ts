@@ -46,6 +46,60 @@ describe("vehicle finance driver licence intelligence", () => {
     expect(extraction.confidence).toBeGreaterThan(0);
   });
 
+  test("extracts driver licence fields from production OCR text", () => {
+    const extraction = extractDriverLicenceDetails(`
+      DRIVING LICENCE
+      CARTA DE CONDUÇAO
+      ADP LEBATE
+      ID No.: 04183111051084
+      FEMALE
+      24-10-1983
+      Restriction:
+      000700832426
+      Valid from 24/03/2021 - 11/05/2026
+      Licence No. 1
+      ZA
+      SOUTH AFRICA
+    `);
+
+    expect(extraction.name).toBe("ADP");
+    expect(extraction.surname).toBe("LEBATE");
+    expect(extraction.idNumber).toBe("04183111051084");
+    expect(extraction.licenceNumber).toBe("000700832426");
+    expect(extraction.issueDate).toBe("24/03/2021");
+    expect(extraction.expiryDate).toBe("11/05/2026");
+    expect(extraction.licenceCode).toBe("1");
+    expect(extraction.fieldConfidence?.name).toBeGreaterThan(0);
+    expect(extraction.fieldConfidence?.licenceNumber).toBeGreaterThan(0);
+  });
+
+  test("extracts driver licence fields from valid-to OCR variant", () => {
+    const extraction = extractDriverLicenceDetails(`
+      DRIVING LICENCE
+      CARTA DE CONDUÇÃO
+      ADF LEBATE
+      ID No.: 248311051084
+      DL Card No.: 005700034526
+      Valid to: 2026-03-11
+      Code: B
+      Restrictions: 1
+      Surname: LEBATE
+      Name: ADP
+      Sex: FEMALE
+      DOB: 1983-11-05
+      ZA
+      SOUTH AFRICA
+    `);
+
+    expect(extraction.name).toBe("ADP");
+    expect(extraction.surname).toBe("LEBATE");
+    expect(extraction.idNumber).toBe("248311051084");
+    expect(extraction.licenceNumber).toBe("005700034526");
+    expect(extraction.expiryDate).toBe("2026-03-11");
+    expect(extraction.licenceCode).toBe("B");
+    expect(extraction.fieldConfidence?.licenceNumber).toBeGreaterThan(0);
+  });
+
   test("verifies driver licence extraction with flags", () => {
     const verification = verifyDriverLicenceExtraction(
       {

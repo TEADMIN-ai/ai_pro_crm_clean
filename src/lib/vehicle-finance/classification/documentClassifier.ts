@@ -25,10 +25,15 @@ export function classifyVehicleFinanceDocument(text: string): VehicleFinanceDocu
 
   const driverLicenceSignals = countMatches(normalized, [
     /\bdriver'?s?\s+licen[cs]e\b/,
+    /\bdriving\s+licen[cs]e\b/,
+    /\bcarta\s+de\s+condu[çc]a[oõ]\b/,
     /\blicen[cs]e\s+number\b/,
     /\blicen[cs]e\s+code\b/,
     /\bissue(?:d)?\s+date\b/,
     /\bexpiry\s+date\b/,
+    /\bvalid\s+from\b/,
+    /\brestriction\b/,
+    /\bid\s+no\.?\b/,
   ]);
 
   const saIdSignals = countMatches(normalized, [

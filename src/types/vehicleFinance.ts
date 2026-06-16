@@ -96,6 +96,7 @@ export type VehicleFinanceDriverLicenceExtraction = {
   expiryDate: string | null;
   licenceCode: string | null;
   confidence: number;
+  fieldConfidence?: Partial<Record<"name" | "surname" | "idNumber" | "licenceNumber" | "issueDate" | "expiryDate" | "licenceCode", number>>;
 };
 
 export type VehicleFinanceDriverLicenceVerification = {
