@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
 import Badge from "@/components/ui/Badge";
 import Card, { IdentityCardHeader } from "@/components/ui/Card";
@@ -193,6 +194,28 @@ export default function VehicleFinanceExecutiveDashboard() {
   const incomeVerificationScore = financeDecision.incomeVerificationScore;
   const employmentVerificationScore = financeDecision.employmentVerificationScore;
   const fraudScore = financeDecision.fraudRiskScore;
+  const applicationSummaryMetrics = [
+    ["Applications Today", overview.metrics.totalApplications],
+    ["Pending Verification", overview.metrics.pendingVerification],
+    ["Approved", overview.metrics.verifiedApplications],
+    ["Declined", overview.applications.filter((application) => application.applicationStatus === "REJECTED").length],
+    ["Average Affordability", affordability?.affordabilityScore?.value ?? financeDecision.financeReadinessScore],
+  ] as const;
+
+  const featuredVehicles = [
+    {
+      title: "BMW M4 Competition",
+      subtitle: "Executive hero vehicle",
+      image: "/images/vehicles/bmw-m4-transparent.png",
+      accent: "bg-cyan-400/10",
+    },
+    {
+      title: "VW Golf R32",
+      subtitle: "Featured vehicle",
+      image: "/images/vehicles/vw-golf-r32.png",
+      accent: "bg-white/5",
+    },
+  ] as const;
 
   if (loading) {
     return (
@@ -218,38 +241,98 @@ export default function VehicleFinanceExecutiveDashboard() {
 
   return (
     <div className="mx-auto max-w-7xl space-y-6 p-4 pb-10 md:p-6 lg:p-8">
-      <section className="rounded-[28px] border border-cyan-400/15 bg-[linear-gradient(180deg,rgba(4,12,25,0.98),rgba(6,14,29,0.96))] px-6 py-6 shadow-[0_24px_80px_rgba(2,8,23,0.4)]">
-        <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
-          <div className="max-w-3xl">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-cyan-200/75">
-              TORQUE EMPIRE
-            </p>
-            <h1 className="mt-3 text-3xl font-semibold tracking-[-0.05em] text-white sm:text-4xl lg:text-5xl">
-              Vehicle Finance Intelligence
-            </h1>
-            <p className="mt-3 text-sm font-medium uppercase tracking-[0.18em] text-slate-400">
-              In partnership with Roar Cars SA, Born to Roar
-            </p>
-            <p className="mt-4 max-w-2xl text-base leading-7 text-slate-300">
-              Dedicated dealership-facing command center for finance pre-approval, verification, affordability, and decisioning.
-            </p>
+      <section className="relative overflow-hidden rounded-[32px] border border-cyan-400/20 bg-slate-950 shadow-[0_24px_90px_rgba(2,8,23,0.45)]">
+        <div className="absolute inset-0">
+          <Image
+            src="/images/vehicles/bmw-m4-hero.jpg"
+            alt=""
+            fill
+            priority
+            className="object-cover object-center opacity-55"
+            sizes="100vw"
+          />
+          <div className="absolute inset-0 bg-[linear-gradient(115deg,rgba(2,6,23,0.92)_0%,rgba(3,12,25,0.86)_46%,rgba(2,8,23,0.72)_100%)]" />
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(56,189,248,0.16),transparent_28%),radial-gradient(circle_at_bottom_left,rgba(14,165,233,0.14),transparent_34%)]" />
+        </div>
+
+        <div className="relative grid gap-8 px-6 py-8 lg:grid-cols-[1.2fr_0.8fr] lg:gap-10 lg:px-8 lg:py-10">
+          <div className="flex flex-col justify-between gap-8">
+            <div className="max-w-3xl">
+              <div className="flex flex-wrap items-center gap-4">
+                <div className="flex items-center gap-3 rounded-full border border-cyan-300/20 bg-slate-950/50 px-4 py-2 backdrop-blur-md">
+                  <Image
+                    src="/images/logos/TE IN Partnership With Roar logo.png"
+                    alt="Torque Empire in partnership with Roar Cars SA"
+                    width={172}
+                    height={34}
+                    className="h-7 w-auto"
+                    priority
+                  />
+                </div>
+                <div className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.26em] text-cyan-100/80 backdrop-blur-md">
+                  Roar Cars SA Executive Portal
+                </div>
+              </div>
+
+              <p className="mt-6 text-[11px] font-semibold uppercase tracking-[0.28em] text-cyan-200/80">
+                TORQUE EMPIRE VEHICLE FINANCE INTELLIGENCE
+              </p>
+              <h1 className="mt-3 max-w-2xl text-4xl font-semibold tracking-[-0.06em] text-white sm:text-5xl lg:text-6xl">
+                Vehicle Finance Intelligence
+              </h1>
+              <p className="mt-4 text-sm font-medium uppercase tracking-[0.2em] text-cyan-100/75">
+                In Partnership With Roar Cars SA
+              </p>
+              <p className="mt-5 max-w-2xl text-base leading-7 text-slate-200/85 lg:text-lg">
+                Dedicated dealership-facing command center for finance pre-approval, verification, affordability, underwriting, and decisioning.
+              </p>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-3">
+              <Link href="/dashboard/vehicle-finance/customers" className="rounded-[22px] border border-cyan-300/20 bg-cyan-300/10 px-4 py-4 text-left no-underline backdrop-blur-md transition hover:bg-cyan-300/15">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-100/75">Customers</p>
+                <p className="mt-3 text-2xl font-semibold text-white">{overview.customers.length}</p>
+              </Link>
+              <Link href="/dashboard/vehicle-finance/applications" className="rounded-[22px] border border-white/10 bg-white/[0.06] px-4 py-4 text-left no-underline backdrop-blur-md transition hover:bg-white/[0.1]">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-300">Applications</p>
+                <p className="mt-3 text-2xl font-semibold text-white">{totalApplications}</p>
+              </Link>
+              <Link href="/dashboard/vehicle-finance/reports" className="rounded-[22px] border border-emerald-300/20 bg-emerald-300/10 px-4 py-4 text-left no-underline backdrop-blur-md transition hover:bg-emerald-300/15">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-emerald-100/80">Reports</p>
+                <p className="mt-3 text-2xl font-semibold text-white">{overview.metrics.approvalRatio}%</p>
+              </Link>
+            </div>
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-3 lg:max-w-2xl">
-            <Link href="/dashboard/vehicle-finance/customers" className="rounded-[22px] border border-cyan-400/20 bg-cyan-400/10 px-4 py-4 text-left no-underline transition hover:bg-cyan-400/15">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-100/75">Customers</p>
-              <p className="mt-3 text-2xl font-semibold text-white">{overview.customers.length}</p>
-            </Link>
-            <Link href="/dashboard/vehicle-finance/applications" className="rounded-[22px] border border-white/10 bg-white/[0.04] px-4 py-4 text-left no-underline transition hover:bg-white/[0.06]">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400">Applications</p>
-              <p className="mt-3 text-2xl font-semibold text-white">{totalApplications}</p>
-            </Link>
-            <Link href="/dashboard/vehicle-finance/reports" className="rounded-[22px] border border-emerald-400/20 bg-emerald-400/10 px-4 py-4 text-left no-underline transition hover:bg-emerald-400/15">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-emerald-100/75">Reports</p>
-              <p className="mt-3 text-2xl font-semibold text-white">{overview.metrics.approvalRatio}%</p>
-            </Link>
+          <div className="relative flex min-h-[360px] items-end justify-center lg:min-h-[520px] lg:justify-end">
+            <div className="relative w-full max-w-[640px]">
+              <div className="absolute inset-x-6 bottom-0 top-16 rounded-[32px] border border-cyan-300/10 bg-cyan-300/10 blur-3xl" />
+              <div className="relative overflow-hidden rounded-[32px] border border-white/10 bg-slate-950/50 p-5 shadow-[0_24px_80px_rgba(2,8,23,0.45)] backdrop-blur-md">
+                <div className="relative aspect-[4/3] w-full">
+                  <Image
+                    src="/images/vehicles/bmw-m4-transparent.png"
+                    alt="BMW M4 hero vehicle"
+                    fill
+                    sizes="(min-width: 1024px) 42vw, 92vw"
+                    className="object-contain object-bottom drop-shadow-[0_24px_45px_rgba(15,23,42,0.7)]"
+                    priority
+                  />
+                </div>
+              </div>
+            </div>
           </div>
         </div>
+      </section>
+
+      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+        {applicationSummaryMetrics.map(([label, value]) => (
+          <Card key={label}>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">{label}</p>
+            <p className="mt-3 text-3xl font-semibold text-white">
+              {typeof value === "number" ? value.toLocaleString("en-ZA") : String(value)}
+            </p>
+          </Card>
+        ))}
       </section>
 
       <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">
@@ -264,7 +347,7 @@ export default function VehicleFinanceExecutiveDashboard() {
           <p className="mt-3 text-sm text-slate-400">Fraud score: {fraudScore}</p>
         </Card>
         <Card>
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Recommended Decision</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Underwriting</p>
           <Badge tone={getStatusTone(financeDecision.recommendedDecision)}>{financeDecision.recommendedDecision}</Badge>
           <p className="mt-3 text-sm text-slate-400">Reason: {financeDecision.decisionReason}</p>
         </Card>
@@ -277,6 +360,52 @@ export default function VehicleFinanceExecutiveDashboard() {
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Verified Income</p>
           <p className="mt-3 text-3xl font-semibold text-white">{financeDecision.incomeVerified ? "YES" : "NO"}</p>
           <p className="mt-2 text-sm text-slate-400">Income match: {incomeVerificationScore}%</p>
+        </Card>
+      </section>
+
+      <section className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
+        <Card>
+          <IdentityCardHeader title="Featured Vehicles" subtitle="Ready for future inventory integration" />
+          <div className="mt-4 grid gap-4 md:grid-cols-2">
+            {featuredVehicles.map((vehicle) => (
+              <article key={vehicle.title} className={`overflow-hidden rounded-[24px] border border-white/10 ${vehicle.accent} shadow-[0_20px_50px_rgba(2,8,23,0.22)]`}>
+                <div className="relative aspect-[16/10] bg-slate-950/70">
+                  <Image
+                    src={vehicle.image}
+                    alt={vehicle.title}
+                    fill
+                    sizes="(min-width: 768px) 40vw, 92vw"
+                    className="object-contain p-5"
+                  />
+                </div>
+                <div className="border-t border-white/10 p-4">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-100/70">{vehicle.subtitle}</p>
+                  <h3 className="mt-2 text-lg font-semibold text-white">{vehicle.title}</h3>
+                  <p className="mt-2 text-sm leading-6 text-slate-300">Vehicle card styling prepared for Roar Cars SA inventory integration.</p>
+                </div>
+              </article>
+            ))}
+          </div>
+        </Card>
+
+        <Card>
+          <IdentityCardHeader title="Dealership Metrics" subtitle="Operational snapshot for Roar Cars SA" />
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            {[
+              ["Applications Today", overview.metrics.totalApplications],
+              ["Pending Verification", overview.metrics.pendingVerification],
+              ["Approved", overview.metrics.verifiedApplications],
+              ["Declined", overview.applications.filter((application) => application.applicationStatus === "REJECTED").length],
+              ["Average Affordability", affordability?.affordabilityScore?.value ?? financeDecision.financeReadinessScore],
+            ].map(([label, value]) => (
+              <div key={label as string} className="rounded-xl border border-slate-700 bg-slate-950/60 p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">{label as string}</p>
+                <p className="mt-2 text-2xl font-semibold text-white">
+                  {typeof value === "number" ? value.toLocaleString("en-ZA") : String(value)}
+                </p>
+              </div>
+            ))}
+          </div>
         </Card>
       </section>
 
