@@ -48,6 +48,9 @@ export type VehicleFinanceDocumentAnalysis = {
   documentIntegrityScore: number;
   fraudIndicators: string[];
   integrityNotes: string[];
+  textQualityAssessment?: VehicleFinanceTextQualityAssessment | null;
+  documentClassification?: VehicleFinanceDocumentClassification | null;
+  driverLicenceIntelligence?: VehicleFinanceDriverLicenceIntelligence | null;
 };
 
 export type VehicleFinanceDocument = {
@@ -64,6 +67,60 @@ export type VehicleFinanceDocument = {
   extractedTextLength: number;
   pageCount: number;
   extractionSource: "PDF_TEXT" | "OCR" | "EMPTY";
+};
+
+export type VehicleFinanceTextQualityAssessment = {
+  textLength: number;
+  corruptedCharacterCount: number;
+  corruptedCharacterRatio: number;
+  confidence: number;
+  confidenceThreshold: number;
+  usable: boolean;
+  shouldRunOcrFallback: boolean;
+  flags: string[];
+  reasons: string[];
+};
+
+export type VehicleFinanceDocumentClassification = {
+  documentType: "DRIVER_LICENCE" | "SA_ID" | "PAYSLIP" | "BANK_STATEMENT" | "UNKNOWN";
+  confidence: number;
+  reasons: string[];
+};
+
+export type VehicleFinanceDriverLicenceExtraction = {
+  name: string | null;
+  surname: string | null;
+  idNumber: string | null;
+  licenceNumber: string | null;
+  issueDate: string | null;
+  expiryDate: string | null;
+  licenceCode: string | null;
+  confidence: number;
+};
+
+export type VehicleFinanceDriverLicenceVerification = {
+  passed: boolean;
+  score: number;
+  flags: string[];
+};
+
+export type VehicleFinanceDriverLicenceComparison = {
+  flags: string[];
+  passed: boolean;
+};
+
+export type VehicleFinanceDriverLicenceIntelligence = {
+  enabled: boolean;
+  featureFlag: boolean;
+  textQuality: VehicleFinanceTextQualityAssessment;
+  classification: VehicleFinanceDocumentClassification;
+  extraction: VehicleFinanceDriverLicenceExtraction;
+  verification: VehicleFinanceDriverLicenceVerification;
+  applicationComparison: VehicleFinanceDriverLicenceComparison | null;
+  usedOcrFallback: boolean;
+  sourceTextLength: number;
+  enhancedTextLength: number;
+  selectedText: string;
 };
 
 export type VehicleFinanceAssessment = {

@@ -202,6 +202,11 @@ export default function VehicleFinanceWorkspace({ initialSection }: Props) {
     [documents, selectedApplicationId],
   );
 
+  const selectedDriverLicenceDocument = useMemo(
+    () => selectedDocuments.find((document) => document.documentType === "driversLicense") ?? null,
+    [selectedDocuments],
+  );
+
   const certificateByApplicationId = useMemo(() => {
     return new Map(certificates.map((certificate) => [certificate.applicationId, certificate]));
   }, [certificates]);
@@ -701,6 +706,97 @@ export default function VehicleFinanceWorkspace({ initialSection }: Props) {
                   );
                 })}
               </div>
+            </Card>
+
+            <Card>
+              <IdentityCardHeader title="Vehicle Finance Verification" subtitle="Driver licence intelligence and fraud flags" />
+              {selectedDriverLicenceDocument ? (
+                (() => {
+                  const intelligence = (selectedDriverLicenceDocument.aiAnalysis as {
+                    driverLicenceIntelligence?: {
+                      enabled?: boolean;
+                      classification?: { documentType?: string; confidence?: number; reasons?: string[] };
+                      extraction?: {
+                        name?: string | null;
+                        surname?: string | null;
+                        idNumber?: string | null;
+                        licenceNumber?: string | null;
+                        expiryDate?: string | null;
+                        confidence?: number;
+                      };
+                      verification?: { passed?: boolean; score?: number; flags?: string[] };
+                      applicationComparison?: { passed?: boolean; flags?: string[] } | null;
+                      textQuality?: { confidence?: number; reasons?: string[]; flags?: string[] };
+                      selectedText?: string;
+                    } | null;
+                  })?.driverLicenceIntelligence ?? null;
+
+                  return intelligence ? (
+                    <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                      <div className="rounded-xl border border-slate-700 bg-slate-950/60 p-4">
+                        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Name</p>
+                        <p className="mt-2 text-sm text-slate-100">{intelligence.extraction?.name ?? "n/a"}</p>
+                        <p className="mt-3 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Surname</p>
+                        <p className="mt-2 text-sm text-slate-100">{intelligence.extraction?.surname ?? "n/a"}</p>
+                      </div>
+
+                      <div className="rounded-xl border border-slate-700 bg-slate-950/60 p-4">
+                        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">ID Number</p>
+                        <p className="mt-2 text-sm text-slate-100">{intelligence.extraction?.idNumber ?? "n/a"}</p>
+                        <p className="mt-3 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Licence Number</p>
+                        <p className="mt-2 text-sm text-slate-100">{intelligence.extraction?.licenceNumber ?? "n/a"}</p>
+                      </div>
+
+                      <div className="rounded-xl border border-slate-700 bg-slate-950/60 p-4">
+                        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Expiry Date</p>
+                        <p className="mt-2 text-sm text-slate-100">{intelligence.extraction?.expiryDate ?? "n/a"}</p>
+                        <p className="mt-3 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">OCR Confidence</p>
+                        <p className="mt-2 text-sm text-slate-100">{intelligence.textQuality?.confidence ?? intelligence.extraction?.confidence ?? 0}%</p>
+                      </div>
+
+                      <div className="rounded-xl border border-slate-700 bg-slate-950/60 p-4">
+                        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Verification Result</p>
+                        <p className="mt-2 text-sm text-slate-100">{intelligence.verification?.passed ? "PASS" : "REVIEW"}</p>
+                        <p className="mt-3 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Score</p>
+                        <p className="mt-2 text-sm text-slate-100">{intelligence.verification?.score ?? 0}</p>
+                      </div>
+
+                      <div className="rounded-xl border border-slate-700 bg-slate-950/60 p-4 md:col-span-2 xl:col-span-2">
+                        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Fraud Flags</p>
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          {(intelligence.verification?.flags ?? []).length ? (
+                            intelligence.verification?.flags?.map((flag) => (
+                              <Badge key={flag} tone="warning">
+                                {flag}
+                              </Badge>
+                            ))
+                          ) : (
+                            <Badge tone="success">None</Badge>
+                          )}
+                        </div>
+                        <p className="mt-4 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Cross-check</p>
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          {(intelligence.applicationComparison?.flags ?? []).length ? (
+                            intelligence.applicationComparison?.flags?.map((flag) => (
+                              <Badge key={flag} tone="danger">
+                                {flag}
+                              </Badge>
+                            ))
+                          ) : (
+                            <Badge tone="success">Matched</Badge>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="mt-4 text-sm text-slate-400">
+                      Driver licence intelligence is not available for this application yet.
+                    </p>
+                  );
+                })()
+              ) : (
+                <p className="mt-4 text-sm text-slate-400">Upload a driver's licence to view intelligence results.</p>
+              )}
             </Card>
 
             <Card>
