@@ -1,6 +1,9 @@
 import { assessVehicleFinanceTextQuality } from "@/lib/vehicle-finance/ocr/textQualityAssessment";
 import { classifyVehicleFinanceDocument } from "@/lib/vehicle-finance/classification/documentClassifier";
 import { extractDriverLicenceDetails } from "@/lib/vehicle-finance/extractors/driverLicenceExtractor";
+import { extractGreenIdBookDetails } from "@/lib/vehicle-finance/extractors/greenIdBookExtractor";
+import { extractSmartIdCardDetails } from "@/lib/vehicle-finance/extractors/smartIdCardExtractor";
+import { verifyIdentityExtraction } from "@/lib/vehicle-finance/verification/identityVerification";
 import { verifyDriverLicenceExtraction } from "@/lib/vehicle-finance/verification/driverLicenceVerification";
 
 describe("vehicle finance driver licence intelligence", () => {
@@ -181,5 +184,86 @@ describe("vehicle finance driver licence intelligence", () => {
 
     expect(verification.passed).toBe(false);
     expect(verification.flags).toContain("LOW_CONFIDENCE_OCR");
+  });
+
+  test("extracts green ID book intelligence", () => {
+    const extraction = extractGreenIdBookDetails(`
+      I.D. No.
+      8312110051084
+      SURNAME
+      LEBATIE
+      FORENAMES
+      AGNETHA CARMON PATRICIA
+      COUNTRY OF BIRTH
+      SOUTH AFRICA
+      DATE OF BIRTH
+      1983-12-11
+      DATE ISSUED
+      2011-08-23
+      SA CITIZEN
+      PHOTO
+      BARCODE
+    `);
+
+    expect(extraction.documentType).toBe("GREEN_ID_BOOK");
+    expect(extraction.idNumber.value).toBe("8312110051084");
+    expect(extraction.surname.value).toBe("LEBATIE");
+    expect(extraction.forenames.value).toContain("AGNETHA");
+    expect(extraction.countryOfBirth.value).toBe("SOUTH AFRICA");
+    expect(extraction.citizenship.value).toBe("SA CITIZEN");
+    expect(extraction.dateOfBirth.value).toBe("1983-12-11");
+    expect(extraction.dateIssued.value).toBe("2011-08-23");
+    expect(extraction.integrityIndicators.photoDetected).toBe(true);
+    expect(extraction.integrityIndicators.barcodeDetected).toBe(true);
+  });
+
+  test("extracts smart ID card intelligence", () => {
+    const extraction = extractSmartIdCardDetails(`
+      IDENTITY NUMBER
+      9001015009087
+      SURNAME
+      DOE
+      NAMES
+      JOHN HENRY
+      SEX
+      MALE
+      DATE OF BIRTH
+      1990-01-01
+      ISSUE NUMBER
+      A1234567
+      NATIONALITY
+      SOUTH AFRICA
+      PHOTO
+      CARD NO 1234567890
+    `);
+
+    expect(extraction.documentType).toBe("SMART_ID_CARD");
+    expect(extraction.idNumber.value).toBe("9001015009087");
+    expect(extraction.surname.value).toBe("DOE");
+    expect(extraction.forenames.value).toContain("JOHN");
+    expect(extraction.gender.value).toBe("MALE");
+    expect(extraction.dateOfBirth.value).toBe("1990-01-01");
+    expect(extraction.issueNumber.value).toBe("A1234567");
+    expect(extraction.citizenship.value).toBe("SOUTH AFRICA");
+    expect(extraction.integrityIndicators.photoDetected).toBe(true);
+    expect(extraction.integrityIndicators.cardNumberDetected).toBe(true);
+  });
+
+  test("verifies identity extraction with missing fields", () => {
+    const verification = verifyIdentityExtraction({
+      idNumber: { value: null, confidence: 0, sourceText: "" },
+      surname: { value: "DOE", confidence: 95, sourceText: "SURNAME DOE" },
+      forenames: { value: "JOHN", confidence: 95, sourceText: "FORENAMES JOHN" },
+      dateOfBirth: { value: null, confidence: 0, sourceText: "" },
+      countryOfBirth: { value: "SOUTH AFRICA", confidence: 98, sourceText: "COUNTRY OF BIRTH SOUTH AFRICA" },
+      citizenship: { value: "SA CITIZEN", confidence: 98, sourceText: "SA CITIZEN" },
+      dateIssued: { value: "2011-08-23", confidence: 90, sourceText: "DATE ISSUED 2011-08-23" },
+      issueNumber: { value: null, confidence: 0, sourceText: "" },
+      gender: { value: "MALE", confidence: 98, sourceText: "SEX MALE" },
+    });
+
+    expect(verification.passed).toBe(false);
+    expect(verification.flags).toContain("MISSING_ID_NUMBER");
+    expect(verification.flags).toContain("MISSING_DATE_OF_BIRTH");
   });
 });

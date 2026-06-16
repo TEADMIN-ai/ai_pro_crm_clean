@@ -1,9 +1,12 @@
 export type VehicleFinanceClassifiedDocumentType =
   | "DRIVER_LICENCE"
+  | "GREEN_ID_BOOK"
+  | "SMART_ID_CARD"
   | "SA_ID"
   | "PAYSLIP"
   | "BANK_STATEMENT"
-  | "UNKNOWN";
+  | "UNKNOWN"
+  | "UNKNOWN_IDENTITY_DOCUMENT";
 
 export type VehicleFinanceDocumentClassification = {
   documentType: VehicleFinanceClassifiedDocumentType;
@@ -26,7 +29,7 @@ export function classifyVehicleFinanceDocument(text: string): VehicleFinanceDocu
   const driverLicenceSignals = countMatches(normalized, [
     /\bdriver'?s?\s+licen[cs]e\b/,
     /\bdriving\s+licen[cs]e\b/,
-    /\bcarta\s+de\s+condu[çc]a[oõ]\b/,
+    /\bcarta\s+de\s+condu[Ã§c]a[oÃµ]\b/,
     /\blicen[cs]e\s+number\b/,
     /\blicen[cs]e\s+code\b/,
     /\bissue(?:d)?\s+date\b/,
@@ -34,6 +37,27 @@ export function classifyVehicleFinanceDocument(text: string): VehicleFinanceDocu
     /\bvalid\s+from\b/,
     /\brestriction\b/,
     /\bid\s+no\.?\b/,
+  ]);
+
+  const greenIdSignals = countMatches(normalized, [
+    /\bi\.?d\.?\s+no\.?\b/,
+    /\bsurname\b/,
+    /\bforenames\b/,
+    /\bcountry\s+of\s+birth\b/,
+    /\bdate\s+of\s+birth\b/,
+    /\bdate\s+issued\b/,
+    /\bsa\s+citizen\b/,
+  ]);
+
+  const smartIdSignals = countMatches(normalized, [
+    /\bidentity\s+number\b/,
+    /\bsurname\b/,
+    /\bnames\b/,
+    /\bsex\b/,
+    /\bdate\s+of\s+birth\b/,
+    /\bissue\s+number\b/,
+    /\bnationality\b/,
+    /\bcitizenship\b/,
   ]);
 
   const saIdSignals = countMatches(normalized, [
@@ -62,6 +86,8 @@ export function classifyVehicleFinanceDocument(text: string): VehicleFinanceDocu
 
   const ranked = [
     { documentType: "DRIVER_LICENCE" as const, signals: driverLicenceSignals },
+    { documentType: "GREEN_ID_BOOK" as const, signals: greenIdSignals },
+    { documentType: "SMART_ID_CARD" as const, signals: smartIdSignals },
     { documentType: "SA_ID" as const, signals: saIdSignals },
     { documentType: "PAYSLIP" as const, signals: payslipSignals },
     { documentType: "BANK_STATEMENT" as const, signals: bankStatementSignals },
@@ -78,6 +104,10 @@ export function classifyVehicleFinanceDocument(text: string): VehicleFinanceDocu
 
   if (winner.documentType === "DRIVER_LICENCE") {
     reasons.push("Detected driver's licence keywords");
+  } else if (winner.documentType === "GREEN_ID_BOOK") {
+    reasons.push("Detected South African green ID book keywords");
+  } else if (winner.documentType === "SMART_ID_CARD") {
+    reasons.push("Detected South African smart ID card keywords");
   } else if (winner.documentType === "SA_ID") {
     reasons.push("Detected South African ID keywords");
   } else if (winner.documentType === "PAYSLIP") {

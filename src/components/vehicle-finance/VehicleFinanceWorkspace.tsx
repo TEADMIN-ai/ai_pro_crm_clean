@@ -226,6 +226,11 @@ export default function VehicleFinanceWorkspace({ initialSection }: Props) {
     [selectedDocuments],
   );
 
+  const selectedIdentityDocument = useMemo(
+    () => selectedDocuments.find((document) => document.documentType === "greenIdBook" || document.documentType === "smartIdCard") ?? null,
+    [selectedDocuments],
+  );
+
   const certificateByApplicationId = useMemo(() => {
     return new Map(certificates.map((certificate) => [certificate.applicationId, certificate]));
   }, [certificates]);
@@ -893,6 +898,128 @@ export default function VehicleFinanceWorkspace({ initialSection }: Props) {
                 })()
               ) : (
                 <p className="mt-4 text-sm text-slate-400">Upload a driver's licence to view intelligence results.</p>
+              )}
+            </Card>
+
+            <Card>
+              <IdentityCardHeader title="Identity Intelligence" subtitle="Green ID book and Smart ID card fields" />
+              {selectedIdentityDocument ? (
+                (() => {
+                  const intelligence = (selectedIdentityDocument.aiAnalysis as {
+                    identityIntelligence?: {
+                      documentType?: string;
+                      classification?: { documentType?: string; confidence?: number; reasons?: string[] };
+                      extraction?: {
+                        idNumber?: string | null;
+                        surname?: string | null;
+                        forenames?: string | null;
+                        dateOfBirth?: string | null;
+                        countryOfBirth?: string | null;
+                        citizenship?: string | null;
+                        dateIssued?: string | null;
+                        issueNumber?: string | null;
+                        gender?: string | null;
+                        confidence?: number;
+                        overallConfidence?: number;
+                        fields?: Record<string, { value?: string | null; confidence?: number; sourceText?: string }>;
+                      };
+                      verification?: { passed?: boolean; score?: number; flags?: string[] };
+                      integrityIndicators?: { photoDetected?: boolean; barcodeDetected?: boolean; cardNumberDetected?: boolean };
+                      sourceText?: string;
+                    } | null;
+                  })?.identityIntelligence ?? null;
+
+                  const extractionFields = intelligence?.extraction?.fields ?? {};
+                  const idField = (key: string, fallback?: string | null) => extractionFields[key]?.value ?? fallback ?? "n/a";
+                  const idConfidence = (key: string, fallback?: number | null) => extractionFields[key]?.confidence ?? fallback ?? 0;
+
+                  return intelligence ? (
+                    <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                      <div className="rounded-xl border border-slate-700 bg-slate-950/60 p-4">
+                        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Document Type</p>
+                        <p className="mt-2 text-sm text-slate-100">{intelligence.documentType ?? "n/a"}</p>
+                        <p className="mt-3 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">ID Number</p>
+                        <p className="mt-2 text-sm text-slate-100">{idField("idNumber", intelligence.extraction?.idNumber)}</p>
+                      </div>
+
+                      <div className="rounded-xl border border-slate-700 bg-slate-950/60 p-4">
+                        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Surname</p>
+                        <p className="mt-2 text-sm text-slate-100">{idField("surname", intelligence.extraction?.surname)}</p>
+                        <p className="mt-3 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Forenames</p>
+                        <p className="mt-2 text-sm text-slate-100">{idField("forenames", intelligence.extraction?.forenames)}</p>
+                      </div>
+
+                      <div className="rounded-xl border border-slate-700 bg-slate-950/60 p-4">
+                        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Date Of Birth</p>
+                        <p className="mt-2 text-sm text-slate-100">{idField("dateOfBirth", intelligence.extraction?.dateOfBirth)}</p>
+                        <p className="mt-3 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Date Issued</p>
+                        <p className="mt-2 text-sm text-slate-100">{idField("dateIssued", intelligence.extraction?.dateIssued)}</p>
+                      </div>
+
+                      <div className="rounded-xl border border-slate-700 bg-slate-950/60 p-4">
+                        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Country Of Birth</p>
+                        <p className="mt-2 text-sm text-slate-100">{idField("countryOfBirth", intelligence.extraction?.countryOfBirth)}</p>
+                        <p className="mt-3 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Citizenship</p>
+                        <p className="mt-2 text-sm text-slate-100">{idField("citizenship", intelligence.extraction?.citizenship)}</p>
+                      </div>
+
+                      <div className="rounded-xl border border-slate-700 bg-slate-950/60 p-4">
+                        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Gender</p>
+                        <p className="mt-2 text-sm text-slate-100">{idField("gender", intelligence.extraction?.gender)}</p>
+                        <p className="mt-3 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Issue Number</p>
+                        <p className="mt-2 text-sm text-slate-100">{idField("issueNumber", intelligence.extraction?.issueNumber)}</p>
+                      </div>
+
+                      <div className="rounded-xl border border-slate-700 bg-slate-950/60 p-4 md:col-span-2 xl:col-span-2">
+                        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Integrity Indicators</p>
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          <Badge tone={intelligence.integrityIndicators?.photoDetected ? "success" : "warning"}>
+                            Photo: {intelligence.integrityIndicators?.photoDetected ? "Detected" : "Missing"}
+                          </Badge>
+                          <Badge tone={intelligence.integrityIndicators?.barcodeDetected ? "success" : "warning"}>
+                            Barcode: {intelligence.integrityIndicators?.barcodeDetected ? "Detected" : "Missing"}
+                          </Badge>
+                          <Badge tone={intelligence.integrityIndicators?.cardNumberDetected ? "success" : "warning"}>
+                            Card No: {intelligence.integrityIndicators?.cardNumberDetected ? "Detected" : "Missing"}
+                          </Badge>
+                        </div>
+                        <p className="mt-4 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Verification</p>
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          {intelligence.verification?.flags?.length ? (
+                            intelligence.verification.flags.map((flag) => (
+                              <Badge key={flag} tone="warning">
+                                {flag}
+                              </Badge>
+                            ))
+                          ) : (
+                            <Badge tone="success">PASS</Badge>
+                          )}
+                        </div>
+                        <p className="mt-4 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Confidence</p>
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          {[
+                            ["ID", idConfidence("idNumber", intelligence.extraction?.confidence)],
+                            ["Surname", idConfidence("surname", intelligence.extraction?.confidence)],
+                            ["Forenames", idConfidence("forenames", intelligence.extraction?.confidence)],
+                            ["DOB", idConfidence("dateOfBirth", intelligence.extraction?.confidence)],
+                            ["Country", idConfidence("countryOfBirth", intelligence.extraction?.confidence)],
+                            ["Citizenship", idConfidence("citizenship", intelligence.extraction?.confidence)],
+                          ].map(([label, score]) => (
+                            <Badge key={label as string} tone="neutral">
+                              {label}: {score as number}%
+                            </Badge>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="mt-4 text-sm text-slate-400">
+                      Upload a Green ID Book or Smart ID Card to view identity intelligence.
+                    </p>
+                  );
+                })()
+              ) : (
+                <p className="mt-4 text-sm text-slate-400">Upload a Green ID Book or Smart ID Card to view identity intelligence.</p>
               )}
             </Card>
 

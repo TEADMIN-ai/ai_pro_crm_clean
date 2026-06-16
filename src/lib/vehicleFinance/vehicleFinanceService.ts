@@ -5,6 +5,7 @@ import { extractTextFromPdfDetailed } from "@/lib/pdf/extractTextFromPdf";
 import { getFirebaseAdmin, getFirebaseStorageBucket } from "@/lib/firebase/admin";
 import { getVehicleFinanceFeatureFlags } from "@/lib/vehicle-finance/config/featureFlags";
 import { queueVehicleFinanceDriverLicenceIntelligence } from "@/lib/vehicle-finance/intelligence/driverLicenceIntelligenceJobs";
+import { queueVehicleFinanceIdentityIntelligence } from "@/lib/vehicle-finance/intelligence/identityIntelligenceJobs";
 import type {
   VehicleFinanceApplication,
   VehicleFinanceAssessment,
@@ -793,6 +794,24 @@ export async function uploadVehicleFinanceDocument(args: {
     }
   }
 
+  let identityIntelligenceJob: Awaited<ReturnType<typeof queueVehicleFinanceIdentityIntelligence>> | null = null;
+  if (args.documentType === "greenIdBook" || args.documentType === "smartIdCard") {
+    try {
+      identityIntelligenceJob = await queueVehicleFinanceIdentityIntelligence(args.applicationId, saved.record.documentId);
+      console.log("[IDENTITY_INTELLIGENCE_JOB_QUEUED]", {
+        applicationId: args.applicationId,
+        documentId: saved.record.documentId,
+        jobId: identityIntelligenceJob.jobId,
+      });
+    } catch (error) {
+      console.warn("[vehicle-finance] identity intelligence queue failed", {
+        applicationId: args.applicationId,
+        documentType: args.documentType,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
   await recordSystemMetric({
     metricType: "vehicle_finance_document_upload",
     route: "vehicle-finance.documents.upload",
@@ -802,7 +821,7 @@ export async function uploadVehicleFinanceDocument(args: {
     metadata: { documentType: args.documentType, extractionSource: extraction.source },
   });
 
-  return { ...saved.record, signedUrl: saved.signedUrl, intelligenceJob };
+  return { ...saved.record, signedUrl: saved.signedUrl, intelligenceJob, identityIntelligenceJob };
 }
 
 export async function runVehicleFinanceAssessment(applicationId: string, actor: ActorContext) {

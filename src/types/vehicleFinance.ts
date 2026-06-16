@@ -1,5 +1,7 @@
 export const VEHICLE_FINANCE_DOCUMENT_TYPES = [
   "saIdDocument",
+  "greenIdBook",
+  "smartIdCard",
   "driversLicense",
   "payslip",
   "bankStatement",
@@ -51,6 +53,7 @@ export type VehicleFinanceDocumentAnalysis = {
   textQualityAssessment?: VehicleFinanceTextQualityAssessment | null;
   documentClassification?: VehicleFinanceDocumentClassification | null;
   driverLicenceIntelligence?: VehicleFinanceDriverLicenceIntelligence | null;
+  identityIntelligence?: VehicleFinanceIdentityDocumentIntelligence | null;
 };
 
 export type VehicleFinanceDocument = {
@@ -82,7 +85,7 @@ export type VehicleFinanceTextQualityAssessment = {
 };
 
 export type VehicleFinanceDocumentClassification = {
-  documentType: "DRIVER_LICENCE" | "SA_ID" | "PAYSLIP" | "BANK_STATEMENT" | "UNKNOWN";
+  documentType: "DRIVER_LICENCE" | "GREEN_ID_BOOK" | "SMART_ID_CARD" | "SA_ID" | "PAYSLIP" | "BANK_STATEMENT" | "UNKNOWN" | "UNKNOWN_IDENTITY_DOCUMENT";
   confidence: number;
   reasons: string[];
 };
@@ -147,6 +150,75 @@ export type VehicleFinanceDriverLicenceStructuredExtraction = {
   country: VehicleFinanceDriverLicenceField;
 };
 
+export type VehicleFinanceIdentityField = {
+  value: string | null;
+  confidence: number;
+  sourceText: string;
+};
+
+export type VehicleFinanceIdentityStructuredExtraction = {
+  idNumber: VehicleFinanceIdentityField;
+  surname: VehicleFinanceIdentityField;
+  forenames: VehicleFinanceIdentityField;
+  dateOfBirth: VehicleFinanceIdentityField;
+  countryOfBirth: VehicleFinanceIdentityField;
+  citizenship: VehicleFinanceIdentityField;
+  dateIssued: VehicleFinanceIdentityField;
+  issueNumber: VehicleFinanceIdentityField;
+  gender: VehicleFinanceIdentityField;
+};
+
+export type VehicleFinanceIdentityIntegrityIndicators = {
+  photoDetected: boolean;
+  barcodeDetected: boolean;
+  cardNumberDetected: boolean;
+};
+
+export type VehicleFinanceIdentityVerificationFlag =
+  | "MISSING_ID_NUMBER"
+  | "MISSING_SURNAME"
+  | "MISSING_FORENAMES"
+  | "MISSING_DATE_OF_BIRTH";
+
+export type VehicleFinanceIdentityVerification = {
+  passed: boolean;
+  score: number;
+  flags: VehicleFinanceIdentityVerificationFlag[];
+};
+
+export type VehicleFinanceIdentityDocumentIntelligence = {
+  documentType: "GREEN_ID_BOOK" | "SMART_ID_CARD" | "UNKNOWN_IDENTITY_DOCUMENT";
+  enabled: boolean;
+  featureFlag: boolean;
+  classification: VehicleFinanceDocumentClassification;
+  extraction: VehicleFinanceIdentityStructuredExtraction;
+  verification: VehicleFinanceIdentityVerification;
+  integrityIndicators: VehicleFinanceIdentityIntegrityIndicators;
+  overallConfidence: number;
+  sourceText: string;
+  sourceTextLength: number;
+  selectedText: string;
+  fields?: VehicleFinanceIdentityStructuredExtraction;
+};
+
+export const VEHICLE_FINANCE_IDENTITY_INTELLIGENCE_JOB_COLLECTION =
+  "vehicleFinanceIdentityIntelligenceJobs";
+
+export type VehicleFinanceIdentityIntelligenceJobStatus = "QUEUED" | "PROCESSING" | "PROCESSED" | "FAILED";
+
+export type VehicleFinanceIdentityIntelligenceJob = {
+  jobId: string;
+  applicationId: string;
+  documentId: string;
+  status: VehicleFinanceIdentityIntelligenceJobStatus;
+  createdAt: string;
+  updatedAt: string;
+  startedAt?: string | null;
+  completedAt?: string | null;
+  errorMessage?: string | null;
+  resultDocumentId?: string | null;
+};
+
 export const VEHICLE_FINANCE_DRIVER_LICENCE_INTELLIGENCE_JOB_COLLECTION =
   "vehicleFinanceDriverLicenceIntelligenceJobs";
 
@@ -190,6 +262,8 @@ export type VehicleFinanceCertificate = {
 
 export const VEHICLE_FINANCE_DOCUMENT_LABELS: Record<VehicleFinanceDocumentType, string> = {
   saIdDocument: "South African ID Document",
+  greenIdBook: "Green Barcoded ID Book",
+  smartIdCard: "Smart ID Card",
   driversLicense: "Driver's License",
   payslip: "Payslip",
   bankStatement: "Bank Statement",
@@ -206,6 +280,12 @@ export function normalizeVehicleFinanceDocumentType(value: unknown): VehicleFina
     case "southafricaniddocument":
     case "id":
       return "saIdDocument";
+    case "greenidbook":
+    case "greenbook":
+      return "greenIdBook";
+    case "smartidcard":
+    case "smartid":
+      return "smartIdCard";
     case "driverslicense":
     case "licence":
     case "drivinglicense":
