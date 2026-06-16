@@ -2,7 +2,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
-import { assertPrivilegedRole, AuthorizationError, requireAuthorizedUser } from "@/lib/server/authz";
+import { assertVehicleFinanceRole, AuthorizationError, requireAuthorizedUser } from "@/lib/server/authz";
 import {
   listVehicleFinanceDocuments,
   normalizeVehicleFinanceDocumentType,
@@ -19,7 +19,7 @@ export async function GET(
 ) {
   try {
     const user = await requireAuthorizedUser(request);
-    assertPrivilegedRole(user);
+    assertVehicleFinanceRole(user);
     const { applicationId } = await context.params;
     const documents = await listVehicleFinanceDocuments(applicationId);
     return NextResponse.json({ documents });
@@ -38,7 +38,7 @@ export async function POST(
 ) {
   try {
     const user = await requireAuthorizedUser(request);
-    assertPrivilegedRole(user);
+    assertVehicleFinanceRole(user);
     const { applicationId } = await context.params;
     const formData = await request.formData();
     const file = formData.get("file");
@@ -68,3 +68,4 @@ export async function POST(
     return jsonError("Vehicle finance document upload failed", 500);
   }
 }
+

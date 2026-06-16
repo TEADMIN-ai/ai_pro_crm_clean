@@ -2,7 +2,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
-import { assertPrivilegedRole, AuthorizationError, requireAuthorizedUser } from "@/lib/server/authz";
+import { assertVehicleFinanceRole, AuthorizationError, requireAuthorizedUser } from "@/lib/server/authz";
 import { runVehicleFinanceAssessment } from "@/lib/vehicleFinance/vehicleFinanceService";
 
 export async function POST(
@@ -11,7 +11,7 @@ export async function POST(
 ) {
   try {
     const user = await requireAuthorizedUser(request);
-    assertPrivilegedRole(user);
+    assertVehicleFinanceRole(user);
     const { applicationId } = await context.params;
     const result = await runVehicleFinanceAssessment(applicationId, {
       actorId: user.uid,
@@ -27,3 +27,4 @@ export async function POST(
     return NextResponse.json({ error: "Vehicle finance verification failed" }, { status: 500 });
   }
 }
+

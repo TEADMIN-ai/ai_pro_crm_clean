@@ -3,6 +3,7 @@ import { getFirebaseAdmin } from "@/lib/firebase/admin";
 import { normalizeContractorId, normalizeRole, resolveRole, type UserProfile } from "@/lib/auth/userProfile";
 import { ensureContractorAuthLinkage } from "@/lib/contractors/contractorAuthLink";
 import type { UserRole } from "@/lib/auth/roleUtils";
+import { isVehicleFinanceRole, isVehicleFinanceStaffRole } from "@/lib/auth/roleUtils";
 import { requireAuth } from "@/lib/server/requireAuth";
 
 export interface AuthorizedUser {
@@ -109,6 +110,22 @@ export function assertOperationalRole(user: AuthorizedUser): void {
 
 export function assertPrivilegedRole(user: AuthorizedUser): void {
   if (!isPrivilegedRole(user.role)) {
+    throw new AuthorizationError("unauthorized", 403);
+  }
+}
+
+export function isVehicleFinanceAuthorizedRole(role: UserRole): boolean {
+  return isPrivilegedRole(role) || isVehicleFinanceRole(role);
+}
+
+export function assertVehicleFinanceRole(user: AuthorizedUser): void {
+  if (!isVehicleFinanceAuthorizedRole(user.role)) {
+    throw new AuthorizationError("unauthorized", 403);
+  }
+}
+
+export function assertVehicleFinanceStaffRole(user: AuthorizedUser): void {
+  if (!isVehicleFinanceStaffRole(user.role)) {
     throw new AuthorizationError("unauthorized", 403);
   }
 }

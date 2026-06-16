@@ -2,7 +2,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
-import { assertPrivilegedRole, AuthorizationError, requireAuthorizedUser } from "@/lib/server/authz";
+import { assertVehicleFinanceRole, AuthorizationError, requireAuthorizedUser } from "@/lib/server/authz";
 import {
   getLatestVehicleFinanceIdentityIntelligenceJobForDocument,
   getVehicleFinanceIdentityIntelligenceDocument,
@@ -46,7 +46,7 @@ export async function GET(
 ) {
   try {
     const user = await requireAuthorizedUser(request);
-    assertPrivilegedRole(user);
+    assertVehicleFinanceRole(user);
 
     const { applicationId, documentId } = await context.params;
     const normalizedApplicationId = applicationId.trim();
@@ -91,3 +91,4 @@ export async function GET(
     return jsonError("Vehicle finance identity intelligence status failed", 500);
   }
 }
+

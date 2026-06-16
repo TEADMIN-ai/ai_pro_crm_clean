@@ -2,7 +2,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
-import { assertPrivilegedRole, AuthorizationError, requireAuthorizedUser } from "@/lib/server/authz";
+import { assertVehicleFinanceRole, AuthorizationError, requireAuthorizedUser } from "@/lib/server/authz";
 import { buildVehicleFinanceCsv, buildVehicleFinanceExcel, buildVehicleFinancePdf } from "@/lib/vehicleFinance/vehicleFinanceService";
 
 type ReportFormat = "csv" | "excel" | "pdf";
@@ -23,7 +23,7 @@ function reportFilename(period: ReportPeriod, extension: string) {
 export async function GET(request: NextRequest) {
   try {
     const user = await requireAuthorizedUser(request);
-    assertPrivilegedRole(user);
+    assertVehicleFinanceRole(user);
     const { searchParams } = new URL(request.url);
     const format = safeFormat(searchParams.get("format"));
     const period = safePeriod(searchParams.get("period"));
@@ -66,3 +66,4 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Vehicle finance report unavailable" }, { status: 500 });
   }
 }
+

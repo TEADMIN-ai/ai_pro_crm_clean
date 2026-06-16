@@ -2,14 +2,14 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
-import { assertPrivilegedRole, AuthorizationError, requireAuthorizedUser } from "@/lib/server/authz";
+import { assertVehicleFinanceStaffRole, AuthorizationError, requireAuthorizedUser } from "@/lib/server/authz";
 import { listVehicleFinanceTrainingDocuments } from "@/lib/vehicle-finance/training";
 import { runVehicleFinanceTrainingValidation } from "@/lib/vehicle-finance/training";
 
 export async function POST(request: NextRequest) {
   try {
     const user = await requireAuthorizedUser(request);
-    assertPrivilegedRole(user);
+    assertVehicleFinanceStaffRole(user);
 
     const body = (await request.json().catch(() => null)) as { documentId?: string } | null;
     const documentId = typeof body?.documentId === "string" && body.documentId.trim().length > 0 ? body.documentId.trim() : undefined;
@@ -52,3 +52,5 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Vehicle finance training validation failed" }, { status: 500 });
   }
 }
+
+

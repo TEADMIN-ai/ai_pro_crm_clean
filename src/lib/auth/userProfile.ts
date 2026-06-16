@@ -12,7 +12,17 @@ export interface UserProfile {
 
 export type AuthUser = FirebaseUser & UserProfile;
 
-export const VALID_ROLES: UserRole[] = ["admin", "manager", "staff", "contractor", "auditor", "viewer", "guest"];
+export const VALID_ROLES: UserRole[] = [
+  "admin",
+  "manager",
+  "staff",
+  "contractor",
+  "auditor",
+  "viewer",
+  "dealerPilot",
+  "vehicleFinanceStaff",
+  "guest",
+];
 
 export function normalizeRole(value: unknown): UserRole {
   if (typeof value !== "string") {

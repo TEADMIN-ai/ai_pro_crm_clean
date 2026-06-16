@@ -42,6 +42,11 @@ export const API_ROUTES = {
   DEALS_INTELLIGENCE: "/api/deals/intelligence",
   DASHBOARD_ANALYTICS: "/api/deals/analytics",
   DASHBOARD_SUMMARY: "/api/dashboard/summary",
+  VEHICLE_FINANCE_OVERVIEW: "/api/vehicle-finance/overview",
+  VEHICLE_FINANCE_CUSTOMERS: "/api/vehicle-finance/customers",
+  VEHICLE_FINANCE_APPLICATIONS: "/api/vehicle-finance/applications",
+  VEHICLE_FINANCE_REPORTS: "/api/vehicle-finance/reports",
+  VEHICLE_FINANCE_TRAINING_OVERVIEW: "/api/vehicle-finance/training/overview",
   DOCUMENTS: "/api/documents",
   DOCUMENT_DETAIL: (documentId: string) =>
     `/api/documents/${encodeURIComponent(documentId)}`,

@@ -2,7 +2,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
-import { assertPrivilegedRole, AuthorizationError, requireAuthorizedUser } from "@/lib/server/authz";
+import { assertVehicleFinanceRole, AuthorizationError, requireAuthorizedUser } from "@/lib/server/authz";
 import { createVehicleFinanceCustomer, listVehicleFinanceCustomers } from "@/lib/vehicleFinance/vehicleFinanceService";
 
 function getString(value: unknown): string {
@@ -18,7 +18,7 @@ function getNumber(value: unknown): number {
 export async function GET(request: NextRequest) {
   try {
     const user = await requireAuthorizedUser(request);
-    assertPrivilegedRole(user);
+    assertVehicleFinanceRole(user);
     const customers = await listVehicleFinanceCustomers();
     return NextResponse.json({ customers });
   } catch (error) {
@@ -33,7 +33,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const user = await requireAuthorizedUser(request);
-    assertPrivilegedRole(user);
+    assertVehicleFinanceRole(user);
     const body = (await request.json()) as Record<string, unknown>;
     const firstName = getString(body.firstName);
     const lastName = getString(body.lastName);
@@ -62,3 +62,4 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Vehicle finance customer creation failed" }, { status: 500 });
   }
 }
+

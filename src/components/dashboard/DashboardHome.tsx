@@ -1,10 +1,12 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import ContractorOnboardingView from "@/components/contractors/ContractorOnboardingView";
 import { useAuth } from "@/context/AuthContext";
 import { authFetch } from "@/lib/client/authFetch";
 import { API_ROUTES } from "@/lib/routes";
+import { isVehicleFinanceRole } from "@/lib/auth/roleUtils";
 import DealChart from "./DealChart";
 import KpiCard from "./KpiCard";
 
@@ -59,12 +61,13 @@ function getStatusBadgeClasses(status?: string): string {
 
 export default function DashboardHome() {
   const { loading: authLoading, role, contractorId } = useAuth();
+  const [redirecting, setRedirecting] = useState(false);
   const [data, setData] = useState<Summary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (authLoading || role === "contractor") {
+    if (authLoading || role === "contractor" || isVehicleFinanceRole(role)) {
       setLoading(false);
       return;
     }
@@ -112,6 +115,13 @@ export default function DashboardHome() {
     };
   }, [authLoading, role]);
 
+  useEffect(() => {
+    if (!authLoading && isVehicleFinanceRole(role)) {
+      setRedirecting(true);
+      window.location.replace("/dashboard/vehicle-finance");
+    }
+  }, [authLoading, role]);
+
   if (authLoading) {
     return (
       <div className="dashboard-panel rounded-[28px] p-6 text-slate-300">
@@ -126,6 +136,14 @@ export default function DashboardHome() {
     ) : (
       <div className="rounded-2xl border border-amber-200 bg-amber-50 p-6 text-sm text-amber-900">
         Contractor profile is still syncing. Refresh shortly if this remains visible.
+      </div>
+    );
+  }
+
+  if (redirecting || isVehicleFinanceRole(role)) {
+    return (
+      <div className="dashboard-panel rounded-[28px] p-6 text-slate-300">
+        <p className="text-sm font-medium">Opening Vehicle Finance command center...</p>
       </div>
     );
   }
@@ -187,6 +205,12 @@ export default function DashboardHome() {
             <p className="mt-4 max-w-2xl text-base leading-7 text-slate-300 sm:text-lg">
               Real-time contractor readiness and tender performance insights
             </p>
+            <Link
+              href="/dashboard/vehicle-finance"
+              className="mt-5 inline-flex items-center rounded-full border border-cyan-400/20 bg-cyan-400/10 px-4 py-2 text-sm font-semibold text-cyan-100 no-underline transition hover:bg-cyan-400/16"
+            >
+              Open Vehicle Finance Command Center
+            </Link>
           </div>
 
           <div className="grid w-full gap-3 sm:grid-cols-3 lg:max-w-xl">

@@ -1,5 +1,5 @@
-import VehicleFinanceWorkspace from "@/components/vehicle-finance/VehicleFinanceWorkspace";
+import VehicleFinanceExecutiveDashboard from "@/components/vehicle-finance/VehicleFinanceExecutiveDashboard";
 
 export default function VehicleFinanceDashboardPage() {
-  return <VehicleFinanceWorkspace initialSection="dashboard" />;
+  return <VehicleFinanceExecutiveDashboard />;
 }

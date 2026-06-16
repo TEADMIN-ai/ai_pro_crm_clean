@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { CSSProperties } from "react";
 import { useAuth } from "@/context/AuthContext";
-import { canViewContractorList } from "@/lib/auth/roleUtils";
+import { canViewContractorList, isVehicleFinanceRole } from "@/lib/auth/roleUtils";
 import { empireColors } from "@/theme/empireTheme";
 
 export default function Sidebar() {
@@ -50,43 +50,76 @@ export default function Sidebar() {
         ]
       : [];
 
-  const internalLinks =
-    role !== "contractor"
+  const vehicleFinanceLinks =
+    isVehicleFinanceRole(role) || role === "admin" || role === "manager" || role === "staff"
       ? [
-          {
-            href: "/dashboard",
-            label: "Dashboard",
-            active: pathname === "/dashboard",
-          },
-          {
-            href: "/dashboard/deals",
-            label: "Deals",
-            active: pathname.startsWith("/dashboard/deals"),
-          },
-          ...(canViewContractorList(role)
-            ? [
-                {
-                  href: "/dashboard/contractors",
-                  label: "Contractors",
-                  active: pathname.startsWith("/dashboard/contractors"),
-                },
-              ]
-            : []),
           {
             href: "/dashboard/vehicle-finance",
             label: "Vehicle Finance",
-            active: pathname.startsWith("/dashboard/vehicle-finance"),
+            active: pathname === "/dashboard/vehicle-finance",
           },
-          ...(role === "admin"
-            ? [
-                {
-                  href: "/dashboard/executive",
-                  label: "Executive",
-                  active: pathname.startsWith("/dashboard/executive"),
-                },
-              ]
-            : []),
+          {
+            href: "/dashboard/vehicle-finance/customers",
+            label: "Customers",
+            active: pathname.startsWith("/dashboard/vehicle-finance/customers"),
+          },
+          {
+            href: "/dashboard/vehicle-finance/applications",
+            label: "Applications",
+            active: pathname.startsWith("/dashboard/vehicle-finance/applications"),
+          },
+          {
+            href: "/dashboard/vehicle-finance/document-verification",
+            label: "Verification",
+            active: pathname.startsWith("/dashboard/vehicle-finance/document-verification"),
+          },
+          {
+            href: "/dashboard/vehicle-finance/reports",
+            label: "Reports",
+            active: pathname.startsWith("/dashboard/vehicle-finance/reports"),
+          },
         ]
+      : [];
+
+  const internalLinks =
+    role !== "contractor"
+      ? isVehicleFinanceRole(role)
+        ? vehicleFinanceLinks
+        : [
+            {
+              href: "/dashboard",
+              label: "Dashboard",
+              active: pathname === "/dashboard",
+            },
+            {
+              href: "/dashboard/deals",
+              label: "Deals",
+              active: pathname.startsWith("/dashboard/deals"),
+            },
+            ...(canViewContractorList(role)
+              ? [
+                  {
+                    href: "/dashboard/contractors",
+                    label: "Contractors",
+                    active: pathname.startsWith("/dashboard/contractors"),
+                  },
+                ]
+              : []),
+            {
+              href: "/dashboard/vehicle-finance",
+              label: "Vehicle Finance",
+              active: pathname.startsWith("/dashboard/vehicle-finance"),
+            },
+            ...(role === "admin"
+              ? [
+                  {
+                    href: "/dashboard/executive",
+                    label: "Executive",
+                    active: pathname.startsWith("/dashboard/executive"),
+                  },
+                ]
+              : []),
+          ]
       : [];
 
   return (

@@ -2,7 +2,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
-import { assertPrivilegedRole, AuthorizationError, requireAuthorizedUser } from "@/lib/server/authz";
+import { assertVehicleFinanceStaffRole, AuthorizationError, requireAuthorizedUser } from "@/lib/server/authz";
 import {
   getVehicleFinanceTrainingOverview,
   uploadVehicleFinanceTrainingDocument,
@@ -20,7 +20,7 @@ function isTrainingCategory(value: string): value is VehicleFinanceTrainingCateg
 export async function GET(request: NextRequest) {
   try {
     const user = await requireAuthorizedUser(request);
-    assertPrivilegedRole(user);
+    assertVehicleFinanceStaffRole(user);
     const overview = await getVehicleFinanceTrainingOverview();
     return NextResponse.json({
       documents: overview.documents,
@@ -39,7 +39,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const user = await requireAuthorizedUser(request);
-    assertPrivilegedRole(user);
+    assertVehicleFinanceStaffRole(user);
 
     const formData = await request.formData();
     const file = formData.get("file");
@@ -69,3 +69,5 @@ export async function POST(request: NextRequest) {
     return jsonError("Vehicle finance training upload failed", 500);
   }
 }
+
+

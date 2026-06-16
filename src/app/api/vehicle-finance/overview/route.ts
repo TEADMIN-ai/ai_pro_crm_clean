@@ -2,13 +2,13 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
-import { assertPrivilegedRole, AuthorizationError, requireAuthorizedUser } from "@/lib/server/authz";
+import { assertVehicleFinanceRole, AuthorizationError, requireAuthorizedUser } from "@/lib/server/authz";
 import { getVehicleFinanceOverview } from "@/lib/vehicleFinance/vehicleFinanceService";
 
 export async function GET(request: NextRequest) {
   try {
     const user = await requireAuthorizedUser(request);
-    assertPrivilegedRole(user);
+    assertVehicleFinanceRole(user);
 
     const overview = await getVehicleFinanceOverview();
     return NextResponse.json(overview);
@@ -21,3 +21,4 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Vehicle finance overview unavailable" }, { status: 500 });
   }
 }
+

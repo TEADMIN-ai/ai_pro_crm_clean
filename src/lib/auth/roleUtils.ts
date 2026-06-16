@@ -1,4 +1,21 @@
-export type UserRole = "admin" | "manager" | "staff" | "contractor" | "auditor" | "viewer" | "guest";
+export type UserRole =
+  | "admin"
+  | "manager"
+  | "staff"
+  | "contractor"
+  | "auditor"
+  | "viewer"
+  | "dealerPilot"
+  | "vehicleFinanceStaff"
+  | "guest";
+
+export function isVehicleFinanceRole(role?: UserRole): boolean {
+  return role === "dealerPilot" || role === "vehicleFinanceStaff";
+}
+
+export function isVehicleFinanceStaffRole(role?: UserRole): boolean {
+  return role === "admin" || role === "manager" || role === "staff" || role === "vehicleFinanceStaff";
+}
 
 export function canUpload(role?: UserRole): boolean {
   return role === "admin" || role === "manager" || role === "staff" || role === "contractor";
@@ -38,6 +55,10 @@ export function canViewContractorList(role?: UserRole): boolean {
 
 export function canViewContractorProfile(role?: UserRole): boolean {
   return role === "admin" || role === "manager" || role === "staff" || role === "contractor";
+}
+
+export function canAccessVehicleFinance(role?: UserRole): boolean {
+  return role === "admin" || role === "manager" || role === "staff" || isVehicleFinanceRole(role);
 }
 
 // Compatibility aliases used by existing callers.

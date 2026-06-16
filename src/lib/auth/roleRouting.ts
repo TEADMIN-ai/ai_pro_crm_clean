@@ -6,6 +6,9 @@ export function getDashboardPath(role: UserRole) {
       return "/dashboard/admin";
     case "manager":
       return "/dashboard/manager";
+    case "dealerPilot":
+    case "vehicleFinanceStaff":
+      return "/dashboard/vehicle-finance";
     case "contractor":
       return "/dashboard/contractor";
     case "staff":

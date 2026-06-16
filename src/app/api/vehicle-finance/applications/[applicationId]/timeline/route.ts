@@ -2,7 +2,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
-import { assertPrivilegedRole, AuthorizationError, requireAuthorizedUser } from "@/lib/server/authz";
+import { assertVehicleFinanceRole, AuthorizationError, requireAuthorizedUser } from "@/lib/server/authz";
 import { getVehicleFinanceAuditTrail } from "@/lib/vehicleFinance/vehicleFinanceService";
 
 export async function GET(
@@ -11,7 +11,7 @@ export async function GET(
 ) {
   try {
     const user = await requireAuthorizedUser(request);
-    assertPrivilegedRole(user);
+    assertVehicleFinanceRole(user);
     const { applicationId } = await context.params;
     const trail = await getVehicleFinanceAuditTrail(applicationId);
     return NextResponse.json(trail);
@@ -23,3 +23,4 @@ export async function GET(
     return NextResponse.json({ error: "Vehicle finance timeline unavailable" }, { status: 500 });
   }
 }
+
