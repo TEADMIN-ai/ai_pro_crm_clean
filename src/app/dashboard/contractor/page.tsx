@@ -1,5 +1,6 @@
 "use client";
 
+import DashboardHeader from "@/components/layout/DashboardHeader";
 import RequireRole from "@/components/auth/RequireRole";
 import ContractorOnboardingView from "@/components/contractors/ContractorOnboardingView";
 import TenderPackRequestPanel from "@/components/tender/TenderPackRequestPanel";
@@ -11,6 +12,9 @@ export default function ContractorDashboardPage() {
   return (
     <RequireRole allow={["contractor"]}>
       <main className="space-y-6 p-4 md:p-6">
+        <div className="flex justify-end">
+          <DashboardHeader />
+        </div>
         {loading ? (
           <div className="rounded-xl border border-slate-200 bg-white p-5 text-sm text-slate-600">
             Loading contractor dashboard...

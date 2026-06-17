@@ -3,6 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
+import DashboardHeader from "@/components/layout/DashboardHeader";
 import Badge from "@/components/ui/Badge";
 import Card, { IdentityCardHeader } from "@/components/ui/Card";
 import { authFetch } from "@/lib/client/authFetch";
@@ -343,20 +344,10 @@ export default function VehicleFinanceExecutiveDashboard() {
           </div>
 
           <div className="relative flex min-h-[440px] items-end justify-center lg:min-h-[720px] lg:justify-end">
-            <div className="absolute right-0 top-0 hidden w-[300px] rounded-[28px] border border-white/10 bg-slate-950/60 p-4 text-white shadow-[0_24px_70px_rgba(2,8,23,0.35)] backdrop-blur-md xl:block">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-100/70">Welcome back,</p>
-              <p className="mt-2 text-xl font-semibold">Lawrence Banks</p>
-              <p className="mt-3 text-sm text-slate-300">
-                <span className="block text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Role</span>
-                Dealer Partner
-              </p>
-              <p className="mt-3 text-sm text-slate-300">
-                <span className="block text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Company</span>
-                Roar Cars SA
-              </p>
-            </div>
-
-            <div className="relative w-full max-w-[760px] pt-16 lg:pt-20">
+            <div className="flex w-full max-w-[760px] flex-col gap-4 pt-2 lg:pt-0">
+              <div className="flex justify-end">
+                <DashboardHeader />
+              </div>
               <div className="absolute inset-x-6 bottom-0 top-20 rounded-[40px] border border-cyan-300/10 bg-cyan-300/10 blur-3xl" />
               <div className="relative overflow-hidden rounded-[36px] border border-white/10 bg-slate-950/50 p-4 shadow-[0_28px_100px_rgba(2,8,23,0.45)] backdrop-blur-md lg:p-6">
                 <div className="relative aspect-[16/11] w-full lg:scale-[1.22] lg:origin-bottom">
