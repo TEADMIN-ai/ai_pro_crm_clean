@@ -256,14 +256,17 @@ export default function VehicleFinanceExecutiveDashboard() {
 
       <section className="relative overflow-hidden rounded-[32px] border border-cyan-400/20 bg-slate-950 shadow-[0_24px_90px_rgba(2,8,23,0.45)]">
         <div className="absolute inset-0">
-          <Image
-            src="/images/vehicles/bmw-m4-hero.jpg"
-            alt=""
-            fill
-            priority
-            className="object-cover object-center opacity-55"
-            sizes="100vw"
-          />
+          <video
+            className="absolute inset-0 h-full w-full object-cover object-center opacity-60"
+            autoPlay
+            muted
+            loop
+            playsInline
+            preload="metadata"
+            poster="/images/vehicles/bmw-m4-hero.jpg"
+          >
+            <source src="/images/vehicles/bmw-m5-hero.mp4" type="video/mp4" />
+          </video>
           <div className="absolute inset-0 bg-[linear-gradient(115deg,rgba(2,6,23,0.92)_0%,rgba(3,12,25,0.86)_46%,rgba(2,8,23,0.72)_100%)]" />
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(56,189,248,0.16),transparent_28%),radial-gradient(circle_at_bottom_left,rgba(14,165,233,0.14),transparent_34%)]" />
         </div>
