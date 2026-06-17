@@ -57,6 +57,13 @@ const DEFAULT_OVERVIEW: VehicleFinanceOverview = {
   certificates: [],
 };
 
+const HERO_VIDEO_SRC = "/images/vehicles/bmw-m5-hero.mp4";
+const HERO_POSTER_SRC = "/images/vehicles/bmw-m4-hero.jpg";
+const PARTNERSHIP_LOGO_SRC = "/images/logos/TE IN Partnership With Roar logo.png";
+const EXECUTIVE_METRIC_CARD_CLASS =
+  "min-h-[152px] rounded-[24px] border border-white/10 bg-white/[0.06] p-5 backdrop-blur-md shadow-[0_18px_45px_rgba(2,8,23,0.18)]";
+const SUPPORTING_STAT_CARD_CLASS = "rounded-xl border border-slate-700 bg-slate-950/60 p-4";
+
 function formatCurrency(value: number | null | undefined): string {
   return `R ${Number(value ?? 0).toLocaleString("en-ZA", { maximumFractionDigits: 0 })}`;
 }
@@ -246,41 +253,56 @@ export default function VehicleFinanceExecutiveDashboard() {
   }
 
   return (
-    <div className="mx-auto max-w-7xl space-y-6 p-4 pb-10 md:p-6 lg:p-8">
+    <div className="relative isolate mx-auto max-w-7xl space-y-6 p-4 pb-10 md:p-6 lg:p-8">
+      <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-16 z-0 flex justify-center overflow-hidden">
+        <Image
+          src={PARTNERSHIP_LOGO_SRC}
+          alt=""
+          width={1800}
+          height={520}
+          className="h-auto w-[clamp(1080px,150vw,1800px)] select-none object-contain opacity-[0.14]"
+          priority
+        />
+      </div>
+
       {error ? (
-        <Card>
+        <Card className="relative z-10">
           <IdentityCardHeader title="Vehicle Finance Intelligence" subtitle="Executive dashboard unavailable" />
           <p className="mt-4 text-sm text-slate-300">{error}</p>
         </Card>
       ) : null}
 
-      <section className="relative overflow-hidden rounded-[32px] border border-cyan-400/20 bg-slate-950 shadow-[0_24px_90px_rgba(2,8,23,0.45)]">
+      <section className="relative z-10 overflow-hidden rounded-[32px] border border-cyan-400/20 bg-slate-950 shadow-[0_24px_90px_rgba(2,8,23,0.45)] lg:min-h-[760px]">
         <div className="absolute inset-0">
           <video
-            className="absolute inset-0 h-full w-full object-cover object-center opacity-60"
+            className="absolute inset-0 h-full w-full object-cover object-center opacity-55"
             autoPlay
             muted
             loop
             playsInline
             preload="metadata"
-            poster="/images/vehicles/bmw-m4-hero.jpg"
+            poster={HERO_POSTER_SRC}
           >
-            <source src="/images/vehicles/bmw-m5-hero.mp4" type="video/mp4" />
+            <source src={HERO_VIDEO_SRC} type="video/mp4" />
           </video>
-          <div className="absolute inset-0 bg-[linear-gradient(115deg,rgba(2,6,23,0.92)_0%,rgba(3,12,25,0.86)_46%,rgba(2,8,23,0.72)_100%)]" />
+          <div className="absolute inset-0 bg-[linear-gradient(115deg,rgba(2,6,23,0.94)_0%,rgba(3,12,25,0.9)_46%,rgba(2,8,23,0.78)_100%)]" />
+          <div
+            className="absolute inset-0 bg-[linear-gradient(110deg,transparent_0%,rgba(255,255,255,0.08)_50%,transparent_100%)] opacity-30"
+            style={{ animation: "pulse 12s ease-in-out infinite" }}
+          />
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(56,189,248,0.16),transparent_28%),radial-gradient(circle_at_bottom_left,rgba(14,165,233,0.14),transparent_34%)]" />
         </div>
 
-        <div className="relative grid gap-8 px-6 py-8 lg:grid-cols-[1.2fr_0.8fr] lg:gap-10 lg:px-8 lg:py-10">
+        <div className="relative grid gap-8 px-6 py-10 lg:grid-cols-[1.1fr_0.9fr] lg:gap-10 lg:px-8 lg:py-14">
           <div className="flex flex-col justify-between gap-8">
             <div className="max-w-3xl">
-                <div className="flex flex-wrap items-center gap-4">
+              <div className="flex flex-wrap items-center gap-4">
                 <div className="flex items-center gap-3 rounded-full border border-cyan-300/20 bg-slate-950/50 px-4 py-2 backdrop-blur-md">
                   <Image
-                    src="/images/logos/TE IN Partnership With Roar logo.png"
+                    src={PARTNERSHIP_LOGO_SRC}
                     alt="Torque Empire in partnership with Roar Cars SA"
-                    width={172}
-                    height={34}
+                    width={184}
+                    height={36}
                     className="h-7 w-auto"
                     priority
                   />
@@ -290,14 +312,14 @@ export default function VehicleFinanceExecutiveDashboard() {
                 </div>
               </div>
 
-              <p className="mt-6 text-[11px] font-semibold uppercase tracking-[0.28em] text-cyan-200/80">
-                TORQUE EMPIRE VEHICLE FINANCE INTELLIGENCE
+              <p className="mt-6 text-[11px] font-semibold uppercase tracking-[0.32em] text-cyan-200/80">
+                ROAR CARS SA EXECUTIVE PORTAL
               </p>
               <h1 className="mt-3 max-w-2xl text-4xl font-semibold tracking-[-0.06em] text-white sm:text-5xl lg:text-6xl">
                 Vehicle Finance Intelligence
               </h1>
               <p className="mt-4 text-sm font-medium uppercase tracking-[0.2em] text-cyan-100/75">
-                In Partnership With Roar Cars SA
+                Powered by Torque Empire
               </p>
               <p className="mt-5 max-w-2xl text-base leading-7 text-slate-200/85 lg:text-lg">
                 Dedicated dealership-facing command center for finance pre-approval, verification, affordability, underwriting, and decisioning.
@@ -305,31 +327,44 @@ export default function VehicleFinanceExecutiveDashboard() {
             </div>
 
             <div className="grid gap-3 sm:grid-cols-3">
-              <Link href="/dashboard/vehicle-finance/customers" className="rounded-[22px] border border-cyan-300/20 bg-cyan-300/10 px-4 py-4 text-left no-underline backdrop-blur-md transition hover:bg-cyan-300/15">
+              <Link href="/dashboard/vehicle-finance/customers" className={`${EXECUTIVE_METRIC_CARD_CLASS} block text-left no-underline transition hover:bg-cyan-300/15`}>
                 <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-100/75">Customers</p>
                 <p className="mt-3 text-2xl font-semibold text-white">{dashboard.customers.length}</p>
               </Link>
-              <Link href="/dashboard/vehicle-finance/applications" className="rounded-[22px] border border-white/10 bg-white/[0.06] px-4 py-4 text-left no-underline backdrop-blur-md transition hover:bg-white/[0.1]">
+              <Link href="/dashboard/vehicle-finance/applications" className={`${EXECUTIVE_METRIC_CARD_CLASS} block text-left no-underline transition hover:bg-white/[0.1]`}>
                 <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-300">Applications</p>
                 <p className="mt-3 text-2xl font-semibold text-white">{totalApplications}</p>
               </Link>
-              <Link href="/dashboard/vehicle-finance/reports" className="rounded-[22px] border border-emerald-300/20 bg-emerald-300/10 px-4 py-4 text-left no-underline backdrop-blur-md transition hover:bg-emerald-300/15">
+              <Link href="/dashboard/vehicle-finance/reports" className={`${EXECUTIVE_METRIC_CARD_CLASS} block text-left no-underline transition hover:bg-emerald-300/15`}>
                 <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-emerald-100/80">Reports</p>
                 <p className="mt-3 text-2xl font-semibold text-white">{dashboard.metrics.approvalRatio}%</p>
               </Link>
             </div>
           </div>
 
-          <div className="relative flex min-h-[360px] items-end justify-center lg:min-h-[520px] lg:justify-end">
-            <div className="relative w-full max-w-[640px]">
-              <div className="absolute inset-x-6 bottom-0 top-16 rounded-[32px] border border-cyan-300/10 bg-cyan-300/10 blur-3xl" />
-              <div className="relative overflow-hidden rounded-[32px] border border-white/10 bg-slate-950/50 p-5 shadow-[0_24px_80px_rgba(2,8,23,0.45)] backdrop-blur-md">
-                <div className="relative aspect-[4/3] w-full">
+          <div className="relative flex min-h-[440px] items-end justify-center lg:min-h-[720px] lg:justify-end">
+            <div className="absolute right-0 top-0 hidden w-[300px] rounded-[28px] border border-white/10 bg-slate-950/60 p-4 text-white shadow-[0_24px_70px_rgba(2,8,23,0.35)] backdrop-blur-md xl:block">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-100/70">Welcome back,</p>
+              <p className="mt-2 text-xl font-semibold">Lawrence Banks</p>
+              <p className="mt-3 text-sm text-slate-300">
+                <span className="block text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Role</span>
+                Dealer Partner
+              </p>
+              <p className="mt-3 text-sm text-slate-300">
+                <span className="block text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Company</span>
+                Roar Cars SA
+              </p>
+            </div>
+
+            <div className="relative w-full max-w-[760px] pt-16 lg:pt-20">
+              <div className="absolute inset-x-6 bottom-0 top-20 rounded-[40px] border border-cyan-300/10 bg-cyan-300/10 blur-3xl" />
+              <div className="relative overflow-hidden rounded-[36px] border border-white/10 bg-slate-950/50 p-4 shadow-[0_28px_100px_rgba(2,8,23,0.45)] backdrop-blur-md lg:p-6">
+                <div className="relative aspect-[16/11] w-full lg:scale-[1.22] lg:origin-bottom">
                   <Image
                     src="/images/vehicles/bmw-m4-transparent.png"
                     alt="BMW M4 hero vehicle"
                     fill
-                    sizes="(min-width: 1024px) 42vw, 92vw"
+                    sizes="(min-width: 1024px) 55vw, 92vw"
                     className="object-contain object-bottom drop-shadow-[0_24px_45px_rgba(15,23,42,0.7)]"
                     priority
                   />
@@ -342,7 +377,7 @@ export default function VehicleFinanceExecutiveDashboard() {
 
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
         {applicationSummaryMetrics.map(([label, value]) => (
-          <Card key={label}>
+          <Card key={label} className={`${EXECUTIVE_METRIC_CARD_CLASS} flex flex-col justify-between`}>
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">{label}</p>
             <p className="mt-3 text-3xl font-semibold text-white">
               {typeof value === "number" ? value.toLocaleString("en-ZA") : String(value)}
@@ -352,27 +387,27 @@ export default function VehicleFinanceExecutiveDashboard() {
       </section>
 
       <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">
-        <Card>
+        <Card className={`${EXECUTIVE_METRIC_CARD_CLASS} flex flex-col justify-between`}>
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Finance Readiness Score</p>
           <p className="mt-3 text-3xl font-semibold text-white">{financeDecision.financeReadinessScore}</p>
           <p className="mt-2 text-sm text-slate-400">{financeDecision.riskLevel}</p>
         </Card>
-        <Card>
+        <Card className={`${EXECUTIVE_METRIC_CARD_CLASS} flex flex-col justify-between`}>
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Risk Level</p>
           <Badge tone={getStatusTone(financeDecision.riskLevel)}>{financeDecision.riskLevel}</Badge>
           <p className="mt-3 text-sm text-slate-400">Fraud score: {fraudScore}</p>
         </Card>
-        <Card>
+        <Card className={`${EXECUTIVE_METRIC_CARD_CLASS} flex flex-col justify-between`}>
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Underwriting</p>
           <Badge tone={getStatusTone(financeDecision.recommendedDecision)}>{financeDecision.recommendedDecision}</Badge>
           <p className="mt-3 text-sm text-slate-400">Reason: {financeDecision.decisionReason}</p>
         </Card>
-        <Card>
+        <Card className={`${EXECUTIVE_METRIC_CARD_CLASS} flex flex-col justify-between`}>
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Maximum Affordable Instalment</p>
           <p className="mt-3 text-3xl font-semibold text-white">{formatCurrency(affordability?.maxAffordableInstalment?.value as number | null | undefined)}</p>
           <p className="mt-2 text-sm text-slate-400">Disposable income: {formatCurrency(affordability?.disposableIncome?.value as number | null | undefined)}</p>
         </Card>
-        <Card>
+        <Card className={`${EXECUTIVE_METRIC_CARD_CLASS} flex flex-col justify-between`}>
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Verified Income</p>
           <p className="mt-3 text-3xl font-semibold text-white">{financeDecision.incomeVerified ? "YES" : "NO"}</p>
           <p className="mt-2 text-sm text-slate-400">Income match: {incomeVerificationScore}%</p>
@@ -384,14 +419,14 @@ export default function VehicleFinanceExecutiveDashboard() {
           <IdentityCardHeader title="Featured Vehicles" subtitle="Ready for future inventory integration" />
           <div className="mt-4 grid gap-4 md:grid-cols-2">
             {featuredVehicles.map((vehicle) => (
-              <article key={vehicle.title} className={`overflow-hidden rounded-[24px] border border-white/10 ${vehicle.accent} shadow-[0_20px_50px_rgba(2,8,23,0.22)]`}>
-                <div className="relative aspect-[16/10] bg-slate-950/70">
+              <article key={vehicle.title} className={`overflow-hidden rounded-[28px] border border-white/10 ${vehicle.accent} shadow-[0_20px_50px_rgba(2,8,23,0.22)]`}>
+                <div className="relative aspect-[16/9] bg-slate-950/70 p-3 md:p-5">
                   <Image
                     src={vehicle.image}
                     alt={vehicle.title}
                     fill
-                    sizes="(min-width: 768px) 40vw, 92vw"
-                    className="object-contain p-5"
+                    sizes="(min-width: 768px) 44vw, 92vw"
+                    className="object-contain object-center p-2 md:p-3 lg:p-4"
                   />
                 </div>
                 <div className="border-t border-white/10 p-4">
@@ -484,33 +519,33 @@ export default function VehicleFinanceExecutiveDashboard() {
         <Card>
           <IdentityCardHeader title="Income & Commitments" subtitle="Salary, obligations, and disposable income" />
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
-            <div className="rounded-xl border border-slate-700 bg-slate-950/60 p-4">
+            <div className={SUPPORTING_STAT_CARD_CLASS}>
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Average Monthly Income</p>
               <p className="mt-2 text-2xl font-semibold text-white">{formatCurrency(averageIncome)}</p>
             </div>
-            <div className="rounded-xl border border-slate-700 bg-slate-950/60 p-4">
+            <div className={SUPPORTING_STAT_CARD_CLASS}>
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Salary Consistency</p>
               <p className="mt-2 text-2xl font-semibold text-white">
                 {selectedBankStatementIntelligence?.extraction.salaryIntelligence?.salaryConsistency?.value ?? selectedPayslipIntelligence?.extraction.payPeriod.value ?? "n/a"}
               </p>
             </div>
-            <div className="rounded-xl border border-slate-700 bg-slate-950/60 p-4">
+            <div className={SUPPORTING_STAT_CARD_CLASS}>
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Monthly Debt Commitments</p>
               <p className="mt-2 text-2xl font-semibold text-white">
                 {formatCurrency(selectedBankStatementIntelligence?.extraction.commitmentSummary?.totalMonthlyCommitments?.value as number | null | undefined)}
               </p>
             </div>
-            <div className="rounded-xl border border-slate-700 bg-slate-950/60 p-4">
+            <div className={SUPPORTING_STAT_CARD_CLASS}>
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Disposable Income</p>
               <p className="mt-2 text-2xl font-semibold text-white">{formatCurrency(affordability?.disposableIncome?.value as number | null | undefined)}</p>
             </div>
-            <div className="rounded-xl border border-slate-700 bg-slate-950/60 p-4">
+            <div className={SUPPORTING_STAT_CARD_CLASS}>
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Insurance Commitments</p>
               <p className="mt-2 text-2xl font-semibold text-white">
                 {formatCurrency(selectedBankStatementIntelligence?.extraction.commitmentSummary?.monthlyInsuranceCommitments?.value as number | null | undefined)}
               </p>
             </div>
-            <div className="rounded-xl border border-slate-700 bg-slate-950/60 p-4">
+            <div className={SUPPORTING_STAT_CARD_CLASS}>
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Retail Credit Commitments</p>
               <p className="mt-2 text-2xl font-semibold text-white">
                 {formatCurrency(selectedBankStatementIntelligence?.extraction.commitmentSummary?.monthlyDebtCommitments?.value as number | null | undefined)}
@@ -534,25 +569,25 @@ export default function VehicleFinanceExecutiveDashboard() {
 
             return (
               <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                <div className="rounded-xl border border-slate-700 bg-slate-950/60 p-4">
+                <div className={SUPPORTING_STAT_CARD_CLASS}>
                   <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Fraud Risk Score</p>
                   <p className="mt-2 text-2xl font-semibold text-white">{fraudScore}</p>
                 </div>
-                <div className="rounded-xl border border-slate-700 bg-slate-950/60 p-4">
+                <div className={SUPPORTING_STAT_CARD_CLASS}>
                   <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Gambling Risk</p>
                   <Badge tone={getStatusTone(selectedBankStatementIntelligence?.extraction.gamblingRisk?.riskLevel)}>{selectedBankStatementIntelligence?.extraction.gamblingRisk?.riskLevel ?? "LOW"}</Badge>
                 </div>
-                <div className="rounded-xl border border-slate-700 bg-slate-950/60 p-4">
+                <div className={SUPPORTING_STAT_CARD_CLASS}>
                   <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Income Consistency</p>
                   <p className="mt-2 text-2xl font-semibold text-white">
                     {selectedBankStatementIntelligence?.extraction.salaryIntelligence?.salaryConsistency?.value ?? selectedPayslipIntelligence?.extraction.grossEarnings.value ?? "n/a"}
                   </p>
                 </div>
-                <div className="rounded-xl border border-slate-700 bg-slate-950/60 p-4">
+                <div className={SUPPORTING_STAT_CARD_CLASS}>
                   <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Document Integrity</p>
                   <p className="mt-2 text-2xl font-semibold text-white">{selectedDocuments.length > 0 ? "CHECKED" : "PENDING"}</p>
                 </div>
-                <div className="rounded-xl border border-slate-700 bg-slate-950/60 p-4 sm:col-span-2">
+                <div className={`${SUPPORTING_STAT_CARD_CLASS} sm:col-span-2`}>
                   <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Fraud Indicators</p>
                   <div className="mt-3 flex flex-wrap gap-2">
                     {fraudIndicators.length ? (
@@ -576,19 +611,19 @@ export default function VehicleFinanceExecutiveDashboard() {
         <Card>
           <IdentityCardHeader title="Vehicle Affordability" subtitle="Recommended instalment and vehicle band guidance" />
           <div className="mt-4 grid gap-3 sm:grid-cols-3">
-            <div className="rounded-xl border border-slate-700 bg-slate-950/60 p-4">
+            <div className={SUPPORTING_STAT_CARD_CLASS}>
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Recommended Instalment</p>
               <p className="mt-2 text-2xl font-semibold text-white">{formatCurrency(affordability?.maxAffordableInstalment?.value as number | null | undefined)}</p>
             </div>
-            <div className="rounded-xl border border-slate-700 bg-slate-950/60 p-4">
+            <div className={SUPPORTING_STAT_CARD_CLASS}>
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Starter Vehicle Band</p>
               <p className="mt-2 text-sm text-white">{affordability?.starterVehicle?.value ?? "n/a"}</p>
             </div>
-            <div className="rounded-xl border border-slate-700 bg-slate-950/60 p-4">
+            <div className={SUPPORTING_STAT_CARD_CLASS}>
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Mid Range Vehicle Band</p>
               <p className="mt-2 text-sm text-white">{affordability?.midRangeVehicle?.value ?? "n/a"}</p>
             </div>
-            <div className="rounded-xl border border-slate-700 bg-slate-950/60 p-4 sm:col-span-3">
+            <div className={`${SUPPORTING_STAT_CARD_CLASS} sm:col-span-3`}>
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Premium Vehicle Band</p>
               <p className="mt-2 text-sm text-white">{affordability?.premiumVehicle?.value ?? "n/a"}</p>
             </div>
