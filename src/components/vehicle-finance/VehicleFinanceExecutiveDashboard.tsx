@@ -517,7 +517,11 @@ export default function VehicleFinanceExecutiveDashboard() {
             <div className={SUPPORTING_STAT_CARD_CLASS}>
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Salary Consistency</p>
               <p className="mt-2 text-2xl font-semibold text-white">
-                {selectedBankStatementIntelligence?.extraction.salaryIntelligence?.salaryConsistency?.value ?? selectedPayslipIntelligence?.extraction.payPeriod.value ?? "n/a"}
+                {String(
+                  selectedBankStatementIntelligence?.extraction.salaryIntelligence?.salaryConsistency?.value ??
+                    selectedPayslipIntelligence?.extraction.payPeriod?.value ??
+                    "n/a",
+                )}
               </p>
             </div>
             <div className={SUPPORTING_STAT_CARD_CLASS}>
@@ -571,7 +575,11 @@ export default function VehicleFinanceExecutiveDashboard() {
                 <div className={SUPPORTING_STAT_CARD_CLASS}>
                   <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Income Consistency</p>
                   <p className="mt-2 text-2xl font-semibold text-white">
-                    {selectedBankStatementIntelligence?.extraction.salaryIntelligence?.salaryConsistency?.value ?? selectedPayslipIntelligence?.extraction.grossEarnings.value ?? "n/a"}
+                    {String(
+                      selectedBankStatementIntelligence?.extraction.salaryIntelligence?.salaryConsistency?.value ??
+                        selectedPayslipIntelligence?.extraction.grossEarnings?.value ??
+                        "n/a",
+                    )}
                   </p>
                 </div>
                 <div className={SUPPORTING_STAT_CARD_CLASS}>
