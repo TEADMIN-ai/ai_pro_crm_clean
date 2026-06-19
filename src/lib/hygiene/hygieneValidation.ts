@@ -2,16 +2,24 @@ import {
   HYGIENE_PHOTO_CATEGORIES,
   type HygieneBinAsset,
   type HygieneClient,
-  type HygieneCollectionJob,
+  type HygieneCollection,
   type HygieneComplianceDocument,
   type HygieneDriverLog,
   type HygieneEvidencePhoto,
-  type HygieneManifestStatus,
+  type HygieneManifest,
   type HygienePhotoCategory,
+  type HygieneReport,
   type HygieneSite,
   type HygieneVehicleInspection,
-  type HygieneWasteManifest,
 } from "@/types/hygiene";
+
+function asRecord(input: unknown): Record<string, unknown> {
+  if (!input || typeof input !== "object" || Array.isArray(input)) {
+    throw new Error("Invalid hygiene payload: expected an object.");
+  }
+
+  return input as Record<string, unknown>;
+}
 
 function requireString(record: Record<string, unknown>, field: string): string {
   const value = record[field];
@@ -20,15 +28,6 @@ function requireString(record: Record<string, unknown>, field: string): string {
   }
 
   return value.trim();
-}
-
-function requireNumber(record: Record<string, unknown>, field: string): number {
-  const value = record[field];
-  if (typeof value !== "number" || Number.isNaN(value)) {
-    throw new Error(`Invalid hygiene payload: ${field} must be a number.`);
-  }
-
-  return value;
 }
 
 function optionalString(record: Record<string, unknown>, field: string): string | null {
@@ -42,6 +41,15 @@ function optionalString(record: Record<string, unknown>, field: string): string 
   }
 
   return value.trim();
+}
+
+function requireNumber(record: Record<string, unknown>, field: string): number {
+  const value = record[field];
+  if (typeof value !== "number" || Number.isNaN(value)) {
+    throw new Error(`Invalid hygiene payload: ${field} must be a number.`);
+  }
+
+  return value;
 }
 
 function optionalNumber(record: Record<string, unknown>, field: string): number | null {
@@ -75,12 +83,29 @@ function requireDateString(record: Record<string, unknown>, field: string): stri
   return value;
 }
 
-function asRecord(input: unknown): Record<string, unknown> {
-  if (!input || typeof input !== "object" || Array.isArray(input)) {
-    throw new Error("Invalid hygiene payload: expected an object.");
+function requireStringArray(record: Record<string, unknown>, field: string): string[] {
+  const value = record[field];
+  if (!Array.isArray(value)) {
+    throw new Error(`Invalid hygiene payload: ${field} must be an array.`);
   }
 
-  return input as Record<string, unknown>;
+  return value.filter((item): item is string => typeof item === "string" && item.trim().length > 0);
+}
+
+function validateWorkflowSteps(record: Record<string, unknown>): HygieneCollection["workflowSteps"] {
+  const value = record.workflowSteps;
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.map((item) => {
+    const step = asRecord(item);
+    return {
+      stepId: requireString(step, "stepId"),
+      label: requireString(step, "label"),
+      status: requireString(step, "status") as HygieneCollection["workflowSteps"][number]["status"],
+    };
+  });
 }
 
 export function validateHygieneClient(input: unknown): HygieneClient {
@@ -88,10 +113,12 @@ export function validateHygieneClient(input: unknown): HygieneClient {
   return {
     clientId: requireString(record, "clientId"),
     clientName: requireString(record, "clientName"),
+    clientType: requireString(record, "clientType"),
     companyRegistration: requireString(record, "companyRegistration"),
-    contactPerson: requireString(record, "contactPerson"),
-    phone: requireString(record, "phone"),
-    email: requireString(record, "email"),
+    primaryContactName: requireString(record, "primaryContactName"),
+    primaryContactPhone: requireString(record, "primaryContactPhone"),
+    primaryContactEmail: requireString(record, "primaryContactEmail"),
+    billingContact: requireString(record, "billingContact"),
     contractStartDate: requireDateString(record, "contractStartDate"),
     contractEndDate: requireDateString(record, "contractEndDate"),
     serviceFrequency: requireString(record, "serviceFrequency"),
@@ -100,6 +127,8 @@ export function validateHygieneClient(input: unknown): HygieneClient {
     paymentStatus: requireString(record, "paymentStatus") as HygieneClient["paymentStatus"],
     status: requireString(record, "status") as HygieneClient["status"],
     monthlyRevenue: requireNumber(record, "monthlyRevenue"),
+    createdAt: requireString(record, "createdAt"),
+    updatedAt: requireString(record, "updatedAt"),
   };
 }
 
@@ -110,8 +139,16 @@ export function validateHygieneSite(input: unknown): HygieneSite {
     clientId: requireString(record, "clientId"),
     siteName: requireString(record, "siteName"),
     address: requireString(record, "address"),
+    suburb: requireString(record, "suburb"),
+    city: requireString(record, "city"),
+    contactPerson: requireString(record, "contactPerson"),
+    contactPhone: requireString(record, "contactPhone"),
     binCount: requireNumber(record, "binCount"),
     binSize: requireString(record, "binSize"),
+    serviceFrequency: requireString(record, "serviceFrequency"),
+    accessNotes: requireString(record, "accessNotes"),
+    lastServiceDate: optionalString(record, "lastServiceDate"),
+    nextServiceDate: optionalString(record, "nextServiceDate"),
     status: requireString(record, "status") as HygieneSite["status"],
   };
 }
@@ -123,17 +160,19 @@ export function validateHygieneBinAsset(input: unknown): HygieneBinAsset {
     clientId: requireString(record, "clientId"),
     siteId: requireString(record, "siteId"),
     binSize: requireString(record, "binSize"),
+    binType: requireString(record, "binType"),
+    locationDescription: requireString(record, "locationDescription"),
     status: requireString(record, "status") as HygieneBinAsset["status"],
     installDate: requireDateString(record, "installDate"),
-    lastServiceDate: requireDateString(record, "lastServiceDate"),
-    nextServiceDate: requireDateString(record, "nextServiceDate"),
+    lastServiceDate: optionalString(record, "lastServiceDate"),
+    nextServiceDate: optionalString(record, "nextServiceDate"),
     condition: requireString(record, "condition"),
+    notes: requireString(record, "notes"),
   };
 }
 
-export function validateHygieneCollection(input: unknown): HygieneCollectionJob {
+export function validateHygieneCollection(input: unknown): HygieneCollection {
   const record = asRecord(input);
-  const evidencePhotoIds = record.evidencePhotoIds;
   return {
     collectionId: requireString(record, "collectionId"),
     clientId: requireString(record, "clientId"),
@@ -142,14 +181,20 @@ export function validateHygieneCollection(input: unknown): HygieneCollectionJob 
     scheduledTimeWindow: requireString(record, "scheduledTimeWindow"),
     assignedDriver: requireString(record, "assignedDriver"),
     vehicleRegistration: requireString(record, "vehicleRegistration"),
-    status: requireString(record, "status") as HygieneCollectionJob["status"],
+    vehicleName: requireString(record, "vehicleName"),
+    status: requireString(record, "status") as HygieneCollection["status"],
+    arrivalTime: optionalString(record, "arrivalTime"),
+    departureTime: optionalString(record, "departureTime"),
     completedAt: optionalString(record, "completedAt"),
-    evidencePhotoIds: Array.isArray(evidencePhotoIds) ? evidencePhotoIds.filter((item): item is string => typeof item === "string") : [],
     manifestId: requireString(record, "manifestId"),
+    evidencePhotoIds: requireStringArray(record, "evidencePhotoIds"),
+    clientSignatureStatus: requireString(record, "clientSignatureStatus"),
+    notes: requireString(record, "notes"),
+    workflowSteps: validateWorkflowSteps(record),
   };
 }
 
-export function validateHygieneManifest(input: unknown): HygieneWasteManifest {
+export function validateHygieneManifest(input: unknown): HygieneManifest {
   const record = asRecord(input);
   return {
     manifestId: requireString(record, "manifestId"),
@@ -158,15 +203,19 @@ export function validateHygieneManifest(input: unknown): HygieneWasteManifest {
     siteId: requireString(record, "siteId"),
     generatorRegistration: requireString(record, "generatorRegistration"),
     transportRegistration: requireString(record, "transportRegistration"),
-    wasteClassification: requireString(record, "wasteClassification") as HygieneWasteManifest["wasteClassification"],
+    wasteClassification: requireString(record, "wasteClassification") as HygieneManifest["wasteClassification"],
     wasteType: requireString(record, "wasteType"),
     quantity: requireNumber(record, "quantity"),
     unit: requireString(record, "unit"),
     collectionDate: requireDateString(record, "collectionDate"),
+    collectedBy: requireString(record, "collectedBy"),
+    vehicleRegistration: requireString(record, "vehicleRegistration"),
     disposalFacility: requireString(record, "disposalFacility"),
     disposalDate: optionalString(record, "disposalDate"),
     disposalCertificateNo: requireString(record, "disposalCertificateNo"),
-    status: requireString(record, "status") as HygieneManifestStatus,
+    status: requireString(record, "status") as HygieneManifest["status"],
+    createdAt: requireString(record, "createdAt"),
+    updatedAt: requireString(record, "updatedAt"),
   };
 }
 
@@ -184,12 +233,11 @@ export function validateHygieneEvidencePhoto(input: unknown): HygieneEvidencePho
     collectionId: requireString(record, "collectionId"),
     manifestId: requireString(record, "manifestId"),
     category: category as HygienePhotoCategory,
-    fileName: requireString(record, "fileName"),
-    contentType: requireString(record, "contentType"),
-    storagePath: requireString(record, "storagePath"),
-    downloadUrl: requireString(record, "downloadUrl"),
+    uploadedBy: requireString(record, "uploadedBy"),
     uploadedAt: requireString(record, "uploadedAt"),
-    uploadedByUid: requireString(record, "uploadedByUid"),
+    fileUrl: requireString(record, "fileUrl"),
+    timestampFromImage: optionalString(record, "timestampFromImage"),
+    notes: requireString(record, "notes"),
   };
 }
 
@@ -199,7 +247,7 @@ export function validateHygieneVehicleInspection(input: unknown): HygieneVehicle
     inspectionId: requireString(record, "inspectionId"),
     date: requireDateString(record, "date"),
     vehicleRegistration: requireString(record, "vehicleRegistration"),
-    vehicle: requireString(record, "vehicle"),
+    vehicleName: requireString(record, "vehicleName"),
     driver: requireString(record, "driver"),
     odometerStart: optionalNumber(record, "odometerStart"),
     odometerEnd: optionalNumber(record, "odometerEnd"),
@@ -224,6 +272,7 @@ export function validateHygieneDriverLog(input: unknown): HygieneDriverLog {
     endKm: optionalNumber(record, "endKm"),
     fuel: requireString(record, "fuel"),
     signatureStatus: requireString(record, "signatureStatus"),
+    linkedCollectionIds: requireStringArray(record, "linkedCollectionIds"),
   };
 }
 
@@ -231,11 +280,31 @@ export function validateHygieneComplianceDocument(input: unknown): HygieneCompli
   const record = asRecord(input);
   return {
     documentId: requireString(record, "documentId"),
+    documentType: requireString(record, "documentType"),
     title: requireString(record, "title"),
-    referenceNo: requireString(record, "referenceNo"),
-    status: requireString(record, "status") as HygieneComplianceDocument["status"],
+    registrationNumber: requireString(record, "registrationNumber"),
     issueDate: optionalString(record, "issueDate"),
     expiryDate: optionalString(record, "expiryDate"),
-    alert: optionalString(record, "alert"),
+    status: requireString(record, "status") as HygieneComplianceDocument["status"],
+    fileUrl: optionalString(record, "fileUrl"),
+    owner: requireString(record, "owner"),
+    uploadedAt: optionalString(record, "uploadedAt"),
+  };
+}
+
+export function validateHygieneReport(input: unknown): HygieneReport {
+  const record = asRecord(input);
+  return {
+    reportId: requireString(record, "reportId"),
+    period: requireString(record, "period"),
+    collectionsCompleted: requireNumber(record, "collectionsCompleted"),
+    sitesServiced: requireNumber(record, "sitesServiced"),
+    totalBinsServiced: requireNumber(record, "totalBinsServiced"),
+    manifestsCreated: requireNumber(record, "manifestsCreated"),
+    disposalCertificatesPending: requireNumber(record, "disposalCertificatesPending"),
+    incidents: requireNumber(record, "incidents"),
+    evidenceCompletionPercentage: requireNumber(record, "evidenceCompletionPercentage"),
+    revenueSummary: requireNumber(record, "revenueSummary"),
+    createdAt: requireString(record, "createdAt"),
   };
 }

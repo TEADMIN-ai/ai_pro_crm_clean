@@ -51,6 +51,12 @@ export async function proxy(request: NextRequest) {
     }
   }
 
+  if (pathname.startsWith("/dashboard/hygiene")) {
+    if (role !== "admin" && role !== "manager" && role !== "staff") {
+      return new NextResponse("Unauthorized", { status: 403 });
+    }
+  }
+
   if (pathname === "/dashboard" && role === "contractor") {
     return NextResponse.redirect(new URL("/dashboard/contractor", request.url));
   }

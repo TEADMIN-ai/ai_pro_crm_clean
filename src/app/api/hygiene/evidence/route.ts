@@ -29,10 +29,6 @@ function errorResponse(error: unknown) {
 export async function POST(request: NextRequest) {
   try {
     const user = await requireAuthorizedUser(request);
-    if (user.role !== "admin" && user.role !== "manager" && user.role !== "staff") {
-      return NextResponse.json({ error: "Only admin, manager, and staff users may upload hygiene evidence." }, { status: 403 });
-    }
-
     const formData = await request.formData();
     const file = formData.get("file");
     if (!(file instanceof File)) {
@@ -48,6 +44,7 @@ export async function POST(request: NextRequest) {
     const siteId = getRequiredFormString(formData, "siteId");
     const collectionId = getRequiredFormString(formData, "collectionId");
     const manifestId = getRequiredFormString(formData, "manifestId");
+    const notes = typeof formData.get("notes") === "string" ? String(formData.get("notes")).trim() : "Uploaded from hygiene evidence workflow.";
     const photoId = `TE-EP-${Date.now()}-${randomUUID().slice(0, 8)}`;
     const safeFileName = file.name.replace(/[^a-zA-Z0-9._-]+/g, "_");
     const storagePath = `hygiene/evidence/${clientId}/${collectionId}/${photoId}-${safeFileName}`;
@@ -74,19 +71,18 @@ export async function POST(request: NextRequest) {
       expires: "2036-01-01",
     });
 
-    const record = await createHygieneEvidencePhoto({
+    const record = await createHygieneEvidencePhoto(user, {
       photoId,
       clientId,
       siteId,
       collectionId,
       manifestId,
       category: category as HygienePhotoCategory,
-      fileName: file.name,
-      contentType: file.type || "application/octet-stream",
-      storagePath,
-      downloadUrl: signedUrl,
+      uploadedBy: user.email ?? user.uid,
       uploadedAt: new Date().toISOString(),
-      uploadedByUid: user.uid,
+      fileUrl: signedUrl,
+      timestampFromImage: null,
+      notes,
     });
 
     return NextResponse.json({ success: true, photo: record });

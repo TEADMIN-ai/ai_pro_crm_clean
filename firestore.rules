@@ -22,6 +22,18 @@ service cloud.firestore {
       return role() in ["admin", "manager", "staff"];
     }
 
+    function isHygieneInternal() {
+      return role() in ["admin", "manager", "staff"];
+    }
+
+    function isHygieneAdmin() {
+      return role() in ["admin", "manager"];
+    }
+
+    function isHygieneStaffMutation() {
+      return role() in ["admin", "manager", "staff"];
+    }
+
     function isContractorOwner(value) {
       return role() == "contractor" && contractorId() != null && contractorId() == value;
     }
@@ -129,6 +141,61 @@ service cloud.firestore {
 
     match /tenders/{docId} {
       allow read, write: if isSignedIn() && isPrivileged();
+    }
+
+    match /hygieneClients/{docId} {
+      allow read: if isSignedIn() && isHygieneInternal();
+      allow create, update, delete: if isSignedIn() && isHygieneAdmin();
+    }
+
+    match /hygieneSites/{docId} {
+      allow read: if isSignedIn() && isHygieneInternal();
+      allow create, update, delete: if isSignedIn() && isHygieneAdmin();
+    }
+
+    match /hygieneBinAssets/{docId} {
+      allow read: if isSignedIn() && isHygieneInternal();
+      allow create, update, delete: if isSignedIn() && isHygieneAdmin();
+    }
+
+    match /hygieneCollections/{docId} {
+      allow read: if isSignedIn() && isHygieneInternal();
+      allow create, update: if isSignedIn() && isHygieneStaffMutation();
+      allow delete: if isSignedIn() && isHygieneAdmin();
+    }
+
+    match /hygieneManifests/{docId} {
+      allow read: if isSignedIn() && isHygieneInternal();
+      allow create, update: if isSignedIn() && isHygieneStaffMutation();
+      allow delete: if isSignedIn() && isHygieneAdmin();
+    }
+
+    match /hygieneEvidence/{docId} {
+      allow read: if isSignedIn() && isHygieneInternal();
+      allow create, update: if isSignedIn() && isHygieneStaffMutation();
+      allow delete: if isSignedIn() && isHygieneAdmin();
+    }
+
+    match /hygieneVehicleInspections/{docId} {
+      allow read: if isSignedIn() && isHygieneInternal();
+      allow create, update: if isSignedIn() && isHygieneStaffMutation();
+      allow delete: if isSignedIn() && isHygieneAdmin();
+    }
+
+    match /hygieneDriverLogs/{docId} {
+      allow read: if isSignedIn() && isHygieneInternal();
+      allow create, update: if isSignedIn() && isHygieneStaffMutation();
+      allow delete: if isSignedIn() && isHygieneAdmin();
+    }
+
+    match /hygieneComplianceDocuments/{docId} {
+      allow read: if isSignedIn() && isHygieneInternal();
+      allow create, update, delete: if isSignedIn() && isHygieneAdmin();
+    }
+
+    match /hygieneReports/{docId} {
+      allow read: if isSignedIn() && isHygieneInternal();
+      allow create, update, delete: if isSignedIn() && isHygieneAdmin();
     }
   }
 }

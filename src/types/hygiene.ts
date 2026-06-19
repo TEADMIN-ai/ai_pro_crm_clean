@@ -1,39 +1,50 @@
-export type HygieneClientStatus = "Active" | "Inactive" | "Suspended";
-export type HygienePaymentStatus = "Current" | "Pending" | "Overdue";
-export type HygieneAssetStatus = "Active" | "In Maintenance" | "Retired";
-export type HygieneCollectionStatus = "Scheduled" | "Completed" | "Missed" | "Cancelled";
-export type HygieneManifestStatus = "Draft" | "Pending Disposal" | "Completed";
-export type HygieneComplianceStatus = "Valid" | "Expiring Soon" | "Expired" | "Pending";
-export type HygieneDocumentStatus = "On File" | "Missing" | "Expired";
+export type HygieneInternalRole = "admin" | "manager" | "staff";
+export type HygieneClientPortalRole = "hygieneClient" | "hygieneContractor";
+export type HygieneAccessMode = "internal" | "clientPortal";
+
+export type HygieneClientStatus = "Active" | "Pending" | "Inactive" | "Suspended";
+export type HygienePaymentStatus = "Paid" | "Pending" | "Overdue";
+export type HygieneAssetStatus = "Active" | "Pending" | "In Maintenance" | "Retired";
+export type HygieneCollectionStatus = "Scheduled" | "In Progress" | "Completed" | "Overdue" | "Cancelled";
+export type HygieneManifestStatus = "Draft" | "Disposal Pending" | "Certificate Received" | "Completed";
+export type HygieneComplianceStatus = "Compliance Green" | "Compliance Warning" | "Compliance Expired";
+export type HygieneDocumentStatus = "Active" | "Pending" | "Compliance Green" | "Compliance Warning" | "Compliance Expired";
 export type HygieneInspectionStatus = "Passed" | "Failed" | "Action Required";
+
 export type HygienePhotoCategory =
   | "Site Arrival"
+  | "Client Site Signage"
   | "Bin Before Service"
   | "Bin Servicing"
+  | "Bag Removed"
   | "Bag Sealed"
   | "Transport Container"
   | "Vehicle Loading"
   | "Team Photo"
-  | "Client Site Photo";
+  | "Completion Photo";
 
 export const HYGIENE_PHOTO_CATEGORIES: HygienePhotoCategory[] = [
   "Site Arrival",
+  "Client Site Signage",
   "Bin Before Service",
   "Bin Servicing",
+  "Bag Removed",
   "Bag Sealed",
   "Transport Container",
   "Vehicle Loading",
   "Team Photo",
-  "Client Site Photo",
+  "Completion Photo",
 ];
 
 export interface HygieneClient {
   clientId: string;
   clientName: string;
+  clientType: string;
   companyRegistration: string;
-  contactPerson: string;
-  phone: string;
-  email: string;
+  primaryContactName: string;
+  primaryContactPhone: string;
+  primaryContactEmail: string;
+  billingContact: string;
   contractStartDate: string;
   contractEndDate: string;
   serviceFrequency: string;
@@ -42,6 +53,8 @@ export interface HygieneClient {
   paymentStatus: HygienePaymentStatus;
   status: HygieneClientStatus;
   monthlyRevenue: number;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface HygieneSite {
@@ -49,8 +62,16 @@ export interface HygieneSite {
   clientId: string;
   siteName: string;
   address: string;
+  suburb: string;
+  city: string;
+  contactPerson: string;
+  contactPhone: string;
   binCount: number;
   binSize: string;
+  serviceFrequency: string;
+  accessNotes: string;
+  lastServiceDate: string | null;
+  nextServiceDate: string | null;
   status: HygieneClientStatus;
 }
 
@@ -59,14 +80,17 @@ export interface HygieneBinAsset {
   clientId: string;
   siteId: string;
   binSize: string;
+  binType: string;
+  locationDescription: string;
   status: HygieneAssetStatus;
   installDate: string;
-  lastServiceDate: string;
-  nextServiceDate: string;
+  lastServiceDate: string | null;
+  nextServiceDate: string | null;
   condition: string;
+  notes: string;
 }
 
-export interface HygieneCollectionJob {
+export interface HygieneCollection {
   collectionId: string;
   clientId: string;
   siteId: string;
@@ -74,13 +98,25 @@ export interface HygieneCollectionJob {
   scheduledTimeWindow: string;
   assignedDriver: string;
   vehicleRegistration: string;
+  vehicleName: string;
   status: HygieneCollectionStatus;
+  arrivalTime: string | null;
+  departureTime: string | null;
   completedAt: string | null;
-  evidencePhotoIds: string[];
   manifestId: string;
+  evidencePhotoIds: string[];
+  clientSignatureStatus: string;
+  notes: string;
+  workflowSteps: HygieneWorkflowStep[];
 }
 
-export interface HygieneWasteManifest {
+export interface HygieneWorkflowStep {
+  stepId: string;
+  label: string;
+  status: "Pending" | "Completed";
+}
+
+export interface HygieneManifest {
   manifestId: string;
   collectionId: string;
   clientId: string;
@@ -92,10 +128,14 @@ export interface HygieneWasteManifest {
   quantity: number;
   unit: string;
   collectionDate: string;
+  collectedBy: string;
+  vehicleRegistration: string;
   disposalFacility: string;
   disposalDate: string | null;
   disposalCertificateNo: string;
   status: HygieneManifestStatus;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface HygieneEvidencePhoto {
@@ -105,19 +145,18 @@ export interface HygieneEvidencePhoto {
   collectionId: string;
   manifestId: string;
   category: HygienePhotoCategory;
-  fileName: string;
-  contentType: string;
-  storagePath: string;
-  downloadUrl: string;
+  uploadedBy: string;
   uploadedAt: string;
-  uploadedByUid: string;
+  fileUrl: string;
+  timestampFromImage: string | null;
+  notes: string;
 }
 
 export interface HygieneVehicleInspection {
   inspectionId: string;
   date: string;
   vehicleRegistration: string;
-  vehicle: string;
+  vehicleName: string;
   driver: string;
   odometerStart: number | null;
   odometerEnd: number | null;
@@ -139,28 +178,46 @@ export interface HygieneDriverLog {
   endKm: number | null;
   fuel: string;
   signatureStatus: string;
+  linkedCollectionIds: string[];
 }
 
 export interface HygieneComplianceDocument {
   documentId: string;
+  documentType: string;
   title: string;
-  referenceNo: string;
-  status: HygieneDocumentStatus;
+  registrationNumber: string;
   issueDate: string | null;
   expiryDate: string | null;
-  alert: string | null;
+  status: HygieneDocumentStatus;
+  fileUrl: string | null;
+  owner: string;
+  uploadedAt: string | null;
+}
+
+export interface HygieneReport {
+  reportId: string;
+  period: string;
+  collectionsCompleted: number;
+  sitesServiced: number;
+  totalBinsServiced: number;
+  manifestsCreated: number;
+  disposalCertificatesPending: number;
+  incidents: number;
+  evidenceCompletionPercentage: number;
+  revenueSummary: number;
+  createdAt: string;
 }
 
 export interface HygieneDashboardKpis {
-  activeClients: number;
-  activeContracts: number;
+  activeHygieneClients: number;
   activeSites: number;
   activeBinAssets: number;
-  collectionsDue: number;
-  collectionsCompleted: number;
+  collectionsDueThisWeek: number;
+  collectionsCompletedThisMonth: number;
+  wasteServicesCompleted: number;
+  disposalCertificatesPending: number;
   complianceStatus: HygieneComplianceStatus;
-  monthlyRevenue: number;
-  wasteVolumeBinServices: number;
+  monthlyContractRevenue: number;
 }
 
 export interface HygieneDashboardData {
@@ -168,10 +225,11 @@ export interface HygieneDashboardData {
   clients: HygieneClient[];
   sites: HygieneSite[];
   assets: HygieneBinAsset[];
-  collections: HygieneCollectionJob[];
-  manifests: HygieneWasteManifest[];
+  collections: HygieneCollection[];
+  manifests: HygieneManifest[];
   evidencePhotos: HygieneEvidencePhoto[];
   vehicleInspections: HygieneVehicleInspection[];
   driverLogs: HygieneDriverLog[];
   complianceDocuments: HygieneComplianceDocument[];
+  reports: HygieneReport[];
 }

@@ -1037,7 +1037,7 @@ export default function VehicleFinanceWorkspace({ initialSection }: Props) {
                   );
                 })()
               ) : (
-                <p className="mt-4 text-sm text-slate-400">Upload a driver's licence to view intelligence results.</p>
+                <p className="mt-4 text-sm text-slate-400">Upload a driver&apos;s licence to view intelligence results.</p>
               )}
             </Card>
 

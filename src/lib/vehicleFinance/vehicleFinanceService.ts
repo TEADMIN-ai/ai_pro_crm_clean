@@ -742,10 +742,10 @@ export async function uploadVehicleFinanceDocument(args: {
     skipOcrFallback: true,
   });
 
-  let extractedText = extraction.text ?? "";
-  let finalDirectTextLength = extraction.directTextLength;
-  let finalOcrTextLength = extraction.ocrTextLength;
-  let finalExtractionSource = extraction.source;
+  const extractedText = extraction.text ?? "";
+  const finalDirectTextLength = extraction.directTextLength;
+  const finalOcrTextLength = extraction.ocrTextLength;
+  const finalExtractionSource = extraction.source;
   const documentAnalysis = buildDocumentAnalysis({
     documentType: args.documentType,
     extractedText,
