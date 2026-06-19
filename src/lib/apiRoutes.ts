@@ -42,6 +42,8 @@ export const API_ROUTES = {
   DEALS_INTELLIGENCE: "/api/deals/intelligence",
   DASHBOARD_ANALYTICS: "/api/deals/analytics",
   DASHBOARD_SUMMARY: "/api/dashboard/summary",
+  HYGIENE: "/api/hygiene",
+  HYGIENE_EVIDENCE: "/api/hygiene/evidence",
   VEHICLE_FINANCE_OVERVIEW: "/api/vehicle-finance/overview",
   VEHICLE_FINANCE_CUSTOMERS: "/api/vehicle-finance/customers",
   VEHICLE_FINANCE_APPLICATIONS: "/api/vehicle-finance/applications",
