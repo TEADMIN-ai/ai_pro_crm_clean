@@ -122,6 +122,74 @@ function formatDate(value?: string | null): string {
   });
 }
 
+type ExtractedFieldEvidence = {
+  value?: unknown;
+  confidence?: number | null;
+  sourceText?: unknown;
+} | null | undefined;
+
+function renderPrimitive(value: unknown, fallback = "Not detected"): string {
+  if (value === null || value === undefined) {
+    return fallback;
+  }
+
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    return trimmed.length > 0 ? trimmed : fallback;
+  }
+
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value.toLocaleString("en-ZA") : fallback;
+  }
+
+  if (typeof value === "boolean") {
+    return value ? "Yes" : "No";
+  }
+
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? fallback : value.toLocaleString("en-ZA");
+  }
+
+  if (Array.isArray(value)) {
+    const joined = value.map((item) => renderPrimitive(item, "")).filter(Boolean).join(", ");
+    return joined || fallback;
+  }
+
+  if (typeof value === "object") {
+    const record = value as { value?: unknown; sourceText?: unknown };
+    const primitiveValue = renderPrimitive(record.value, "");
+    if (primitiveValue) return primitiveValue;
+    const sourceText = renderPrimitive(record.sourceText, "");
+    if (sourceText) return sourceText;
+    return fallback;
+  }
+
+  return String(value);
+}
+
+function formatConfidence(confidence?: number | null): string {
+  if (typeof confidence !== "number" || Number.isNaN(confidence)) {
+    return "Pending analysis";
+  }
+
+  const normalized = Math.max(0, Math.min(100, Math.round(confidence)));
+  return `${normalized}%`;
+}
+
+function renderExtractedField(field: ExtractedFieldEvidence, fallback = "Not detected") {
+  const confidence = typeof field?.confidence === "number" && Number.isFinite(field.confidence)
+    ? Math.max(0, Math.min(100, Math.round(field.confidence)))
+    : null;
+
+  return {
+    value: renderPrimitive(field?.value, fallback),
+    confidence,
+    confidenceLabel: confidence === null ? "Pending analysis" : `${confidence}%`,
+    sourceText: renderPrimitive(field?.sourceText, ""),
+    isLowConfidence: confidence !== null && confidence < 70,
+  };
+}
+
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -1021,18 +1089,38 @@ export default function VehicleFinanceWorkspace({ initialSection }: Props) {
                   })?.driverLicenceIntelligence ?? null;
 
                   const extractionFields = intelligence.extraction?.fields ?? {};
-                  const fieldValue = (key: string, fallback?: string | null) =>
-                    extractionFields[key]?.value ?? fallback ?? "n/a";
+                  const fieldValue = (key: string, fallback?: unknown) =>
+                    renderPrimitive(extractionFields[key]?.value ?? fallback, "Not detected");
                   const fieldConfidence = (key: string, fallback?: number | null) =>
                     extractionFields[key]?.confidence ?? fallback ?? 0;
+                  const fieldEvidence = (key: string, fallback?: unknown) =>
+                    renderExtractedField(
+                      extractionFields[key] ?? {
+                        value: fallback,
+                        confidence: intelligence.extraction?.confidence ?? null,
+                        sourceText: "",
+                      },
+                    );
+                  const nameEvidence = fieldEvidence("name", intelligence.extraction?.name);
+                  const surnameEvidence = fieldEvidence("surname", intelligence.extraction?.surname);
 
                   return intelligence ? (
                     <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
                       <div className="rounded-xl border border-slate-700 bg-slate-950/60 p-4">
                         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Name</p>
-                        <p className="mt-2 text-sm text-slate-100">{fieldValue("name", intelligence.extraction?.name)}</p>
+                        <p className="mt-2 text-sm text-slate-100">{nameEvidence.value}</p>
+                        <div className="mt-2 flex flex-wrap items-center gap-2">
+                          <Badge tone={nameEvidence.isLowConfidence ? "warning" : "neutral"}>{nameEvidence.confidenceLabel}</Badge>
+                          {nameEvidence.isLowConfidence ? <Badge tone="warning">Low confidence</Badge> : null}
+                        </div>
+                        {nameEvidence.sourceText ? <p className="mt-2 text-xs text-slate-400">{nameEvidence.sourceText}</p> : null}
                         <p className="mt-3 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Surname</p>
-                        <p className="mt-2 text-sm text-slate-100">{fieldValue("surname", intelligence.extraction?.surname)}</p>
+                        <p className="mt-2 text-sm text-slate-100">{surnameEvidence.value}</p>
+                        <div className="mt-2 flex flex-wrap items-center gap-2">
+                          <Badge tone={surnameEvidence.isLowConfidence ? "warning" : "neutral"}>{surnameEvidence.confidenceLabel}</Badge>
+                          {surnameEvidence.isLowConfidence ? <Badge tone="warning">Low confidence</Badge> : null}
+                        </div>
+                        {surnameEvidence.sourceText ? <p className="mt-2 text-xs text-slate-400">{surnameEvidence.sourceText}</p> : null}
                       </div>
 
                       <div className="rounded-xl border border-slate-700 bg-slate-950/60 p-4">
@@ -1050,7 +1138,7 @@ export default function VehicleFinanceWorkspace({ initialSection }: Props) {
                         <p className="mt-3 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Expiry Date</p>
                         <p className="mt-2 text-sm text-slate-100">{fieldValue("expiryDate", intelligence.extraction?.expiryDate)}</p>
                         <p className="mt-3 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">OCR Confidence</p>
-                        <p className="mt-2 text-sm text-slate-100">{intelligence.textQuality?.confidence ?? intelligence.extraction?.confidence ?? 0}%</p>
+                        <p className="mt-2 text-sm text-slate-100">{formatConfidence(intelligence.textQuality?.confidence ?? intelligence.extraction?.confidence ?? null)}</p>
                       </div>
 
                       <div className="rounded-xl border border-slate-700 bg-slate-950/60 p-4">
@@ -1066,7 +1154,7 @@ export default function VehicleFinanceWorkspace({ initialSection }: Props) {
                         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Verification Result</p>
                         <p className="mt-2 text-sm text-slate-100">{intelligence.verification?.passed ? "PASS" : "REVIEW"}</p>
                         <p className="mt-3 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Score</p>
-                        <p className="mt-2 text-sm text-slate-100">{intelligence.verification?.score ?? 0}</p>
+                        <p className="mt-2 text-sm text-slate-100">{renderPrimitive(intelligence.verification?.score ?? 0, "Pending analysis")}</p>
                       </div>
 
                       <div className="rounded-xl border border-slate-700 bg-slate-950/60 p-4 md:col-span-2 xl:col-span-2">
@@ -1099,10 +1187,10 @@ export default function VehicleFinanceWorkspace({ initialSection }: Props) {
                           {intelligence.crossDocumentVerification ? (
                             <>
                               <Badge tone={intelligence.crossDocumentVerification.passed ? "success" : "warning"}>
-                                {intelligence.crossDocumentVerification.riskLevel ?? "UNKNOWN"}
+                                {renderPrimitive(intelligence.crossDocumentVerification.riskLevel ?? "UNKNOWN", "Pending analysis")}
                               </Badge>
                               <Badge tone="neutral">
-                                Score: {intelligence.crossDocumentVerification.identityVerificationScore ?? 0}
+                                Score: {renderPrimitive(intelligence.crossDocumentVerification.identityVerificationScore ?? 0, "Pending analysis")}
                               </Badge>
                               {(intelligence.crossDocumentVerification.flags ?? []).length ? (
                                 intelligence.crossDocumentVerification.flags?.map((flag) => (
@@ -1139,7 +1227,7 @@ export default function VehicleFinanceWorkspace({ initialSection }: Props) {
                             ["Gender", fieldConfidence("gender", intelligence.extraction?.confidence)],
                           ].map(([label, score]) => (
                             <Badge key={label as string} tone="neutral">
-                              {label}: {score as number}%
+                              {label}: {formatConfidence(score as number)}
                             </Badge>
                           ))}
                         </div>
@@ -1194,14 +1282,16 @@ export default function VehicleFinanceWorkspace({ initialSection }: Props) {
                   })?.identityIntelligence ?? null;
 
                   const extractionFields = intelligence?.extraction?.fields ?? {};
-                  const idField = (key: string, fallback?: string | null) => extractionFields[key]?.value ?? fallback ?? "n/a";
-                  const idConfidence = (key: string, fallback?: number | null) => extractionFields[key]?.confidence ?? fallback ?? 0;
+                  const idField = (key: string, fallback?: unknown) =>
+                    renderPrimitive(extractionFields[key]?.value ?? fallback, "Not detected");
+                  const idConfidence = (key: string, fallback?: number | null) =>
+                    extractionFields[key]?.confidence ?? fallback ?? 0;
 
                   return intelligence ? (
                     <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
                       <div className="rounded-xl border border-slate-700 bg-slate-950/60 p-4">
                         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Document Type</p>
-                        <p className="mt-2 text-sm text-slate-100">{intelligence.documentType ?? "n/a"}</p>
+                        <p className="mt-2 text-sm text-slate-100">{renderPrimitive(intelligence.documentType ?? "n/a", "Pending analysis")}</p>
                         <p className="mt-3 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">ID Number</p>
                         <p className="mt-2 text-sm text-slate-100">{idField("idNumber", intelligence.extraction?.idNumber)}</p>
                       </div>
@@ -1279,10 +1369,10 @@ export default function VehicleFinanceWorkspace({ initialSection }: Props) {
                           {intelligence.crossDocumentVerification ? (
                             <>
                               <Badge tone={intelligence.crossDocumentVerification.passed ? "success" : "warning"}>
-                                {intelligence.crossDocumentVerification.riskLevel ?? "UNKNOWN"}
+                              {renderPrimitive(intelligence.crossDocumentVerification.riskLevel ?? "UNKNOWN", "Pending analysis")}
                               </Badge>
                               <Badge tone="neutral">
-                                Score: {intelligence.crossDocumentVerification.identityVerificationScore ?? 0}
+                                Score: {renderPrimitive(intelligence.crossDocumentVerification.identityVerificationScore ?? 0, "Pending analysis")}
                               </Badge>
                               {(intelligence.crossDocumentVerification.flags ?? []).length ? (
                                 intelligence.crossDocumentVerification.flags?.map((flag) => (
@@ -1354,42 +1444,44 @@ export default function VehicleFinanceWorkspace({ initialSection }: Props) {
                   })?.payslipIntelligence ?? null;
 
                   const extractionFields = intelligence?.extraction?.fields ?? {};
-                  const fieldValue = (key: string, fallback?: string | number | null) => extractionFields[key]?.value ?? fallback ?? "n/a";
-                  const fieldConfidence = (key: string, fallback?: number | null) => extractionFields[key]?.confidence ?? fallback ?? 0;
+                  const fieldValue = (key: string, fallback?: unknown) =>
+                    renderPrimitive(extractionFields[key]?.value ?? fallback, "Not detected");
+                  const fieldConfidence = (key: string, fallback?: number | null) =>
+                    extractionFields[key]?.confidence ?? fallback ?? 0;
 
                   return intelligence ? (
                     <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
                       <div className="rounded-xl border border-slate-700 bg-slate-950/60 p-4">
                         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Employer</p>
-                        <p className="mt-2 text-sm text-slate-100">{String(fieldValue("employerName", intelligence.extraction?.employerName))}</p>
+                        <p className="mt-2 text-sm text-slate-100">{fieldValue("employerName", intelligence.extraction?.employerName)}</p>
                         <p className="mt-3 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Employee Name</p>
-                        <p className="mt-2 text-sm text-slate-100">{String(fieldValue("employeeName", intelligence.extraction?.employeeName))}</p>
+                        <p className="mt-2 text-sm text-slate-100">{fieldValue("employeeName", intelligence.extraction?.employeeName)}</p>
                       </div>
 
                       <div className="rounded-xl border border-slate-700 bg-slate-950/60 p-4">
                         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Employee Number</p>
-                        <p className="mt-2 text-sm text-slate-100">{String(fieldValue("employeeNumber", intelligence.extraction?.employeeNumber))}</p>
+                        <p className="mt-2 text-sm text-slate-100">{fieldValue("employeeNumber", intelligence.extraction?.employeeNumber)}</p>
                         <p className="mt-3 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Designation</p>
-                        <p className="mt-2 text-sm text-slate-100">{String(fieldValue("designation", intelligence.extraction?.designation))}</p>
+                        <p className="mt-2 text-sm text-slate-100">{fieldValue("designation", intelligence.extraction?.designation)}</p>
                       </div>
 
                       <div className="rounded-xl border border-slate-700 bg-slate-950/60 p-4">
                         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Gross Earnings</p>
-                        <p className="mt-2 text-sm text-slate-100">{String(fieldValue("grossEarnings", intelligence.extraction?.grossEarnings))}</p>
+                        <p className="mt-2 text-sm text-slate-100">{fieldValue("grossEarnings", intelligence.extraction?.grossEarnings)}</p>
                         <p className="mt-3 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Net Pay</p>
-                        <p className="mt-2 text-sm text-slate-100">{String(fieldValue("netPay", intelligence.extraction?.netPay))}</p>
+                        <p className="mt-2 text-sm text-slate-100">{fieldValue("netPay", intelligence.extraction?.netPay)}</p>
                       </div>
 
                       <div className="rounded-xl border border-slate-700 bg-slate-950/60 p-4">
                         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Total Deductions</p>
-                        <p className="mt-2 text-sm text-slate-100">{String(fieldValue("totalDeductions", intelligence.extraction?.totalDeductions))}</p>
+                        <p className="mt-2 text-sm text-slate-100">{fieldValue("totalDeductions", intelligence.extraction?.totalDeductions)}</p>
                         <p className="mt-3 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Pay Date</p>
-                        <p className="mt-2 text-sm text-slate-100">{String(fieldValue("payDate", intelligence.extraction?.payDate))}</p>
+                        <p className="mt-2 text-sm text-slate-100">{fieldValue("payDate", intelligence.extraction?.payDate)}</p>
                       </div>
 
                       <div className="rounded-xl border border-slate-700 bg-slate-950/60 p-4">
                         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Pay Period</p>
-                        <p className="mt-2 text-sm text-slate-100">{String(fieldValue("payPeriod", intelligence.extraction?.payPeriod))}</p>
+                        <p className="mt-2 text-sm text-slate-100">{fieldValue("payPeriod", intelligence.extraction?.payPeriod)}</p>
                         <p className="mt-3 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Verification Score</p>
                         <p className="mt-2 text-sm text-slate-100">{intelligence.verification?.verificationScore ?? 0}</p>
                       </div>
@@ -1407,7 +1499,7 @@ export default function VehicleFinanceWorkspace({ initialSection }: Props) {
                             ["Pay Date", fieldConfidence("payDate", intelligence.extraction?.confidence)],
                           ].map(([label, score]) => (
                             <Badge key={label as string} tone="neutral">
-                              {label}: {score as number}%
+                              {label}: {formatConfidence(score as number)}
                             </Badge>
                           ))}
                         </div>
@@ -1450,10 +1542,10 @@ export default function VehicleFinanceWorkspace({ initialSection }: Props) {
                         <p className="mt-4 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Cross-document prep</p>
                         <div className="mt-3 flex flex-wrap gap-2">
                           <Badge tone="neutral">
-                            Employee: {String(intelligence.crossDocumentPreparation?.employeeName?.value ?? "n/a")}
+                            Employee: {renderPrimitive(intelligence.crossDocumentPreparation?.employeeName?.value ?? "Not detected")}
                           </Badge>
                           <Badge tone="neutral">
-                            Surname: {String(intelligence.crossDocumentPreparation?.surname?.value ?? "n/a")}
+                            Surname: {renderPrimitive(intelligence.crossDocumentPreparation?.surname?.value ?? "Not detected")}
                           </Badge>
                         </div>
                       </div>
@@ -1474,58 +1566,60 @@ export default function VehicleFinanceWorkspace({ initialSection }: Props) {
                   const intelligence = (selectedBankStatementDocument.aiAnalysis as any)?.bankStatementIntelligence ?? null;
 
                   const extractionFields = intelligence?.extraction?.fields ?? {};
-                  const fieldValue = (key: string, fallback?: string | number | null) => extractionFields[key]?.value ?? fallback ?? "n/a";
-                  const fieldConfidence = (key: string, fallback?: number | null) => extractionFields[key]?.confidence ?? fallback ?? 0;
+                  const fieldValue = (key: string, fallback?: unknown) =>
+                    renderPrimitive(extractionFields[key]?.value ?? fallback, "Not detected");
+                  const fieldConfidence = (key: string, fallback?: number | null) =>
+                    extractionFields[key]?.confidence ?? fallback ?? 0;
 
                   return intelligence ? (
                     <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
                       <div className="rounded-xl border border-slate-700 bg-slate-950/60 p-4">
                         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Bank Name</p>
-                        <p className="mt-2 text-sm text-slate-100">{String(fieldValue("bankName", intelligence.classification?.bankName ?? null))}</p>
+                        <p className="mt-2 text-sm text-slate-100">{fieldValue("bankName", intelligence.classification?.bankName ?? null)}</p>
                         <p className="mt-3 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Fingerprint</p>
                         <p className="mt-2 text-sm text-slate-100">
-                          {String(intelligence.bankFingerprint?.bankName ?? intelligence.classification?.bankName ?? "n/a")}
+                          {renderPrimitive(intelligence.bankFingerprint?.bankName ?? intelligence.classification?.bankName ?? "n/a")}
                         </p>
                         <p className="mt-3 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Document Version</p>
-                        <p className="mt-2 text-sm text-slate-100">{String(intelligence.bankFingerprint?.documentVersion ?? "n/a")}</p>
+                        <p className="mt-2 text-sm text-slate-100">{renderPrimitive(intelligence.bankFingerprint?.documentVersion ?? "n/a")}</p>
                         <p className="mt-3 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Statement Layout</p>
-                        <p className="mt-2 text-sm text-slate-100">{String(intelligence.bankFingerprint?.statementLayout ?? "n/a")}</p>
+                        <p className="mt-2 text-sm text-slate-100">{renderPrimitive(intelligence.bankFingerprint?.statementLayout ?? "n/a")}</p>
                         <p className="mt-3 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Account Holder</p>
                         <p className="mt-2 text-sm text-slate-100">
-                          {String(fieldValue("accountHolder", intelligence.extraction?.accountHolder?.value ?? null))}
+                          {fieldValue("accountHolder", intelligence.extraction?.accountHolder?.value ?? null)}
                         </p>
                       </div>
 
                       <div className="rounded-xl border border-slate-700 bg-slate-950/60 p-4">
                         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Account Number</p>
                         <p className="mt-2 text-sm text-slate-100">
-                          {String(fieldValue("accountNumber", intelligence.extraction?.accountNumber?.value ?? null))}
+                          {fieldValue("accountNumber", intelligence.extraction?.accountNumber?.value ?? null)}
                         </p>
                         <p className="mt-3 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Statement Period</p>
                         <p className="mt-2 text-sm text-slate-100">
-                          {String(fieldValue("statementPeriod", intelligence.extraction?.statementPeriod?.value ?? null))}
+                          {fieldValue("statementPeriod", intelligence.extraction?.statementPeriod?.value ?? null)}
                         </p>
                       </div>
 
                       <div className="rounded-xl border border-slate-700 bg-slate-950/60 p-4">
                         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Opening Balance</p>
                         <p className="mt-2 text-sm text-slate-100">
-                          {String(fieldValue("openingBalance", intelligence.extraction?.openingBalance?.value ?? null))}
+                          {fieldValue("openingBalance", intelligence.extraction?.openingBalance?.value ?? null)}
                         </p>
                         <p className="mt-3 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Closing Balance</p>
                         <p className="mt-2 text-sm text-slate-100">
-                          {String(fieldValue("closingBalance", intelligence.extraction?.closingBalance?.value ?? null))}
+                          {fieldValue("closingBalance", intelligence.extraction?.closingBalance?.value ?? null)}
                         </p>
                       </div>
 
                       <div className="rounded-xl border border-slate-700 bg-slate-950/60 p-4">
                         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Average Monthly Income</p>
                         <p className="mt-2 text-sm text-slate-100">
-                          {String(fieldValue("averageMonthlyIncome", intelligence.extraction?.averageMonthlyIncome?.value ?? null))}
+                          {fieldValue("averageMonthlyIncome", intelligence.extraction?.averageMonthlyIncome?.value ?? null)}
                         </p>
                         <p className="mt-3 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Disposable Income Estimate</p>
                         <p className="mt-2 text-sm text-slate-100">
-                          {String(fieldValue("disposableIncomeEstimate", intelligence.extraction?.disposableIncomeEstimate?.value ?? null))}
+                          {fieldValue("disposableIncomeEstimate", intelligence.extraction?.disposableIncomeEstimate?.value ?? null)}
                         </p>
                       </div>
 
@@ -1632,7 +1726,7 @@ export default function VehicleFinanceWorkspace({ initialSection }: Props) {
                             ["Affordability", intelligence.extraction?.affordability?.affordabilityScore?.confidence ?? 0],
                           ].map(([label, score]) => (
                             <Badge key={label as string} tone="neutral">
-                              {label}: {score as number}%
+                              {label}: {formatConfidence(score as number)}
                             </Badge>
                           ))}
                         </div>
