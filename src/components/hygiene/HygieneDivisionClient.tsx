@@ -9,6 +9,7 @@ import {
   HYGIENE_PHOTO_CATEGORIES,
   type HygieneCollection,
   type HygieneDashboardData,
+  type HygieneManifest,
   type HygienePhotoCategory,
 } from "@/types/hygiene";
 
@@ -44,7 +45,7 @@ function currency(value: number): string {
 }
 
 function formatDate(value: string | null | undefined): string {
-  if (!value) return "Not captured";
+  if (!value) return "Pending confirmation";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
   return new Intl.DateTimeFormat("en-ZA", { dateStyle: "medium" }).format(date);
@@ -189,6 +190,19 @@ function WorkflowCard({ collection }: { collection: HygieneCollection }) {
           </div>
         ))}
       </div>
+    </div>
+  );
+}
+
+function DisposalWarningCell({ manifest }: { manifest: HygieneManifest }) {
+  const hasPendingCertificate = manifest.status === "Disposal Pending" || /pending/i.test(manifest.disposalCertificateNo);
+  const hasMissingFacility = /not yet captured|pending/i.test(manifest.disposalFacility);
+
+  return (
+    <div className="space-y-2">
+      <PrimaryCell title={manifest.disposalFacility} subtitle={`Certificate ${manifest.disposalCertificateNo}`} />
+      {hasMissingFacility ? <StatusBadge value="Compliance Warning" /> : null}
+      {hasPendingCertificate ? <StatusBadge value="Disposal Pending" /> : null}
     </div>
   );
 }
@@ -512,7 +526,7 @@ export default function HygieneDivisionClient({ view }: { view: HygieneView }) {
             <PrimaryCell key="waste" title={manifest.wasteType} subtitle={manifest.wasteClassification} />,
             `${manifest.quantity} ${manifest.unit}`,
             <PrimaryCell key="transport" title={manifest.collectedBy} subtitle={manifest.vehicleRegistration} />,
-            <PrimaryCell key="disposal" title={manifest.disposalFacility} subtitle={`Certificate ${manifest.disposalCertificateNo}`} />,
+            <DisposalWarningCell key="disposal" manifest={manifest} />,
             <StatusBadge key="status" value={manifest.status} />,
           ])} />
         </Panel>
