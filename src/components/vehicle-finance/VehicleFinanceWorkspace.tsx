@@ -97,18 +97,14 @@ const EMPTY_APPLICATIONS: VehicleFinanceApplication[] = [];
 const EMPTY_DOCUMENTS: VehicleFinanceDocument[] = [];
 const EMPTY_CERTIFICATES: VehicleFinanceCertificate[] = [];
 
-const SECTION_LINKS: Array<{ section: Section; href: string; label: string }> = [
-  { section: "dashboard", href: "/dashboard/vehicle-finance", label: "Dashboard" },
-  { section: "customers", href: "/dashboard/vehicle-finance/customers", label: "Customers" },
-  { section: "applications", href: "/dashboard/vehicle-finance/applications", label: "Applications" },
-  {
-    section: "document-verification",
-    href: "/dashboard/vehicle-finance/document-verification",
-    label: "Document Verification",
-  },
-  { section: "certificates", href: "/dashboard/vehicle-finance/certificates", label: "Certificates" },
-  { section: "reports", href: "/dashboard/vehicle-finance/reports", label: "Reports" },
-];
+const SECTION_TITLES: Record<Section, string> = {
+  dashboard: "Vehicle Dashboard",
+  customers: "Customer Enquiries",
+  applications: "Finance Applications",
+  "document-verification": "Document Verification",
+  certificates: "Finance Certificates",
+  reports: "Executive Reports",
+};
 
 function formatDate(value?: string | null): string {
   if (!value) return "Not recorded";
@@ -471,32 +467,11 @@ export default function VehicleFinanceWorkspace({ initialSection }: Props) {
   return (
     <div className="space-y-6 p-6">
       <div className="space-y-2">
-        <h1 className="text-2xl font-semibold tracking-tight text-slate-50 sm:text-3xl">Vehicle Finance</h1>
+        <p className="text-[11px] font-bold uppercase tracking-[0.3em] text-sky-200/70">Roar Cars SA · Born To Roar</p>
+        <h1 className="text-2xl font-semibold tracking-tight text-slate-50 sm:text-3xl">{SECTION_TITLES[section]}</h1>
         <p className="max-w-3xl text-sm text-slate-400">
-          Roar Cars SA pilot workspace for applications, supporting documents, verification, fraud scoring, certificates, and reporting.
+          Premium dealership operations for enquiries, applications, verification, underwriting, inventory matching, and reporting.
         </p>
-      </div>
-
-      <div className="flex flex-wrap gap-2">
-        {SECTION_LINKS.map((item) => (
-          <Link
-            key={item.href}
-            href={item.href}
-            className={`rounded-full border px-4 py-2 text-sm font-medium no-underline ${
-              item.section === section
-                ? "border-cyan-400/30 bg-cyan-400/10 text-cyan-100"
-                : "border-slate-700 bg-slate-900/40 text-slate-300"
-            }`}
-          >
-            {item.label}
-          </Link>
-        ))}
-        <Link
-          href="/dashboard/vehicle-finance/training"
-          className="rounded-full border border-slate-700 bg-slate-900/40 px-4 py-2 text-sm font-medium text-slate-300 no-underline"
-        >
-          Training Library
-        </Link>
       </div>
 
       {error ? (

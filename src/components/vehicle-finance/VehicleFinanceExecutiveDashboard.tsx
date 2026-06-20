@@ -3,7 +3,6 @@
 import Link from "next/link";
 import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
-import DashboardHeader from "@/components/layout/DashboardHeader";
 import Badge from "@/components/ui/Badge";
 import Card, { IdentityCardHeader } from "@/components/ui/Card";
 import { authFetch } from "@/lib/client/authFetch";
@@ -58,9 +57,7 @@ const DEFAULT_OVERVIEW: VehicleFinanceOverview = {
   certificates: [],
 };
 
-const HERO_VIDEO_SRC = "/images/vehicles/bmw-m5-hero.mp4";
-const HERO_POSTER_SRC = "/images/vehicles/bmw-m4-hero.jpg";
-const PARTNERSHIP_LOGO_SRC = "/images/logos/TE IN Partnership With Roar logo.png";
+const ROAR_SHOWROOM_SRC = "/images/roar-cars-showroom.jpg";
 const EXECUTIVE_METRIC_CARD_CLASS =
   "min-h-[152px] rounded-[24px] border border-white/10 bg-white/[0.06] p-5 backdrop-blur-md shadow-[0_18px_45px_rgba(2,8,23,0.18)]";
 const SUPPORTING_STAT_CARD_CLASS = "rounded-xl border border-slate-700 bg-slate-950/60 p-4";
@@ -231,7 +228,7 @@ export default function VehicleFinanceExecutiveDashboard() {
     {
       title: "BMW M4 Competition",
       subtitle: "Executive hero vehicle",
-      image: "/images/vehicles/bmw-m4-transparent.png",
+      image: "/images/vehicles/bmw-m4-hero.jpg",
       accent: "bg-cyan-400/10",
     },
     {
@@ -242,30 +239,8 @@ export default function VehicleFinanceExecutiveDashboard() {
     },
   ] as const;
 
-  if (loading) {
-    return (
-      <div className="mx-auto max-w-7xl space-y-6 p-6 text-slate-200">
-        <Card>
-          <IdentityCardHeader title="Vehicle Finance Intelligence" subtitle="Loading Roar Cars SA command center..." />
-          <p className="mt-4 text-sm text-slate-400">Preparing executive dashboard.</p>
-        </Card>
-      </div>
-    );
-  }
-
   return (
     <div className="relative isolate mx-auto max-w-7xl space-y-6 p-4 pb-10 md:p-6 lg:p-8">
-      <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-16 z-0 flex justify-center overflow-hidden">
-        <Image
-          src={PARTNERSHIP_LOGO_SRC}
-          alt=""
-          width={1800}
-          height={520}
-          className="h-auto w-[clamp(1080px,150vw,1800px)] select-none object-contain opacity-[0.14]"
-          priority
-        />
-      </div>
-
       {error ? (
         <Card className="relative z-10">
           <IdentityCardHeader title="Vehicle Finance Intelligence" subtitle="Executive dashboard unavailable" />
@@ -273,100 +248,51 @@ export default function VehicleFinanceExecutiveDashboard() {
         </Card>
       ) : null}
 
-      <section className="relative z-10 overflow-hidden rounded-[32px] border border-cyan-400/20 bg-slate-950 shadow-[0_24px_90px_rgba(2,8,23,0.45)] lg:min-h-[760px]">
-        <div className="absolute inset-0">
-          <video
-            className="absolute inset-0 h-full w-full object-cover object-center opacity-55"
-            autoPlay
-            muted
-            loop
-            playsInline
-            preload="metadata"
-            poster={HERO_POSTER_SRC}
-          >
-            <source src={HERO_VIDEO_SRC} type="video/mp4" />
-          </video>
-          <div className="absolute inset-0 bg-[linear-gradient(115deg,rgba(2,6,23,0.94)_0%,rgba(3,12,25,0.9)_46%,rgba(2,8,23,0.78)_100%)]" />
-          <div
-            className="absolute inset-0 bg-[linear-gradient(110deg,transparent_0%,rgba(255,255,255,0.08)_50%,transparent_100%)] opacity-30"
-            style={{ animation: "pulse 12s ease-in-out infinite" }}
-          />
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(56,189,248,0.16),transparent_28%),radial-gradient(circle_at_bottom_left,rgba(14,165,233,0.14),transparent_34%)]" />
-        </div>
+      <section className="relative z-10 min-h-[560px] overflow-hidden rounded-[32px] border border-sky-300/25 bg-slate-950 shadow-[0_28px_100px_rgba(2,8,23,0.55)] lg:min-h-[650px]">
+        <Image
+          src={ROAR_SHOWROOM_SRC}
+          alt="Roar Cars SA premium vehicle showroom"
+          fill
+          sizes="(min-width: 1280px) 1200px, 100vw"
+          className="object-cover object-center"
+          priority
+        />
+        <div className="absolute inset-0 bg-[linear-gradient(100deg,rgba(2,6,23,0.96)_0%,rgba(2,8,23,0.82)_48%,rgba(2,8,23,0.28)_100%)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_75%_22%,rgba(56,189,248,0.14),transparent_26%),linear-gradient(to_top,rgba(2,6,23,0.82),transparent_48%)]" />
 
-        <div className="relative grid gap-8 px-6 py-10 lg:grid-cols-[1.1fr_0.9fr] lg:gap-10 lg:px-8 lg:py-14">
-          <div className="flex flex-col justify-between gap-8">
-            <div className="max-w-3xl">
-              <div className="flex flex-wrap items-center gap-4">
-                <div className="flex items-center gap-3 rounded-full border border-cyan-300/20 bg-slate-950/50 px-4 py-2 backdrop-blur-md">
-                  <Image
-                    src={PARTNERSHIP_LOGO_SRC}
-                    alt="Torque Empire in partnership with Roar Cars SA"
-                    width={184}
-                    height={36}
-                    className="h-7 w-auto"
-                    priority
-                  />
-                </div>
-                <div className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.26em] text-cyan-100/80 backdrop-blur-md">
-                  Roar Cars SA Executive Portal
-                </div>
-              </div>
-
-              <p className="mt-6 text-[11px] font-semibold uppercase tracking-[0.32em] text-cyan-200/80">
-                ROAR CARS SA EXECUTIVE PORTAL
-              </p>
-              <h1 className="mt-3 max-w-2xl text-4xl font-semibold tracking-[-0.06em] text-white sm:text-5xl lg:text-6xl">
-                Vehicle Finance Intelligence
-              </h1>
-              <p className="mt-4 text-sm font-medium uppercase tracking-[0.2em] text-cyan-100/75">
-                Powered by Torque Empire
-              </p>
-              <p className="mt-5 max-w-2xl text-base leading-7 text-slate-200/85 lg:text-lg">
-                Dedicated dealership-facing command center for finance pre-approval, verification, affordability, underwriting, and decisioning.
-              </p>
+        <div className="relative flex min-h-[560px] flex-col justify-between gap-12 px-6 py-9 sm:px-8 lg:min-h-[650px] lg:max-w-[68%] lg:px-12 lg:py-12">
+          <div>
+            <div className="inline-flex items-center gap-3 rounded-full border border-sky-200/25 bg-slate-950/55 px-4 py-2 backdrop-blur-md">
+              <span className="h-2 w-2 rounded-full bg-sky-300 shadow-[0_0_14px_rgba(125,211,252,0.9)]" />
+              <span className="text-[10px] font-bold uppercase tracking-[0.3em] text-sky-100">Roar Cars SA Vehicle Division</span>
             </div>
-
-            <div className="grid gap-3 sm:grid-cols-3">
-              <Link href="/dashboard/vehicle-finance/customers" className={`${EXECUTIVE_METRIC_CARD_CLASS} block text-left no-underline transition hover:bg-cyan-300/15`}>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-100/75">Customers</p>
-                <p className="mt-3 text-2xl font-semibold text-white">{dashboard.customers.length}</p>
-              </Link>
-              <Link href="/dashboard/vehicle-finance/applications" className={`${EXECUTIVE_METRIC_CARD_CLASS} block text-left no-underline transition hover:bg-white/[0.1]`}>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-300">Applications</p>
-                <p className="mt-3 text-2xl font-semibold text-white">{totalApplications}</p>
-              </Link>
-              <Link href="/dashboard/vehicle-finance/reports" className={`${EXECUTIVE_METRIC_CARD_CLASS} block text-left no-underline transition hover:bg-emerald-300/15`}>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-emerald-100/80">Reports</p>
-                <p className="mt-3 text-2xl font-semibold text-white">{dashboard.metrics.approvalRatio}%</p>
-              </Link>
-            </div>
+            <p className="mt-8 text-xs font-bold uppercase tracking-[0.38em] text-sky-200/80">Born To Roar</p>
+            <h1 className="mt-4 max-w-3xl text-4xl font-semibold tracking-[-0.055em] text-white sm:text-5xl lg:text-7xl">
+              The dealership command center.
+            </h1>
+            <p className="mt-5 max-w-2xl text-base leading-7 text-slate-200/90 lg:text-lg">
+              One premium workspace for vehicle stock, customer enquiries, finance applications, verification, underwriting, and executive performance.
+            </p>
           </div>
 
-          <div className="relative flex min-h-[440px] items-end justify-center lg:min-h-[720px] lg:justify-end">
-            <div className="flex w-full max-w-[760px] flex-col gap-4 pt-2 lg:pt-0">
-              <div className="flex justify-end">
-                <DashboardHeader />
-              </div>
-              <div className="absolute inset-x-6 bottom-0 top-20 rounded-[40px] border border-cyan-300/10 bg-cyan-300/10 blur-3xl" />
-              <div className="relative overflow-hidden rounded-[36px] border border-white/10 bg-slate-950/50 p-4 shadow-[0_28px_100px_rgba(2,8,23,0.45)] backdrop-blur-md lg:p-6">
-                <div className="relative aspect-[16/11] w-full lg:scale-[1.22] lg:origin-bottom">
-                  <Image
-                    src="/images/vehicles/bmw-m4-transparent.png"
-                    alt="BMW M4 hero vehicle"
-                    fill
-                    sizes="(min-width: 1024px) 55vw, 92vw"
-                    className="object-contain object-bottom drop-shadow-[0_24px_45px_rgba(15,23,42,0.7)]"
-                    priority
-                  />
-                </div>
-              </div>
-            </div>
+          <div className="grid gap-3 sm:grid-cols-3">
+            <Link href="/dashboard/vehicle-finance/listings" className={`${EXECUTIVE_METRIC_CARD_CLASS} block text-left no-underline transition hover:border-sky-200/30 hover:bg-sky-300/15`}>
+              <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-sky-100/75">Vehicle Listings</p>
+              <p className="mt-4 text-lg font-semibold text-white">Browse showroom</p>
+            </Link>
+            <Link href="/dashboard/vehicle-finance/customers" className={`${EXECUTIVE_METRIC_CARD_CLASS} block text-left no-underline transition hover:border-sky-200/30 hover:bg-sky-300/15`}>
+              <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-sky-100/75">Customer Enquiries</p>
+              <p className="mt-4 text-3xl font-semibold text-white">{dashboard.customers.length}</p>
+            </Link>
+            <Link href="/dashboard/vehicle-finance/applications" className={`${EXECUTIVE_METRIC_CARD_CLASS} block text-left no-underline transition hover:border-sky-200/30 hover:bg-sky-300/15`}>
+              <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-sky-100/75">Finance Applications</p>
+              <p className="mt-4 text-3xl font-semibold text-white">{loading ? "—" : totalApplications}</p>
+            </Link>
           </div>
         </div>
       </section>
 
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+      <section id="executive-overview" className="scroll-mt-40 grid gap-4 md:grid-cols-2 xl:grid-cols-5">
         {applicationSummaryMetrics.map(([label, value]) => (
           <Card key={label} className={`${EXECUTIVE_METRIC_CARD_CLASS} flex flex-col justify-between`}>
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">{label}</p>

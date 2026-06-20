@@ -44,7 +44,7 @@ const DASHBOARD_NAV_ITEMS: DashboardNavItem[] = [
   {
     key: "vehicleFinance",
     href: "/dashboard/vehicle-finance",
-    label: "Vehicle Finance",
+    label: "Roar Cars SA",
     match: (pathname) => pathname.startsWith("/dashboard/vehicle-finance"),
   },
   {

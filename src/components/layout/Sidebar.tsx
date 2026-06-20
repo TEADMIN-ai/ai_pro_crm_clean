@@ -55,17 +55,27 @@ export default function Sidebar() {
       ? [
           {
             href: "/dashboard/vehicle-finance",
-            label: "Vehicle Finance",
+            label: "Roar Cars Dashboard",
             active: pathname === "/dashboard/vehicle-finance",
           },
           {
+            href: "/dashboard/vehicle-finance/listings",
+            label: "Vehicle Listings",
+            active: pathname.startsWith("/dashboard/vehicle-finance/listings"),
+          },
+          {
+            href: "/dashboard/vehicle-finance/inventory",
+            label: "Vehicle Inventory",
+            active: pathname.startsWith("/dashboard/vehicle-finance/inventory"),
+          },
+          {
             href: "/dashboard/vehicle-finance/customers",
-            label: "Customers",
+            label: "Customer Enquiries",
             active: pathname.startsWith("/dashboard/vehicle-finance/customers"),
           },
           {
             href: "/dashboard/vehicle-finance/applications",
-            label: "Applications",
+            label: "Finance Applications",
             active: pathname.startsWith("/dashboard/vehicle-finance/applications"),
           },
           {
@@ -107,7 +117,7 @@ export default function Sidebar() {
               : []),
             {
               href: "/dashboard/vehicle-finance",
-              label: "Vehicle Finance",
+              label: "Roar Cars SA",
               active: pathname.startsWith("/dashboard/vehicle-finance"),
             },
             ...(role === "admin"
