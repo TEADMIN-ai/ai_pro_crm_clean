@@ -1,0 +1,9 @@
+<svg width="1280" height="800" viewBox="0 0 1280 800" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Roar Cars SA placeholder">
+  <rect width="1280" height="800" fill="#020617"/>
+  <rect x="40" y="40" width="1200" height="720" rx="48" fill="#0F172A" stroke="#38BDF8" stroke-opacity="0.18"/>
+  <circle cx="1040" cy="180" r="180" fill="#0EA5E9" fill-opacity="0.12"/>
+  <circle cx="260" cy="620" r="220" fill="#38BDF8" fill-opacity="0.08"/>
+  <text x="100" y="280" fill="#E0F2FE" font-family="Arial, Helvetica, sans-serif" font-size="92" font-weight="700" letter-spacing="6">ROAR CARS SA</text>
+  <text x="100" y="360" fill="#7DD3FC" font-family="Arial, Helvetica, sans-serif" font-size="34" font-weight="700" letter-spacing="8">BORN TO ROAR</text>
+  <text x="100" y="455" fill="#CBD5E1" font-family="Arial, Helvetica, sans-serif" font-size="28">Live inventory image pending</text>
+</svg>

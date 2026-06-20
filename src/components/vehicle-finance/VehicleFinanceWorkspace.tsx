@@ -6,7 +6,9 @@ import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import Badge from "@/components/ui/Badge";
 import Card, { IdentityCardHeader } from "@/components/ui/Card";
 import Table from "@/components/ui/Table";
+import TimelineStatusPanel from "@/components/vehicle-finance/TimelineStatusPanel";
 import { authFetch } from "@/lib/client/authFetch";
+import { API_ROUTES } from "@/lib/routes";
 import { buildVehicleFinanceDecisionFromIntelligence } from "@/lib/vehicle-finance/underwriting/decisionEngine";
 import {
   getVehicleFinanceDocumentLabel,
@@ -18,6 +20,7 @@ import {
   type VehicleFinanceDocument,
   type VehicleFinanceDocumentType,
 } from "@/types/vehicleFinance";
+import type { RoarInventoryResponse } from "@/types/roarInventory";
 
 type VehicleFinanceOverview = {
   metrics: {
@@ -133,12 +136,17 @@ export default function VehicleFinanceWorkspace({ initialSection }: Props) {
   const [busy, setBusy] = useState<string | null>(null);
   const [documentFiles, setDocumentFiles] = useState<Partial<Record<VehicleFinanceDocumentType, File>>>({});
   const [selectedApplicationId, setSelectedApplicationId] = useState<string>("");
+  const [inventory, setInventory] = useState<RoarInventoryResponse | null>(null);
+  const [inventoryLoading, setInventoryLoading] = useState(true);
+  const [inventoryError, setInventoryError] = useState<string | null>(null);
+  const [selectedInventoryVehicleId, setSelectedInventoryVehicleId] = useState<string>("");
   const [timeline, setTimeline] = useState<{
     auditLogs: Array<{ id: string; eventType?: string; timestamp?: string; metadata?: Record<string, unknown>; targetId?: string }>;
     decisionLogs: Array<{ id: string; triggerEvent?: string; reasonForChange?: string; timestamp?: string; previousReadinessScore?: number | null; newReadinessScore?: number | null }>;
     assessment: VehicleFinanceAssessment | null;
   } | null>(null);
   const [timelineLoading, setTimelineLoading] = useState(false);
+  const [timelineSyncPending, setTimelineSyncPending] = useState(false);
 
   const loadOverview = useCallback(async () => {
     try {
@@ -163,9 +171,39 @@ export default function VehicleFinanceWorkspace({ initialSection }: Props) {
     }
   }, []);
 
+  useEffect(() => {
+    const controller = new AbortController();
+
+    authFetch(API_ROUTES.VEHICLE_FINANCE_ROAR_INVENTORY, {
+      cache: "no-store",
+      signal: controller.signal,
+    })
+      .then(async (response) => {
+        const payload = (await response.json().catch(() => null)) as (RoarInventoryResponse & { error?: string }) | null;
+        if (!response.ok || !payload) {
+          throw new Error(payload?.error ?? `Inventory request failed (${response.status})`);
+        }
+
+        setInventory(payload);
+        setInventoryError(payload.warning ?? null);
+      })
+      .catch((inventoryLoadError: unknown) => {
+        if (!controller.signal.aborted) {
+          setInventory(null);
+          setInventoryError(inventoryLoadError instanceof Error ? inventoryLoadError.message : "Live inventory temporarily unavailable.");
+        }
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setInventoryLoading(false);
+      });
+
+    return () => controller.abort();
+  }, []);
+
   const loadTimeline = useCallback(async (applicationId: string) => {
     if (!applicationId) {
       setTimeline(null);
+      setTimelineSyncPending(false);
       return;
     }
 
@@ -179,13 +217,18 @@ export default function VehicleFinanceWorkspace({ initialSection }: Props) {
         throw new Error(payload?.error ?? `Timeline request failed (${response.status})`);
       }
       setTimeline(payload);
+      setTimelineSyncPending(false);
     } catch (timelineError) {
       setTimeline({
         auditLogs: [],
         decisionLogs: [],
         assessment: null,
       });
-      setError(timelineError instanceof Error ? timelineError.message : "Vehicle finance timeline unavailable");
+      setTimelineSyncPending(true);
+      console.warn("[vehicle-finance] Timeline sync deferred", {
+        applicationId,
+        error: timelineError instanceof Error ? timelineError.message : "Unknown timeline error",
+      });
     } finally {
       setTimelineLoading(false);
     }
@@ -211,6 +254,12 @@ export default function VehicleFinanceWorkspace({ initialSection }: Props) {
   const selectedApplication = useMemo(
     () => applications.find((application) => application.applicationId === selectedApplicationId) ?? null,
     [applications, selectedApplicationId],
+  );
+
+  const inventoryVehicles = useMemo(() => inventory?.vehicles ?? [], [inventory?.vehicles]);
+  const selectedInventoryVehicle = useMemo(
+    () => inventoryVehicles.find((vehicle) => vehicle.id === selectedInventoryVehicleId) ?? null,
+    [inventoryVehicles, selectedInventoryVehicleId],
   );
 
   const selectedDocuments = useMemo(
@@ -320,14 +369,29 @@ export default function VehicleFinanceWorkspace({ initialSection }: Props) {
     event.preventDefault();
     try {
       setBusy("application");
+      const vehicleId = applicationForm.vehicleId.trim() || selectedInventoryVehicle?.id || "";
+      const vehicleSnapshot = selectedInventoryVehicle
+        ? {
+            vehicleInventoryId: selectedInventoryVehicle.id,
+            vehicleTitle: selectedInventoryVehicle.title,
+            vehiclePrice: selectedInventoryVehicle.priceNumber ?? selectedInventoryVehicle.price ?? null,
+            vehicleYear: selectedInventoryVehicle.year,
+            vehicleMileage: selectedInventoryVehicle.mileageNumber ?? selectedInventoryVehicle.mileage ?? null,
+            vehicleImageUrl: selectedInventoryVehicle.imageUrl,
+            vehicleListingUrl: selectedInventoryVehicle.listingUrl,
+            inventorySource: "roarcarssa.com",
+          }
+        : null;
+
       const response = await authFetch("/api/vehicle-finance/applications", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           customerId: applicationForm.customerId.trim(),
-          vehicleId: applicationForm.vehicleId.trim(),
+          vehicleId,
           dealerName: applicationForm.dealerName.trim(),
           dealValue: Number(applicationForm.dealValue) || 0,
+          ...(vehicleSnapshot ?? {}),
         }),
       });
       const payload = (await response.json().catch(() => null)) as { error?: string } | null;
@@ -335,6 +399,7 @@ export default function VehicleFinanceWorkspace({ initialSection }: Props) {
         throw new Error(payload?.error ?? `Application create failed (${response.status})`);
       }
       setApplicationForm(EMPTY_APPLICATION_FORM);
+      setSelectedInventoryVehicleId("");
       await refresh();
     } catch (applicationError) {
       setError(applicationError instanceof Error ? applicationError.message : "Application creation failed");
@@ -646,8 +711,21 @@ export default function VehicleFinanceWorkspace({ initialSection }: Props) {
       {section === "applications" ? (
         <div className="grid gap-6 xl:grid-cols-[380px_minmax(0,1fr)]">
           <Card>
-            <IdentityCardHeader title="Create Application" subtitle="Link a customer to a vehicle finance case" />
+            <IdentityCardHeader title="Create Application" subtitle="Start a structured vehicle finance case" />
             <form className="mt-4 grid gap-3" onSubmit={submitApplication}>
+              <div className="rounded-xl border border-slate-700 bg-slate-950/60 p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Inventory Feed</p>
+                <p className="mt-2 text-sm text-slate-200">
+                  {inventoryLoading
+                    ? "Syncing live Roar inventory..."
+                    : inventory?.status === "LIVE" || inventory?.status === "CACHED"
+                      ? `${inventory.itemCount} vehicles available from Roar Cars`
+                      : "Roar inventory feed is being prepared."}
+                </p>
+                <p className="mt-1 text-xs text-slate-400">
+                  {inventory?.warning ?? inventoryError ?? (inventory ? `Last synced ${formatDate(inventory.syncedAt)}` : "Live inventory will appear here when available.")}
+                </p>
+              </div>
               <label className="grid gap-1 text-sm text-slate-300">
                 <span>Customer</span>
                 <select
@@ -665,16 +743,53 @@ export default function VehicleFinanceWorkspace({ initialSection }: Props) {
                   ))}
                 </select>
               </label>
-              <label className="grid gap-1 text-sm text-slate-300">
-                <span>Vehicle ID</span>
-                <input
-                  value={applicationForm.vehicleId}
-                  onChange={(event) =>
-                    setApplicationForm((current) => ({ ...current, vehicleId: event.target.value }))
-                  }
-                  className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white"
-                />
-              </label>
+              {inventoryVehicles.length ? (
+                <label className="grid gap-1 text-sm text-slate-300">
+                  <span>Vehicle from Roar Inventory</span>
+                  <select
+                    value={selectedInventoryVehicleId}
+                    required
+                    onChange={(event) => {
+                      const vehicle = inventoryVehicles.find((item) => item.id === event.target.value) ?? null;
+                      setSelectedInventoryVehicleId(event.target.value);
+                      setApplicationForm((current) => ({
+                        ...current,
+                        vehicleId: vehicle?.id ?? current.vehicleId,
+                        dealValue: vehicle ? String(vehicle.priceNumber ?? vehicle.price ?? current.dealValue) : current.dealValue,
+                      }));
+                    }}
+                    className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white"
+                  >
+                    <option value="">Select live vehicle</option>
+                    {inventoryVehicles.map((vehicle) => (
+                      <option key={vehicle.id} value={vehicle.id}>
+                        {vehicle.title} - {vehicle.year ?? "n/a"} - {vehicle.priceNumber ?? vehicle.price ? `R ${Number(vehicle.priceNumber ?? vehicle.price).toLocaleString("en-ZA")}` : "Price on request"}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ) : (
+                <label className="grid gap-1 text-sm text-slate-300">
+                  <span>Vehicle ID</span>
+                  <input
+                    value={applicationForm.vehicleId}
+                    required
+                    onChange={(event) =>
+                      setApplicationForm((current) => ({ ...current, vehicleId: event.target.value }))
+                    }
+                    className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white"
+                  />
+                </label>
+              )}
+              {selectedInventoryVehicle ? (
+                <div className="rounded-xl border border-sky-300/20 bg-sky-300/[0.06] p-4">
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-sky-100/75">Selected Vehicle</p>
+                  <p className="mt-2 text-sm font-semibold text-white">{selectedInventoryVehicle.title}</p>
+                  <p className="mt-1 text-xs text-slate-300">
+                    {selectedInventoryVehicle.year ?? "n/a"} · {selectedInventoryVehicle.transmission ?? "n/a"} · {selectedInventoryVehicle.mileageNumber ?? selectedInventoryVehicle.mileage ?? "n/a"} km
+                  </p>
+                </div>
+              ) : null}
               <label className="grid gap-1 text-sm text-slate-300">
                 <span>Dealer Name</span>
                 <input
@@ -707,16 +822,30 @@ export default function VehicleFinanceWorkspace({ initialSection }: Props) {
           </Card>
 
           <Card>
-            <IdentityCardHeader title="Applications" subtitle="Stored in vehicleFinanceApplications" />
-            <Table>
+            <IdentityCardHeader title="Applications" subtitle="Finance pipeline and current application status">
+              <Badge tone="neutral">{applications.length} total</Badge>
+            </IdentityCardHeader>
+
+            {selectedApplicationId ? (
+              <div className="mt-4">
+                <TimelineStatusPanel
+                  loading={timelineLoading}
+                  syncPending={timelineSyncPending}
+                  hasActivity={Boolean((timeline?.auditLogs.length ?? 0) + (timeline?.decisionLogs.length ?? 0))}
+                  onRetry={() => void loadTimeline(selectedApplicationId)}
+                />
+              </div>
+            ) : null}
+
+            <Table className="mt-4 table-fixed">
               <thead>
                 <tr>
-                  <th>Application</th>
-                  <th>Customer</th>
-                  <th>Dealer</th>
-                  <th>Status</th>
-                  <th>Fraud Score</th>
-                  <th>Actions</th>
+                  <th className="w-[19%]">Application</th>
+                  <th className="w-[21%]">Customer</th>
+                  <th className="w-[20%]">Dealer</th>
+                  <th className="w-[15%]">Status</th>
+                  <th className="w-[13%]">Fraud Score</th>
+                  <th className="w-[12%] text-right">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -724,16 +853,16 @@ export default function VehicleFinanceWorkspace({ initialSection }: Props) {
                   const customer = customers.find((item) => item.customerId === application.customerId);
                   return (
                     <tr key={application.applicationId}>
-                      <td>{application.applicationId}</td>
-                      <td>{customer ? `${customer.firstName} ${customer.lastName}` : application.customerId}</td>
-                      <td>{application.dealerName}</td>
-                      <td>{application.applicationStatus}</td>
+                      <td className="break-words font-medium text-slate-100">{application.applicationId}</td>
+                      <td className="break-words">{customer ? `${customer.firstName} ${customer.lastName}` : application.customerId}</td>
+                      <td className="break-words">{application.dealerName}</td>
+                      <td><Badge tone={application.applicationStatus === "VERIFIED" ? "success" : "warning"}>{application.applicationStatus}</Badge></td>
                       <td>{application.fraudScore}</td>
-                      <td>
+                      <td className="text-right">
                         <button
                           type="button"
                           onClick={() => setSelectedApplicationId(application.applicationId)}
-                          className="rounded-md border border-slate-700 px-3 py-1 text-xs text-slate-200"
+                          className="rounded-md border border-slate-600 bg-slate-900/60 px-3 py-1.5 text-xs font-semibold text-slate-100 transition hover:border-sky-300/30 hover:text-sky-100"
                         >
                           Open
                         </button>
@@ -770,12 +899,23 @@ export default function VehicleFinanceWorkspace({ initialSection }: Props) {
             <div className="mt-4 rounded-xl border border-slate-700 bg-slate-950/60 p-4">
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Selected Application</p>
               <p className="mt-2 text-sm text-slate-100">
-                {selectedApplication ? `${selectedApplication.dealerName} / ${selectedApplication.vehicleId}` : "None selected"}
+                {selectedApplication ? `${selectedApplication.dealerName} / ${selectedApplication.vehicleTitle ?? selectedApplication.vehicleId}` : "None selected"}
               </p>
               <p className="mt-2 text-xs text-slate-400">
-                {timelineLoading ? "Loading timeline..." : timeline?.assessment ? `Risk: ${timeline.assessment.riskLevel} | Fraud Score: ${timeline.assessment.overallFraudScore}` : "No assessment yet"}
+                {timeline?.assessment ? `Risk: ${timeline.assessment.riskLevel} | Fraud Score: ${timeline.assessment.overallFraudScore}` : "No assessment yet"}
               </p>
             </div>
+
+            {selectedApplicationId ? (
+              <div className="mt-4">
+                <TimelineStatusPanel
+                  loading={timelineLoading}
+                  syncPending={timelineSyncPending}
+                  hasActivity={Boolean((timeline?.auditLogs.length ?? 0) + (timeline?.decisionLogs.length ?? 0))}
+                  onRetry={() => void loadTimeline(selectedApplicationId)}
+                />
+              </div>
+            ) : null}
 
             <button
               type="button"
@@ -1600,6 +1740,13 @@ export default function VehicleFinanceWorkspace({ initialSection }: Props) {
                       <td>{decision.reasonForChange ?? "n/a"}</td>
                     </tr>
                   ))}
+                  {!timelineLoading && (timeline?.decisionLogs.length ?? 0) === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="py-8 text-center text-sm text-slate-400">
+                        Timeline activity will appear here when synchronization completes.
+                      </td>
+                    </tr>
+                  ) : null}
                 </tbody>
               </Table>
             </Card>

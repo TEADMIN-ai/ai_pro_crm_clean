@@ -33,6 +33,14 @@ export type VehicleFinanceApplication = {
   applicationId: string;
   customerId: string;
   vehicleId: string;
+  vehicleInventoryId?: string | null;
+  vehicleTitle?: string | null;
+  vehiclePrice?: number | null;
+  vehicleYear?: number | null;
+  vehicleMileage?: number | null;
+  vehicleImageUrl?: string | null;
+  vehicleListingUrl?: string | null;
+  inventorySource?: string | null;
   dealerName: string;
   dealValue: number;
   applicationStatus: "NEW" | "IN_REVIEW" | "VERIFIED" | "FLAGGED" | "REJECTED";

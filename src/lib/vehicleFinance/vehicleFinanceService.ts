@@ -109,6 +109,14 @@ function normalizeApplicationData(id: string, data: Record<string, unknown>): Ve
     applicationId: id,
     customerId: asString(data.customerId),
     vehicleId: asString(data.vehicleId),
+    vehicleInventoryId: asString(data.vehicleInventoryId) || null,
+    vehicleTitle: asString(data.vehicleTitle) || null,
+    vehiclePrice: asNumber(data.vehiclePrice, 0) || null,
+    vehicleYear: asNumber(data.vehicleYear, 0) || null,
+    vehicleMileage: asNumber(data.vehicleMileage, 0) || null,
+    vehicleImageUrl: asString(data.vehicleImageUrl) || null,
+    vehicleListingUrl: asString(data.vehicleListingUrl) || null,
+    inventorySource: asString(data.inventorySource) || null,
     dealerName: asString(data.dealerName),
     dealValue: asNumber(data.dealValue),
     applicationStatus: (asString(data.applicationStatus) || "NEW") as VehicleFinanceApplication["applicationStatus"],
@@ -575,12 +583,28 @@ export async function createVehicleFinanceApplication(input: {
   vehicleId: string;
   dealerName: string;
   dealValue: number;
+  vehicleInventoryId?: string;
+  vehicleTitle?: string | null;
+  vehiclePrice?: number | null;
+  vehicleYear?: number | null;
+  vehicleMileage?: number | null;
+  vehicleImageUrl?: string | null;
+  vehicleListingUrl?: string | null;
+  inventorySource?: string | null;
 }, actor: ActorContext) {
   const applicationId = crypto.randomUUID();
   const record: VehicleFinanceApplication = {
     applicationId,
     customerId: input.customerId,
     vehicleId: input.vehicleId,
+    vehicleInventoryId: input.vehicleInventoryId ?? null,
+    vehicleTitle: input.vehicleTitle ?? null,
+    vehiclePrice: input.vehiclePrice ?? null,
+    vehicleYear: input.vehicleYear ?? null,
+    vehicleMileage: input.vehicleMileage ?? null,
+    vehicleImageUrl: input.vehicleImageUrl ?? null,
+    vehicleListingUrl: input.vehicleListingUrl ?? null,
+    inventorySource: input.inventorySource ?? null,
     dealerName: input.dealerName,
     dealValue: input.dealValue,
     applicationStatus: "NEW",

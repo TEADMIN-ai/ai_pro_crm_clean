@@ -12,7 +12,7 @@ type RoarCarsNavItem = {
 
 const NAV_ITEMS: RoarCarsNavItem[] = [
   { href: "/dashboard/vehicle-finance", label: "Vehicle Dashboard", exact: true },
-  { href: "/dashboard/vehicle-finance/listings", label: "Vehicle Listings" },
+  { href: "/dashboard/vehicle-finance/inventory", label: "Vehicle Listings" },
   { href: "/dashboard/vehicle-finance/inventory", label: "Vehicle Inventory" },
   { href: "/dashboard/vehicle-finance/customers", label: "Customer Enquiries" },
   { href: "/dashboard/vehicle-finance/applications", label: "Finance Applications" },

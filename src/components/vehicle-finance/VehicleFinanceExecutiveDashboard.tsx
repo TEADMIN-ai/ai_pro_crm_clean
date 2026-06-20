@@ -20,6 +20,7 @@ import type {
   VehicleFinanceIdentityDocumentIntelligence,
   VehicleFinancePayslipIntelligence,
 } from "@/types/vehicleFinance";
+import type { RoarInventoryResponse } from "@/types/roarInventory";
 
 type VehicleFinanceOverview = {
   metrics: {
@@ -66,6 +67,25 @@ function formatCurrency(value: number | null | undefined): string {
   return `R ${Number(value ?? 0).toLocaleString("en-ZA", { maximumFractionDigits: 0 })}`;
 }
 
+function formatSyncedAt(value?: string | null): string {
+  if (!value) {
+    return "Not synced yet";
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "Not synced yet";
+  }
+
+  return date.toLocaleString("en-ZA", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 function getCustomerName(customer?: VehicleFinanceCustomer | null): string {
   if (!customer) {
     return "Unknown Customer";
@@ -94,6 +114,7 @@ export default function VehicleFinanceExecutiveDashboard() {
   const [overview, setOverview] = useState<VehicleFinanceOverview | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [inventory, setInventory] = useState<RoarInventoryResponse | null>(null);
   const [selectedApplicationId, setSelectedApplicationId] = useState<string>("");
 
   useEffect(() => {
@@ -120,6 +141,20 @@ export default function VehicleFinanceExecutiveDashboard() {
       })
       .finally(() => setLoading(false));
 
+    return () => controller.abort();
+  }, []);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    authFetch(API_ROUTES.VEHICLE_FINANCE_ROAR_INVENTORY, { cache: "no-store", signal: controller.signal })
+      .then(async (response) => {
+        if (!response.ok) throw new Error(`Roar inventory request failed (${response.status})`);
+        return response.json() as Promise<RoarInventoryResponse>;
+      })
+      .then(setInventory)
+      .catch((inventoryError: unknown) => {
+        if (!controller.signal.aborted) console.warn("[vehicle-finance] Roar inventory unavailable", inventoryError);
+      });
     return () => controller.abort();
   }, []);
 
@@ -216,13 +251,26 @@ export default function VehicleFinanceExecutiveDashboard() {
   const employmentVerificationScore = financeDecision.employmentVerificationScore;
   const fraudScore = financeDecision.fraudRiskScore;
   const dashboard = overview ?? DEFAULT_OVERVIEW;
-  const applicationSummaryMetrics = [
-    ["Applications Today", dashboard.metrics.totalApplications],
-    ["Pending Verification", dashboard.metrics.pendingVerification],
-    ["Approved", dashboard.metrics.verifiedApplications],
-    ["Declined", dashboard.applications.filter((application) => application.applicationStatus === "REJECTED").length],
-    ["Average Affordability", affordability?.affordabilityScore?.value ?? financeDecision.financeReadinessScore],
+  const inventoryVehicles = inventory?.vehicles ?? [];
+  const highestPriceVehicle = [...inventoryVehicles].sort((left, right) => (right.priceNumber ?? right.price ?? 0) - (left.priceNumber ?? left.price ?? 0))[0];
+  const newestYearVehicle = [...inventoryVehicles].sort((left, right) => (right.year ?? 0) - (left.year ?? 0))[0];
+  const inventoryMetrics = [
+    ["Total Vehicles", inventory?.itemCount ?? 0],
+    ["Active Listings", inventory?.metrics.activeVehicles ?? 0],
+    ["Total Inventory Value", formatCurrency(inventory?.metrics.inventoryValue)],
+    ["Average Vehicle Price", formatCurrency(inventory?.metrics.averageVehiclePrice)],
+    ["Highest Price Vehicle", highestPriceVehicle ? `${highestPriceVehicle.title} (${formatCurrency(highestPriceVehicle.priceNumber ?? highestPriceVehicle.price)})` : "No inventory"],
+    ["Newest Year Vehicle", newestYearVehicle ? `${newestYearVehicle.year ?? "n/a"} ${newestYearVehicle.title}` : "No inventory"],
   ] as const;
+  const applicationSummaryMetrics = [
+    ["Inventory Value", formatCurrency(inventory?.metrics.inventoryValue)],
+    ["Average Vehicle Price", formatCurrency(inventory?.metrics.averageVehiclePrice)],
+    ["Inventory Age", inventory?.metrics.averageModelAge === null || inventory?.metrics.averageModelAge === undefined ? "—" : `${inventory.metrics.averageModelAge} yrs`],
+    ["Vehicles Added This Month", inventory?.metrics.vehiclesAddedThisMonth ?? "—"],
+    ["Applications Submitted", dashboard.metrics.totalApplications],
+    ["Finance Approval Rate", `${dashboard.metrics.approvalRatio}%`],
+  ] as const;
+  void applicationSummaryMetrics;
 
   const featuredVehicles = [
     {
@@ -276,9 +324,11 @@ export default function VehicleFinanceExecutiveDashboard() {
           </div>
 
           <div className="grid gap-3 sm:grid-cols-3">
-            <Link href="/dashboard/vehicle-finance/listings" className={`${EXECUTIVE_METRIC_CARD_CLASS} block text-left no-underline transition hover:border-sky-200/30 hover:bg-sky-300/15`}>
+            <Link href="/dashboard/vehicle-finance/inventory" className={`${EXECUTIVE_METRIC_CARD_CLASS} block text-left no-underline transition hover:border-sky-200/30 hover:bg-sky-300/15`}>
               <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-sky-100/75">Vehicle Listings</p>
-              <p className="mt-4 text-lg font-semibold text-white">Browse showroom</p>
+              <p className="mt-4 text-lg font-semibold text-white">{inventory ? `${inventory.itemCount} Active Vehicles` : "Syncing inventory..."}</p>
+              <p className="mt-2 text-xs leading-5 text-slate-300">Synced from Roar Cars website</p>
+              <p className="mt-1 text-xs leading-5 text-slate-400">Last synced {formatSyncedAt(inventory?.syncedAt ?? inventory?.source.lastSyncedAt)}</p>
             </Link>
             <Link href="/dashboard/vehicle-finance/customers" className={`${EXECUTIVE_METRIC_CARD_CLASS} block text-left no-underline transition hover:border-sky-200/30 hover:bg-sky-300/15`}>
               <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-sky-100/75">Customer Enquiries</p>
@@ -292,8 +342,8 @@ export default function VehicleFinanceExecutiveDashboard() {
         </div>
       </section>
 
-      <section id="executive-overview" className="scroll-mt-40 grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-        {applicationSummaryMetrics.map(([label, value]) => (
+      <section id="executive-overview" className="scroll-mt-40 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        {inventoryMetrics.map(([label, value]) => (
           <Card key={label} className={`${EXECUTIVE_METRIC_CARD_CLASS} flex flex-col justify-between`}>
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">{label}</p>
             <p className="mt-3 text-3xl font-semibold text-white">
@@ -333,26 +383,49 @@ export default function VehicleFinanceExecutiveDashboard() {
 
       <section className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
         <Card>
-          <IdentityCardHeader title="Featured Vehicles" subtitle="Ready for future inventory integration" />
+          <IdentityCardHeader title="Featured Vehicles" subtitle="Live Roar inventory highlights" />
           <div className="mt-4 grid gap-4 md:grid-cols-2">
-            {featuredVehicles.map((vehicle) => (
-              <article key={vehicle.title} className={`overflow-hidden rounded-[28px] border border-white/10 ${vehicle.accent} shadow-[0_20px_50px_rgba(2,8,23,0.22)]`}>
-                <div className="relative aspect-[16/9] bg-slate-950/70 p-3 md:p-5">
-                  <Image
-                    src={vehicle.image}
-                    alt={vehicle.title}
-                    fill
-                    sizes="(min-width: 768px) 44vw, 92vw"
-                    className="object-contain object-center p-2 md:p-3 lg:p-4"
-                  />
-                </div>
-                <div className="border-t border-white/10 p-4">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-100/70">{vehicle.subtitle}</p>
-                  <h3 className="mt-2 text-lg font-semibold text-white">{vehicle.title}</h3>
-                  <p className="mt-2 text-sm leading-6 text-slate-300">Vehicle card styling prepared for Roar Cars SA inventory integration.</p>
-                </div>
-              </article>
-            ))}
+            {inventoryVehicles.length
+              ? inventoryVehicles.slice(0, 2).map((vehicle) => (
+                  <article key={vehicle.id} className="overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.03] shadow-[0_20px_50px_rgba(2,8,23,0.22)]">
+                    <div className="relative aspect-[16/9] bg-slate-950/70 p-3 md:p-5">
+                      <Image
+                        src={vehicle.imageUrl ?? ROAR_SHOWROOM_SRC}
+                        alt={vehicle.title}
+                        fill
+                        sizes="(min-width: 768px) 44vw, 92vw"
+                        className="object-contain object-center p-2 md:p-3 lg:p-4"
+                      />
+                    </div>
+                    <div className="border-t border-white/10 p-4">
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-100/70">
+                        {vehicle.make} {vehicle.model}
+                      </p>
+                      <h3 className="mt-2 text-lg font-semibold text-white">{vehicle.title}</h3>
+                      <p className="mt-2 text-sm leading-6 text-slate-300">
+                        {formatCurrency(vehicle.priceNumber ?? vehicle.price)} · {vehicle.year ?? "n/a"}
+                      </p>
+                    </div>
+                  </article>
+                ))
+              : featuredVehicles.map((vehicle) => (
+                  <article key={vehicle.title} className={`overflow-hidden rounded-[28px] border border-white/10 ${vehicle.accent} shadow-[0_20px_50px_rgba(2,8,23,0.22)]`}>
+                    <div className="relative aspect-[16/9] bg-slate-950/70 p-3 md:p-5">
+                      <Image
+                        src={vehicle.image}
+                        alt={vehicle.title}
+                        fill
+                        sizes="(min-width: 768px) 44vw, 92vw"
+                        className="object-contain object-center p-2 md:p-3 lg:p-4"
+                      />
+                    </div>
+                    <div className="border-t border-white/10 p-4">
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-100/70">{vehicle.subtitle}</p>
+                      <h3 className="mt-2 text-lg font-semibold text-white">{vehicle.title}</h3>
+                      <p className="mt-2 text-sm leading-6 text-slate-300">Vehicle card styling prepared for Roar Cars SA inventory integration.</p>
+                    </div>
+                  </article>
+                ))}
           </div>
         </Card>
 
