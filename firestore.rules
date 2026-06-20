@@ -23,7 +23,7 @@ service cloud.firestore {
     }
 
     function isHygieneInternal() {
-      return role() in ["admin", "manager", "staff"];
+      return role() in ["admin", "manager", "staff", "driver"];
     }
 
     function isHygieneAdmin() {
@@ -31,7 +31,7 @@ service cloud.firestore {
     }
 
     function isHygieneStaffMutation() {
-      return role() in ["admin", "manager", "staff"];
+      return role() in ["admin", "manager", "staff", "driver"];
     }
 
     function isContractorOwner(value) {
@@ -196,6 +196,18 @@ service cloud.firestore {
     match /hygieneReports/{docId} {
       allow read: if isSignedIn() && isHygieneInternal();
       allow create, update, delete: if isSignedIn() && isHygieneAdmin();
+    }
+
+    match /hygieneJobEvents/{docId} {
+      allow read: if isSignedIn() && isHygieneInternal();
+      allow create: if isSignedIn() && isHygieneStaffMutation();
+      allow update, delete: if isSignedIn() && isHygieneAdmin();
+    }
+
+    match /hygieneSignatures/{docId} {
+      allow read: if isSignedIn() && isHygieneInternal();
+      allow create: if isSignedIn() && isHygieneStaffMutation();
+      allow update, delete: if isSignedIn() && isHygieneAdmin();
     }
   }
 }

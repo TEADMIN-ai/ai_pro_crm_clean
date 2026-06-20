@@ -22,7 +22,8 @@ type HygieneView =
   | "assets"
   | "evidence"
   | "compliance"
-  | "reports";
+  | "reports"
+  | "jobs";
 
 const navItems: Array<{ view: HygieneView; href: string; label: string }> = [
   { view: "home", href: "/dashboard/hygiene", label: "Overview" },
@@ -34,6 +35,7 @@ const navItems: Array<{ view: HygieneView; href: string; label: string }> = [
   { view: "evidence", href: "/dashboard/hygiene/evidence", label: "Evidence" },
   { view: "compliance", href: "/dashboard/hygiene/compliance", label: "Compliance" },
   { view: "reports", href: "/dashboard/hygiene/reports", label: "Reports" },
+  { view: "jobs", href: "/dashboard/hygiene/jobs", label: "Driver App" },
 ];
 
 function currency(value: number): string {

@@ -16,6 +16,7 @@ export const VALID_ROLES: UserRole[] = [
   "admin",
   "manager",
   "staff",
+  "driver",
   "contractor",
   "auditor",
   "viewer",

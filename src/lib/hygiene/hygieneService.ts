@@ -19,8 +19,10 @@ import {
   validateHygieneComplianceDocument,
   validateHygieneDriverLog,
   validateHygieneEvidencePhoto,
+  validateHygieneJobEvent,
   validateHygieneManifest,
   validateHygieneReport,
+  validateHygieneSignature,
   validateHygieneSite,
   validateHygieneVehicleInspection,
 } from "@/lib/hygiene/hygieneValidation";
@@ -33,8 +35,10 @@ import type {
   HygieneDashboardKpis,
   HygieneDriverLog,
   HygieneEvidencePhoto,
+  HygieneJobEvent,
   HygieneManifest,
   HygieneReport,
+  HygieneSignature,
   HygieneSite,
   HygieneVehicleInspection,
 } from "@/types/hygiene";
@@ -50,12 +54,14 @@ export const HYGIENE_COLLECTIONS = {
   driverLogs: "hygieneDriverLogs",
   complianceDocuments: "hygieneComplianceDocuments",
   reports: "hygieneReports",
+  jobEvents: "hygieneJobEvents",
+  signatures: "hygieneSignatures",
 } as const;
 
 type CollectionName = (typeof HYGIENE_COLLECTIONS)[keyof typeof HYGIENE_COLLECTIONS];
 
 export function assertHygieneInternalAccess(user: AuthorizedUser): void {
-  if (user.role !== "admin" && user.role !== "manager" && user.role !== "staff") {
+  if (user.role !== "admin" && user.role !== "manager" && user.role !== "staff" && user.role !== "driver") {
     throw new AuthorizationError("Hygiene dashboard is restricted to internal Torque Empire users.", 403);
   }
 }
@@ -67,8 +73,38 @@ export function assertHygieneAdminAccess(user: AuthorizedUser): void {
 }
 
 export function assertHygieneStaffMutationAccess(user: AuthorizedUser): void {
-  if (user.role !== "admin" && user.role !== "manager" && user.role !== "staff") {
+  if (user.role !== "admin" && user.role !== "manager" && user.role !== "staff" && user.role !== "driver") {
     throw new AuthorizationError("Only internal operations users may update hygiene collection records.", 403);
+  }
+}
+
+function isHygieneManagerRole(user: AuthorizedUser): boolean {
+  return user.role === "admin" || user.role === "manager";
+}
+
+function normalizeAssignmentValue(value: string | undefined): string {
+  return (value ?? "").toLowerCase().replace(/[^a-z0-9]+/g, "");
+}
+
+function isCollectionAssignedToUser(collection: HygieneCollection, user: AuthorizedUser): boolean {
+  if (isHygieneManagerRole(user)) {
+    return true;
+  }
+
+  if (collection.assignedUserIds?.includes(user.uid)) {
+    return true;
+  }
+
+  const emailKey = normalizeAssignmentValue(user.email);
+  const driverKey = normalizeAssignmentValue(collection.assignedDriver);
+  return Boolean(emailKey && driverKey && (emailKey.includes(driverKey) || driverKey.includes(emailKey)));
+}
+
+function assertCanAccessCollectionWorkflow(collection: HygieneCollection, user: AuthorizedUser): void {
+  assertHygieneStaffMutationAccess(user);
+
+  if (!isCollectionAssignedToUser(collection, user)) {
+    throw new AuthorizationError("This hygiene collection is not assigned to the current user.", 403);
   }
 }
 
@@ -187,6 +223,8 @@ export async function getHygieneDashboardData(user: AuthorizedUser): Promise<Hyg
     driverLogs,
     complianceDocuments,
     reports,
+    jobEvents,
+    signatures,
   ] = await Promise.all([
     listCollection<HygieneClient>(HYGIENE_COLLECTIONS.clients),
     listCollection<HygieneSite>(HYGIENE_COLLECTIONS.sites),
@@ -198,6 +236,8 @@ export async function getHygieneDashboardData(user: AuthorizedUser): Promise<Hyg
     listCollection<HygieneDriverLog>(HYGIENE_COLLECTIONS.driverLogs),
     listCollection<HygieneComplianceDocument>(HYGIENE_COLLECTIONS.complianceDocuments),
     listCollection<HygieneReport>(HYGIENE_COLLECTIONS.reports),
+    listCollection<HygieneJobEvent>(HYGIENE_COLLECTIONS.jobEvents),
+    listCollection<HygieneSignature>(HYGIENE_COLLECTIONS.signatures),
   ]);
 
   const baseData = {
@@ -211,6 +251,8 @@ export async function getHygieneDashboardData(user: AuthorizedUser): Promise<Hyg
     driverLogs,
     complianceDocuments,
     reports,
+    jobEvents,
+    signatures,
   };
 
   return {
@@ -285,4 +327,139 @@ export async function createHygieneEvidencePhoto(
   );
 
   return record;
+}
+
+export async function getHygieneMobileJobs(user: AuthorizedUser): Promise<HygieneDashboardData> {
+  const data = await getHygieneDashboardData(user);
+  if (isHygieneManagerRole(user)) {
+    return data;
+  }
+
+  const collections = data.collections.filter((collection) => isCollectionAssignedToUser(collection, user));
+  const collectionIds = new Set(collections.map((collection) => collection.collectionId));
+  const siteIds = new Set(collections.map((collection) => collection.siteId));
+  const clientIds = new Set(collections.map((collection) => collection.clientId));
+  const manifestIds = new Set(collections.map((collection) => collection.manifestId).filter((id) => id !== "Pending"));
+
+  return {
+    ...data,
+    collections,
+    clients: data.clients.filter((client) => clientIds.has(client.clientId)),
+    sites: data.sites.filter((site) => siteIds.has(site.siteId)),
+    assets: data.assets.filter((asset) => siteIds.has(asset.siteId)),
+    manifests: data.manifests.filter((manifest) => manifestIds.has(manifest.manifestId) || collectionIds.has(manifest.collectionId)),
+    evidencePhotos: data.evidencePhotos.filter((photo) => collectionIds.has(photo.collectionId)),
+    jobEvents: data.jobEvents?.filter((event) => collectionIds.has(event.collectionId)),
+    signatures: data.signatures?.filter((signature) => collectionIds.has(signature.collectionId)),
+  };
+}
+
+async function getCollectionForWorkflow(collectionId: string, user: AuthorizedUser): Promise<HygieneCollection> {
+  const snapshot = await getFirebaseAdmin().collection(HYGIENE_COLLECTIONS.collections).doc(collectionId).get();
+  if (!snapshot.exists) {
+    throw new Error(`Hygiene collection does not exist: ${collectionId}`);
+  }
+
+  const collection = validateHygieneCollection(snapshot.data());
+  assertCanAccessCollectionWorkflow(collection, user);
+  return collection;
+}
+
+export async function recordHygieneJobEvent(
+  user: AuthorizedUser,
+  input: Omit<HygieneJobEvent, "eventId" | "userId" | "userEmail" | "timestamp"> & { eventId?: string; timestamp?: string }
+): Promise<HygieneJobEvent> {
+  const collection = await getCollectionForWorkflow(input.collectionId, user);
+  const event = validateHygieneJobEvent({
+    ...input,
+    clientId: collection.clientId,
+    siteId: collection.siteId,
+    manifestId: collection.manifestId === "Pending" ? null : collection.manifestId,
+    eventId: input.eventId ?? `TE-HJE-${Date.now()}`,
+    userId: user.uid,
+    userEmail: user.email ?? null,
+    timestamp: input.timestamp ?? new Date().toISOString(),
+  });
+
+  await setValidatedRecord(HYGIENE_COLLECTIONS.jobEvents, event.eventId, event);
+
+  const collectionPatch: Partial<HygieneCollection> & Record<string, unknown> = {
+    updatedAtServer: FieldValue.serverTimestamp(),
+  };
+
+  if (event.eventType === "Job Started") {
+    collectionPatch.status = "In Progress";
+  }
+
+  if (event.eventType === "Arrival Captured") {
+    collectionPatch.arrivalTime = event.timestamp;
+  }
+
+  if (event.eventType === "Awaiting Disposal") {
+    collectionPatch.status = "Completed";
+    collectionPatch.completedAt = event.timestamp;
+    collectionPatch.clientSignatureStatus = "Signature captured";
+  }
+
+  await getFirebaseAdmin()
+    .collection(HYGIENE_COLLECTIONS.collections)
+    .doc(event.collectionId)
+    .set(collectionPatch, { merge: true });
+
+  if (event.eventType === "Awaiting Disposal" && event.manifestId) {
+    await getFirebaseAdmin()
+      .collection(HYGIENE_COLLECTIONS.manifests)
+      .doc(event.manifestId)
+      .set(
+        {
+          status: "Disposal Pending",
+          updatedAt: event.timestamp,
+          updatedAtServer: FieldValue.serverTimestamp(),
+        },
+        { merge: true }
+      );
+  }
+
+  return event;
+}
+
+export async function createHygieneSignature(
+  user: AuthorizedUser,
+  input: Omit<HygieneSignature, "signatureId" | "capturedBy" | "capturedAt"> & { signatureId?: string; capturedAt?: string }
+): Promise<HygieneSignature> {
+  const collection = await getCollectionForWorkflow(input.collectionId, user);
+  const signature = validateHygieneSignature({
+    ...input,
+    clientId: collection.clientId,
+    siteId: collection.siteId,
+    manifestId: collection.manifestId === "Pending" ? null : collection.manifestId,
+    signatureId: input.signatureId ?? `TE-SIG-${Date.now()}`,
+    capturedBy: user.email ?? user.uid,
+    capturedAt: input.capturedAt ?? new Date().toISOString(),
+  });
+
+  await setValidatedRecord(HYGIENE_COLLECTIONS.signatures, signature.signatureId, signature);
+  await getFirebaseAdmin().collection(HYGIENE_COLLECTIONS.collections).doc(signature.collectionId).set(
+    {
+      clientSignatureStatus: "Signature captured",
+      updatedAtServer: FieldValue.serverTimestamp(),
+    },
+    { merge: true }
+  );
+
+  await recordHygieneJobEvent(user, {
+    eventType: "Signature Captured",
+    clientId: signature.clientId,
+    siteId: signature.siteId,
+    collectionId: signature.collectionId,
+    manifestId: signature.manifestId,
+    notes: `Signature captured for ${signature.representativeName}.`,
+    metadata: {
+      representativeName: signature.representativeName,
+      representativePosition: signature.representativePosition,
+      signatureId: signature.signatureId,
+    },
+  });
+
+  return signature;
 }

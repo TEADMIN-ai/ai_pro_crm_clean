@@ -1,4 +1,4 @@
-export type HygieneInternalRole = "admin" | "manager" | "staff";
+export type HygieneInternalRole = "admin" | "manager" | "staff" | "driver";
 export type HygieneClientPortalRole = "hygieneClient" | "hygieneContractor";
 export type HygieneAccessMode = "internal" | "clientPortal";
 
@@ -97,6 +97,7 @@ export interface HygieneCollection {
   scheduledDate: string;
   scheduledTimeWindow: string;
   assignedDriver: string;
+  assignedUserIds?: string[];
   vehicleRegistration: string;
   vehicleName: string;
   status: HygieneCollectionStatus;
@@ -108,6 +109,46 @@ export interface HygieneCollection {
   clientSignatureStatus: string;
   notes: string;
   workflowSteps: HygieneWorkflowStep[];
+}
+
+export type HygieneJobEventType =
+  | "Vehicle Inspection Completed"
+  | "Job Started"
+  | "Arrival Captured"
+  | "Before Photos Uploaded"
+  | "Checklist Completed"
+  | "After Photos Uploaded"
+  | "Quantity Confirmed"
+  | "Manifest Attached"
+  | "Signature Captured"
+  | "Awaiting Disposal";
+
+export interface HygieneJobEvent {
+  eventId: string;
+  eventType: HygieneJobEventType;
+  clientId: string;
+  siteId: string;
+  collectionId: string;
+  manifestId: string | null;
+  userId: string;
+  userEmail: string | null;
+  timestamp: string;
+  notes: string;
+  metadata: Record<string, unknown>;
+}
+
+export interface HygieneSignature {
+  signatureId: string;
+  clientId: string;
+  siteId: string;
+  collectionId: string;
+  manifestId: string | null;
+  representativeName: string;
+  representativePosition: string;
+  signatureDataUrl?: string;
+  signatureFileUrl: string | null;
+  capturedBy: string;
+  capturedAt: string;
 }
 
 export interface HygieneWorkflowStep {
@@ -232,4 +273,6 @@ export interface HygieneDashboardData {
   driverLogs: HygieneDriverLog[];
   complianceDocuments: HygieneComplianceDocument[];
   reports: HygieneReport[];
+  jobEvents?: HygieneJobEvent[];
+  signatures?: HygieneSignature[];
 }

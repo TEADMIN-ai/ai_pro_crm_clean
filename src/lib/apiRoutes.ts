@@ -44,6 +44,7 @@ export const API_ROUTES = {
   DASHBOARD_SUMMARY: "/api/dashboard/summary",
   HYGIENE: "/api/hygiene",
   HYGIENE_EVIDENCE: "/api/hygiene/evidence",
+  HYGIENE_JOBS: "/api/hygiene/jobs",
   VEHICLE_FINANCE_OVERVIEW: "/api/vehicle-finance/overview",
   VEHICLE_FINANCE_CUSTOMERS: "/api/vehicle-finance/customers",
   VEHICLE_FINANCE_APPLICATIONS: "/api/vehicle-finance/applications",

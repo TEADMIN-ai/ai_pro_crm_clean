@@ -9,6 +9,11 @@ service firebase.storage {
         );
     }
 
+    function isHygieneInternal() {
+      return request.auth != null
+        && request.auth.token.role in ["admin", "manager", "staff", "driver"];
+    }
+
     match /contractors/{contractorId}/{allPaths=**} {
       allow read, write: if false;
     }
@@ -27,6 +32,14 @@ service firebase.storage {
 
     match /dealFiles/{companyId}/{dealId}/{allPaths=**} {
       allow read, write: if isPrivileged();
+    }
+
+    match /hygiene/evidence/{clientId}/{collectionId}/{allPaths=**} {
+      allow read, write: if isHygieneInternal();
+    }
+
+    match /hygiene/signatures/{clientId}/{collectionId}/{allPaths=**} {
+      allow read, write: if isHygieneInternal();
     }
 
     match /{allPaths=**} {

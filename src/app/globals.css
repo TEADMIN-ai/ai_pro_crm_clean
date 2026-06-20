@@ -21,10 +21,21 @@ body {
   min-height: 100vh;
   background: transparent;
   color: var(--dashboard-text);
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
 }
 
 * {
   box-sizing: border-box;
+}
+
+.mobile-safe-shell {
+  min-height: 100dvh;
+  padding:
+    max(1rem, env(safe-area-inset-top))
+    max(1rem, env(safe-area-inset-right))
+    max(1rem, env(safe-area-inset-bottom))
+    max(1rem, env(safe-area-inset-left));
 }
 
 .dashboard-app-shell {

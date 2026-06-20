@@ -6,6 +6,8 @@ import {
   type HygieneComplianceDocument,
   type HygieneDriverLog,
   type HygieneEvidencePhoto,
+  type HygieneJobEvent,
+  type HygieneSignature,
   type HygieneManifest,
   type HygienePhotoCategory,
   type HygieneReport,
@@ -188,9 +190,45 @@ export function validateHygieneCollection(input: unknown): HygieneCollection {
     completedAt: optionalString(record, "completedAt"),
     manifestId: requireString(record, "manifestId"),
     evidencePhotoIds: requireStringArray(record, "evidencePhotoIds"),
+    assignedUserIds: Array.isArray(record.assignedUserIds) ? requireStringArray(record, "assignedUserIds") : undefined,
     clientSignatureStatus: requireString(record, "clientSignatureStatus"),
     notes: requireString(record, "notes"),
     workflowSteps: validateWorkflowSteps(record),
+  };
+}
+
+export function validateHygieneJobEvent(input: unknown): HygieneJobEvent {
+  const record = asRecord(input);
+  const metadata = record.metadata;
+  return {
+    eventId: requireString(record, "eventId"),
+    eventType: requireString(record, "eventType") as HygieneJobEvent["eventType"],
+    clientId: requireString(record, "clientId"),
+    siteId: requireString(record, "siteId"),
+    collectionId: requireString(record, "collectionId"),
+    manifestId: optionalString(record, "manifestId"),
+    userId: requireString(record, "userId"),
+    userEmail: optionalString(record, "userEmail"),
+    timestamp: requireString(record, "timestamp"),
+    notes: requireString(record, "notes"),
+    metadata: metadata && typeof metadata === "object" && !Array.isArray(metadata) ? metadata as Record<string, unknown> : {},
+  };
+}
+
+export function validateHygieneSignature(input: unknown): HygieneSignature {
+  const record = asRecord(input);
+  return {
+    signatureId: requireString(record, "signatureId"),
+    clientId: requireString(record, "clientId"),
+    siteId: requireString(record, "siteId"),
+    collectionId: requireString(record, "collectionId"),
+    manifestId: optionalString(record, "manifestId"),
+    representativeName: requireString(record, "representativeName"),
+    representativePosition: requireString(record, "representativePosition"),
+    signatureDataUrl: optionalString(record, "signatureDataUrl") ?? undefined,
+    signatureFileUrl: optionalString(record, "signatureFileUrl"),
+    capturedBy: requireString(record, "capturedBy"),
+    capturedAt: requireString(record, "capturedAt"),
   };
 }
 
