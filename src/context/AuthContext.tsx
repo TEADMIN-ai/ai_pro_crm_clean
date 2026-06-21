@@ -42,6 +42,34 @@ async function clearServerSession(): Promise<void> {
   });
 }
 
+function clearClientAuthCache(uid?: string): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  try {
+    window.sessionStorage.removeItem("authToken");
+    window.localStorage.removeItem("authToken");
+    window.sessionStorage.removeItem("show_ai_boot");
+
+    if (uid) {
+      window.sessionStorage.removeItem(`auth-role:${uid}`);
+    }
+
+    const keysToRemove: string[] = [];
+    for (let index = 0; index < window.sessionStorage.length; index += 1) {
+      const key = window.sessionStorage.key(index);
+      if (key?.startsWith("auth-role:")) {
+        keysToRemove.push(key);
+      }
+    }
+
+    keysToRemove.forEach((key) => window.sessionStorage.removeItem(key));
+  } catch (error) {
+    console.warn("[AuthContext] Failed to clear client auth cache", error);
+  }
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const authState = useAuthUser();
@@ -114,7 +142,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       await clearServerSession();
       await signOut(auth);
     } finally {
+      clearClientAuthCache(authState.user?.uid);
       setContractorId(undefined);
+
+      if (typeof window !== "undefined") {
+        window.location.replace("/login");
+        return;
+      }
+
       router.replace("/login");
     }
   };

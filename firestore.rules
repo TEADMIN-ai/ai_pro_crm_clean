@@ -22,6 +22,10 @@ service cloud.firestore {
       return role() in ["admin", "manager", "staff"];
     }
 
+    function isVehicleFinanceAuthorized() {
+      return role() in ["admin", "manager", "staff", "dealerPilot", "vehicleFinanceStaff"];
+    }
+
     function isHygieneInternal() {
       return role() in ["admin", "manager", "staff", "driver"];
     }
@@ -141,6 +145,21 @@ service cloud.firestore {
 
     match /tenders/{docId} {
       allow read, write: if isSignedIn() && isPrivileged();
+    }
+
+    match /inventory/{docId} {
+      allow read: if isSignedIn() && isVehicleFinanceAuthorized();
+      allow create, update, delete: if false;
+    }
+
+    match /inventorySyncState/{docId} {
+      allow read: if isSignedIn() && isVehicleFinanceAuthorized();
+      allow create, update, delete: if false;
+    }
+
+    match /governanceEvents/{docId} {
+      allow read: if isSignedIn() && isPrivileged();
+      allow create, update, delete: if false;
     }
 
     match /hygieneClients/{docId} {

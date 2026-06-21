@@ -1,6 +1,7 @@
 import { ReactNode } from "react";
 import { getGovernanceAlerts } from "@/lib/governance/alerts";
 import { getGovernanceVisibilitySnapshot } from "@/lib/governance/visibility";
+import DashboardHeader from "@/components/layout/DashboardHeader";
 import DashboardWorkspaceNav, { type GovernanceNavBadge } from "@/components/layout/DashboardWorkspaceNav";
 
 function buildGovernanceNavBadge(): GovernanceNavBadge {
@@ -90,8 +91,11 @@ export default function DashboardLayout({
                   Torque Empire AI Procurement Intelligence
                 </h1>
               </div>
-              <div className="hidden rounded-full border border-cyan-400/20 bg-cyan-400/10 px-3 py-1.5 text-xs font-medium text-cyan-100 sm:block">
-                Real-time portfolio view
+              <div className="flex items-center gap-3">
+                <div className="hidden rounded-full border border-cyan-400/20 bg-cyan-400/10 px-3 py-1.5 text-xs font-medium text-cyan-100 sm:block">
+                  Real-time portfolio view
+                </div>
+                <DashboardHeader />
               </div>
             </div>
 

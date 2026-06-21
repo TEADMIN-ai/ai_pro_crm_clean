@@ -4,6 +4,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { assertVehicleFinanceRole, AuthorizationError, requireAuthorizedUser } from "@/lib/server/authz";
 import { createVehicleFinanceApplication, listVehicleFinanceApplications } from "@/lib/vehicleFinance/vehicleFinanceService";
+import { getAvailableInventoryVehicle } from "@/lib/vehicle-finance/inventory/durableInventorySync";
 
 function getString(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
@@ -42,20 +43,38 @@ export async function POST(request: NextRequest) {
     assertVehicleFinanceRole(user);
     const body = (await request.json()) as Record<string, unknown>;
     const customerId = getString(body.customerId);
-    const vehicleId = getString(body.vehicleId) || getString(body.vehicleInventoryId) || getString(body.vehicleTitle);
+    let vehicleId = getString(body.vehicleId) || getString(body.vehicleInventoryId) || getString(body.vehicleTitle);
     const vehicleInventoryId = getString(body.vehicleInventoryId);
-    const vehicleTitle = getString(body.vehicleTitle) || null;
-    const vehiclePrice = getOptionalNumber(body.vehiclePrice);
-    const vehicleYear = getOptionalNumber(body.vehicleYear);
-    const vehicleMileage = getOptionalNumber(body.vehicleMileage);
-    const vehicleImageUrl = getString(body.vehicleImageUrl) || null;
-    const vehicleListingUrl = getString(body.vehicleListingUrl) || null;
-    const inventorySource = getString(body.inventorySource) || null;
+    let vehicleTitle = getString(body.vehicleTitle) || null;
+    let vehiclePrice = getOptionalNumber(body.vehiclePrice);
+    let vehicleYear = getOptionalNumber(body.vehicleYear);
+    let vehicleMileage = getOptionalNumber(body.vehicleMileage);
+    let vehicleImageUrl = getString(body.vehicleImageUrl) || null;
+    let vehicleListingUrl = getString(body.vehicleListingUrl) || null;
+    let inventorySource = getString(body.inventorySource) || null;
     const dealerName = getString(body.dealerName);
     const dealValue = getNumber(body.dealValue);
 
     if (!customerId || !vehicleId || !dealerName) {
       return NextResponse.json({ error: "Missing application fields" }, { status: 400 });
+    }
+
+    if (vehicleInventoryId) {
+      const inventoryVehicle = await getAvailableInventoryVehicle(vehicleInventoryId);
+      if (!inventoryVehicle) {
+        return NextResponse.json(
+          { error: "The selected inventory vehicle is unavailable or no longer synchronized" },
+          { status: 409 },
+        );
+      }
+      vehicleId = inventoryVehicle.sourceVehicleId;
+      vehicleTitle = inventoryVehicle.title;
+      vehiclePrice = inventoryVehicle.priceNumber ?? inventoryVehicle.price;
+      vehicleYear = inventoryVehicle.year;
+      vehicleMileage = inventoryVehicle.mileageNumber ?? inventoryVehicle.mileage;
+      vehicleImageUrl = inventoryVehicle.imageUrl;
+      vehicleListingUrl = inventoryVehicle.listingUrl;
+      inventorySource = inventoryVehicle.source;
     }
 
     const application = await createVehicleFinanceApplication(

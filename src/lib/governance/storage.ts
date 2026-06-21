@@ -27,6 +27,11 @@ const PERSISTED_EVENT_TYPES = new Set<string>([
   "stale_state_compensation_observed",
   "deals_get_stale_state_compensation_observed",
   "deals_get_canonical_correction_observed",
+  "inventory_sync_started",
+  "inventory_sync_succeeded",
+  "inventory_sync_failed",
+  "inventory_vehicle_created",
+  "inventory_vehicle_updated",
 ]);
 
 export function shouldPersistGovernanceEvent(event: GovernanceEvent): boolean {

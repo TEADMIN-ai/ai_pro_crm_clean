@@ -8,6 +8,7 @@ export type VehicleInventoryItem = RoarInventoryVehicle;
 const SOURCE_URL = "https://roarcarssa.com/inventory.html";
 const MAX_RESPONSE_BYTES = 5_000_000;
 const CACHE_TTL_MS = 15 * 60 * 1000;
+const FETCH_ATTEMPTS = 3;
 const USER_AGENT = "TorqueEmpire-RoarInventory/1.0 (+https://ai-pro-crm-clean.vercel.app)";
 const EMPTY_IMAGE_URL = "/images/roar-cars-placeholder.svg";
 
@@ -168,30 +169,54 @@ function createResponse(args: {
   };
 }
 
-async function fetchSource(url: string): Promise<Response> {
-  const response = await fetch(url, {
-    headers: {
-      Accept: "text/html,application/json;q=0.9,*/*;q=0.8",
-      "User-Agent": USER_AGENT,
-    },
-    redirect: "follow",
-    signal: AbortSignal.timeout(15_000),
-    cache: "no-store",
-  });
-
-  if (!response.ok) {
-    throw new Error(`Roar Cars source returned ${response.status}`);
-  }
-
-  const length = Number(response.headers.get("content-length") ?? 0);
-  if (length > MAX_RESPONSE_BYTES) {
-    throw new Error("Roar Cars source response exceeded size limit");
-  }
-
-  return response;
+export function isRetriableRoarInventoryStatus(status: number): boolean {
+  return status === 408 || status === 425 || status === 429 || status >= 500;
 }
 
-async function fetchLiveInventory(): Promise<RoarInventoryResponse> {
+function retryDelay(attempt: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, 250 * 3 ** attempt));
+}
+
+async function fetchSource(url: string): Promise<Response> {
+  let lastError: unknown;
+
+  for (let attempt = 0; attempt < FETCH_ATTEMPTS; attempt += 1) {
+    try {
+      const response = await fetch(url, {
+        headers: {
+          Accept: "text/html,application/json;q=0.9,*/*;q=0.8",
+          "User-Agent": USER_AGENT,
+        },
+        redirect: "follow",
+        signal: AbortSignal.timeout(15_000),
+        cache: "no-store",
+      });
+
+      if (!response.ok) {
+        const error = new Error(`Roar Cars source returned ${response.status}`);
+        if (!isRetriableRoarInventoryStatus(response.status)) throw error;
+        lastError = error;
+      } else {
+        const length = Number(response.headers.get("content-length") ?? 0);
+        if (length > MAX_RESPONSE_BYTES) {
+          throw new Error("Roar Cars source response exceeded size limit");
+        }
+        return response;
+      }
+    } catch (error) {
+      lastError = error;
+      if (error instanceof Error && /exceeded size limit|returned 4(?!08|25|29)\d/.test(error.message)) {
+        throw error;
+      }
+    }
+
+    if (attempt < FETCH_ATTEMPTS - 1) await retryDelay(attempt);
+  }
+
+  throw lastError instanceof Error ? lastError : new Error("Roar Cars source request failed");
+}
+
+export async function fetchLiveRoarInventory(): Promise<RoarInventoryResponse> {
   const syncedAt = new Date().toISOString();
   const pageResponse = await fetchSource(SOURCE_URL);
   const html = await pageResponse.text();
@@ -204,26 +229,31 @@ async function fetchLiveInventory(): Promise<RoarInventoryResponse> {
   let sourceType: RoarInventorySourceType = "unavailable";
   let vehicles: RoarInventoryVehicle[] = [];
 
-  for (const endpoint of discoverInventoryEndpoints(html, pageUrl)) {
-    try {
-      const apiResponse = await fetchSource(endpoint);
-      const contentType = apiResponse.headers.get("content-type") ?? "";
-      if (!contentType.includes("json")) continue;
-      vehicles = parseInventoryJson(await apiResponse.json(), syncedAt, endpoint) as RoarInventoryVehicle[];
-      if (vehicles.length) {
-        sourceType = "api";
-        return createResponse({
-          vehicles,
-          sourceType,
-          sourceUrl,
-          pageUrl: endpoint,
-          syncedAt,
-          status: "LIVE",
-        });
+  const endpointResults = await Promise.all(
+    discoverInventoryEndpoints(html, pageUrl).map(async (endpoint) => {
+      try {
+        const apiResponse = await fetchSource(endpoint);
+        const contentType = apiResponse.headers.get("content-type") ?? "";
+        if (!contentType.includes("json")) return null;
+        const endpointVehicles = parseInventoryJson(await apiResponse.json(), syncedAt, endpoint) as RoarInventoryVehicle[];
+        return endpointVehicles.length ? { endpoint, vehicles: endpointVehicles } : null;
+      } catch (error) {
+        console.warn("[roar-inventory] candidate endpoint rejected", { endpoint, error });
+        return null;
       }
-    } catch (error) {
-      console.warn("[roar-inventory] candidate endpoint rejected", { endpoint, error });
-    }
+    }),
+  );
+  const apiInventory = endpointResults.find((result) => result !== null);
+  if (apiInventory) {
+    sourceType = "api";
+    return createResponse({
+      vehicles: apiInventory.vehicles,
+      sourceType,
+      sourceUrl,
+      pageUrl: apiInventory.endpoint,
+      syncedAt,
+      status: "LIVE",
+    });
   }
 
   vehicles = parseJsonLdInventory(html, syncedAt, pageUrl) as RoarInventoryVehicle[];
@@ -298,7 +328,7 @@ export async function getRoarInventory(): Promise<RoarInventoryResponse> {
   }
 
   try {
-    const liveResponse = await fetchLiveInventory();
+    const liveResponse = await fetchLiveRoarInventory();
     inventoryCache = { response: liveResponse, cachedAt: now };
     return liveResponse;
   } catch (error) {

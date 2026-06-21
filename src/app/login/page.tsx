@@ -43,7 +43,7 @@ export default function LoginPage() {
         muted
         loop
         playsInline
-        poster="/login/logo.png"
+        poster="/images/logos/TE%20IN%20Partnership%20With%20Roar%20logo.png"
         style={{
           position: "absolute",
           inset: 0,

@@ -34,6 +34,10 @@ function adminToken() {
   };
 }
 
+function vehicleFinanceStaffToken() {
+  return { role: "vehicleFinanceStaff" };
+}
+
 function putString(ref: { putString: (value: string) => { then: (onResolve: (value: unknown) => void, onReject: (reason: unknown) => void) => void } }, value: string) {
   return new Promise((resolve, reject) => {
     ref.putString(value).then(resolve, reject);
@@ -93,6 +97,13 @@ describeWithEmulators("Firebase security rules emulator", () => {
         documentType: "cipc",
         storagePath: "contractors/contractor-b/cipc.pdf",
       });
+      await db.doc("inventory/vehicle-a").set({
+        recordType: "vehicle",
+        sourceVehicleId: "stock-1",
+        status: "ACTIVE",
+      });
+      await db.doc("inventorySyncState/roarcarssa").set({ status: "SUCCEEDED" });
+      await db.doc("governanceEvents/event-a").set({ eventType: "inventory_sync_succeeded" });
 
       const storage = context.storage();
       await putString(storage.ref("contractors/contractor-a/cipc.pdf"), "contractor a document");
@@ -140,5 +151,21 @@ describeWithEmulators("Firebase security rules emulator", () => {
     await assertSucceeds(db.doc("documents/doc-a").get());
     await assertFails(db.doc("documents/doc-a").set({ contractorId: "contractor-a" }));
     await assertFails(putString(storage.ref("contractors/contractor-a/cipc.pdf"), "replacement"));
+  });
+
+  test("Vehicle finance inventory is readable by finance staff but client writes are denied", async () => {
+    const db = testEnv.authenticatedContext("finance-1", vehicleFinanceStaffToken()).firestore();
+
+    await assertSucceeds(db.doc("inventory/vehicle-a").get());
+    await assertSucceeds(db.doc("inventorySyncState/roarcarssa").get());
+    await assertFails(db.doc("inventory/vehicle-a").set({ status: "SOLD" }, { merge: true }));
+    await assertFails(db.doc("governanceEvents/event-a").get());
+  });
+
+  test("Contractors cannot read synchronized inventory or inventory sync state", async () => {
+    const db = testEnv.authenticatedContext("uid-a", contractorToken("contractor-a")).firestore();
+
+    await assertFails(db.doc("inventory/vehicle-a").get());
+    await assertFails(db.doc("inventorySyncState/roarcarssa").get());
   });
 });

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { getRoarInventory } from "@/lib/vehicle-finance/roarInventory";
+import { getPersistedRoarInventory } from "@/lib/vehicle-finance/inventory/durableInventorySync";
 import { assertVehicleFinanceRole, AuthorizationError, requireAuthorizedUser } from "@/lib/server/authz";
 
 export const runtime = "nodejs";
@@ -10,7 +10,7 @@ export async function GET(request: NextRequest) {
   try {
     const user = await requireAuthorizedUser(request);
     assertVehicleFinanceRole(user);
-    const inventory = await getRoarInventory();
+    const inventory = await getPersistedRoarInventory({ bootstrapIfEmpty: true });
     return NextResponse.json(inventory, {
       headers: { "Cache-Control": "private, max-age=60, stale-while-revalidate=900" },
     });
@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
     if (error instanceof AuthorizationError) {
       return NextResponse.json({ error: error.message }, { status: error.status });
     }
-    console.error("[roar-inventory] sync failed", error);
+    console.error("[roar-inventory] persisted inventory read failed", error);
     return NextResponse.json(
       {
         error: "Roar Cars inventory is temporarily unavailable",

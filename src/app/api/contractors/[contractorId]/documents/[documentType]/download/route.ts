@@ -21,7 +21,8 @@ function getString(value: unknown): string {
 }
 
 function wantsJsonResponse(request: NextRequest): boolean {
-  return request.nextUrl.searchParams.get("format") === "json" ||
+  const requestUrl = request.nextUrl ?? new URL(request.url);
+  return requestUrl.searchParams.get("format") === "json" ||
     request.headers.get("accept")?.toLowerCase().includes("application/json") === true;
 }
 

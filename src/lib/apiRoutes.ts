@@ -50,6 +50,7 @@ export const API_ROUTES = {
   VEHICLE_FINANCE_APPLICATIONS: "/api/vehicle-finance/applications",
   VEHICLE_FINANCE_REPORTS: "/api/vehicle-finance/reports",
   VEHICLE_FINANCE_ROAR_INVENTORY: "/api/vehicle-finance/roar-inventory",
+  VEHICLE_FINANCE_INVENTORY_SYNC: "/api/vehicle-finance/inventory-sync",
   VEHICLE_FINANCE_TRAINING_OVERVIEW: "/api/vehicle-finance/training/overview",
   DOCUMENTS: "/api/documents",
   DOCUMENT_DETAIL: (documentId: string) =>

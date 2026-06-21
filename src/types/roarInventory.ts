@@ -1,4 +1,4 @@
-export type RoarInventorySourceType = "api" | "json-ld" | "static-html" | "cached" | "unavailable";
+export type RoarInventorySourceType = "api" | "json-ld" | "static-html" | "firestore" | "cached" | "unavailable";
 
 export type RoarInventoryVehicle = {
   id: string;
@@ -28,6 +28,20 @@ export type RoarInventoryMetrics = {
   vehiclesAddedThisMonth: number | null;
 };
 
+export type RoarInventoryDiagnostics = {
+  totalVehiclesReceived: number;
+  totalVehiclesStored: number;
+  missingVehicles: number;
+  duplicateVehicles: number;
+  failedSyncs: number;
+  brokenImageLinks: number;
+  vehiclesCreated: number;
+  vehiclesUpdated: number;
+  vehiclesInactivated: number;
+  lastSyncDurationMs: number | null;
+  lastSyncError: string | null;
+};
+
 export type RoarInventoryResponse = {
   vehicles: RoarInventoryVehicle[];
   metrics: RoarInventoryMetrics;
@@ -40,5 +54,6 @@ export type RoarInventoryResponse = {
     url: string;
     lastSyncedAt: string;
   };
+  diagnostics?: RoarInventoryDiagnostics;
   warning?: string;
 };

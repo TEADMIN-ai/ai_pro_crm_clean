@@ -11,7 +11,8 @@ module.exports = {
   ],
 
   moduleNameMapper: {
-    "^@/(.*)$": "<rootDir>/src/$1"
+    "^@/(.*)$": "<rootDir>/src/$1",
+    "^server-only$": "<rootDir>/src/__tests__/serverOnlyMock.ts"
   },
 
   transform: {

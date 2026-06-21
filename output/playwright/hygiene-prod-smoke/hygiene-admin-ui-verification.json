@@ -1,0 +1,231 @@
+{
+  "loggedIn": true,
+  "loginUrl": "https://ai-pro-crm-clean.vercel.app/dashboard/hygiene",
+  "pages": [
+    {
+      "key": "home",
+      "path": "/dashboard/hygiene",
+      "finalUrl": "https://ai-pro-crm-clean.vercel.app/dashboard/hygiene",
+      "screenshot": "C:\\TorqueEmpire\\ai_pro_crm_clean\\output\\playwright\\hygiene-prod-smoke\\hygiene-home.png",
+      "checks": {
+        "Active Hygiene Clients": true,
+        "Compliance Status": true,
+        "Monthly Contract Revenue": true
+      },
+      "counts": {
+        "occurrences12L": 0,
+        "occurrencesActive": 5
+      },
+      "bodySample": "TORQUE EMPIRE\n\nCommand Center\n\nEnterprise procurement visibility for live contractor readiness and tender performance.\n\nOverview\nDeals\nContractors\nHygiene\nVehicle Finance\nPack Requests\nIntelligence\nGovernance\nCLEAR\nSettings\n\nWORKSPACE\n\nExecutive monitoring active\n\nStable UI shell for portfolio and operational review.\n\nGOVERNANCE\nCLEAR\n\nEXECUTIVE WORKSPACE\n\nTorque Empire AI Procurement Intelligence\nReal-time portfolio view\n\nHYGIENE DIVISION\n\nCBAVO Services Operations Dashboard\n\nInternal Torque Empire workspace for hygiene scheduling, driver workflow, digital manifests, evidence, compliance, and monthly reporting.\n\nRefresh\nSeed CBAVO\nOverview\nClients\nSites\nCollections\nManifests\nAssets\nEvidence\nCompliance\nReports\n\nACTIVE HYGIENE CLIENTS\n\n1\n\nLive hygiene accounts\n\nACTIVE SITES\n\n2\n\nServiceable client locations\n\nACTIVE BIN ASSETS\n\n9\n\nTracked hygiene bins\n\nCOLLECTIONS DUE THIS WEEK\n\n1\n\nScheduled jobs\n\nCOLLECTIONS COMPLETED THIS MONTH\n\n1\n\nClosed jobs\n\nWASTE SERVICES COMPLETED\n\n9\n\nBins serviced from manifests\n\nDISPOSAL CERTIFICATES PENDING\n\n2\n\nAwaiting final certificates\n\nCOMPLIANCE STATUS\n\nCompliance Warning\n\nOverall document posture\n\nMONTHLY CONTRACT REVENUE\n\nR 0\n\nCaptured contract value\n\nDISPATCH\n\nToday's Collections\n\nNo collections for today\n\nNo records are available for this hygiene register yet.\n\nSCHEDULER\n\nUpcoming Collections\nCOLLECTION\tDATE\tSITE\tSTATUS\n\n\nTE-COL-2026-0002\n\nAfter 13:00\n\n\t26 Jun 2026\tFlorida Campus\tScheduled\n\nAUDIT\n\nCompliance Alerts\nDOCUMENT\tREFERENCE\tEXPIRY\tSTATUS\n\n\nCOIDA\n\nTorque Empire\n\n\tPending upload\tNot captured\tPending\n\n\nDisposal Certificates\n\nCBAVO Services\n\n\tPending\tNot captured\tPending\n\n\nDriver Licence\n\nC. Karanie\n\n\tC. Karanie\tNot captured\tPending\n\n\nPublic Liability Insurance\n\nTorque Empire\n\n\tIf available\tNot captured\tPending\n\n\nVehicle Licence\n\nT"
+    },
+    {
+      "key": "clients",
+      "path": "/dashboard/hygiene/clients",
+      "finalUrl": "https://ai-pro-crm-clean.vercel.app/dashboard/hygiene/clients",
+      "screenshot": "C:\\TorqueEmpire\\ai_pro_crm_clean\\output\\playwright\\hygiene-prod-smoke\\hygiene-clients.png",
+      "checks": {
+        "CBAVO Services": true
+      },
+      "counts": {
+        "occurrences12L": 0,
+        "occurrencesActive": 2
+      },
+      "bodySample": "TORQUE EMPIRE\n\nCommand Center\n\nEnterprise procurement visibility for live contractor readiness and tender performance.\n\nOverview\nDeals\nContractors\nHygiene\nVehicle Finance\nPack Requests\nIntelligence\nGovernance\nCLEAR\nSettings\n\nWORKSPACE\n\nExecutive monitoring active\n\nStable UI shell for portfolio and operational review.\n\nGOVERNANCE\nCLEAR\n\nEXECUTIVE WORKSPACE\n\nTorque Empire AI Procurement Intelligence\nReal-time portfolio view\n\nHYGIENE DIVISION\n\nCBAVO Services Operations Dashboard\n\nInternal Torque Empire workspace for hygiene scheduling, driver workflow, digital manifests, evidence, compliance, and monthly reporting.\n\nRefresh\nSeed CBAVO\nOverview\nClients\nSites\nCollections\nManifests\nAssets\nEvidence\nCompliance\nReports\n\nACCOUNTS\n\nClient Register\nCLIENT\tCONTACT\tCONTRACT\tSERVICE\tPAYMENT\tSTATUS\n\n\nCBAVO Services\n\nHygiene Client | 2024/105084/07\n\n\t\n\nCBAVO Site Coordinator\n\nNot captured | operations@cbavo.example\n\n\t18 Jun 2026 to 18 Jul 2026\tWeekly, Friday After 13:00\tPaid\tActive\n\nCLIENT PROFILE\n\nCBAVO Services Detail\n\nSITES\n\n2\n\nLinked service points\n\nBIN ASSETS\n\n9\n\nTracked bins\n\nREVENUE\n\nR 0\n\nMonthly contract value"
+    },
+    {
+      "key": "sites",
+      "path": "/dashboard/hygiene/sites",
+      "finalUrl": "https://ai-pro-crm-clean.vercel.app/dashboard/hygiene/sites",
+      "screenshot": "C:\\TorqueEmpire\\ai_pro_crm_clean\\output\\playwright\\hygiene-prod-smoke\\hygiene-sites.png",
+      "checks": {
+        "Florida": true,
+        "Ontdekkers": true
+      },
+      "counts": {
+        "occurrences12L": 2,
+        "occurrencesActive": 3
+      },
+      "bodySample": "TORQUE EMPIRE\n\nCommand Center\n\nEnterprise procurement visibility for live contractor readiness and tender performance.\n\nOverview\nDeals\nContractors\nHygiene\nVehicle Finance\nPack Requests\nIntelligence\nGovernance\nCLEAR\nSettings\n\nWORKSPACE\n\nExecutive monitoring active\n\nStable UI shell for portfolio and operational review.\n\nGOVERNANCE\nCLEAR\n\nEXECUTIVE WORKSPACE\n\nTorque Empire AI Procurement Intelligence\nReal-time portfolio view\n\nHYGIENE DIVISION\n\nCBAVO Services Operations Dashboard\n\nInternal Torque Empire workspace for hygiene scheduling, driver workflow, digital manifests, evidence, compliance, and monthly reporting.\n\nRefresh\nSeed CBAVO\nOverview\nClients\nSites\nCollections\nManifests\nAssets\nEvidence\nCompliance\nReports\n\nSERVICE LOCATIONS\n\nSite Register\nSITE\tADDRESS\tCONTACT\tBINS\tSERVICE\tSTATUS\n\n\nFlorida Campus\n\nTE-SIT-0001 | CBAVO Services\n\n\t\n\n40/42 Goldman Street, Florida\n\nFlorida, Roodepoort\n\n\t\n\nCBAVO Site Coordinator\n\nNot captured\n\n\t4 x 12L\t\n\nWeekly\n\nNext 26 Jun 2026\n\n\tActive\n\n\nOntdekkers Campus\n\nTE-SIT-0002 | CBAVO Services\n\n\t\n\nOntdekkers, Roodepoort\n\nOntdekkers, Roodepoort\n\n\t\n\nCBAVO Site Coordinator\n\nNot captured\n\n\t5 x 12L\t\n\nWeekly\n\nNext 26 Jun 2026\n\n\tActive"
+    },
+    {
+      "key": "assets",
+      "path": "/dashboard/hygiene/assets",
+      "finalUrl": "https://ai-pro-crm-clean.vercel.app/dashboard/hygiene/assets",
+      "screenshot": "C:\\TorqueEmpire\\ai_pro_crm_clean\\output\\playwright\\hygiene-prod-smoke\\hygiene-assets.png",
+      "checks": {
+        "12L": true,
+        "Active": true
+      },
+      "counts": {
+        "occurrences12L": 9,
+        "occurrencesActive": 10
+      },
+      "bodySample": "TORQUE EMPIRE\n\nCommand Center\n\nEnterprise procurement visibility for live contractor readiness and tender performance.\n\nOverview\nDeals\nContractors\nHygiene\nVehicle Finance\nPack Requests\nIntelligence\nGovernance\nCLEAR\nSettings\n\nWORKSPACE\n\nExecutive monitoring active\n\nStable UI shell for portfolio and operational review.\n\nGOVERNANCE\nCLEAR\n\nEXECUTIVE WORKSPACE\n\nTorque Empire AI Procurement Intelligence\nReal-time portfolio view\n\nHYGIENE DIVISION\n\nCBAVO Services Operations Dashboard\n\nInternal Torque Empire workspace for hygiene scheduling, driver workflow, digital manifests, evidence, compliance, and monthly reporting.\n\nRefresh\nSeed CBAVO\nOverview\nClients\nSites\nCollections\nManifests\nAssets\nEvidence\nCompliance\nReports\n\nTRACKED ASSETS\n\nBin Asset Register\nASSET\tSITE\tTYPE\tSERVICE DATES\tCONDITION\tSTATUS\n\n\nTE-BIN-2026-0001\n\nFlorida service point 1\n\n\tFlorida Campus\t12L Sanitary hygiene bin\t\n\nLast 19 Jun 2026\n\nNext 26 Jun 2026\n\n\t\n\nServiceable\n\nAssigned to CBAVO weekly hygiene service.\n\n\tActive\n\n\nTE-BIN-2026-0002\n\nFlorida service point 2\n\n\tFlorida Campus\t12L Sanitary hygiene bin\t\n\nLast 19 Jun 2026\n\nNext 26 Jun 2026\n\n\t\n\nServiceable\n\nAssigned to CBAVO weekly hygiene service.\n\n\tActive\n\n\nTE-BIN-2026-0003\n\nFlorida service point 3\n\n\tFlorida Campus\t12L Sanitary hygiene bin\t\n\nLast 19 Jun 2026\n\nNext 26 Jun 2026\n\n\t\n\nServiceable\n\nAssigned to CBAVO weekly hygiene service.\n\n\tActive\n\n\nTE-BIN-2026-0004\n\nFlorida service point 4\n\n\tFlorida Campus\t12L Sanitary hygiene bin\t\n\nLast 19 Jun 2026\n\nNext 26 Jun 2026\n\n\t\n\nServiceable\n\nAssigned to CBAVO weekly hygiene service.\n\n\tActive\n\n\nTE-BIN-2026-0005\n\nOntdekkers service point 1\n\n\tOntdekkers Campus\t12L Sanitary hygiene bin\t\n\nLast 19 Jun 2026\n\nNext 26 Jun 2026\n\n\t\n\nServiceable\n\nAssigned to CBAVO weekly hygiene service.\n\n\tActive\n\n\nTE-BIN-2026-0006\n\nOntdekkers servi"
+    },
+    {
+      "key": "collections",
+      "path": "/dashboard/hygiene/collections",
+      "finalUrl": "https://ai-pro-crm-clean.vercel.app/dashboard/hygiene/collections",
+      "screenshot": "C:\\TorqueEmpire\\ai_pro_crm_clean\\output\\playwright\\hygiene-prod-smoke\\hygiene-collections.png",
+      "checks": {
+        "TE-COL-2026-0001": true,
+        "Completed": true
+      },
+      "counts": {
+        "occurrences12L": 0,
+        "occurrencesActive": 1
+      },
+      "bodySample": "TORQUE EMPIRE\n\nCommand Center\n\nEnterprise procurement visibility for live contractor readiness and tender performance.\n\nOverview\nDeals\nContractors\nHygiene\nVehicle Finance\nPack Requests\nIntelligence\nGovernance\nCLEAR\nSettings\n\nWORKSPACE\n\nExecutive monitoring active\n\nStable UI shell for portfolio and operational review.\n\nGOVERNANCE\nCLEAR\n\nEXECUTIVE WORKSPACE\n\nTorque Empire AI Procurement Intelligence\nReal-time portfolio view\n\nHYGIENE DIVISION\n\nCBAVO Services Operations Dashboard\n\nInternal Torque Empire workspace for hygiene scheduling, driver workflow, digital manifests, evidence, compliance, and monthly reporting.\n\nRefresh\nSeed CBAVO\nOverview\nClients\nSites\nCollections\nManifests\nAssets\nEvidence\nCompliance\nReports\n\nDISPATCH AND ROUTE CONTROL\n\nCollection Scheduler\nCOLLECTION\tCLIENT / SITE\tSCHEDULE\tDRIVER / VEHICLE\tSIGNATURE\tSTATUS\n\n\nTE-COL-2026-0001\n\nManifest TE-WM-2026-0001\n\n\t\n\nCBAVO Services\n\nFlorida Campus\n\n\t\n\n19 Jun 2026\n\nAfter 13:00\n\n\t\n\nC. Karanie\n\nNissan NP200 | JG 71 RS GP\n\n\tPending signature capture\tCompleted\n\n\nTE-COL-2026-0002\n\nManifest Pending\n\n\t\n\nCBAVO Services\n\nFlorida Campus\n\n\t\n\n26 Jun 2026\n\nAfter 13:00\n\n\t\n\nC. Karanie\n\nNissan NP200 | JG 71 RS GP\n\n\tPending\tScheduled\n\nSTAFF COMPLETION FLOW\n\nDriver Mobile Workflow\n\nTE-COL-2026-0001\n\n19 Jun 2026 | After 13:00\n\nCompleted\nStart collection\nCompleted\nConfirm site arrival\nCompleted\nCapture before-service photo\nCompleted\nRecord bin count\nCompleted\nConfirm liner removal\nCompleted\nConfirm bag sealed\nCompleted\nUpload evidence photos\nCompleted\nConfirm transport container loaded\nCompleted\nCapture client signature\nCompleted\nComplete collection\nCompleted\nGenerate/attach manifest\nCompleted\n\nTE-COL-2026-0002\n\n26 Jun 2026 | After 13:00\n\nScheduled\nStart collection\nPending\nConfirm site arrival\nPending\nCapture before-service photo\nPen"
+    },
+    {
+      "key": "manifests",
+      "path": "/dashboard/hygiene/manifests",
+      "finalUrl": "https://ai-pro-crm-clean.vercel.app/dashboard/hygiene/manifests",
+      "screenshot": "C:\\TorqueEmpire\\ai_pro_crm_clean\\output\\playwright\\hygiene-prod-smoke\\hygiene-manifests.png",
+      "checks": {
+        "TE-WM-2026-0001": true,
+        "TE-WM-2026-0002": true
+      },
+      "counts": {
+        "occurrences12L": 2,
+        "occurrencesActive": 1
+      },
+      "bodySample": "TORQUE EMPIRE\n\nCommand Center\n\nEnterprise procurement visibility for live contractor readiness and tender performance.\n\nOverview\nDeals\nContractors\nHygiene\nVehicle Finance\nPack Requests\nIntelligence\nGovernance\nCLEAR\nSettings\n\nWORKSPACE\n\nExecutive monitoring active\n\nStable UI shell for portfolio and operational review.\n\nGOVERNANCE\nCLEAR\n\nEXECUTIVE WORKSPACE\n\nTorque Empire AI Procurement Intelligence\nReal-time portfolio view\n\nHYGIENE DIVISION\n\nCBAVO Services Operations Dashboard\n\nInternal Torque Empire workspace for hygiene scheduling, driver workflow, digital manifests, evidence, compliance, and monthly reporting.\n\nRefresh\nSeed CBAVO\nOverview\nClients\nSites\nCollections\nManifests\nAssets\nEvidence\nCompliance\nReports\n\nCHAIN OF CUSTODY\n\nWaste Manifest Register\nMANIFEST\tSITE\tWASTE\tQUANTITY\tTRANSPORT\tDISPOSAL\tSTATUS\n\n\nTE-WM-2026-0001\n\nCollection TE-COL-2026-0001\n\n\tFlorida Campus\t\n\nSanitary/Feminine Hygiene Waste\n\nHW19\n\n\t4 12L bins\t\n\nC. Karanie\n\nJG 71 RS GP\n\n\t\n\nPending disposal facility confirmation\n\nCertificate Pending\n\n\tDisposal Pending\n\n\nTE-WM-2026-0002\n\nCollection TE-COL-2026-0001\n\n\tOntdekkers Campus\t\n\nSanitary/Feminine Hygiene Waste\n\nHW19\n\n\t5 12L bins\t\n\nC. Karanie\n\nJG 71 RS GP\n\n\t\n\nPending disposal facility confirmation\n\nCertificate Pending\n\n\tDisposal Pending"
+    },
+    {
+      "key": "compliance",
+      "path": "/dashboard/hygiene/compliance",
+      "finalUrl": "https://ai-pro-crm-clean.vercel.app/dashboard/hygiene/compliance",
+      "screenshot": "C:\\TorqueEmpire\\ai_pro_crm_clean\\output\\playwright\\hygiene-prod-smoke\\hygiene-compliance.png",
+      "checks": {
+        "GPG-15-793": true,
+        "GPT-15-858": true
+      },
+      "counts": {
+        "occurrences12L": 0,
+        "occurrencesActive": 1
+      },
+      "bodySample": "TORQUE EMPIRE\n\nCommand Center\n\nEnterprise procurement visibility for live contractor readiness and tender performance.\n\nOverview\nDeals\nContractors\nHygiene\nVehicle Finance\nPack Requests\nIntelligence\nGovernance\nCLEAR\nSettings\n\nWORKSPACE\n\nExecutive monitoring active\n\nStable UI shell for portfolio and operational review.\n\nGOVERNANCE\nCLEAR\n\nEXECUTIVE WORKSPACE\n\nTorque Empire AI Procurement Intelligence\nReal-time portfolio view\n\nHYGIENE DIVISION\n\nCBAVO Services Operations Dashboard\n\nInternal Torque Empire workspace for hygiene scheduling, driver workflow, digital manifests, evidence, compliance, and monthly reporting.\n\nRefresh\nSeed CBAVO\nOverview\nClients\nSites\nCollections\nManifests\nAssets\nEvidence\nCompliance\nReports\n\nDOCUMENT CONTROL\n\nCompliance Centre\nDOCUMENT\tREGISTRATION\tOWNER\tEXPIRY\tFILE\tSTATUS\n\n\nCOIDA\n\nCOIDA\n\n\tPending upload\tTorque Empire\tNot captured\tNot uploaded\tPending\n\n\nDisposal Certificates\n\nDisposal Certificates\n\n\tPending\tCBAVO Services\tNot captured\tNot uploaded\tPending\n\n\nDriver Licence\n\nDriver Licence\n\n\tC. Karanie\tC. Karanie\tNot captured\tNot uploaded\tPending\n\n\nPublic Liability Insurance\n\nPublic Liability Insurance\n\n\tIf available\tTorque Empire\tNot captured\tNot uploaded\tPending\n\n\nService Agreement\n\nService Agreement\n\n\tCBAVO Services\tCBAVO Services\t18 Jul 2026\tNot uploaded\tCompliance Green\n\n\nSigned Quotation\n\nSigned Quotation\n\n\tCBAVO Hygiene Onboarding\tCBAVO Services\tNot captured\tNot uploaded\tCompliance Green\n\n\nSLA\n\nSLA\n\n\tCBAVO Weekly Friday After 13:00\tCBAVO Services\t18 Jul 2026\tNot uploaded\tCompliance Green\n\n\nVehicle Licence\n\nVehicle Licence\n\n\tJG 71 RS GP\tTorque Empire\tNot captured\tNot uploaded\tPending\n\n\nWaste Generator Certificate\n\nWaste Generator Certificate\n\n\tGPG-15-793\tTorque Empire\tNot captured\tNot uploaded\tCompliance Green\n\n\nWaste Transporter Certificate\n\nWas"
+    }
+  ],
+  "issues": [
+    {
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 404 ()"
+    }
+  ],
+  "failed": [
+    {
+      "url": "https://ai-pro-crm-clean.vercel.app/dashboard/hygiene/clients?_rsc=1thnx",
+      "failure": "net::ERR_ABORTED"
+    },
+    {
+      "url": "https://ai-pro-crm-clean.vercel.app/dashboard/hygiene/clients?_rsc=g1sob",
+      "failure": "net::ERR_ABORTED"
+    },
+    {
+      "url": "https://ai-pro-crm-clean.vercel.app/dashboard/hygiene/clients?_rsc=58xfg",
+      "failure": "net::ERR_ABORTED"
+    },
+    {
+      "url": "https://ai-pro-crm-clean.vercel.app/dashboard/hygiene/sites?_rsc=1v2vf",
+      "failure": "net::ERR_ABORTED"
+    },
+    {
+      "url": "https://ai-pro-crm-clean.vercel.app/dashboard/hygiene/clients?_rsc=1thnx",
+      "failure": "net::ERR_ABORTED"
+    },
+    {
+      "url": "https://ai-pro-crm-clean.vercel.app/dashboard/hygiene/clients?_rsc=58xfg",
+      "failure": "net::ERR_ABORTED"
+    },
+    {
+      "url": "https://ai-pro-crm-clean.vercel.app/dashboard/hygiene?_rsc=mly72",
+      "failure": "net::ERR_ABORTED"
+    },
+    {
+      "url": "https://ai-pro-crm-clean.vercel.app/dashboard/hygiene?_rsc=g1sob",
+      "failure": "net::ERR_ABORTED"
+    },
+    {
+      "url": "https://ai-pro-crm-clean.vercel.app/dashboard/hygiene/compliance?_rsc=e5odj",
+      "failure": "net::ERR_ABORTED"
+    },
+    {
+      "url": "https://ai-pro-crm-clean.vercel.app/dashboard/hygiene/compliance?_rsc=bzxxa",
+      "failure": "net::ERR_ABORTED"
+    },
+    {
+      "url": "https://ai-pro-crm-clean.vercel.app/dashboard/hygiene/evidence?_rsc=13tph",
+      "failure": "net::ERR_ABORTED"
+    },
+    {
+      "url": "https://ai-pro-crm-clean.vercel.app/dashboard/hygiene/compliance?_rsc=13tph",
+      "failure": "net::ERR_ABORTED"
+    },
+    {
+      "url": "https://ai-pro-crm-clean.vercel.app/dashboard/hygiene/sites?_rsc=15vfy",
+      "failure": "net::ERR_ABORTED"
+    },
+    {
+      "url": "https://ai-pro-crm-clean.vercel.app/dashboard/hygiene/clients?_rsc=1a5hi",
+      "failure": "net::ERR_ABORTED"
+    },
+    {
+      "url": "https://ai-pro-crm-clean.vercel.app/dashboard/hygiene/sites?_rsc=1ftep",
+      "failure": "net::ERR_ABORTED"
+    },
+    {
+      "url": "https://ai-pro-crm-clean.vercel.app/dashboard/hygiene/clients?_rsc=1178z",
+      "failure": "net::ERR_ABORTED"
+    },
+    {
+      "url": "https://ai-pro-crm-clean.vercel.app/dashboard/hygiene/clients?_rsc=1kld0",
+      "failure": "net::ERR_ABORTED"
+    },
+    {
+      "url": "https://ai-pro-crm-clean.vercel.app/dashboard/hygiene/clients?_rsc=jxbue",
+      "failure": "net::ERR_ABORTED"
+    },
+    {
+      "url": "https://ai-pro-crm-clean.vercel.app/dashboard/hygiene?_rsc=8nydi",
+      "failure": "net::ERR_ABORTED"
+    },
+    {
+      "url": "https://ai-pro-crm-clean.vercel.app/dashboard/hygiene/clients?_rsc=8nydi",
+      "failure": "net::ERR_ABORTED"
+    },
+    {
+      "url": "https://ai-pro-crm-clean.vercel.app/dashboard/hygiene/collections?_rsc=edsm5",
+      "failure": "net::ERR_ABORTED"
+    },
+    {
+      "url": "https://ai-pro-crm-clean.vercel.app/dashboard/hygiene/collections?_rsc=1jj8c",
+      "failure": "net::ERR_ABORTED"
+    },
+    {
+      "url": "https://ai-pro-crm-clean.vercel.app/dashboard/hygiene/sites?_rsc=1ihmy",
+      "failure": "net::ERR_ABORTED"
+    },
+    {
+      "url": "https://ai-pro-crm-clean.vercel.app/dashboard/hygiene/collections?_rsc=1ihmy",
+      "failure": "net::ERR_ABORTED"
+    },
+    {
+      "url": "https://ai-pro-crm-clean.vercel.app/dashboard/hygiene/clients?_rsc=10a2d",
+      "failure": "net::ERR_ABORTED"
+    },
+    {
+      "url": "https://ai-pro-crm-clean.vercel.app/dashboard/hygiene/clients?_rsc=11xls",
+      "failure": "net::ERR_ABORTED"
+    },
+    {
+      "url": "https://ai-pro-crm-clean.vercel.app/dashboard/hygiene?_rsc=10a2d",
+      "failure": "net::ERR_ABORTED"
+    },
+    {
+      "url": "https://ai-pro-crm-clean.vercel.app/dashboard/hygiene/clients?_rsc=1u8uy",
+      "failure": "net::ERR_ABORTED"
+    }
+  ]
+}

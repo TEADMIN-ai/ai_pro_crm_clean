@@ -324,7 +324,10 @@ export default function VehicleFinanceWorkspace({ initialSection }: Props) {
     [applications, selectedApplicationId],
   );
 
-  const inventoryVehicles = useMemo(() => inventory?.vehicles ?? [], [inventory?.vehicles]);
+  const inventoryVehicles = useMemo(
+    () => inventory?.vehicles.filter((vehicle) => !/sold|inactive|reserved|unavailable/i.test(vehicle.status)) ?? [],
+    [inventory?.vehicles],
+  );
   const selectedInventoryVehicle = useMemo(
     () => inventoryVehicles.find((vehicle) => vehicle.id === selectedInventoryVehicleId) ?? null,
     [inventoryVehicles, selectedInventoryVehicleId],
@@ -785,9 +788,9 @@ export default function VehicleFinanceWorkspace({ initialSection }: Props) {
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Inventory Feed</p>
                 <p className="mt-2 text-sm text-slate-200">
                   {inventoryLoading
-                    ? "Syncing live Roar inventory..."
+                    ? "Loading synchronized Roar inventory..."
                     : inventory?.status === "LIVE" || inventory?.status === "CACHED"
-                      ? `${inventory.itemCount} vehicles available from Roar Cars`
+                      ? `${inventory.metrics.activeVehicles} synchronized vehicles available from Roar Cars`
                       : "Roar inventory feed is being prepared."}
                 </p>
                 <p className="mt-1 text-xs text-slate-400">

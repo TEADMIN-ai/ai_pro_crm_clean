@@ -251,7 +251,7 @@ export default function VehicleFinanceExecutiveDashboard() {
   const employmentVerificationScore = financeDecision.employmentVerificationScore;
   const fraudScore = financeDecision.fraudRiskScore;
   const dashboard = overview ?? DEFAULT_OVERVIEW;
-  const inventoryVehicles = inventory?.vehicles ?? [];
+  const inventoryVehicles = inventory?.vehicles.filter((vehicle) => !/sold|inactive|reserved|unavailable/i.test(vehicle.status)) ?? [];
   const highestPriceVehicle = [...inventoryVehicles].sort((left, right) => (right.priceNumber ?? right.price ?? 0) - (left.priceNumber ?? left.price ?? 0))[0];
   const newestYearVehicle = [...inventoryVehicles].sort((left, right) => (right.year ?? 0) - (left.year ?? 0))[0];
   const inventoryMetrics = [
@@ -326,7 +326,7 @@ export default function VehicleFinanceExecutiveDashboard() {
           <div className="grid gap-3 sm:grid-cols-3">
             <Link href="/dashboard/vehicle-finance/inventory" className={`${EXECUTIVE_METRIC_CARD_CLASS} block text-left no-underline transition hover:border-sky-200/30 hover:bg-sky-300/15`}>
               <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-sky-100/75">Vehicle Listings</p>
-              <p className="mt-4 text-lg font-semibold text-white">{inventory ? `${inventory.itemCount} Active Vehicles` : "Syncing inventory..."}</p>
+              <p className="mt-4 text-lg font-semibold text-white">{inventory ? `${inventory.metrics.activeVehicles} Active Vehicles` : "Loading synchronized inventory..."}</p>
               <p className="mt-2 text-xs leading-5 text-slate-300">Synced from Roar Cars website</p>
               <p className="mt-1 text-xs leading-5 text-slate-400">Last synced {formatSyncedAt(inventory?.syncedAt ?? inventory?.source.lastSyncedAt)}</p>
             </Link>

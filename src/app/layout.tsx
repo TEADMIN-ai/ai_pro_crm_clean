@@ -12,6 +12,7 @@ export const metadata: Metadata = {
   },
   manifest: "/manifest.webmanifest",
   icons: {
+    icon: "/images/logos/TE%20IN%20Partnership%20With%20Roar%20logo.png",
     apple: "/images/logos/TE%20IN%20Partnership%20With%20Roar%20logo.png",
   },
 };

@@ -187,8 +187,9 @@ export function parseStaticHtmlInventory(html: string, syncedAt: string, baseUrl
     const anchorTag = block.match(/<a\b[^>]*>/i)?.[0] ?? "";
     const text = cleanText(block);
     const year = text.match(/\b((?:19|20)\d{2})\b/)?.[1] ?? "";
-    const price = text.match(/\bR\s?([0-9][0-9\s,.]*)/i)?.[1] ?? "";
-    const mileage = text.match(/([0-9][0-9\s,.]*)\s*(?:km|kilometres?)/i)?.[1] ?? "";
+    const groupedNumber = String.raw`[0-9]{1,3}(?:[\s,.][0-9]{3})+|[0-9]+`;
+    const price = text.match(new RegExp(`\\bR\\s*(${groupedNumber})(?=\\s|$)`, "i"))?.[1] ?? "";
+    const mileage = text.match(new RegExp(`(${groupedNumber})\\s*(?:km|kilometres?)\\b`, "i"))?.[1] ?? "";
     const transmission = KNOWN_TRANSMISSIONS.find((item) => text.toLowerCase().includes(item)) ?? "";
     const record: UnknownRecord = {
       title: heading || text.slice(0, 140),

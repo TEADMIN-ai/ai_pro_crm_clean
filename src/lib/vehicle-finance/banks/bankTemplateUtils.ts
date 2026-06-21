@@ -86,7 +86,12 @@ export function item(
 }
 
 export function parseAmount(value: string): number | null {
-  const cleaned = compact(value)
+  const withoutDates = compact(value)
+    .replace(/\b\d{4}[-/]\d{2}[-/]\d{2}\b/g, " ")
+    .replace(/\b\d{2}[-/]\d{2}[-/]\d{4}\b/g, " ")
+    .replace(/\b\d{2}[-/]\d{2}[-/]\d{2}\b/g, " ");
+
+  const cleaned = withoutDates
     .replace(/(?:^|[^0-9])-?R\s*/gi, "")
     .replace(/[^\d,.-]/g, "");
   if (!cleaned) {
@@ -281,7 +286,7 @@ export function detectTransactions(lines: string[]): VehicleFinanceBankTransacti
   for (let index = 0; index < lines.length; index += 1) {
     const line = lines[index];
     const date = extractDate(line);
-    const moneyMatches = [...line.matchAll(/-?(?:R\s*)?\d[\d\s,]*(?:\.\d{2})?/g)].map((match) => match[0]).filter(Boolean);
+    const moneyMatches = [...compact(line).matchAll(/(?:R\s*)?-?\d[\d\s,]*(?:\.\d{2})/g)].map((match) => match[0]).filter(Boolean);
     if (!date && moneyMatches.length === 0) {
       continue;
     }

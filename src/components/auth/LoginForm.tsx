@@ -113,7 +113,7 @@ export default function LoginForm() {
           textDecoration: "none",
         }}
       >
-        Forgot password?
+        Forgot Password?
       </Link>
     </form>
   );

@@ -143,7 +143,7 @@ export default function RoarCarsInventoryWorkspace({ mode = "inventory" }: Props
   const heroCountText = loading
     ? "Syncing inventory..."
     : inventory
-      ? `${inventory.itemCount} active vehicles`
+      ? `${inventory.metrics.activeVehicles} active vehicles`
       : "Inventory unavailable";
 
   return (
@@ -402,7 +402,15 @@ function VehicleCard({ vehicle }: { vehicle: RoarInventoryVehicle }) {
       <div className="relative aspect-[16/10] overflow-hidden bg-slate-900">
         {/* Source URLs are normalized server-side and displayed only as passive vehicle imagery. */}
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={imageSrc} alt={vehicle.title} loading="lazy" className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.03]" />
+        <img
+          src={imageSrc}
+          alt={vehicle.title}
+          loading="lazy"
+          onError={(event) => {
+            if (!event.currentTarget.src.endsWith(PLACEHOLDER_IMAGE)) event.currentTarget.src = PLACEHOLDER_IMAGE;
+          }}
+          className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.03]"
+        />
       </div>
       <div className="p-5">
         <div className="flex items-start justify-between gap-3">
@@ -443,7 +451,15 @@ function ListingCard({ vehicle }: { vehicle: RoarInventoryVehicle }) {
       <div className="flex items-start gap-3">
         <div className="relative h-20 w-28 shrink-0 overflow-hidden rounded-xl bg-slate-900">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={vehicle.imageUrl || PLACEHOLDER_IMAGE} alt={vehicle.title} loading="lazy" className="h-full w-full object-cover" />
+          <img
+            src={vehicle.imageUrl || PLACEHOLDER_IMAGE}
+            alt={vehicle.title}
+            loading="lazy"
+            onError={(event) => {
+              if (!event.currentTarget.src.endsWith(PLACEHOLDER_IMAGE)) event.currentTarget.src = PLACEHOLDER_IMAGE;
+            }}
+            className="h-full w-full object-cover"
+          />
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap gap-2">
