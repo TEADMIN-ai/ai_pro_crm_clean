@@ -22,6 +22,7 @@ export const VALID_ROLES: UserRole[] = [
   "viewer",
   "dealerPilot",
   "vehicleFinanceStaff",
+  "ROAR_CARS_STAFF",
   "guest",
 ];
 

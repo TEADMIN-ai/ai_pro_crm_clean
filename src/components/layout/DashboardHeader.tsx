@@ -6,7 +6,7 @@ import { useAuth } from "@/context/AuthContext";
 import type { UserRole } from "@/lib/auth/roleUtils";
 
 function getCompanyLabel(role?: UserRole): string {
-  if (role === "dealerPilot" || role === "vehicleFinanceStaff") {
+  if (role === "dealerPilot" || role === "vehicleFinanceStaff" || role === "ROAR_CARS_STAFF") {
     return "Roar Cars SA";
   }
 
@@ -23,6 +23,8 @@ function getRoleLabel(role?: UserRole): string {
       return "Dealer Pilot";
     case "vehicleFinanceStaff":
       return "Vehicle Finance Staff";
+    case "ROAR_CARS_STAFF":
+      return "Roar Cars Staff";
     case "staff":
       return "Staff";
     case "manager":

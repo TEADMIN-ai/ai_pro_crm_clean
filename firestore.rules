@@ -23,7 +23,7 @@ service cloud.firestore {
     }
 
     function isVehicleFinanceAuthorized() {
-      return role() in ["admin", "manager", "staff", "dealerPilot", "vehicleFinanceStaff"];
+      return role() in ["admin", "manager", "staff", "dealerPilot", "vehicleFinanceStaff", "ROAR_CARS_STAFF"];
     }
 
     function isHygieneInternal() {

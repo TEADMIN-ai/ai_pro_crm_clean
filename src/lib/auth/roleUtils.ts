@@ -8,14 +8,15 @@ export type UserRole =
   | "viewer"
   | "dealerPilot"
   | "vehicleFinanceStaff"
+  | "ROAR_CARS_STAFF"
   | "guest";
 
 export function isVehicleFinanceRole(role?: UserRole): boolean {
-  return role === "dealerPilot" || role === "vehicleFinanceStaff";
+  return role === "dealerPilot" || role === "vehicleFinanceStaff" || role === "ROAR_CARS_STAFF";
 }
 
 export function isVehicleFinanceStaffRole(role?: UserRole): boolean {
-  return role === "admin" || role === "manager" || role === "staff" || role === "vehicleFinanceStaff";
+  return role === "admin" || role === "manager" || role === "staff" || role === "vehicleFinanceStaff" || role === "ROAR_CARS_STAFF";
 }
 
 export function canUpload(role?: UserRole): boolean {

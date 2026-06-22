@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isVehicleFinanceRole } from "@/lib/auth/roleUtils";
+import { isRoarCarsDashboardPath } from "@/lib/auth/roleRouting";
 import { AuthorizationError, resolveAuthorizedIdentity } from "@/lib/server/authz";
 import { verifySessionValue } from "@/lib/server/verifySession";
 
@@ -42,11 +43,7 @@ export async function proxy(request: NextRequest) {
       return NextResponse.redirect(new URL("/dashboard/vehicle-finance", request.url));
     }
 
-    if (role === "dealerPilot" && pathname.startsWith("/dashboard/vehicle-finance/training")) {
-      return new NextResponse("Unauthorized", { status: 403 });
-    }
-
-    if (!pathname.startsWith("/dashboard/vehicle-finance")) {
+    if (!isRoarCarsDashboardPath(pathname)) {
       return new NextResponse("Unauthorized", { status: 403 });
     }
   }

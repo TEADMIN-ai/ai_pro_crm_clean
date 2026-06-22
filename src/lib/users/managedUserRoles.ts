@@ -1,4 +1,4 @@
-export const MANAGED_USER_ROLES = ["admin", "staff", "contractor", "manager"] as const;
+export const MANAGED_USER_ROLES = ["admin", "staff", "contractor", "manager", "ROAR_CARS_STAFF"] as const;
 
 export type ManagedUserRole = (typeof MANAGED_USER_ROLES)[number];
 

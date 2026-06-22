@@ -55,38 +55,38 @@ export default function Sidebar() {
       ? [
           {
             href: "/dashboard/vehicle-finance",
-            label: "Roar Cars Dashboard",
+            label: "Dashboard",
             active: pathname === "/dashboard/vehicle-finance",
           },
           {
-            href: "/dashboard/vehicle-finance/listings",
-            label: "Vehicle Listings",
-            active: pathname.startsWith("/dashboard/vehicle-finance/listings"),
-          },
-          {
             href: "/dashboard/vehicle-finance/inventory",
-            label: "Vehicle Inventory",
+            label: "Inventory",
             active: pathname.startsWith("/dashboard/vehicle-finance/inventory"),
           },
           {
-            href: "/dashboard/vehicle-finance/customers",
-            label: "Customer Enquiries",
-            active: pathname.startsWith("/dashboard/vehicle-finance/customers"),
+            href: "/dashboard/vehicle-finance/listings",
+            label: "Listings",
+            active: pathname.startsWith("/dashboard/vehicle-finance/listings"),
           },
           {
             href: "/dashboard/vehicle-finance/applications",
-            label: "Finance Applications",
+            label: "Applications",
             active: pathname.startsWith("/dashboard/vehicle-finance/applications"),
           },
           {
-            href: "/dashboard/vehicle-finance/document-verification",
-            label: "Verification",
-            active: pathname.startsWith("/dashboard/vehicle-finance/document-verification"),
+            href: "/dashboard/vehicle-finance/customers",
+            label: "Customers",
+            active: pathname.startsWith("/dashboard/vehicle-finance/customers"),
           },
           {
             href: "/dashboard/vehicle-finance/reports",
             label: "Reports",
             active: pathname.startsWith("/dashboard/vehicle-finance/reports"),
+          },
+          {
+            href: "/dashboard/settings",
+            label: "Settings",
+            active: pathname.startsWith("/dashboard/settings"),
           },
         ]
       : [];

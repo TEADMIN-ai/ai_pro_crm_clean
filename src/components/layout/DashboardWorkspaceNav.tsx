@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useAuth } from "@/context/AuthContext";
+import { isVehicleFinanceRole } from "@/lib/auth/roleUtils";
 
 type GovernanceNavBadge = {
   label: string;
@@ -10,7 +12,7 @@ type GovernanceNavBadge = {
 };
 
 type DashboardNavItem = {
-  key: "overview" | "deals" | "contractors" | "hygiene" | "vehicleFinance" | "tenderRequests" | "intelligence" | "governance" | "settings";
+  key: "overview" | "deals" | "contractors" | "hygiene" | "vehicleFinance" | "inventory" | "listings" | "applications" | "customers" | "reports" | "tenderRequests" | "intelligence" | "governance" | "settings";
   href: string;
   label: string;
   match: (pathname: string) => boolean;
@@ -64,6 +66,51 @@ const DASHBOARD_NAV_ITEMS: DashboardNavItem[] = [
     href: "/dashboard/governance",
     label: "Governance",
     match: (pathname) => pathname.startsWith("/dashboard/governance"),
+  },
+  {
+    key: "settings",
+    href: "/dashboard/settings",
+    label: "Settings",
+    match: (pathname) => pathname.startsWith("/dashboard/settings"),
+  },
+];
+
+const ROAR_CARS_NAV_ITEMS: DashboardNavItem[] = [
+  {
+    key: "vehicleFinance",
+    href: "/dashboard/vehicle-finance",
+    label: "Dashboard",
+    match: (pathname) => pathname === "/dashboard/vehicle-finance",
+  },
+  {
+    key: "inventory",
+    href: "/dashboard/vehicle-finance/inventory",
+    label: "Inventory",
+    match: (pathname) => pathname.startsWith("/dashboard/vehicle-finance/inventory"),
+  },
+  {
+    key: "listings",
+    href: "/dashboard/vehicle-finance/listings",
+    label: "Listings",
+    match: (pathname) => pathname.startsWith("/dashboard/vehicle-finance/listings"),
+  },
+  {
+    key: "applications",
+    href: "/dashboard/vehicle-finance/applications",
+    label: "Applications",
+    match: (pathname) => pathname.startsWith("/dashboard/vehicle-finance/applications"),
+  },
+  {
+    key: "customers",
+    href: "/dashboard/vehicle-finance/customers",
+    label: "Customers",
+    match: (pathname) => pathname.startsWith("/dashboard/vehicle-finance/customers"),
+  },
+  {
+    key: "reports",
+    href: "/dashboard/vehicle-finance/reports",
+    label: "Reports",
+    match: (pathname) => pathname.startsWith("/dashboard/vehicle-finance/reports"),
   },
   {
     key: "settings",
@@ -180,11 +227,13 @@ export default function DashboardWorkspaceNav({
   mode?: "sidebar" | "mobile";
 }) {
   const pathname = usePathname();
+  const { role } = useAuth();
+  const navItems = isVehicleFinanceRole(role) ? ROAR_CARS_NAV_ITEMS : DASHBOARD_NAV_ITEMS;
 
   return (
     <>
       <nav className={`${mode === "mobile" ? "hidden" : "flex-1 space-y-2 px-4 py-6"}`}>
-        {DASHBOARD_NAV_ITEMS.map((item) => {
+        {navItems.map((item) => {
           const active = item.match(pathname);
 
           return (
@@ -224,7 +273,7 @@ export default function DashboardWorkspaceNav({
       </nav>
 
       <div className={`${mode === "sidebar" ? "hidden" : "flex gap-2 overflow-x-auto pb-1 pr-1 md:hidden"}`}>
-        {DASHBOARD_NAV_ITEMS.map((item) => {
+        {navItems.map((item) => {
           const active = item.match(pathname);
 
           return (
