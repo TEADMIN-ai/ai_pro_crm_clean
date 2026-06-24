@@ -72,13 +72,21 @@ function normalizeExtractedText(value: string, context?: { filename: string; par
 }
 
 function hasMeaningfulDirectText(value: string, minTextLength: number): boolean {
-  if (value.length >= minTextLength) {
-    return true;
+  const normalized = value.replace(/\s+/g, " ").trim();
+  if (normalized.length < minTextLength) {
+    return false;
   }
 
-  const tokens = value.split(/\s+/).filter(Boolean);
-  const alphanumericCount = (value.match(/[A-Za-z0-9]/g) ?? []).length;
-  return tokens.length >= 3 && alphanumericCount >= 16;
+  const tokens = normalized.split(/\s+/).filter(Boolean);
+  const alphanumericCount = (normalized.match(/[A-Za-z0-9]/g) ?? []).length;
+  const corruptedCharacterCount = (normalized.match(/[ï¿½\u0000-\u0008\u000B\u000C\u000E-\u001F]/g) ?? []).length;
+  const corruptedCharacterRatio = normalized.length > 0 ? corruptedCharacterCount / normalized.length : 0;
+  const hasCorruption =
+    corruptedCharacterCount > 0 ||
+    corruptedCharacterRatio > 0.02 ||
+    /[^\x09\x0A\x0D\x20-\x7E]/.test(normalized.slice(0, Math.min(1000, normalized.length)));
+
+  return tokens.length >= 5 && alphanumericCount >= 30 && !hasCorruption;
 }
 
 async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: string): Promise<T> {
