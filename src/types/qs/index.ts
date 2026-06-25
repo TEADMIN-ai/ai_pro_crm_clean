@@ -195,7 +195,133 @@ export type QsFirestoreCollection =
   | "priceHistory"
   | "unitMeasurements"
   | "brands"
-  | "materialAvailability";
+  | "materialAvailability"
+  | "materialImports"
+  | "importLogs"
+  | "failedImports"
+  | "importProfiles";
+
+export type QsImportFileType = "csv" | "xlsx" | "json";
+
+export type QsDuplicateStrategy = "skip" | "update" | "replace" | "merge";
+
+export type QsImportStatus = "pending" | "processing" | "completed" | "completedWithFailures" | "failed";
+
+export type QsImportSourceType =
+  | "materialCatalogue"
+  | "supplierCatalogue"
+  | "manufacturerCatalogue"
+  | "internalPriceList";
+
+export type QsImportColumnMappings = {
+  materialName?: string | null;
+  sku?: string | null;
+  barcode?: string | null;
+  description?: string | null;
+  category?: string | null;
+  subcategory?: string | null;
+  brand?: string | null;
+  unit?: string | null;
+  price?: string | null;
+  currency?: string | null;
+  supplier?: string | null;
+  vatApplicable?: string | null;
+  province?: string | null;
+};
+
+export type QsImportProfile = QsAuditFields & {
+  importProfileId: string;
+  profileName: string;
+  sourceType: QsImportSourceType;
+  supplierId?: string | null;
+  fileType: QsImportFileType;
+  columnMappings: QsImportColumnMappings;
+  categoryMappings: Record<string, string>;
+  supplierMappings: Record<string, string>;
+  unitMappings: Record<string, string>;
+  duplicateStrategy: QsDuplicateStrategy;
+  status: QsRecordStatus;
+};
+
+export type QsMaterialImport = QsAuditFields & {
+  materialImportId: string;
+  importProfileId?: string | null;
+  fileName: string;
+  fileType: QsImportFileType;
+  sourceType: QsImportSourceType;
+  status: QsImportStatus;
+  importedBy?: string | null;
+  startedAt?: QsTimestamp | null;
+  completedAt?: QsTimestamp | null;
+  totalRows: number;
+  rowsImported: number;
+  rowsFailed: number;
+  duplicateCount: number;
+  updatedMaterials: number;
+  newMaterials: number;
+  executionTimeMs?: number | null;
+  summary?: string | null;
+};
+
+export type QsImportLog = QsAuditFields & {
+  importLogId: string;
+  materialImportId: string;
+  message: string;
+  level: "info" | "warning" | "error";
+  metadata?: Record<string, unknown>;
+};
+
+export type QsFailedImport = QsAuditFields & {
+  failedImportId: string;
+  materialImportId: string;
+  rowNumber: number;
+  rawRow: Record<string, string | number | boolean | null>;
+  reasons: string[];
+  suggestedCorrection?: string | null;
+};
+
+export type QsImportValidationIssue = {
+  code:
+    | "missing_material_name"
+    | "missing_unit"
+    | "negative_price"
+    | "duplicate_sku"
+    | "duplicate_barcode"
+    | "invalid_category"
+    | "unknown_supplier"
+    | "invalid_vat"
+    | "invalid_currency";
+  field?: string;
+  message: string;
+  suggestedCorrection?: string | null;
+};
+
+export type QsParsedImportRow = {
+  rowNumber: number;
+  raw: Record<string, string>;
+};
+
+export type QsMappedMaterialImportRow = {
+  rowNumber: number;
+  materialName?: string | null;
+  sku?: string | null;
+  barcode?: string | null;
+  description?: string | null;
+  categoryName?: string | null;
+  categoryId?: string | null;
+  subcategory?: string | null;
+  brandName?: string | null;
+  brandId?: string | null;
+  unit?: string | null;
+  normalizedUnit?: string | null;
+  price?: number | null;
+  currency?: QsCurrencyCode | string | null;
+  supplierName?: string | null;
+  supplierId?: string | null;
+  province?: QsProvince | string | null;
+  vatApplicable?: boolean | null;
+  raw: Record<string, string>;
+};
 
 export type QsCreateInput<T> = Omit<T, "createdAt" | "updatedAt"> & {
   createdAt?: QsTimestamp;

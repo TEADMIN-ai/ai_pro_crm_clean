@@ -1,0 +1,6 @@
+sku,barcode,name,description,category,subcategory,brand,unit,price,currency,supplier,vatApplicable,province
+CEM-50-001,,50kg Cement Bag,General purpose cement,Concrete,Cement,,Bag,98.50,ZAR,Builders Warehouse,true,National
+AGG-19-001,,19mm Stone,Concrete aggregate,Aggregates,Stone,,m³,780.00,ZAR,Cashbuild,true,Gauteng
+SAN-BLD-001,,Building Sand,Washed building sand,Sand,Building Sand,,m³,420.00,ZAR,Chamberlains,true,Gauteng
+BRK-NFX-001,,NFX Clay Brick,Standard clay brick,Bricks,Clay Brick,,Each,3.85,ZAR,Builders Warehouse,true,National
+STL-Y12-001,,Y12 Rebar,High tensile reinforcing bar,Steel,Rebar,,m,42.00,ZAR,Cashbuild,true,National

@@ -1,0 +1,4 @@
+supplierId,name,website,contactPerson,email,phone,provinceCoverage,deliveryAvailable,preferredSupplier,status
+builders-warehouse,Builders Warehouse,https://www.builders.co.za,Trade Desk,trade@example.com,0100000000,National,true,true,active
+cashbuild,Cashbuild,https://www.cashbuild.co.za,Trade Desk,trade@example.com,0100000001,National,true,false,active
+chamberlains,Chamberlains,https://www.chamberlains.co.za,Trade Desk,trade@example.com,0100000002,Gauteng,true,false,active

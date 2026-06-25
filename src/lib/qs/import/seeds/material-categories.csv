@@ -1,0 +1,29 @@
+categoryId,name,parentCategoryId,description,status
+concrete,Concrete,,Concrete mixes and related cementitious products,active
+aggregates,Aggregates,,Stone and aggregate products,active
+sand,Sand,,Building and plaster sand products,active
+bricks,Bricks,,Clay and cement bricks,active
+blocks,Blocks,,Concrete and masonry blocks,active
+steel,Steel,,Rebar structural steel and steel accessories,active
+roofing,Roofing,,Roof covering and waterproofing materials,active
+timber,Timber,,Structural and finishing timber,active
+doors,Doors,,Internal and external doors,active
+windows,Windows,,Window frames glazing and accessories,active
+paint,Paint,,Paint primers sealers and coatings,active
+tiles,Tiles,,Floor and wall tiles,active
+electrical,Electrical,,Electrical materials and accessories,active
+lighting,Lighting,,Light fittings lamps and controls,active
+plumbing,Plumbing,,Pipe fittings and plumbing accessories,active
+sanitary,Sanitary,,Sanitaryware and bathroom fixtures,active
+security,Security,,Security gates locks and related products,active
+hardware,Hardware,,General building hardware,active
+fasteners,Fasteners,,Screws nails bolts and anchors,active
+ceilings,Ceilings,,Ceiling boards grids and accessories,active
+drywall,Drywall,,Drywall boards tracks and studs,active
+flooring,Flooring,,Floor finishes and installation products,active
+civil-works,Civil Works,,Civil works materials,active
+road-construction,Road Construction,,Road construction materials,active
+landscaping,Landscaping,,Landscaping materials and products,active
+ppe,PPE,,Personal protective equipment,active
+tools,Tools,,Hand and power tools,active
+plant-hire,Plant Hire,,Plant and equipment hire items,active

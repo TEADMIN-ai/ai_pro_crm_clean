@@ -1,0 +1,15 @@
+unitId,label,symbol,aliases,status
+each,Each,each,"ea|unit",active
+box,Box,box,bx,active
+pack,Pack,pack,pkt,active
+bag,Bag,bag,,active
+kg,kg,kg,"kilogram|kilograms|kgs",active
+ton,Ton,ton,"t|tonne|tons",active
+litre,Litre,litre,"l|liter|litres",active
+m,m,m,"metre|meter",active
+m2,m²,m²,"m2|sqm|square metre|square meter|square metres|square meters",active
+m3,m³,m³,"m3|cbm|cubic metre|cubic meter|cubic metres|cubic meters",active
+roll,Roll,roll,,active
+bundle,Bundle,bundle,,active
+pair,Pair,pair,,active
+sheet,Sheet,sheet,,active

@@ -2,11 +2,18 @@ import { QS_COLLECTIONS, QS_MATERIAL_CATEGORY_SEEDS, QS_STANDARD_UNITS } from "@
 
 const QS_NAV_AREAS = [
   "Material Library",
+  "Material Imports",
   "Suppliers",
   "Pricing",
   "Catalogue",
   "Reports",
   "Settings",
+];
+
+const QS_IMPORT_AREAS = [
+  "Recent Imports",
+  "Import Statistics",
+  "Import History",
 ];
 
 export default function QsDashboardPage() {
@@ -29,6 +36,18 @@ export default function QsDashboardPage() {
             </section>
           ))}
         </div>
+
+        <section className="mt-6">
+          <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">Import Engine</h2>
+          <div className="mt-3 grid gap-3 sm:grid-cols-3">
+            {QS_IMPORT_AREAS.map((area) => (
+              <section key={area} className="rounded-lg border border-white/10 bg-white/[0.03] p-4">
+                <h3 className="text-sm font-semibold text-slate-100">{area}</h3>
+                <p className="mt-2 text-sm text-slate-500">Import architecture placeholder.</p>
+              </section>
+            ))}
+          </div>
+        </section>
 
         <div className="mt-6 grid gap-3 lg:grid-cols-3">
           <section className="rounded-lg border border-cyan-400/20 bg-cyan-400/10 p-4">

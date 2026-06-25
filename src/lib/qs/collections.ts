@@ -10,4 +10,8 @@ export const QS_COLLECTIONS = {
   unitMeasurements: "unitMeasurements",
   brands: "brands",
   materialAvailability: "materialAvailability",
+  materialImports: "materialImports",
+  importLogs: "importLogs",
+  failedImports: "failedImports",
+  importProfiles: "importProfiles",
 } as const satisfies Record<string, QsFirestoreCollection>;
