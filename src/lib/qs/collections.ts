@@ -14,4 +14,9 @@ export const QS_COLLECTIONS = {
   importLogs: "importLogs",
   failedImports: "failedImports",
   importProfiles: "importProfiles",
+  boqDocuments: "boqDocuments",
+  boqLineItems: "boqLineItems",
+  boqTrades: "boqTrades",
+  boqExtractionLogs: "boqExtractionLogs",
+  boqReviewQueue: "boqReviewQueue",
 } as const satisfies Record<string, QsFirestoreCollection>;

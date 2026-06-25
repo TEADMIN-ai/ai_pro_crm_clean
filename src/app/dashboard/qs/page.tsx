@@ -3,6 +3,7 @@ import { QS_COLLECTIONS, QS_MATERIAL_CATEGORY_SEEDS, QS_STANDARD_UNITS } from "@
 
 const QS_NAV_AREAS = [
   { label: "Material Intelligence Centre", href: "/dashboard/qs/materials" },
+  { label: "BOQ Intelligence Engine", href: "/dashboard/qs/boq" },
   { label: "Material Imports", href: "/dashboard/qs/materials/imports" },
   { label: "Suppliers", href: "/dashboard/qs/materials/suppliers" },
   { label: "Categories", href: "/dashboard/qs/materials/categories" },

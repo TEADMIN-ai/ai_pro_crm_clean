@@ -18,6 +18,38 @@ export type QsPriceSource = "manual" | "supplierCatalogue" | "import" | "futureL
 
 export type QsTimestamp = string;
 
+export type QsBoqDocumentType = "boq" | "rfq" | "scopeOfWork";
+
+export type QsBoqFileType = "pdf" | "docx" | "xlsx" | "csv" | "txt";
+
+export type QsBoqTrade =
+  | "General"
+  | "Earthworks"
+  | "Concrete"
+  | "Brickwork"
+  | "Steel"
+  | "Roofing"
+  | "Doors"
+  | "Windows"
+  | "Electrical"
+  | "Lighting"
+  | "Plumbing"
+  | "Sanitary"
+  | "Painting"
+  | "Flooring"
+  | "Ceilings"
+  | "Drywall"
+  | "External Works"
+  | "Civil"
+  | "Landscaping"
+  | "Other";
+
+export type QsBoqConfidence = "High" | "Medium" | "Low";
+
+export type QsBoqReviewStatus = "pending" | "accepted" | "edited" | "rejected" | "rematchRequired";
+
+export type QsBoqExtractionSource = "directText" | "ocr" | "spreadsheet" | "text" | "docx" | "empty";
+
 export type QsAiExtractionMetadata = {
   sourceText?: string | null;
   sourceDocumentId?: string | null;
@@ -186,6 +218,83 @@ export type MaterialAvailability = QsAuditFields & {
   aiExtraction?: QsAiExtractionMetadata;
 };
 
+export type QsBoqMaterialMatch = {
+  materialId?: string | null;
+  materialName?: string | null;
+  matchConfidence: QsBoqConfidence;
+  suggestedMaterialIds: string[];
+  unknownMaterial: boolean;
+};
+
+export type QsBoqDocument = QsAuditFields & {
+  boqDocumentId: string;
+  projectId?: string | null;
+  projectName?: string | null;
+  documentType: QsBoqDocumentType;
+  fileName: string;
+  fileType: QsBoqFileType;
+  mimeType?: string | null;
+  storagePath?: string | null;
+  uploadedBy?: string | null;
+  uploadedByRole?: string | null;
+  extractionSource: QsBoqExtractionSource;
+  ocrUsed: boolean;
+  parserUsed: string;
+  originalTextPreview?: string | null;
+  textLength: number;
+  itemCount: number;
+  reviewStatus: QsBoqReviewStatus;
+  confidenceDistribution: Record<QsBoqConfidence, number>;
+  extractionTimeMs: number;
+};
+
+export type QsBoqLineItem = QsAuditFields & {
+  boqLineItemId: string;
+  boqDocumentId: string;
+  lineNumber: number;
+  section?: string | null;
+  trade: QsBoqTrade;
+  originalText: string;
+  description: string;
+  quantity?: number | null;
+  unit?: string | null;
+  normalizedUnit?: string | null;
+  materialMatch: QsBoqMaterialMatch;
+  confidenceScore: QsBoqConfidence;
+  status: QsBoqReviewStatus;
+  notes?: string | null;
+};
+
+export type QsBoqTradeRecord = QsAuditFields & {
+  boqTradeId: string;
+  name: QsBoqTrade;
+  keywords: string[];
+  status: QsRecordStatus;
+};
+
+export type QsBoqExtractionLog = QsAuditFields & {
+  boqExtractionLogId: string;
+  boqDocumentId: string;
+  uploadedBy?: string | null;
+  extractionTimeMs: number;
+  ocrUsed: boolean;
+  parserUsed: string;
+  itemsExtracted: number;
+  confidenceDistribution: Record<QsBoqConfidence, number>;
+  reviewStatus: QsBoqReviewStatus;
+  message: string;
+};
+
+export type QsBoqReviewQueueItem = QsAuditFields & {
+  boqReviewQueueId: string;
+  boqDocumentId: string;
+  boqLineItemId: string;
+  reason: string;
+  originalText: string;
+  suggestedAction: "accept" | "edit" | "reject" | "rematch";
+  status: QsBoqReviewStatus;
+};
+
 export type QsFirestoreCollection =
   | "materials"
   | "materialCategories"
@@ -199,7 +308,12 @@ export type QsFirestoreCollection =
   | "materialImports"
   | "importLogs"
   | "failedImports"
-  | "importProfiles";
+  | "importProfiles"
+  | "boqDocuments"
+  | "boqLineItems"
+  | "boqTrades"
+  | "boqExtractionLogs"
+  | "boqReviewQueue";
 
 export type QsImportFileType = "csv" | "xlsx" | "json";
 
