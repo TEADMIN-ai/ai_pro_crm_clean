@@ -1,13 +1,13 @@
+import Link from "next/link";
 import { QS_COLLECTIONS, QS_MATERIAL_CATEGORY_SEEDS, QS_STANDARD_UNITS } from "@/lib/qs";
 
 const QS_NAV_AREAS = [
-  "Material Library",
-  "Material Imports",
-  "Suppliers",
-  "Pricing",
-  "Catalogue",
-  "Reports",
-  "Settings",
+  { label: "Material Intelligence Centre", href: "/dashboard/qs/materials" },
+  { label: "Material Imports", href: "/dashboard/qs/materials/imports" },
+  { label: "Suppliers", href: "/dashboard/qs/materials/suppliers" },
+  { label: "Categories", href: "/dashboard/qs/materials/categories" },
+  { label: "Price History", href: "/dashboard/qs/materials/history" },
+  { label: "Validation Queue", href: "/dashboard/qs/materials/validation" },
 ];
 
 const QS_IMPORT_AREAS = [
@@ -30,10 +30,10 @@ export default function QsDashboardPage() {
 
         <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {QS_NAV_AREAS.map((area) => (
-            <section key={area} className="rounded-lg border border-white/10 bg-white/[0.03] p-4">
-              <h2 className="text-sm font-semibold text-slate-100">{area}</h2>
-              <p className="mt-2 text-sm text-slate-500">Module structure placeholder.</p>
-            </section>
+            <Link key={area.href} href={area.href} className="rounded-lg border border-white/10 bg-white/[0.03] p-4 transition hover:border-cyan-400/25 hover:bg-cyan-400/10">
+              <h2 className="text-sm font-semibold text-slate-100">{area.label}</h2>
+              <p className="mt-2 text-sm text-slate-500">Open operational workspace.</p>
+            </Link>
           ))}
         </div>
 
