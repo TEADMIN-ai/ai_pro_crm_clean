@@ -1108,14 +1108,38 @@ export async function buildVehicleFinancePdf() {
 
 export async function getVehicleFinanceAuditTrail(applicationId: string) {
   const [auditSnapshot, decisionSnapshot, assessmentSnapshot] = await Promise.all([
-    getFirebaseAdmin().collection("auditLogs").where("applicationId", "==", applicationId).orderBy("timestamp", "desc").limit(100).get(),
-    getFirebaseAdmin().collection("decisionLogs").where("applicationId", "==", applicationId).orderBy("timestamp", "desc").limit(100).get(),
+    getFirebaseAdmin().collection("auditLogs").where("applicationId", "==", applicationId).limit(100).get(),
+    getFirebaseAdmin().collection("decisionLogs").where("applicationId", "==", applicationId).limit(100).get(),
     getFirebaseAdmin().collection(ASSESSMENT_COLLECTION).doc(applicationId).get(),
   ]);
 
+  type TimelineEntry = { id: string; timestamp?: unknown } & Record<string, unknown>;
+
+  const sortByTimestampDesc = (left: TimelineEntry, right: TimelineEntry) => {
+    const leftValue = left.timestamp && typeof left.timestamp === "object" && "toMillis" in left.timestamp
+      ? (left.timestamp as { toMillis: () => number }).toMillis()
+      : typeof left.timestamp === "number"
+        ? left.timestamp
+        : typeof left.timestamp === "string"
+          ? Date.parse(left.timestamp)
+          : 0;
+    const rightValue = right.timestamp && typeof right.timestamp === "object" && "toMillis" in right.timestamp
+      ? (right.timestamp as { toMillis: () => number }).toMillis()
+      : typeof right.timestamp === "number"
+        ? right.timestamp
+        : typeof right.timestamp === "string"
+          ? Date.parse(right.timestamp)
+          : 0;
+
+    return rightValue - leftValue;
+  };
+
+  const auditLogs: TimelineEntry[] = auditSnapshot.docs.map((doc) => ({ id: doc.id, ...(doc.data() ?? {}) }) as TimelineEntry);
+  const decisionLogs: TimelineEntry[] = decisionSnapshot.docs.map((doc) => ({ id: doc.id, ...(doc.data() ?? {}) }) as TimelineEntry);
+
   return {
-    auditLogs: auditSnapshot.docs.map((doc) => ({ id: doc.id, ...(doc.data() ?? {}) })),
-    decisionLogs: decisionSnapshot.docs.map((doc) => ({ id: doc.id, ...(doc.data() ?? {}) })),
+    auditLogs: auditLogs.sort(sortByTimestampDesc),
+    decisionLogs: decisionLogs.sort(sortByTimestampDesc),
     assessment: assessmentSnapshot.exists ? normalizeAssessmentData((assessmentSnapshot.data() ?? {}) as Record<string, unknown>) : null,
   };
 }

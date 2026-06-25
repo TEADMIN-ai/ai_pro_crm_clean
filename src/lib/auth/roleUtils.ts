@@ -15,6 +15,10 @@ export function isVehicleFinanceRole(role?: UserRole): boolean {
   return role === "dealerPilot" || role === "vehicleFinanceStaff" || role === "ROAR_CARS_STAFF";
 }
 
+export function isRoarCarsStaffRole(role?: UserRole): boolean {
+  return role === "ROAR_CARS_STAFF";
+}
+
 export function isVehicleFinanceStaffRole(role?: UserRole): boolean {
   return role === "admin" || role === "manager" || role === "staff" || role === "vehicleFinanceStaff" || role === "ROAR_CARS_STAFF";
 }

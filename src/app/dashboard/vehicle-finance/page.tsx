@@ -1,5 +1,5 @@
-import VehicleFinanceExecutiveDashboard from "@/components/vehicle-finance/VehicleFinanceExecutiveDashboard";
+import VehicleFinanceDashboardRouter from "@/components/vehicle-finance/VehicleFinanceDashboardRouter";
 
 export default function VehicleFinanceDashboardPage() {
-  return <VehicleFinanceExecutiveDashboard />;
+  return <VehicleFinanceDashboardRouter />;
 }

@@ -4,8 +4,12 @@ import { useAuth } from "@/context/AuthContext";
 import { isVehicleFinanceRole } from "@/lib/auth/roleUtils";
 
 export default function SettingsPage() {
-  const { role } = useAuth();
+  const { role, loading } = useAuth();
   const isRoarCarsWorkspace = isVehicleFinanceRole(role);
+
+  if (loading) {
+    return <div className="p-6 text-sm text-slate-400" role="status">Loading workspace settings…</div>;
+  }
 
   return (
     <div className="p-6 text-white">

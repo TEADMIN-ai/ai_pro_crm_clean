@@ -539,6 +539,20 @@ export async function extractTextFromPdfDetailed(
           : "direct_text_empty",
     },
   });
+  console.log("[OCR_TRIGGER_DECISION]", {
+    filename,
+    pageCount,
+    directParser,
+    directTextLength: directText.length,
+    minTextLength,
+    meaningfulDirectText,
+    ocrAttempted: !meaningfulDirectText,
+    reason: meaningfulDirectText
+      ? "direct_text_available"
+      : directText.length > 0
+        ? "direct_text_not_meaningful"
+        : "direct_text_empty",
+  });
 
   if (meaningfulDirectText || options?.skipOcrFallback) {
     console.log("[PDF_TEXT_EXTRACTION]", {

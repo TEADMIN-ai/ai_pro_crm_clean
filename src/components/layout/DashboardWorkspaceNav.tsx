@@ -227,8 +227,18 @@ export default function DashboardWorkspaceNav({
   mode?: "sidebar" | "mobile";
 }) {
   const pathname = usePathname();
-  const { role } = useAuth();
+  const { role, loading } = useAuth();
   const navItems = isVehicleFinanceRole(role) ? ROAR_CARS_NAV_ITEMS : DASHBOARD_NAV_ITEMS;
+
+  if (loading) {
+    return (
+      <nav
+        aria-label="Loading workspace navigation"
+        aria-busy="true"
+        className={mode === "mobile" ? "h-10 md:hidden" : "flex-1 px-4 py-6"}
+      />
+    );
+  }
 
   return (
     <>

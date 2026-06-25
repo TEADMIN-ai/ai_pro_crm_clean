@@ -273,6 +273,41 @@ describe("documentVerificationService", () => {
     expect(result.extractedFields.taxpayerReferenceMatchedLabel).toBe("Tax reference No");
   });
 
+  test("extracts SARS TCS taxpayer name from OCR address block", async () => {
+    extractTextFromPdfDetailed.mockResolvedValue({
+      text: [
+        "SARS",
+        "South African Revenue Service",
+        "TAX COMPLIANCE STATUS",
+        "PIN Issued",
+        "Details",
+        "Taxpayer Reference Number: 9090826257",
+        "Always quote this reference number when contacting SARS",
+        "Issue Date: 2025/05/19",
+        "MACKAY AND DAUGHTERS ENTERPRISE",
+        "11 CECIL DANIEL STREET",
+        "ELDORADO PARK",
+        "Dear Taxpayer",
+        "Tax Compliance Status PIN Issued",
+        "Expiry Date: 18/05/2027",
+      ].join("\n"),
+      source: "OCR",
+      pageCount: 1,
+      directTextLength: 0,
+      ocrTextLength: 400,
+    });
+
+    const result = await verifyStoredContractorDocument(Buffer.from("pdf"), "taxClearance", {
+      companyName: "Mackay and Daughters Enterprises",
+    });
+
+    expect(result.status).toBe("REVIEW");
+    expect(result.extractedFields.taxPin).toBeNull();
+    expect(result.extractedFields.taxpayerReference).toBe("9090826257");
+    expect(result.extractedFields.taxpayerName).toBe("MACKAY AND DAUGHTERS ENTERPRISE");
+    expect(result.extractedFields.expectedCompanyMatch).toBe("true");
+  });
+
   test("normalizes spaced taxpayer reference when label and value are split across lines", async () => {
     extractTextFromPdfDetailed.mockResolvedValue({
       text: [

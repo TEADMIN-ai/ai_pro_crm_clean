@@ -1,18 +1,34 @@
 "use client";
 
 import { useAuth } from "@/context/AuthContext";
-import { isVehicleFinanceRole } from "@/lib/auth/roleUtils";
+import { isRoarCarsStaffRole, isVehicleFinanceRole } from "@/lib/auth/roleUtils";
 
 export function DashboardWorkspaceIdentity({ variant }: { variant: "sidebar" | "header" }) {
-  const { role } = useAuth();
+  const { role, loading } = useAuth();
   const isRoarCarsWorkspace = isVehicleFinanceRole(role);
+  const isRoarCarsStaff = isRoarCarsStaffRole(role);
+
+  if (loading) {
+    return (
+      <div role="status" aria-label="Loading workspace identity">
+        <p className="dashboard-eyebrow">Workspace</p>
+        <div className={`${variant === "header" ? "mt-1 text-lg sm:text-xl" : "mt-2 text-2xl"} font-semibold text-white`}>
+          Loading operations…
+        </div>
+      </div>
+    );
+  }
 
   if (variant === "header") {
     return (
       <div>
         <p className="dashboard-eyebrow">{isRoarCarsWorkspace ? "Dealer Workspace" : "Executive Workspace"}</p>
         <h1 className="mt-1 text-lg font-semibold tracking-[-0.03em] text-white sm:text-xl">
-          {isRoarCarsWorkspace ? "Roar Cars SA Dealer Operations" : "Torque Empire AI Procurement Intelligence"}
+          {isRoarCarsStaff
+            ? "Roar Cars SA Operations Centre"
+            : isRoarCarsWorkspace
+              ? "Roar Cars SA Dealer Operations"
+              : "Torque Empire AI Procurement Intelligence"}
         </h1>
       </div>
     );
@@ -22,7 +38,7 @@ export function DashboardWorkspaceIdentity({ variant }: { variant: "sidebar" | "
     <>
       <p className="dashboard-eyebrow">{isRoarCarsWorkspace ? "Roar Cars SA" : "Torque Empire"}</p>
       <div className="mt-2 text-2xl font-semibold tracking-[-0.04em] text-white">
-        {isRoarCarsWorkspace ? "Dealer Workspace" : "Command Center"}
+        {isRoarCarsStaff ? "Operations Centre" : isRoarCarsWorkspace ? "Dealer Workspace" : "Command Center"}
       </div>
       <p className="mt-3 text-sm leading-6 text-slate-400">
         {isRoarCarsWorkspace
@@ -34,8 +50,16 @@ export function DashboardWorkspaceIdentity({ variant }: { variant: "sidebar" | "
 }
 
 export function DashboardWorkspaceStatus({ governanceLabel, governanceCount }: { governanceLabel: string; governanceCount: number }) {
-  const { role } = useAuth();
+  const { role, loading } = useAuth();
   const isRoarCarsWorkspace = isVehicleFinanceRole(role);
+
+  if (loading) {
+    return (
+      <div className="rounded-[24px] border border-white/10 bg-white/[0.03] p-4 text-sm text-slate-400" role="status">
+        Loading workspace status…
+      </div>
+    );
+  }
 
   return (
     <div className="rounded-[24px] border border-white/10 bg-white/[0.03] p-4">

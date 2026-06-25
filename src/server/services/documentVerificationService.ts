@@ -763,19 +763,46 @@ function extractBBBEELevel(text: string): string | null {
 }
 
 function extractTaxPin(text: string): string | null {
-  const taxPin = extractFirstMatch(text, [
+  const rawTaxPin = extractFirstMatch(text, [
     /tax compliance status pin[:\s]+([A-Z0-9-]{6,})/i,
     /\btcs pin[:\s]+([A-Z0-9-]{6,})/i,
     /\bpin[:\s]+([A-Z0-9-]{6,})/i,
   ]);
+  const taxPin = rawTaxPin && /\d/.test(rawTaxPin) && !/^issued$/i.test(rawTaxPin) ? rawTaxPin : null;
 
   console.log("[TAX_PIN_DETECTION]", {
-    rawValue: taxPin,
+    rawValue: rawTaxPin,
     normalizedValue: taxPin ? taxPin.toUpperCase() : null,
     detected: Boolean(taxPin),
   });
 
   return taxPin;
+}
+
+function normalizeCompanyNameForLooseMatch(value: string | null): string | null {
+  const normalized = normalizeCompanyName(value);
+  if (!normalized) {
+    return null;
+  }
+
+  return normalized
+    .split(" ")
+    .map((token) => token.length > 3 ? token.replace(/S$/, "") : token)
+    .join(" ");
+}
+
+function isCompatibleCompanyName(extractedCompanyName: string | null, expectedCompanyName: string | null): boolean {
+  if (!extractedCompanyName || !expectedCompanyName) {
+    return false;
+  }
+
+  if (extractedCompanyName === expectedCompanyName) {
+    return true;
+  }
+
+  const extractedLoose = normalizeCompanyNameForLooseMatch(extractedCompanyName);
+  const expectedLoose = normalizeCompanyNameForLooseMatch(expectedCompanyName);
+  return Boolean(extractedLoose && expectedLoose && extractedLoose === expectedLoose);
 }
 
 function normalizeTaxpayerReference(value: string | null): string | null {
@@ -955,13 +982,69 @@ function logTaxpayerReferenceDetection(documentType: string, match: TaxpayerRefe
   });
 }
 
+function isLikelyCompanyLine(line: string): boolean {
+  const normalized = normalizeLabel(line);
+  if (!normalized || normalized.length < 5) {
+    return false;
+  }
+
+  if (/\d/.test(normalized)) {
+    return false;
+  }
+
+  if (
+    /^(?:SARS|SOUTH AFRICAN REVENUE SERVICE|CONTACT DETAILS|DETAILS|DEAR TAXPAYER|TAX COMPLIANCE STATUS|PIN ISSUED|ALWAYS QUOTE THIS REFERENCE NUMBER WHEN CONTACTING SARS)$/.test(normalized)
+  ) {
+    return false;
+  }
+
+  return normalized.split(" ").length >= 2;
+}
+
+function extractTaxpayerName(text: string, context?: VerificationContext): string | null {
+  const labeledName = extractFirstMatch(text, [
+    /taxpayer name[:\s]+([A-Z0-9][A-Z0-9 '&.,()/-]{2,})/i,
+    /registered name[:\s]+([A-Z0-9][A-Z0-9 '&.,()/-]{2,})/i,
+  ]);
+
+  if (labeledName) {
+    return labeledName;
+  }
+
+  const expectedCompanyName = normalizeCompanyName(context?.companyName ?? null);
+  const lines = text
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  if (expectedCompanyName) {
+    const expectedMatch = lines.find((line) =>
+      isLikelyCompanyLine(line) && isCompatibleCompanyName(normalizeCompanyName(line), expectedCompanyName)
+    );
+
+    if (expectedMatch) {
+      return expectedMatch;
+    }
+  }
+
+  const detailAnchorIndex = lines.findIndex((line) =>
+    /\b(?:taxpayer reference|tax reference|issue date)\b/i.test(line)
+  );
+  if (detailAnchorIndex < 0) {
+    return null;
+  }
+
+  const candidateLines = lines.slice(detailAnchorIndex + 1, detailAnchorIndex + 12);
+  return candidateLines.find(isLikelyCompanyLine) ?? null;
+}
+
 function hasExpectedCompanyMatch(extractedCompanyName: string | null, context?: VerificationContext): boolean {
   const expectedCompanyName = normalizeCompanyName(context?.companyName ?? null);
   if (!expectedCompanyName) {
     return Boolean(extractedCompanyName);
   }
 
-  return extractedCompanyName === expectedCompanyName;
+  return isCompatibleCompanyName(extractedCompanyName, expectedCompanyName);
 }
 
 function hasExpectedRegistrationMatch(extractedRegistration: string | null, context?: VerificationContext): boolean {
@@ -1366,10 +1449,7 @@ function assessTaxClearanceEvidence(
   const taxPin = extractTaxPin(text);
   const taxpayerReferenceMatch = extractTaxpayerReference(text);
   const taxpayerReference = taxpayerReferenceMatch.normalizedTaxpayerReference;
-  const taxpayerName = extractFirstMatch(text, [
-    /taxpayer name[:\s]+([A-Z0-9][A-Z0-9 '&.,()/-]{2,})/i,
-    /registered name[:\s]+([A-Z0-9][A-Z0-9 '&.,()/-]{2,})/i,
-  ]);
+  const taxpayerName = extractTaxpayerName(text, context);
   const normalizedTaxpayerName = normalizeCompanyName(taxpayerName);
   const taxDateEvidence = buildTaxDateEvidence(text, extractionSource);
   const classification = classifyTaxDocument(text, taxPin);

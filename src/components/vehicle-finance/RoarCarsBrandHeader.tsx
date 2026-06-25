@@ -7,16 +7,16 @@ type RoarCarsNavItem = {
   href: string;
   label: string;
   exact?: boolean;
-  anchor?: boolean;
 };
 
 const NAV_ITEMS: RoarCarsNavItem[] = [
-  { href: "/dashboard/vehicle-finance", label: "Vehicle Dashboard", exact: true },
-  { href: "/dashboard/vehicle-finance/inventory", label: "Vehicle Listings" },
-  { href: "/dashboard/vehicle-finance/inventory", label: "Vehicle Inventory" },
-  { href: "/dashboard/vehicle-finance/customers", label: "Customer Enquiries" },
-  { href: "/dashboard/vehicle-finance/applications", label: "Finance Applications" },
-  { href: "/dashboard/vehicle-finance#executive-overview", label: "Executive Overview", anchor: true },
+  { href: "/dashboard/vehicle-finance", label: "Dashboard", exact: true },
+  { href: "/dashboard/vehicle-finance/inventory", label: "Inventory" },
+  { href: "/dashboard/vehicle-finance/listings", label: "Listings" },
+  { href: "/dashboard/vehicle-finance/applications", label: "Applications" },
+  { href: "/dashboard/vehicle-finance/customers", label: "Customers" },
+  { href: "/dashboard/vehicle-finance/reports", label: "Reports" },
+  { href: "/dashboard/settings", label: "Settings" },
 ];
 
 export default function RoarCarsBrandHeader() {
@@ -44,9 +44,7 @@ export default function RoarCarsBrandHeader() {
 
         <nav aria-label="Roar Cars Vehicle Division" className="flex gap-2 overflow-x-auto pb-1">
           {NAV_ITEMS.map((item) => {
-            const active = item.anchor
-              ? false
-              : item.exact
+            const active = item.exact
                 ? pathname === "/dashboard/vehicle-finance"
                 : pathname.startsWith(item.href);
 
