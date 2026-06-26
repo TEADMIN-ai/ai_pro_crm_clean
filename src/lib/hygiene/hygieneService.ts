@@ -41,6 +41,7 @@ import type {
   HygieneSignature,
   HygieneSite,
   HygieneVehicleInspection,
+  HygieneWorkflowStep,
 } from "@/types/hygiene";
 
 export const HYGIENE_COLLECTIONS = {
@@ -194,7 +195,7 @@ function computeKpis(data: Omit<HygieneDashboardData, "kpis">): HygieneDashboard
   const currentMonth = "2026-06";
   const collectionsDueThisWeek = data.collections.filter((collection) => collection.status === "Scheduled").length;
   const completedThisMonth = data.collections.filter((collection) => collection.status === "Completed" && isInMonth(collection.completedAt, currentMonth)).length;
-  const disposalCertificatesPending = data.manifests.filter((manifest) => manifest.status === "Disposal Pending").length;
+  const disposalCertificatesPending = data.manifests.filter((manifest) => manifest.status === "Disposal Pending" || manifest.status === "Awaiting Disposal").length;
 
   return {
     activeHygieneClients: data.clients.filter((client) => client.status === "Active").length,
@@ -207,6 +208,40 @@ function computeKpis(data: Omit<HygieneDashboardData, "kpis">): HygieneDashboard
     complianceStatus: computeComplianceStatus(data.complianceDocuments),
     monthlyContractRevenue: data.clients.reduce((total, client) => total + client.monthlyRevenue, 0),
   };
+}
+
+function nowIso(): string {
+  return new Date().toISOString();
+}
+
+function nextId(prefix: string): string {
+  return `${prefix}-${Date.now()}`;
+}
+
+function updateWorkflowStep(steps: HygieneWorkflowStep[], label: string): HygieneWorkflowStep[] {
+  const normalized = label.toLowerCase();
+  return steps.map((step) =>
+    step.label.toLowerCase().includes(normalized) || normalized.includes(step.label.toLowerCase())
+      ? { ...step, status: "Completed" }
+      : step
+  );
+}
+
+function withUpdatedAt<T extends { updatedAt?: string }>(record: T): T {
+  return { ...record, updatedAt: nowIso() };
+}
+
+async function updateCollectionPatch(collectionId: string, patch: Partial<HygieneCollection> & Record<string, unknown>): Promise<void> {
+  await getFirebaseAdmin()
+    .collection(HYGIENE_COLLECTIONS.collections)
+    .doc(collectionId)
+    .set({ ...patch, updatedAtServer: FieldValue.serverTimestamp() }, { merge: true });
+}
+
+async function getCollectionUnsafe(collectionId: string): Promise<HygieneCollection> {
+  const snapshot = await getFirebaseAdmin().collection(HYGIENE_COLLECTIONS.collections).doc(collectionId).get();
+  if (!snapshot.exists) throw new Error(`Hygiene collection does not exist: ${collectionId}`);
+  return validateHygieneCollection(snapshot.data());
 }
 
 export async function getHygieneDashboardData(user: AuthorizedUser): Promise<HygieneDashboardData> {
@@ -326,6 +361,20 @@ export async function createHygieneEvidencePhoto(
     { merge: true }
   );
 
+  await recordHygieneJobEvent(user, {
+    eventType: record.category === "Disposal Certificate" ? "disposal_certificate_uploaded" : "evidence_uploaded",
+    clientId: record.clientId,
+    siteId: record.siteId,
+    collectionId: record.collectionId,
+    manifestId: record.manifestId === "Pending" ? null : record.manifestId,
+    notes: `${record.category} uploaded.`,
+    metadata: {
+      photoId: record.photoId,
+      category: record.category,
+      fileUrl: record.fileUrl,
+    },
+  });
+
   return record;
 }
 
@@ -387,18 +436,63 @@ export async function recordHygieneJobEvent(
     updatedAtServer: FieldValue.serverTimestamp(),
   };
 
-  if (event.eventType === "Job Started") {
+  if (event.eventType === "job_started") {
     collectionPatch.status = "In Progress";
+    collectionPatch.workflowSteps = updateWorkflowStep(collection.workflowSteps, "Start collection");
   }
 
-  if (event.eventType === "Arrival Captured") {
+  if (event.eventType === "vehicle_inspection_completed") {
+    collectionPatch.workflowSteps = updateWorkflowStep(collection.workflowSteps, "vehicle");
+  }
+
+  if (event.eventType === "backup_vehicle_assigned") {
+    collectionPatch.backupVehicleUsed = Boolean(event.metadata.backupVehicleUsed);
+    collectionPatch.backupDriverUsed = Boolean(event.metadata.backupDriverUsed);
+    collectionPatch.backupVehicleRegistration = typeof event.metadata.vehicleRegistration === "string" ? event.metadata.vehicleRegistration : null;
+    collectionPatch.backupDriverName = typeof event.metadata.driverName === "string" ? event.metadata.driverName : null;
+    collectionPatch.substitutionReason = typeof event.metadata.reason === "string" ? event.metadata.reason : null;
+    collectionPatch.substitutionApprovedBy = typeof event.metadata.approvedBy === "string" ? event.metadata.approvedBy : null;
+    collectionPatch.substitutionTimestamp = event.timestamp;
+  }
+
+  if (event.eventType === "arrived_on_site") {
     collectionPatch.arrivalTime = event.timestamp;
+    collectionPatch.workflowSteps = updateWorkflowStep(collection.workflowSteps, "arrival");
   }
 
-  if (event.eventType === "Awaiting Disposal") {
+  if (event.eventType === "evidence_uploaded") {
+    const category = typeof event.metadata.category === "string" ? event.metadata.category : "";
+    if (category.includes("Before")) collectionPatch.workflowSteps = updateWorkflowStep(collection.workflowSteps, "before");
+    if (category.includes("Completion") || category.includes("After")) collectionPatch.workflowSteps = updateWorkflowStep(collection.workflowSteps, "completion");
+  }
+
+  if (event.eventType === "checklist_step_completed") {
+    const step = typeof event.metadata.step === "string" ? event.metadata.step : "checklist";
+    collectionPatch.workflowSteps = updateWorkflowStep(collection.workflowSteps, step);
+    if (typeof event.metadata.binCount === "number") {
+      collectionPatch.binCountConfirmed = event.metadata.binCount;
+      collectionPatch.workflowSteps = updateWorkflowStep(collection.workflowSteps, "bin count");
+    }
+  }
+
+  if (event.eventType === "manifest_generated") {
+    collectionPatch.workflowSteps = updateWorkflowStep(collection.workflowSteps, "manifest");
+  }
+
+  if (event.eventType === "signature_captured") {
+    collectionPatch.clientSignatureStatus = "Signature captured";
+    collectionPatch.workflowSteps = updateWorkflowStep(collection.workflowSteps, "signature");
+  }
+
+  if (event.eventType === "awaiting_disposal") {
+    collectionPatch.status = "Awaiting Disposal";
+    collectionPatch.workflowSteps = updateWorkflowStep(collection.workflowSteps, "Complete collection");
+  }
+
+  if (event.eventType === "job_completed") {
     collectionPatch.status = "Completed";
     collectionPatch.completedAt = event.timestamp;
-    collectionPatch.clientSignatureStatus = "Signature captured";
+    collectionPatch.departureTime = event.timestamp;
   }
 
   await getFirebaseAdmin()
@@ -406,13 +500,13 @@ export async function recordHygieneJobEvent(
     .doc(event.collectionId)
     .set(collectionPatch, { merge: true });
 
-  if (event.eventType === "Awaiting Disposal" && event.manifestId) {
+  if (event.eventType === "awaiting_disposal" && event.manifestId) {
     await getFirebaseAdmin()
       .collection(HYGIENE_COLLECTIONS.manifests)
       .doc(event.manifestId)
       .set(
         {
-          status: "Disposal Pending",
+          status: "Awaiting Disposal",
           updatedAt: event.timestamp,
           updatedAtServer: FieldValue.serverTimestamp(),
         },
@@ -448,7 +542,7 @@ export async function createHygieneSignature(
   );
 
   await recordHygieneJobEvent(user, {
-    eventType: "Signature Captured",
+    eventType: "signature_captured",
     clientId: signature.clientId,
     siteId: signature.siteId,
     collectionId: signature.collectionId,
@@ -462,4 +556,327 @@ export async function createHygieneSignature(
   });
 
   return signature;
+}
+
+export async function upsertHygieneClient(user: AuthorizedUser, input: Partial<HygieneClient>): Promise<HygieneClient> {
+  assertHygieneAdminAccess(user);
+  const timestamp = nowIso();
+  const record = validateHygieneClient({
+    clientId: input.clientId || nextId("TE-CLI"),
+    clientName: input.clientName || "New Hygiene Client",
+    clientType: input.clientType || "Hygiene Client",
+    companyRegistration: input.companyRegistration || "Pending",
+    primaryContactName: input.primaryContactName || "Pending",
+    primaryContactPhone: input.primaryContactPhone || "Pending",
+    primaryContactEmail: input.primaryContactEmail || "pending@example.com",
+    billingContact: input.billingContact || input.primaryContactName || "Pending",
+    contractStartDate: input.contractStartDate || timestamp.slice(0, 10),
+    contractEndDate: input.contractEndDate || timestamp.slice(0, 10),
+    serviceFrequency: input.serviceFrequency || "Weekly",
+    collectionDay: input.collectionDay || "Friday",
+    collectionWindow: input.collectionWindow || "After 13:00",
+    paymentStatus: input.paymentStatus || "Pending",
+    status: input.status || "Active",
+    monthlyRevenue: typeof input.monthlyRevenue === "number" ? input.monthlyRevenue : 2100,
+    createdAt: input.createdAt || timestamp,
+    updatedAt: timestamp,
+  });
+  await setValidatedRecord(HYGIENE_COLLECTIONS.clients, record.clientId, record);
+  return record;
+}
+
+export async function upsertHygieneSite(user: AuthorizedUser, input: Partial<HygieneSite>): Promise<HygieneSite> {
+  assertHygieneAdminAccess(user);
+  const record = validateHygieneSite({
+    siteId: input.siteId || nextId("TE-SIT"),
+    clientId: input.clientId || "TE-CLI-0001",
+    siteName: input.siteName || "New Site",
+    address: input.address || "Address pending",
+    suburb: input.suburb || "Roodepoort",
+    city: input.city || "Roodepoort",
+    contactPerson: input.contactPerson || "CBAVO Services",
+    contactPhone: input.contactPhone || "Pending",
+    binCount: typeof input.binCount === "number" ? input.binCount : 1,
+    binSize: input.binSize || "12L",
+    serviceFrequency: input.serviceFrequency || "Weekly",
+    accessNotes: input.accessNotes || "Access notes pending.",
+    lastServiceDate: input.lastServiceDate ?? null,
+    nextServiceDate: input.nextServiceDate ?? null,
+    status: input.status || "Active",
+  });
+  await assertRecordGraph({ clientId: record.clientId });
+  await setValidatedRecord(HYGIENE_COLLECTIONS.sites, record.siteId, record);
+  return record;
+}
+
+export async function upsertHygieneAsset(user: AuthorizedUser, input: Partial<HygieneBinAsset>): Promise<HygieneBinAsset> {
+  assertHygieneAdminAccess(user);
+  const record = validateHygieneBinAsset({
+    assetId: input.assetId || nextId("TE-BIN"),
+    clientId: input.clientId || "TE-CLI-0001",
+    siteId: input.siteId || "TE-SIT-0001",
+    binSize: input.binSize || "12L",
+    binType: input.binType || "Sanitary hygiene bin",
+    locationDescription: input.locationDescription || "Service point pending",
+    status: input.status || "Active",
+    installDate: input.installDate || nowIso().slice(0, 10),
+    lastServiceDate: input.lastServiceDate ?? null,
+    nextServiceDate: input.nextServiceDate ?? null,
+    condition: input.condition || "Serviceable",
+    notes: input.notes || "Operational asset update.",
+  });
+  await assertRecordGraph({ clientId: record.clientId, siteId: record.siteId });
+  await setValidatedRecord(HYGIENE_COLLECTIONS.assets, record.assetId, record);
+  return record;
+}
+
+export async function upsertHygieneCollection(user: AuthorizedUser, input: Partial<HygieneCollection>): Promise<HygieneCollection> {
+  assertHygieneAdminAccess(user);
+  const timestamp = nowIso();
+  const record = validateHygieneCollection({
+    collectionId: input.collectionId || nextId("TE-COL"),
+    clientId: input.clientId || "TE-CLI-0001",
+    siteId: input.siteId || "TE-SIT-0001",
+    scheduledDate: input.scheduledDate || timestamp.slice(0, 10),
+    scheduledTimeWindow: input.scheduledTimeWindow || "After 13:00",
+    assignedDriver: input.assignedDriver || "Unassigned",
+    assignedUserIds: input.assignedUserIds || [],
+    vehicleRegistration: input.vehicleRegistration || "Unassigned",
+    vehicleName: input.vehicleName || "Unassigned vehicle",
+    status: input.status || "Scheduled",
+    arrivalTime: input.arrivalTime ?? null,
+    departureTime: input.departureTime ?? null,
+    completedAt: input.completedAt ?? null,
+    manifestId: input.manifestId || "Pending",
+    evidencePhotoIds: input.evidencePhotoIds || [],
+    clientSignatureStatus: input.clientSignatureStatus || "Pending",
+    notes: input.notes || "Operational collection update.",
+    workflowSteps: input.workflowSteps || [],
+    backupVehicleUsed: input.backupVehicleUsed,
+    backupDriverUsed: input.backupDriverUsed,
+    backupVehicleRegistration: input.backupVehicleRegistration,
+    backupDriverName: input.backupDriverName,
+    substitutionReason: input.substitutionReason,
+    substitutionApprovedBy: input.substitutionApprovedBy,
+    substitutionTimestamp: input.substitutionTimestamp,
+    binCountConfirmed: input.binCountConfirmed,
+    adminOverrideReason: input.adminOverrideReason,
+  });
+  await assertRecordGraph({ clientId: record.clientId, siteId: record.siteId });
+  await setValidatedRecord(HYGIENE_COLLECTIONS.collections, record.collectionId, record);
+  return record;
+}
+
+export async function assignHygieneBackupTransport(user: AuthorizedUser, input: {
+  collectionId: string;
+  backupVehicleUsed?: boolean;
+  backupDriverUsed?: boolean;
+  vehicleRegistration: string;
+  driverName: string;
+  reason: string;
+  approvedBy: string;
+}): Promise<HygieneCollection> {
+  assertHygieneAdminAccess(user);
+  const collection = await getCollectionUnsafe(input.collectionId);
+  const timestamp = nowIso();
+  await updateCollectionPatch(input.collectionId, {
+    assignedDriver: input.driverName,
+    vehicleRegistration: input.vehicleRegistration,
+    vehicleName: input.backupVehicleUsed ? "Backup transport" : collection.vehicleName,
+    backupVehicleUsed: Boolean(input.backupVehicleUsed),
+    backupDriverUsed: Boolean(input.backupDriverUsed),
+    backupVehicleRegistration: input.vehicleRegistration,
+    backupDriverName: input.driverName,
+    substitutionReason: input.reason,
+    substitutionApprovedBy: input.approvedBy,
+    substitutionTimestamp: timestamp,
+    notes: `${collection.notes}\nBackup transport used for this CBAVO collection due to primary vehicle unavailability. Collection authorised by Torque Empire management.`,
+  });
+  await recordHygieneJobEvent(user, {
+    eventType: "backup_vehicle_assigned",
+    clientId: collection.clientId,
+    siteId: collection.siteId,
+    collectionId: collection.collectionId,
+    manifestId: collection.manifestId === "Pending" ? null : collection.manifestId,
+    notes: input.reason,
+    metadata: {
+      backupVehicleUsed: Boolean(input.backupVehicleUsed),
+      backupDriverUsed: Boolean(input.backupDriverUsed),
+      vehicleRegistration: input.vehicleRegistration,
+      driverName: input.driverName,
+      reason: input.reason,
+      approvedBy: input.approvedBy,
+    },
+  });
+  return getCollectionUnsafe(input.collectionId);
+}
+
+export async function generateHygieneManifest(user: AuthorizedUser, collectionId: string): Promise<HygieneManifest> {
+  assertHygieneStaffMutationAccess(user);
+  const collection = await getCollectionForWorkflow(collectionId, user);
+  const siteSnapshot = await getFirebaseAdmin().collection(HYGIENE_COLLECTIONS.sites).doc(collection.siteId).get();
+  const site = validateHygieneSite(siteSnapshot.data());
+  const timestamp = nowIso();
+  const manifestId = collection.manifestId !== "Pending" ? collection.manifestId : nextId("TE-WM");
+  const record = validateHygieneManifest({
+    manifestId,
+    collectionId: collection.collectionId,
+    clientId: collection.clientId,
+    siteId: collection.siteId,
+    generatorRegistration: "GPG-15-793",
+    transportRegistration: "GPT-15-858",
+    wasteClassification: "HW19",
+    wasteType: "Sanitary/Feminine Hygiene Waste",
+    quantity: collection.binCountConfirmed ?? site.binCount,
+    unit: "12L bins",
+    collectionDate: collection.scheduledDate,
+    collectedBy: collection.assignedDriver,
+    vehicleRegistration: collection.vehicleRegistration,
+    disposalFacility: "Disposal facility not yet captured",
+    disposalDate: null,
+    disposalCertificateNo: "Disposal certificate pending",
+    status: "Generated",
+    createdAt: timestamp,
+    updatedAt: timestamp,
+  });
+  await setValidatedRecord(HYGIENE_COLLECTIONS.manifests, record.manifestId, record);
+  await updateCollectionPatch(collection.collectionId, { manifestId: record.manifestId });
+  await recordHygieneJobEvent(user, {
+    eventType: "manifest_generated",
+    clientId: record.clientId,
+    siteId: record.siteId,
+    collectionId: record.collectionId,
+    manifestId: record.manifestId,
+    notes: `Manifest ${record.manifestId} generated.`,
+    metadata: { manifestId: record.manifestId },
+  });
+  return record;
+}
+
+export async function updateHygieneManifest(user: AuthorizedUser, input: Partial<HygieneManifest> & { manifestId: string }): Promise<HygieneManifest> {
+  assertHygieneStaffMutationAccess(user);
+  const existingSnapshot = await getFirebaseAdmin().collection(HYGIENE_COLLECTIONS.manifests).doc(input.manifestId).get();
+  const existing = existingSnapshot.exists ? validateHygieneManifest(existingSnapshot.data()) : null;
+  if (!existing) throw new Error(`Hygiene manifest does not exist: ${input.manifestId}`);
+  const record = validateHygieneManifest(withUpdatedAt({ ...existing, ...input }));
+  await setValidatedRecord(HYGIENE_COLLECTIONS.manifests, record.manifestId, record);
+  await recordHygieneJobEvent(user, {
+    eventType: record.status === "Certified" ? "disposal_certificate_uploaded" : "manifest_status_updated",
+    clientId: record.clientId,
+    siteId: record.siteId,
+    collectionId: record.collectionId,
+    manifestId: record.manifestId,
+    notes: `Manifest ${record.manifestId} moved to ${record.status}.`,
+    metadata: { status: record.status, disposalFacility: record.disposalFacility, disposalCertificateNo: record.disposalCertificateNo },
+  });
+  return record;
+}
+
+export async function upsertHygieneComplianceDocument(user: AuthorizedUser, input: Partial<HygieneComplianceDocument>): Promise<HygieneComplianceDocument> {
+  assertHygieneAdminAccess(user);
+  const timestamp = nowIso();
+  const record = validateHygieneComplianceDocument({
+    documentId: input.documentId || nextId("TE-HC"),
+    documentType: input.documentType || "Compliance Document",
+    title: input.title || input.documentType || "Compliance Document",
+    registrationNumber: input.registrationNumber || "Pending",
+    issueDate: input.issueDate ?? null,
+    expiryDate: input.expiryDate ?? null,
+    status: input.status || "Pending",
+    fileUrl: input.fileUrl ?? null,
+    owner: input.owner || "Torque Empire",
+    uploadedAt: input.uploadedAt ?? timestamp,
+    storagePath: input.storagePath ?? null,
+  });
+  await setValidatedRecord(HYGIENE_COLLECTIONS.complianceDocuments, record.documentId, record);
+  return record;
+}
+
+export async function generateHygieneMonthlyReport(user: AuthorizedUser, period: string): Promise<HygieneReport> {
+  assertHygieneAdminAccess(user);
+  const data = await getHygieneDashboardData(user);
+  const collections = data.collections.filter((collection) => collection.scheduledDate.startsWith(period) || collection.completedAt?.startsWith(period));
+  const collectionIds = new Set(collections.map((collection) => collection.collectionId));
+  const siteIds = new Set(collections.map((collection) => collection.siteId));
+  const manifests = data.manifests.filter((manifest) => collectionIds.has(manifest.collectionId));
+  const evidence = data.evidencePhotos.filter((photo) => collectionIds.has(photo.collectionId));
+  const report = validateHygieneReport({
+    reportId: `TE-HR-${period}`,
+    period,
+    collectionsCompleted: collections.filter((collection) => collection.status === "Completed").length,
+    sitesServiced: siteIds.size,
+    totalBinsServiced: manifests.reduce((total, manifest) => total + manifest.quantity, 0),
+    manifestsCreated: manifests.length,
+    disposalCertificatesPending: manifests.filter((manifest) => manifest.status !== "Certified").length,
+    incidents: evidence.filter((photo) => photo.category === "Incident Photo").length,
+    evidenceCompletionPercentage: collections.length ? Math.round((evidence.length / Math.max(collections.length * 4, 1)) * 100) : 0,
+    revenueSummary: data.clients.reduce((total, client) => total + client.monthlyRevenue, 0),
+    createdAt: nowIso(),
+  });
+  await setValidatedRecord(HYGIENE_COLLECTIONS.reports, report.reportId, report);
+  return report;
+}
+
+export async function completeHygieneDriverAction(user: AuthorizedUser, input: {
+  collectionId: string;
+  action: string;
+  notes?: string;
+  metadata?: Record<string, unknown>;
+}): Promise<HygieneJobEvent> {
+  const collection = await getCollectionForWorkflow(input.collectionId, user);
+  const events = await listCollection<HygieneJobEvent>(HYGIENE_COLLECTIONS.jobEvents);
+  const collectionEvents = events.filter((event) => event.collectionId === input.collectionId);
+  const hasEvent = (eventType: HygieneJobEvent["eventType"], predicate?: (event: HygieneJobEvent) => boolean) =>
+    collectionEvents.some((event) => event.eventType === eventType && (!predicate || predicate(event)));
+  const metadata = input.metadata ?? {};
+
+  const eventTypeByAction: Record<string, HygieneJobEvent["eventType"]> = {
+    "start-collection": "job_started",
+    "vehicle-inspection": "vehicle_inspection_completed",
+    "confirm-arrival": "arrived_on_site",
+    "before-photo": "evidence_uploaded",
+    "record-bin-count": "checklist_step_completed",
+    "bag-removed": "checklist_step_completed",
+    "liner-installed": "checklist_step_completed",
+    "bin-sanitised": "checklist_step_completed",
+    "after-photo": "evidence_uploaded",
+    "capture-signature": "signature_captured",
+    "generate-manifest": "manifest_generated",
+    "awaiting-disposal": "awaiting_disposal",
+    "complete-job": "job_completed",
+  };
+  const eventType = eventTypeByAction[input.action];
+  if (!eventType) throw new Error("Unsupported hygiene driver action.");
+
+  if (input.action === "confirm-arrival" && collection.status !== "In Progress") {
+    throw new Error("Cannot confirm arrival before starting the collection.");
+  }
+  if (input.action === "complete-job") {
+    const overrideReason = typeof metadata.adminOverrideReason === "string" ? metadata.adminOverrideReason.trim() : "";
+    if (!hasEvent("evidence_uploaded", (event) => event.metadata.category === "Bin Before Service") && !overrideReason) {
+      throw new Error("Cannot complete job without before photo.");
+    }
+    if (!hasEvent("evidence_uploaded", (event) => event.metadata.category === "Completion Photo") && !overrideReason) {
+      throw new Error("Cannot complete job without after photo.");
+    }
+    if (typeof collection.binCountConfirmed !== "number" && typeof metadata.binCount !== "number" && !overrideReason) {
+      throw new Error("Cannot complete job without bin count.");
+    }
+    if (collection.clientSignatureStatus !== "Signature captured" && !overrideReason) {
+      throw new Error("Cannot complete job without signature unless admin override reason is provided.");
+    }
+    if (overrideReason) {
+      await updateCollectionPatch(collection.collectionId, { adminOverrideReason: overrideReason });
+    }
+  }
+
+  return recordHygieneJobEvent(user, {
+    eventType,
+    clientId: collection.clientId,
+    siteId: collection.siteId,
+    collectionId: collection.collectionId,
+    manifestId: collection.manifestId === "Pending" ? null : collection.manifestId,
+    notes: input.notes || `Driver workflow action: ${input.action}`,
+    metadata,
+  });
 }

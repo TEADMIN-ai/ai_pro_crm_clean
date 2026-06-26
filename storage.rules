@@ -42,6 +42,10 @@ service firebase.storage {
       allow read, write: if isHygieneInternal();
     }
 
+    match /hygiene/compliance/{documentId}/{allPaths=**} {
+      allow read, write: if isHygieneInternal();
+    }
+
     match /{allPaths=**} {
       allow read, write: if false;
     }

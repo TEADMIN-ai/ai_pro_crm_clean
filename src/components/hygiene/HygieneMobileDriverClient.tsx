@@ -112,6 +112,8 @@ export default function HygieneMobileDriverClient({
   const [busy, setBusy] = useState<string | null>(null);
   const [signatureName, setSignatureName] = useState("");
   const [signaturePosition, setSignaturePosition] = useState("");
+  const [binCount, setBinCount] = useState("0");
+  const [adminOverrideReason, setAdminOverrideReason] = useState("");
   const signatureCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const drawingRef = useRef(false);
 
@@ -241,7 +243,7 @@ export default function HygieneMobileDriverClient({
       });
       const payload = (await response.json()) as { error?: string };
       if (!response.ok) throw new Error(payload.error ?? "Photo upload failed.");
-      await submitEvent({ action: category.includes("Before") ? "before-photo" : "after-photo", notes: `${category} uploaded.` }, category);
+      await submitEvent({ action: category.includes("Before") ? "before-photo" : "after-photo", notes: `${category} uploaded.`, category }, category);
     } catch (uploadError) {
       setError(uploadError instanceof Error ? uploadError.message : "Photo upload failed.");
     } finally {
@@ -392,21 +394,38 @@ export default function HygieneMobileDriverClient({
 
           {view === "job-detail" ? (
             <>
-              <ActionButton onClick={() => submitEvent({ action: "start-job" }, "Start job")} disabled={busy !== null}>1. Start job</ActionButton>
-              <ActionButton onClick={captureArrival} disabled={busy !== null}>2. Capture arrival time and GPS</ActionButton>
+              <Link className="min-h-12 rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3 text-sm font-bold text-white" href={`/dashboard/hygiene/jobs/${selectedCollection.collectionId}`}>Open Job</Link>
+              <ActionButton onClick={() => submitEvent({ action: "start-collection" }, "Start collection")} disabled={busy !== null}>Start Collection</ActionButton>
+              <ActionButton onClick={() => submitEvent({ action: "vehicle-inspection", notes: "Vehicle inspection completed from mobile workflow." }, "Vehicle inspection")} disabled={busy !== null}>Complete Vehicle Inspection</ActionButton>
+              <ActionButton onClick={captureArrival} disabled={busy !== null}>Confirm Site Arrival</ActionButton>
               <label className="min-h-12 rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3 text-sm font-bold">
-                3. Upload before-service photo
+                Capture Before Photo
                 <input className="hidden" type="file" accept="image/*" capture="environment" onChange={(event) => void uploadPhoto(event, "Bin Before Service")} />
               </label>
-              <ActionButton onClick={() => submitEvent({ action: "checklist", checklist: { linerRemoved: true, bagSealed: true, transportContainerLoaded: true } }, "Checklist")} disabled={busy !== null}>4. Complete service checklist</ActionButton>
+              <div className="grid gap-2 rounded-2xl border border-white/10 bg-white/[0.05] p-4">
+                <label className="grid gap-1 text-sm font-bold text-white">
+                  Record Bin Count
+                  <input inputMode="numeric" value={binCount} onChange={(event) => setBinCount(event.target.value)} className="rounded-xl border border-white/10 bg-slate-950/70 px-4 py-3 text-white" />
+                </label>
+                <ActionButton onClick={() => submitEvent({ action: "record-bin-count", quantity: Number(binCount) || 0, notes: `${Number(binCount) || 0} bins recorded.` }, "Record bin count")} disabled={busy !== null}>Save Bin Count</ActionButton>
+              </div>
+              <ActionButton onClick={() => submitEvent({ action: "bag-removed", checklist: { bagRemoved: true }, notes: "Bag removed and sealed." }, "Bag removed")} disabled={busy !== null}>Confirm Bag Removed</ActionButton>
+              <ActionButton onClick={() => submitEvent({ action: "liner-installed", checklist: { newLinerInstalled: true }, notes: "New liner installed." }, "New liner installed")} disabled={busy !== null}>Confirm New Liner Installed</ActionButton>
+              <ActionButton onClick={() => submitEvent({ action: "bin-sanitised", checklist: { binSanitised: true }, notes: "Bin sanitised." }, "Bin sanitised")} disabled={busy !== null}>Confirm Bin Sanitised</ActionButton>
               <label className="min-h-12 rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3 text-sm font-bold">
-                5. Upload completion photo
+                Capture After Photo
                 <input className="hidden" type="file" accept="image/*" capture="environment" onChange={(event) => void uploadPhoto(event, "Completion Photo")} />
               </label>
-              <ActionButton onClick={() => submitEvent({ action: "quantity", quantity: selectedManifest?.quantity ?? 0 }, "Quantity")} disabled={busy !== null}>6. Confirm quantity collected</ActionButton>
-              <ActionButton onClick={() => submitEvent({ action: "manifest", manifestId: selectedManifest?.manifestId ?? selectedCollection.manifestId }, "Manifest")} disabled={busy !== null}>7. Generate or attach manifest</ActionButton>
-              <Link className="rounded-2xl border border-cyan-300/25 bg-cyan-400/18 px-4 py-3 text-sm font-bold text-cyan-50" href="/dashboard/hygiene/signatures">8. Capture client signature</Link>
-              <ActionButton tone="warning" onClick={() => submitEvent({ action: "awaiting-disposal" }, "Awaiting disposal")} disabled={busy !== null}>9. Mark collection as Awaiting Disposal</ActionButton>
+              <Link className="rounded-2xl border border-cyan-300/25 bg-cyan-400/18 px-4 py-3 text-sm font-bold text-cyan-50" href="/dashboard/hygiene/signatures">Capture Client Signature</Link>
+              <ActionButton onClick={() => submitEvent({ action: "generate-manifest", manifestId: selectedManifest?.manifestId ?? selectedCollection.manifestId }, "Generate manifest")} disabled={busy !== null}>Generate Manifest</ActionButton>
+              <ActionButton tone="warning" onClick={() => submitEvent({ action: "awaiting-disposal" }, "Awaiting disposal")} disabled={busy !== null}>Mark Awaiting Disposal</ActionButton>
+              <div className="grid gap-2 rounded-2xl border border-white/10 bg-white/[0.05] p-4">
+                <label className="grid gap-1 text-sm font-bold text-white">
+                  Admin override reason, if signature/photo validation must be overridden
+                  <textarea value={adminOverrideReason} onChange={(event) => setAdminOverrideReason(event.target.value)} className="min-h-24 rounded-xl border border-white/10 bg-slate-950/70 px-4 py-3 text-white" />
+                </label>
+                <ActionButton onClick={() => submitEvent({ action: "complete-job", adminOverrideReason, notes: "Driver completed job workflow." }, "Complete job")} disabled={busy !== null}>Complete Job</ActionButton>
+              </div>
             </>
           ) : null}
 

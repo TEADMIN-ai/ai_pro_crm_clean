@@ -5,8 +5,8 @@ export type HygieneAccessMode = "internal" | "clientPortal";
 export type HygieneClientStatus = "Active" | "Pending" | "Inactive" | "Suspended";
 export type HygienePaymentStatus = "Paid" | "Pending" | "Overdue";
 export type HygieneAssetStatus = "Active" | "Pending" | "In Maintenance" | "Retired";
-export type HygieneCollectionStatus = "Scheduled" | "In Progress" | "Completed" | "Overdue" | "Cancelled";
-export type HygieneManifestStatus = "Draft" | "Disposal Pending" | "Certificate Received" | "Completed";
+export type HygieneCollectionStatus = "Scheduled" | "In Progress" | "Awaiting Disposal" | "Completed" | "Overdue" | "Cancelled" | "Rescheduled";
+export type HygieneManifestStatus = "Draft" | "Generated" | "In Transit" | "Awaiting Disposal" | "Disposed" | "Certified" | "Disposal Pending" | "Certificate Received" | "Completed";
 export type HygieneComplianceStatus = "Compliance Green" | "Compliance Warning" | "Compliance Expired";
 export type HygieneDocumentStatus = "Active" | "Pending" | "Compliance Green" | "Compliance Warning" | "Compliance Expired";
 export type HygieneInspectionStatus = "Passed" | "Failed" | "Action Required";
@@ -21,7 +21,10 @@ export type HygienePhotoCategory =
   | "Transport Container"
   | "Vehicle Loading"
   | "Team Photo"
-  | "Completion Photo";
+  | "Completion Photo"
+  | "Disposal Certificate"
+  | "Scale Ticket"
+  | "Incident Photo";
 
 export const HYGIENE_PHOTO_CATEGORIES: HygienePhotoCategory[] = [
   "Site Arrival",
@@ -34,6 +37,9 @@ export const HYGIENE_PHOTO_CATEGORIES: HygienePhotoCategory[] = [
   "Vehicle Loading",
   "Team Photo",
   "Completion Photo",
+  "Disposal Certificate",
+  "Scale Ticket",
+  "Incident Photo",
 ];
 
 export interface HygieneClient {
@@ -109,19 +115,32 @@ export interface HygieneCollection {
   clientSignatureStatus: string;
   notes: string;
   workflowSteps: HygieneWorkflowStep[];
+  backupVehicleUsed?: boolean;
+  backupDriverUsed?: boolean;
+  backupVehicleRegistration?: string | null;
+  backupDriverName?: string | null;
+  substitutionReason?: string | null;
+  substitutionApprovedBy?: string | null;
+  substitutionTimestamp?: string | null;
+  binCountConfirmed?: number | null;
+  adminOverrideReason?: string | null;
 }
 
 export type HygieneJobEventType =
-  | "Vehicle Inspection Completed"
-  | "Job Started"
-  | "Arrival Captured"
-  | "Before Photos Uploaded"
-  | "Checklist Completed"
-  | "After Photos Uploaded"
-  | "Quantity Confirmed"
-  | "Manifest Attached"
-  | "Signature Captured"
-  | "Awaiting Disposal";
+  | "job_started"
+  | "vehicle_inspection_completed"
+  | "backup_vehicle_assigned"
+  | "arrived_on_site"
+  | "evidence_uploaded"
+  | "checklist_step_completed"
+  | "manifest_generated"
+  | "signature_captured"
+  | "awaiting_disposal"
+  | "disposal_certificate_uploaded"
+  | "job_completed"
+  | "collection_rescheduled"
+  | "collection_cancelled"
+  | "manifest_status_updated";
 
 export interface HygieneJobEvent {
   eventId: string;
@@ -233,6 +252,7 @@ export interface HygieneComplianceDocument {
   fileUrl: string | null;
   owner: string;
   uploadedAt: string | null;
+  storagePath?: string | null;
 }
 
 export interface HygieneReport {

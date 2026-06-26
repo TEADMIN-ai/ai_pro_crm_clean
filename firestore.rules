@@ -35,7 +35,11 @@ service cloud.firestore {
     }
 
     function isHygieneStaffMutation() {
-      return role() in ["admin", "manager", "staff", "driver"];
+      return role() in ["admin", "manager", "staff"];
+    }
+
+    function isHygieneDriverMutation() {
+      return role() == "driver";
     }
 
     function isContractorOwner(value) {
@@ -191,19 +195,22 @@ service cloud.firestore {
 
     match /hygieneEvidence/{docId} {
       allow read: if isSignedIn() && isHygieneInternal();
-      allow create, update: if isSignedIn() && isHygieneStaffMutation();
+      allow create: if isSignedIn() && (isHygieneStaffMutation() || isHygieneDriverMutation());
+      allow update: if isSignedIn() && isHygieneStaffMutation();
       allow delete: if isSignedIn() && isHygieneAdmin();
     }
 
     match /hygieneVehicleInspections/{docId} {
       allow read: if isSignedIn() && isHygieneInternal();
-      allow create, update: if isSignedIn() && isHygieneStaffMutation();
+      allow create: if isSignedIn() && (isHygieneStaffMutation() || isHygieneDriverMutation());
+      allow update: if isSignedIn() && isHygieneStaffMutation();
       allow delete: if isSignedIn() && isHygieneAdmin();
     }
 
     match /hygieneDriverLogs/{docId} {
       allow read: if isSignedIn() && isHygieneInternal();
-      allow create, update: if isSignedIn() && isHygieneStaffMutation();
+      allow create: if isSignedIn() && (isHygieneStaffMutation() || isHygieneDriverMutation());
+      allow update: if isSignedIn() && isHygieneStaffMutation();
       allow delete: if isSignedIn() && isHygieneAdmin();
     }
 
@@ -219,13 +226,13 @@ service cloud.firestore {
 
     match /hygieneJobEvents/{docId} {
       allow read: if isSignedIn() && isHygieneInternal();
-      allow create: if isSignedIn() && isHygieneStaffMutation();
+      allow create: if isSignedIn() && (isHygieneStaffMutation() || isHygieneDriverMutation());
       allow update, delete: if isSignedIn() && isHygieneAdmin();
     }
 
     match /hygieneSignatures/{docId} {
       allow read: if isSignedIn() && isHygieneInternal();
-      allow create: if isSignedIn() && isHygieneStaffMutation();
+      allow create: if isSignedIn() && (isHygieneStaffMutation() || isHygieneDriverMutation());
       allow update, delete: if isSignedIn() && isHygieneAdmin();
     }
   }

@@ -45,6 +45,19 @@ function optionalString(record: Record<string, unknown>, field: string): string 
   return value.trim();
 }
 
+function optionalBoolean(record: Record<string, unknown>, field: string): boolean | undefined {
+  const value = record[field];
+  if (value === null || value === undefined || value === "") {
+    return undefined;
+  }
+
+  if (typeof value !== "boolean") {
+    throw new Error(`Invalid hygiene payload: ${field} must be true or false.`);
+  }
+
+  return value;
+}
+
 function requireNumber(record: Record<string, unknown>, field: string): number {
   const value = record[field];
   if (typeof value !== "number" || Number.isNaN(value)) {
@@ -194,6 +207,15 @@ export function validateHygieneCollection(input: unknown): HygieneCollection {
     clientSignatureStatus: requireString(record, "clientSignatureStatus"),
     notes: requireString(record, "notes"),
     workflowSteps: validateWorkflowSteps(record),
+    backupVehicleUsed: optionalBoolean(record, "backupVehicleUsed"),
+    backupDriverUsed: optionalBoolean(record, "backupDriverUsed"),
+    backupVehicleRegistration: optionalString(record, "backupVehicleRegistration"),
+    backupDriverName: optionalString(record, "backupDriverName"),
+    substitutionReason: optionalString(record, "substitutionReason"),
+    substitutionApprovedBy: optionalString(record, "substitutionApprovedBy"),
+    substitutionTimestamp: optionalString(record, "substitutionTimestamp"),
+    binCountConfirmed: optionalNumber(record, "binCountConfirmed"),
+    adminOverrideReason: optionalString(record, "adminOverrideReason"),
   };
 }
 
@@ -327,6 +349,7 @@ export function validateHygieneComplianceDocument(input: unknown): HygieneCompli
     fileUrl: optionalString(record, "fileUrl"),
     owner: requireString(record, "owner"),
     uploadedAt: optionalString(record, "uploadedAt"),
+    storagePath: optionalString(record, "storagePath"),
   };
 }
 

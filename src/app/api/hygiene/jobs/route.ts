@@ -1,23 +1,30 @@
 import { randomUUID } from "crypto";
 import { NextResponse, type NextRequest } from "next/server";
 import { getFirebaseStorageBucket } from "@/lib/firebase/admin";
-import { createHygieneSignature, getHygieneMobileJobs, recordHygieneJobEvent } from "@/lib/hygiene/hygieneService";
+import { completeHygieneDriverAction, createHygieneSignature, generateHygieneManifest, getHygieneMobileJobs } from "@/lib/hygiene/hygieneService";
 import { AuthorizationError, requireAuthorizedUser } from "@/lib/server/authz";
-import type { HygieneJobEventType } from "@/types/hygiene";
 
 export const dynamic = "force-dynamic";
 
 type JobAction =
   | "vehicle-inspection"
   | "start-job"
+  | "start-collection"
   | "arrival"
+  | "confirm-arrival"
   | "before-photo"
   | "checklist"
+  | "record-bin-count"
+  | "bag-removed"
+  | "liner-installed"
+  | "bin-sanitised"
   | "after-photo"
   | "quantity"
   | "manifest"
+  | "generate-manifest"
   | "signature"
-  | "awaiting-disposal";
+  | "awaiting-disposal"
+  | "complete-job";
 
 type JobPayload = {
   action?: JobAction;
@@ -28,6 +35,8 @@ type JobPayload = {
   quantity?: number;
   manifestId?: string;
   checklist?: Record<string, boolean>;
+  category?: string;
+  adminOverrideReason?: string;
   representativeName?: string;
   representativePosition?: string;
   signatureDataUrl?: string;
@@ -49,31 +58,6 @@ function requireString(value: unknown, label: string): string {
   }
 
   return value.trim();
-}
-
-function eventTypeForAction(action: JobAction): HygieneJobEventType {
-  switch (action) {
-    case "vehicle-inspection":
-      return "Vehicle Inspection Completed";
-    case "start-job":
-      return "Job Started";
-    case "arrival":
-      return "Arrival Captured";
-    case "before-photo":
-      return "Before Photos Uploaded";
-    case "checklist":
-      return "Checklist Completed";
-    case "after-photo":
-      return "After Photos Uploaded";
-    case "quantity":
-      return "Quantity Confirmed";
-    case "manifest":
-      return "Manifest Attached";
-    case "signature":
-      return "Signature Captured";
-    case "awaiting-disposal":
-      return "Awaiting Disposal";
-  }
 }
 
 function decodeDataUrl(dataUrl: string): { buffer: Buffer; contentType: string } {
@@ -135,7 +119,7 @@ export async function POST(request: NextRequest) {
     const action = requireString(body.action, "action") as JobAction;
     const collectionId = requireString(body.collectionId, "collectionId");
 
-    if (!["vehicle-inspection", "start-job", "arrival", "before-photo", "checklist", "after-photo", "quantity", "manifest", "signature", "awaiting-disposal"].includes(action)) {
+    if (!["vehicle-inspection", "start-job", "start-collection", "arrival", "confirm-arrival", "before-photo", "checklist", "record-bin-count", "bag-removed", "liner-installed", "bin-sanitised", "after-photo", "quantity", "manifest", "generate-manifest", "signature", "awaiting-disposal", "complete-job"].includes(action)) {
       return NextResponse.json({ error: "Unsupported mobile job action." }, { status: 400 });
     }
 
@@ -173,19 +157,32 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: true, signature });
     }
 
-    const event = await recordHygieneJobEvent(user, {
-      eventType: eventTypeForAction(action),
-      clientId: "",
-      siteId: "",
+    if (action === "manifest" || action === "generate-manifest") {
+      const manifest = await generateHygieneManifest(user, collectionId);
+      return NextResponse.json({ success: true, manifest });
+    }
+
+    const normalizedAction =
+      action === "start-job" ? "start-collection"
+      : action === "arrival" ? "confirm-arrival"
+      : action === "checklist" ? "bag-removed"
+      : action === "quantity" ? "record-bin-count"
+      : action;
+
+    const event = await completeHygieneDriverAction(user, {
       collectionId,
-      manifestId: typeof body.manifestId === "string" ? body.manifestId : null,
-      notes: typeof body.notes === "string" && body.notes.trim() ? body.notes.trim() : `Mobile workflow action: ${action}`,
+      action: normalizedAction,
+      notes: typeof body.notes === "string" && body.notes.trim() ? body.notes.trim() : `Mobile workflow action: ${normalizedAction}`,
       metadata: {
         latitude: typeof body.latitude === "number" ? body.latitude : null,
         longitude: typeof body.longitude === "number" ? body.longitude : null,
+        binCount: typeof body.quantity === "number" ? body.quantity : null,
         quantity: typeof body.quantity === "number" ? body.quantity : null,
         manifestId: typeof body.manifestId === "string" ? body.manifestId : null,
         checklist: body.checklist ?? {},
+        category: typeof body.category === "string" ? body.category : null,
+        step: normalizedAction,
+        adminOverrideReason: typeof body.adminOverrideReason === "string" ? body.adminOverrideReason : "",
       },
     });
 
