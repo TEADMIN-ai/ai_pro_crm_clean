@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { authFetch } from "@/lib/client/authFetch";
+import { API_ROUTES } from "@/lib/routes";
 
 type UploadState = "idle" | "uploading" | "complete" | "error";
 
@@ -15,7 +16,7 @@ export default function BoqUploadWorkspace() {
     setMessage("Uploading and extracting BOQ line items...");
 
     const formData = new FormData(event.currentTarget);
-    const response = await authFetch("/api/qs/boq/upload", {
+    const response = await authFetch(API_ROUTES.QS_BOQ_UPLOAD, {
       method: "POST",
       body: formData,
     });

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { API_ROUTES } from "@/lib/routes";
 import type { QsBoqDocument, QsBoqExtractionLog, QsBoqLineItem, QsBoqReviewQueueItem } from "@/types/qs";
 
 type BoqWorkspaceProps = {
@@ -167,7 +168,7 @@ function ReviewQueue({ reviewQueue }: { reviewQueue: QsBoqReviewQueueItem[] }) {
               </div>
               <div className="mt-4 flex flex-wrap gap-2">
                 {["accept", "edit", "reject", "rematch"].map((action) => (
-                  <form key={action} action="/api/qs/boq/review" method="post">
+                  <form key={action} action={API_ROUTES.QS_BOQ_REVIEW} method="post">
                     <input type="hidden" name="reviewQueueId" value={item.boqReviewQueueId} />
                     <input type="hidden" name="action" value={action} />
                     <button className="rounded-lg border border-white/10 px-3 py-1.5 text-xs font-semibold capitalize text-slate-300">{action}</button>

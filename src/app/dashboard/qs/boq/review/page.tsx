@@ -1,6 +1,8 @@
 import BoqIntelligenceWorkspace from "@/components/qs/BoqIntelligenceWorkspace";
 import { listBoqDocuments, listBoqLineItems, listBoqReviewQueue, listBoqExtractionLogs } from "@/lib/qs/boq";
 
+export const dynamic = "force-dynamic";
+
 export default async function QsBoqReviewPage() {
   const [documents, lineItems, reviewQueue, logs] = await Promise.all([
     listBoqDocuments(50),
