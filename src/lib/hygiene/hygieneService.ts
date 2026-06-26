@@ -1,6 +1,7 @@
 import { FieldValue } from "firebase-admin/firestore";
 import { AuthorizationError, type AuthorizedUser } from "@/lib/server/authz";
 import { getFirebaseAdmin } from "@/lib/firebase/admin";
+import { sanitizeFirestoreData } from "@/lib/firebase/sanitizeFirestoreData";
 import {
   cbavoBinAssets,
   cbavoClient,
@@ -123,11 +124,11 @@ async function setValidatedRecord<T>(
     .collection(collectionName)
     .doc(documentId)
     .set(
-      {
+      sanitizeFirestoreData({
         ...payload,
         updatedAtServer: FieldValue.serverTimestamp(),
         createdAtServer: FieldValue.serverTimestamp(),
-      },
+      }),
       { merge: true }
     );
 }
@@ -235,7 +236,7 @@ async function updateCollectionPatch(collectionId: string, patch: Partial<Hygien
   await getFirebaseAdmin()
     .collection(HYGIENE_COLLECTIONS.collections)
     .doc(collectionId)
-    .set({ ...patch, updatedAtServer: FieldValue.serverTimestamp() }, { merge: true });
+    .set(sanitizeFirestoreData({ ...patch, updatedAtServer: FieldValue.serverTimestamp() }), { merge: true });
 }
 
 async function getCollectionUnsafe(collectionId: string): Promise<HygieneCollection> {
@@ -354,10 +355,10 @@ export async function createHygieneEvidencePhoto(
 
   const collectionRef = getFirebaseAdmin().collection(HYGIENE_COLLECTIONS.collections).doc(record.collectionId);
   await collectionRef.set(
-    {
+    sanitizeFirestoreData({
       evidencePhotoIds: FieldValue.arrayUnion(record.photoId),
       updatedAtServer: FieldValue.serverTimestamp(),
-    },
+    }),
     { merge: true }
   );
 
@@ -498,18 +499,18 @@ export async function recordHygieneJobEvent(
   await getFirebaseAdmin()
     .collection(HYGIENE_COLLECTIONS.collections)
     .doc(event.collectionId)
-    .set(collectionPatch, { merge: true });
+    .set(sanitizeFirestoreData(collectionPatch), { merge: true });
 
   if (event.eventType === "awaiting_disposal" && event.manifestId) {
     await getFirebaseAdmin()
       .collection(HYGIENE_COLLECTIONS.manifests)
       .doc(event.manifestId)
       .set(
-        {
+        sanitizeFirestoreData({
           status: "Awaiting Disposal",
           updatedAt: event.timestamp,
           updatedAtServer: FieldValue.serverTimestamp(),
-        },
+        }),
         { merge: true }
       );
   }
@@ -534,10 +535,10 @@ export async function createHygieneSignature(
 
   await setValidatedRecord(HYGIENE_COLLECTIONS.signatures, signature.signatureId, signature);
   await getFirebaseAdmin().collection(HYGIENE_COLLECTIONS.collections).doc(signature.collectionId).set(
-    {
+    sanitizeFirestoreData({
       clientSignatureStatus: "Signature captured",
       updatedAtServer: FieldValue.serverTimestamp(),
-    },
+    }),
     { merge: true }
   );
 
