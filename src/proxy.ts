@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isVehicleFinanceRole } from "@/lib/auth/roleUtils";
-import { isRoarCarsDashboardPath } from "@/lib/auth/roleRouting";
+import { isHygieneDriverDashboardPath, isRoarCarsDashboardPath } from "@/lib/auth/roleRouting";
 import { AuthorizationError, resolveAuthorizedIdentity } from "@/lib/server/authz";
 import { verifySessionValue } from "@/lib/server/verifySession";
 
@@ -49,6 +49,12 @@ export async function proxy(request: NextRequest) {
   }
 
   if (pathname.startsWith("/dashboard/hygiene")) {
+    if (role === "driver") {
+      return isHygieneDriverDashboardPath(pathname)
+        ? NextResponse.next()
+        : new NextResponse("Unauthorized", { status: 403 });
+    }
+
     if (role !== "admin" && role !== "manager" && role !== "staff") {
       return new NextResponse("Unauthorized", { status: 403 });
     }

@@ -10,12 +10,25 @@ const ROAR_CARS_MODULE_PATHS = [
   "/dashboard/profile",
 ] as const;
 
+const HYGIENE_DRIVER_MODULE_PATHS = [
+  "/dashboard/hygiene/jobs",
+  "/dashboard/hygiene/vehicles",
+  "/dashboard/hygiene/signatures",
+  "/dashboard/hygiene/disposal",
+] as const;
+
 export function isRoarCarsDashboardPath(pathname: string): boolean {
   if (pathname === "/dashboard/vehicle-finance" || pathname === "/dashboard/vehicle-finance/") {
     return true;
   }
 
   return ROAR_CARS_MODULE_PATHS.some(
+    (allowedPath) => pathname === allowedPath || pathname.startsWith(`${allowedPath}/`),
+  );
+}
+
+export function isHygieneDriverDashboardPath(pathname: string): boolean {
+  return HYGIENE_DRIVER_MODULE_PATHS.some(
     (allowedPath) => pathname === allowedPath || pathname.startsWith(`${allowedPath}/`),
   );
 }
@@ -32,6 +45,8 @@ export function getDashboardPath(role: UserRole) {
       return "/dashboard/vehicle-finance";
     case "contractor":
       return "/dashboard/contractor";
+    case "driver":
+      return "/dashboard/hygiene/jobs";
     case "staff":
       return "/dashboard/staff";
     default:

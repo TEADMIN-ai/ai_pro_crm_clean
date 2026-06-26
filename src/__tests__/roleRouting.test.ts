@@ -1,9 +1,15 @@
-import { getDashboardPath, getUnauthorizedRedirectPath, isRoarCarsDashboardPath } from "@/lib/auth/roleRouting";
+import {
+  getDashboardPath,
+  getUnauthorizedRedirectPath,
+  isHygieneDriverDashboardPath,
+  isRoarCarsDashboardPath,
+} from "@/lib/auth/roleRouting";
 
 describe("role dashboard routing", () => {
   test.each([
     ["admin", "/dashboard/admin"],
     ["staff", "/dashboard/staff"],
+    ["driver", "/dashboard/hygiene/jobs"],
     ["contractor", "/dashboard/contractor"],
     ["dealerPilot", "/dashboard/vehicle-finance"],
     ["vehicleFinanceStaff", "/dashboard/vehicle-finance"],
@@ -15,6 +21,7 @@ describe("role dashboard routing", () => {
   test("redirects unauthorized authenticated users to their role dashboard", () => {
     expect(getUnauthorizedRedirectPath("contractor")).toBe("/dashboard/contractor");
     expect(getUnauthorizedRedirectPath("staff")).toBe("/dashboard/staff");
+    expect(getUnauthorizedRedirectPath("driver")).toBe("/dashboard/hygiene/jobs");
     expect(getUnauthorizedRedirectPath("dealerPilot")).toBe("/dashboard/vehicle-finance");
     expect(getUnauthorizedRedirectPath("vehicleFinanceStaff")).toBe("/dashboard/vehicle-finance");
     expect(getUnauthorizedRedirectPath("ROAR_CARS_STAFF")).toBe("/dashboard/vehicle-finance");
@@ -47,5 +54,27 @@ describe("role dashboard routing", () => {
 
   test("redirects guests to login", () => {
     expect(getUnauthorizedRedirectPath("guest")).toBe("/login");
+  });
+
+  test.each([
+    "/dashboard/hygiene/jobs",
+    "/dashboard/hygiene/jobs/TE-COL-2026-0002",
+    "/dashboard/hygiene/vehicles",
+    "/dashboard/hygiene/signatures",
+    "/dashboard/hygiene/disposal",
+  ])("allows hygiene drivers to access %s", (pathname) => {
+    expect(isHygieneDriverDashboardPath(pathname)).toBe(true);
+  });
+
+  test.each([
+    "/dashboard/hygiene",
+    "/dashboard/hygiene/clients",
+    "/dashboard/hygiene/sites",
+    "/dashboard/hygiene/collections",
+    "/dashboard/hygiene/manifests",
+    "/dashboard/hygiene/compliance",
+    "/dashboard/hygiene/reports",
+  ])("blocks hygiene drivers from office dashboard path %s", (pathname) => {
+    expect(isHygieneDriverDashboardPath(pathname)).toBe(false);
   });
 });
