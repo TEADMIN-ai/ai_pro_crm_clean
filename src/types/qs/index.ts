@@ -181,6 +181,113 @@ export type Supplier = QsAuditFields & {
   learning?: QsLearningMetadata;
 };
 
+export type QSSupplierStatus = "active" | "inactive" | "pendingReview" | "archived";
+
+export type QSSupplierSubscriptionTier = "none" | "starter" | "growth" | "premium" | "enterprise";
+
+export type QSSupplierStockStatus = "inStock" | "limited" | "backOrder" | "outOfStock" | "unknown";
+
+export type QSSupplierRecommendationCategory =
+  | "BEST_PRICE"
+  | "BEST_QUALITY"
+  | "BEST_OVERALL_VALUE"
+  | "FASTEST_DELIVERY"
+  | "LOWEST_RISK";
+
+export type QSSupplierRiskLevel = "low" | "medium" | "high";
+
+export type QSSupplierContactActionType =
+  | "CALL_SUPPLIER"
+  | "EMAIL_SUPPLIER"
+  | "REQUEST_QUOTE"
+  | "REQUEST_DELIVERY_COST"
+  | "SAVE_SUPPLIER"
+  | "COMPARE_SUPPLIER";
+
+export type QSSupplierContactStatus = "logged" | "pending" | "contacted" | "responded" | "closed";
+
+export type QSSupplierBranch = {
+  branchId: string;
+  branchName: string;
+  address?: string | null;
+  province: QsProvince;
+  city?: string | null;
+  gps?: {
+    latitude: number;
+    longitude: number;
+  } | null;
+  contactNumber?: string | null;
+  email?: string | null;
+  deliveryRadiusKm?: number | null;
+  standardDeliveryFee?: number | null;
+  averageLeadTimeDays?: number | null;
+};
+
+export type QSSupplierPerformanceScore = {
+  qualityScore: number;
+  reliabilityScore: number;
+  deliveryScore: number;
+  priceCompetitivenessScore: number;
+  stockAvailabilityScore: number;
+  overallSupplierScore: number;
+};
+
+export type QSSupplierProfile = QsAuditFields & QSSupplierPerformanceScore & {
+  supplierId: string;
+  supplierName: string;
+  tradingName?: string | null;
+  companyRegistrationNumber?: string | null;
+  vatNumber?: string | null;
+  bbbeeLevel?: string | null;
+  contactPerson?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  website?: string | null;
+  branches: QSSupplierBranch[];
+  deliveryAreas: QsProvince[];
+  productCategories: string[];
+  paymentTerms?: string | null;
+  warrantyNotes?: string | null;
+  isPreferredSupplier: boolean;
+  isSponsoredSupplier: boolean;
+  supplierSubscriptionTier: QSSupplierSubscriptionTier;
+  leadFeeEnabled: boolean;
+  leadFeeAmount?: number | null;
+  referralCommissionEnabled: boolean;
+  referralCommissionPercentage?: number | null;
+  featuredPlacementEnabled: boolean;
+  status: QSSupplierStatus;
+  version: number;
+  createdByUid?: string | null;
+  updatedByUid?: string | null;
+};
+
+export type QSSupplierProductOffer = QsAuditFields & {
+  offerId: string;
+  supplierId: string;
+  materialId: string;
+  materialName: string;
+  category?: string | null;
+  unit: string;
+  unitPriceExVat: number;
+  vatRate: number;
+  stockStatus: QSSupplierStockStatus;
+  availableQuantity?: number | null;
+  leadTimeDays?: number | null;
+  deliveryFee?: number | null;
+  validFrom?: QsTimestamp | null;
+  validUntil?: QsTimestamp | null;
+  qualityGrade?: string | null;
+  brand?: string | null;
+  warranty?: string | null;
+  notes?: string | null;
+  pricingSource: QsPriceSource;
+  status: QsRecordStatus;
+  version: number;
+  createdByUid?: string | null;
+  updatedByUid?: string | null;
+};
+
 export type Material = QsAuditFields & {
   materialId: string;
   sku?: string | null;
@@ -404,6 +511,103 @@ export type QSEstimateHistory = QsAuditFields & {
   reason: "created" | "configUpdated" | "recalculated";
 };
 
+export type QSSupplierRecommendation = QsAuditFields & {
+  recommendationId: string;
+  estimateId: string;
+  estimateLineId: string;
+  boqLineItemId: string;
+  materialId: string;
+  category: QSSupplierRecommendationCategory;
+  supplierId: string;
+  supplierName: string;
+  offerId: string;
+  materialName: string;
+  isSponsoredSupplier: boolean;
+  unitPriceExVat: number;
+  quantity: number;
+  landedCostExVat: number;
+  vatAmount: number;
+  landedCostInclVat: number;
+  score: number;
+  priceScore: number;
+  qualityScore: number;
+  deliveryScore: number;
+  stockAvailabilityScore: number;
+  reliabilityScore: number;
+  transportScore: number;
+  costImpact: number;
+  marginImpact: number;
+  deliveryImpactDays: number;
+  transportImpact: number;
+  riskLevel: QSSupplierRiskLevel;
+  explanation: string;
+  tradeOffs: string[];
+  confidenceScore: number;
+  status: QsRecordStatus;
+  version: number;
+  createdByUid?: string | null;
+  updatedByUid?: string | null;
+};
+
+export type QSSupplierComparison = QsAuditFields & {
+  comparisonId: string;
+  estimateId: string;
+  estimateLineId: string;
+  materialId: string;
+  recommendations: QSSupplierRecommendation[];
+  bestPriceSupplierId?: string | null;
+  bestQualitySupplierId?: string | null;
+  bestOverallSupplierId?: string | null;
+  fastestDeliverySupplierId?: string | null;
+  lowestRiskSupplierId?: string | null;
+  status: QsRecordStatus;
+  version: number;
+};
+
+export type QSCommercialImpactScenario = QsAuditFields & {
+  scenarioId: string;
+  estimateId: string;
+  estimateLineId: string;
+  supplierId: string;
+  supplierName: string;
+  offerId: string;
+  recommendationCategory: QSSupplierRecommendationCategory;
+  currentEstimateTotal: number;
+  newEstimateTotal: number;
+  costSaving: number;
+  costIncrease: number;
+  profitImpact: number;
+  marginImpactPercentage: number;
+  transportImpact: number;
+  deliveryImpactDays: number;
+  riskImpact: QSSupplierRiskLevel;
+  quoteReadinessImpact: QSQuoteReadinessStatus;
+  explanation: string;
+  status: QsRecordStatus;
+  version: number;
+  createdByUid?: string | null;
+  updatedByUid?: string | null;
+};
+
+export type QSSupplierContactAction = QsAuditFields & {
+  contactActionId: string;
+  contractorId?: string | null;
+  userUid: string;
+  userRole?: string | null;
+  supplierId: string;
+  supplierName?: string | null;
+  estimateId?: string | null;
+  estimateLineId?: string | null;
+  materialId?: string | null;
+  boqLineItemId?: string | null;
+  actionType: QSSupplierContactActionType;
+  contactStatus: QSSupplierContactStatus;
+  sourceModule: "qsSupplierIntelligence";
+  notes?: string | null;
+  createdByUid?: string | null;
+  updatedByUid?: string | null;
+};
+
 export type QsFirestoreCollection =
   | "materials"
   | "materialCategories"
@@ -424,7 +628,12 @@ export type QsFirestoreCollection =
   | "boqExtractionLogs"
   | "boqReviewQueue"
   | "qsEstimates"
-  | "qsEstimateHistory";
+  | "qsEstimateHistory"
+  | "qsSuppliers"
+  | "qsSupplierOffers"
+  | "qsSupplierRecommendations"
+  | "qsSupplierContactActions"
+  | "qsSupplierCommercialScenarios";
 
 export type QsImportFileType = "csv" | "xlsx" | "json";
 

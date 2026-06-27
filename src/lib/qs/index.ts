@@ -7,4 +7,5 @@ export * from "./materials";
 export * from "./pricing";
 export * from "./search";
 export * from "./seeds";
+export * from "./supplier-intelligence";
 export * from "./suppliers";

@@ -60,6 +60,14 @@ export const API_ROUTES = {
   QS_BOQ_REVIEW: "/api/qs/boq/review",
   QS_ESTIMATES: "/api/qs/estimates",
   QS_ESTIMATE_DETAIL: (estimateId: string) => `/api/qs/estimates/${encodeURIComponent(estimateId)}`,
+  QS_SUPPLIERS: "/api/qs/suppliers",
+  QS_SUPPLIER_DETAIL: (supplierId: string) => `/api/qs/suppliers/${encodeURIComponent(supplierId)}`,
+  QS_SUPPLIER_OFFERS: "/api/qs/supplier-offers",
+  QS_SUPPLIER_RECOMMENDATIONS: (estimateId: string) =>
+    `/api/qs/estimates/${encodeURIComponent(estimateId)}/supplier-recommendations`,
+  QS_COMMERCIAL_IMPACT: (estimateId: string) =>
+    `/api/qs/estimates/${encodeURIComponent(estimateId)}/commercial-impact`,
+  QS_SUPPLIER_CONTACT_ACTIONS: "/api/qs/supplier-contact-actions",
   DOCUMENTS: "/api/documents",
   DOCUMENT_DETAIL: (documentId: string) =>
     `/api/documents/${encodeURIComponent(documentId)}`,

@@ -21,4 +21,9 @@ export const QS_COLLECTIONS = {
   boqReviewQueue: "boqReviewQueue",
   qsEstimates: "qsEstimates",
   qsEstimateHistory: "qsEstimateHistory",
+  qsSuppliers: "qsSuppliers",
+  qsSupplierOffers: "qsSupplierOffers",
+  qsSupplierRecommendations: "qsSupplierRecommendations",
+  qsSupplierContactActions: "qsSupplierContactActions",
+  qsSupplierCommercialScenarios: "qsSupplierCommercialScenarios",
 } as const satisfies Record<string, QsFirestoreCollection>;

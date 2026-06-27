@@ -5,6 +5,7 @@ const QS_NAV_AREAS = [
   { label: "Material Intelligence Centre", href: "/dashboard/qs/materials" },
   { label: "BOQ Intelligence Engine", href: "/dashboard/qs/boq" },
   { label: "Intelligent Estimating", href: "/dashboard/qs/estimates" },
+  { label: "Supplier Intelligence", href: "/dashboard/qs/suppliers" },
   { label: "Material Imports", href: "/dashboard/qs/materials/imports" },
   { label: "Suppliers", href: "/dashboard/qs/materials/suppliers" },
   { label: "Categories", href: "/dashboard/qs/materials/categories" },
@@ -25,9 +26,8 @@ export default function QsDashboardPage() {
         <p className="text-xs font-semibold uppercase tracking-[0.2em] text-cyan-200">Torque Empire QS Engine</p>
         <h1 className="mt-3 text-2xl font-semibold">Material Intelligence Foundation</h1>
         <p className="mt-2 max-w-3xl text-sm text-slate-400">
-          Enterprise-grade material intelligence structure for supplier catalogues, historical pricing,
-          provincial availability, future BOQ matching, and quote memory. AI reasoning and quotation
-          calculations are intentionally deferred.
+          Enterprise-grade material intelligence, BOQ extraction, estimating, and supplier commercial
+          intelligence for price, quality, delivery, stock, risk, and margin decisions.
         </p>
 
         <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">

@@ -4,7 +4,14 @@ import Link from "next/link";
 import { useState } from "react";
 import { authFetch } from "@/lib/client/authFetch";
 import { API_ROUTES } from "@/lib/routes";
-import type { QsBoqDocument, QSEstimate, QSEstimateHistory } from "@/types/qs";
+import type {
+  QSCommercialImpactScenario,
+  QsBoqDocument,
+  QSEstimate,
+  QSEstimateHistory,
+  QSSupplierContactActionType,
+  QSSupplierRecommendation,
+} from "@/types/qs";
 
 type EstimatingWorkspaceProps =
   | {
@@ -16,6 +23,8 @@ type EstimatingWorkspaceProps =
       view: "detail";
       estimate: QSEstimate;
       history: QSEstimateHistory[];
+      supplierRecommendations?: QSSupplierRecommendation[];
+      commercialScenarios?: QSCommercialImpactScenario[];
     };
 
 function formatCurrency(value: number | null | undefined) {
@@ -56,6 +65,7 @@ function Header({ active }: { active: "list" | "detail" }) {
     { href: "/dashboard/qs", label: "QS Home" },
     { href: "/dashboard/qs/boq", label: "BOQ Intelligence" },
     { href: "/dashboard/qs/estimates", label: "Estimating", active: true },
+    { href: "/dashboard/qs/suppliers", label: "Supplier Intelligence" },
     { href: "/dashboard/qs/materials", label: "Materials" },
   ];
 
@@ -321,7 +331,146 @@ function EstimateLinesTable({ estimate }: { estimate: QSEstimate }) {
   );
 }
 
-function DetailView({ estimate, history }: { estimate: QSEstimate; history: QSEstimateHistory[] }) {
+function SupplierRecommendationsPanel({
+  estimate,
+  initialRecommendations,
+  initialScenarios,
+}: {
+  estimate: QSEstimate;
+  initialRecommendations: QSSupplierRecommendation[];
+  initialScenarios: QSCommercialImpactScenario[];
+}) {
+  const [recommendations, setRecommendations] = useState(initialRecommendations);
+  const [scenarios, setScenarios] = useState(initialScenarios);
+  const [message, setMessage] = useState("Generate or refresh Operation Atlas supplier recommendations for this estimate.");
+  const [loading, setLoading] = useState(false);
+
+  async function generateRecommendations() {
+    setLoading(true);
+    setMessage("Generating supplier recommendations...");
+    try {
+      const response = await authFetch(API_ROUTES.QS_SUPPLIER_RECOMMENDATIONS(estimate.estimateId), { method: "POST" });
+      const payload = (await response.json()) as { recommendations?: QSSupplierRecommendation[]; scenarios?: QSCommercialImpactScenario[]; error?: string };
+      if (!response.ok) throw new Error(payload.error ?? "Supplier recommendation generation failed.");
+      setRecommendations(payload.recommendations ?? []);
+      setScenarios(payload.scenarios ?? []);
+      setMessage(`Generated ${payload.recommendations?.length ?? 0} supplier recommendations and ${payload.scenarios?.length ?? 0} impact scenarios.`);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Supplier recommendation generation failed.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function logContact(recommendation: QSSupplierRecommendation, actionType: QSSupplierContactActionType) {
+    setMessage("Logging supplier contact action...");
+    try {
+      const response = await authFetch(API_ROUTES.QS_SUPPLIER_CONTACT_ACTIONS, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          actionType,
+          supplierId: recommendation.supplierId,
+          supplierName: recommendation.supplierName,
+          estimateId: recommendation.estimateId,
+          estimateLineId: recommendation.estimateLineId,
+          materialId: recommendation.materialId,
+          boqLineItemId: recommendation.boqLineItemId,
+          notes: `${actionType} logged from estimate supplier recommendation ${recommendation.recommendationId}.`,
+        }),
+      });
+      const payload = (await response.json()) as { error?: string };
+      if (!response.ok) throw new Error(payload.error ?? "Supplier contact action failed.");
+      setMessage(`${actionType.replaceAll("_", " ")} logged for ${recommendation.supplierName}.`);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Supplier contact action failed.");
+    }
+  }
+
+  const topRecommendations = recommendations.slice(0, 10);
+
+  return (
+    <Panel title="Supplier Recommendations" description="Operation Atlas compares supplier cost, quality, delivery, stock, reliability, transport, risk, and margin impact.">
+      <div className="flex flex-wrap items-center gap-2">
+        <button type="button" disabled={loading} onClick={() => void generateRecommendations()} className="rounded-lg border border-cyan-400/20 bg-cyan-400/10 px-4 py-2 text-sm font-semibold text-cyan-100 disabled:opacity-60">
+          {loading ? "Generating..." : "Generate Supplier Recommendations"}
+        </button>
+        <Link href="/dashboard/qs/suppliers" className="rounded-lg border border-white/10 px-4 py-2 text-sm font-semibold text-slate-200">Open Supplier Intelligence</Link>
+      </div>
+      <p className="mt-3 text-sm text-slate-400">{message}</p>
+
+      {!topRecommendations.length ? (
+        <div className="mt-4 rounded-lg border border-dashed border-white/10 p-6 text-center text-sm text-slate-500">
+          No supplier recommendations exist for this estimate yet.
+        </div>
+      ) : (
+        <div className="mt-4 grid gap-3 lg:grid-cols-2">
+          {topRecommendations.map((recommendation) => (
+            <article key={recommendation.recommendationId} className="rounded-lg border border-white/10 bg-slate-950/50 p-4">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-cyan-200">{recommendation.category.replaceAll("_", " ")}</p>
+                  <h3 className="mt-2 text-base font-semibold text-white">{recommendation.supplierName}</h3>
+                  <p className="mt-1 text-sm text-slate-400">{recommendation.materialName}</p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {recommendation.isSponsoredSupplier ? <span className="rounded-full border border-violet-400/30 bg-violet-400/10 px-2 py-1 text-xs font-semibold text-violet-100">Sponsored</span> : null}
+                  <span className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-1 text-xs font-semibold text-slate-100">{recommendation.score}% score</span>
+                </div>
+              </div>
+              <p className="mt-3 text-sm text-slate-300">{recommendation.explanation}</p>
+              <div className="mt-3 grid gap-2 text-sm sm:grid-cols-3">
+                <p><span className="text-slate-500">Landed </span>{formatCurrency(recommendation.landedCostInclVat)}</p>
+                <p><span className="text-slate-500">Margin </span>{formatCurrency(recommendation.marginImpact)}</p>
+                <p><span className="text-slate-500">Risk </span>{recommendation.riskLevel}</p>
+              </div>
+              <div className="mt-4 flex flex-wrap gap-2">
+                <button type="button" onClick={() => void logContact(recommendation, "REQUEST_QUOTE")} className="rounded-lg border border-cyan-400/20 bg-cyan-400/10 px-3 py-2 text-sm font-semibold text-cyan-100">Request Quote</button>
+                <button type="button" onClick={() => void logContact(recommendation, "COMPARE_SUPPLIER")} className="rounded-lg border border-white/10 px-3 py-2 text-sm font-semibold text-slate-200">Compare</button>
+              </div>
+            </article>
+          ))}
+        </div>
+      )}
+
+      {scenarios.length ? (
+        <div className="mt-4 overflow-x-auto">
+          <table className="min-w-full text-left text-sm">
+            <thead className="border-b border-white/10 text-xs uppercase tracking-[0.16em] text-slate-500">
+              <tr>{["Supplier", "Category", "New Total", "Saving", "Increase", "Profit", "Delivery", "Readiness"].map((column) => <th key={column} className="px-3 py-3 font-semibold">{column}</th>)}</tr>
+            </thead>
+            <tbody className="divide-y divide-white/10 text-slate-300">
+              {scenarios.slice(0, 20).map((scenario) => (
+                <tr key={scenario.scenarioId}>
+                  <td className="px-3 py-3 text-slate-100">{scenario.supplierName}</td>
+                  <td className="px-3 py-3">{scenario.recommendationCategory}</td>
+                  <td className="px-3 py-3">{formatCurrency(scenario.newEstimateTotal)}</td>
+                  <td className="px-3 py-3 text-emerald-100">{formatCurrency(scenario.costSaving)}</td>
+                  <td className="px-3 py-3 text-rose-100">{formatCurrency(scenario.costIncrease)}</td>
+                  <td className="px-3 py-3">{formatCurrency(scenario.profitImpact)}</td>
+                  <td className="px-3 py-3">{scenario.deliveryImpactDays}d</td>
+                  <td className="px-3 py-3">{scenario.quoteReadinessImpact}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : null}
+    </Panel>
+  );
+}
+
+function DetailView({
+  estimate,
+  history,
+  supplierRecommendations = [],
+  commercialScenarios = [],
+}: {
+  estimate: QSEstimate;
+  history: QSEstimateHistory[];
+  supplierRecommendations?: QSSupplierRecommendation[];
+  commercialScenarios?: QSCommercialImpactScenario[];
+}) {
   return (
     <>
       <div className="grid gap-3 lg:grid-cols-[1fr_auto] lg:items-start">
@@ -338,6 +487,7 @@ function DetailView({ estimate, history }: { estimate: QSEstimate; history: QSEs
       </div>
       <BreakdownCards estimate={estimate} />
       <AssumptionsPanel estimate={estimate} />
+      <SupplierRecommendationsPanel estimate={estimate} initialRecommendations={supplierRecommendations} initialScenarios={commercialScenarios} />
       <Panel title="Missing Pricing and Readiness Warnings" description="Warnings must be cleared or accepted before quote issue.">
         {estimate.missingPricingWarnings.length ? (
           <ul className="space-y-2 text-sm text-amber-100">
@@ -373,7 +523,12 @@ export default function QsEstimatingWorkspace(props: EstimatingWorkspaceProps) {
             <EstimateList estimates={props.estimates} />
           </>
         ) : (
-          <DetailView estimate={props.estimate} history={props.history} />
+          <DetailView
+            estimate={props.estimate}
+            history={props.history}
+            supplierRecommendations={props.supplierRecommendations}
+            commercialScenarios={props.commercialScenarios}
+          />
         )}
       </div>
     </div>

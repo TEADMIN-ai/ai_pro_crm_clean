@@ -10,16 +10,16 @@ function nowIso() {
   return new Date().toISOString();
 }
 
-function cleanForFirestore<T>(value: T): T {
+export function sanitizeQsFirestoreData<T>(value: T): T {
   if (Array.isArray(value)) {
-    return value.map((item) => cleanForFirestore(item)) as T;
+    return value.map((item) => sanitizeQsFirestoreData(item)) as T;
   }
 
   if (value && typeof value === "object") {
     return Object.fromEntries(
       Object.entries(value as Record<string, unknown>)
         .filter(([, entryValue]) => entryValue !== undefined)
-        .map(([key, entryValue]) => [key, cleanForFirestore(entryValue)]),
+        .map(([key, entryValue]) => [key, sanitizeQsFirestoreData(entryValue)]),
     ) as T;
   }
 
@@ -84,7 +84,7 @@ export async function createQsRecord<T extends RecordWithId>(
   const requestedId = typeof payloadRecord[idField] === "string" ? String(payloadRecord[idField]).trim() : "";
   const docRef = requestedId ? collectionRef(collectionName).doc(requestedId) : collectionRef(collectionName).doc();
   const timestamp = nowIso();
-  const record = cleanForFirestore({
+  const record = sanitizeQsFirestoreData({
     ...payload,
     [idField]: docRef.id,
     createdAt: payload.createdAt ?? timestamp,
@@ -101,7 +101,7 @@ export async function updateQsRecord<T extends RecordWithId>(
   updates: Partial<T>,
 ): Promise<T> {
   const docRef = collectionRef(collectionName).doc(id);
-  const payload = cleanForFirestore({
+  const payload = sanitizeQsFirestoreData({
     ...updates,
     updatedAt: nowIso(),
   });
