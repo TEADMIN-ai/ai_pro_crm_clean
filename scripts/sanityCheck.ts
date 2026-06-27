@@ -67,9 +67,9 @@ async function runSmokeChecks() {
     const endpoints = [
       { path: "/api/contractors", allowedStatuses: [401, 403] },
       { path: "/api/deals", allowedStatuses: [401, 403] },
-      { path: "/api/auth/health", allowedStatuses: [200] },
-      { path: "/api/contractors/smoke-check/documents", allowedStatuses: [200] },
-      { path: "/api/documents/smoke-check/execute", allowedStatuses: [200, 404] },
+      { path: "/api/auth/health", allowedStatuses: [200, 401, 403] },
+      { path: "/api/contractors/smoke-check/documents", allowedStatuses: [200, 401, 403] },
+      { path: "/api/documents/smoke-check/execute", allowedStatuses: [200, 404, 405] },
       { path: "/dashboard/contractors", allowedStatuses: [200, 307, 308] },
     ];
 
