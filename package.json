@@ -18,6 +18,8 @@
     "autofill:integrity": "tsx scripts/autofillIntegrityCheck.ts",
     "sanity": "tsx scripts/sanityCheck.ts",
     "manus:sanity": "tsx scripts/manusSanityCheck.ts",
+    "qa:seed": "tsx scripts/qaAcceptanceSeed.ts seed",
+    "qa:cleanup": "tsx scripts/qaAcceptanceSeed.ts cleanup",
     "prepare": "husky",
     "build:strict": "npm run clean && npm run typecheck && npm run lint && npm run route:integrity && next build",
     "deploy:guard": "npm run build:strict",
