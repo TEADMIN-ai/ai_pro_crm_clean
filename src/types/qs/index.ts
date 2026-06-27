@@ -50,6 +50,58 @@ export type QsBoqReviewStatus = "pending" | "accepted" | "edited" | "rejected" |
 
 export type QsBoqExtractionSource = "directText" | "ocr" | "spreadsheet" | "text" | "docx" | "empty";
 
+export type QSQuoteReadinessStatus = "quoteReady" | "reviewRequired" | "pricingIncomplete" | "blocked";
+
+export type QSAllowanceMode = "percentage" | "fixed";
+
+export type QSLabourRateConfig = {
+  ratePerHour: number;
+  hoursPerUnit: number;
+};
+
+export type QSAllowanceConfig = {
+  vatRate: number;
+  vatEnabled: boolean;
+  overheadPercentage: number;
+  waste: {
+    mode: QSAllowanceMode;
+    value: number;
+  };
+  transport: {
+    mode: QSAllowanceMode;
+    value: number;
+  };
+  plant: {
+    mode: QSAllowanceMode;
+    value: number;
+  };
+  labourRates: Partial<Record<QsBoqTrade, QSLabourRateConfig>>;
+};
+
+export type QSProfitConfig = {
+  profitPercentage: number;
+};
+
+export type QSRiskConfig = {
+  riskPercentage: number;
+  lowConfidenceRiskPercentage: number;
+  missingPricingRiskPercentage: number;
+};
+
+export type QSCostBreakdown = {
+  materialCost: number;
+  labourCost: number;
+  plantAllowance: number;
+  transportAllowance: number;
+  wasteAllowance: number;
+  overhead: number;
+  profit: number;
+  riskAllowance: number;
+  subtotalExVat: number;
+  vatAmount: number;
+  totalInclVat: number;
+};
+
 export type QsAiExtractionMetadata = {
   sourceText?: string | null;
   sourceDocumentId?: string | null;
@@ -295,6 +347,63 @@ export type QsBoqReviewQueueItem = QsAuditFields & {
   status: QsBoqReviewStatus;
 };
 
+export type QSEstimateLine = {
+  estimateLineId: string;
+  boqLineItemId: string;
+  boqDocumentId: string;
+  description: string;
+  trade: QsBoqTrade;
+  unit?: string | null;
+  quantity: number;
+  matchedMaterialIds: string[];
+  materialUnitCost: number | null;
+  materialTotal: number;
+  labourRate: number;
+  labourHours: number;
+  labourTotal: number;
+  plantEquipmentCost: number;
+  transportAllowance: number;
+  wasteAllowance: number;
+  overheadAmount: number;
+  profitAmount: number;
+  riskAmount: number;
+  lineSubtotal: number;
+  vatAmount: number;
+  lineTotal: number;
+  confidenceScore: number;
+  warnings: string[];
+  pricingSource: QsPriceSource | "materialAverage" | "materialCurrent" | "none";
+};
+
+export type QSEstimate = QsAuditFields & {
+  estimateId: string;
+  sourceBoqId: string;
+  projectId?: string | null;
+  projectName?: string | null;
+  status: QSQuoteReadinessStatus;
+  version: number;
+  createdByUid?: string | null;
+  updatedByUid?: string | null;
+  assumptions: QSAllowanceConfig & QSProfitConfig & QSRiskConfig;
+  lines: QSEstimateLine[];
+  breakdown: QSCostBreakdown;
+  totalEstimatedProjectValue: number;
+  confidenceScore: number;
+  missingPricingWarnings: string[];
+  quoteReadinessStatus: QSQuoteReadinessStatus;
+  sourceItemCount: number;
+};
+
+export type QSEstimateHistory = QsAuditFields & {
+  estimateHistoryId: string;
+  estimateId: string;
+  sourceBoqId: string;
+  version: number;
+  snapshot: QSEstimate;
+  createdByUid?: string | null;
+  reason: "created" | "configUpdated" | "recalculated";
+};
+
 export type QsFirestoreCollection =
   | "materials"
   | "materialCategories"
@@ -313,7 +422,9 @@ export type QsFirestoreCollection =
   | "boqLineItems"
   | "boqTrades"
   | "boqExtractionLogs"
-  | "boqReviewQueue";
+  | "boqReviewQueue"
+  | "qsEstimates"
+  | "qsEstimateHistory";
 
 export type QsImportFileType = "csv" | "xlsx" | "json";
 

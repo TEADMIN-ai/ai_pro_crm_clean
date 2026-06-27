@@ -58,6 +58,8 @@ export const API_ROUTES = {
   VEHICLE_FINANCE_TRAINING_OVERVIEW: "/api/vehicle-finance/training/overview",
   QS_BOQ_UPLOAD: "/api/qs/boq/upload",
   QS_BOQ_REVIEW: "/api/qs/boq/review",
+  QS_ESTIMATES: "/api/qs/estimates",
+  QS_ESTIMATE_DETAIL: (estimateId: string) => `/api/qs/estimates/${encodeURIComponent(estimateId)}`,
   DOCUMENTS: "/api/documents",
   DOCUMENT_DETAIL: (documentId: string) =>
     `/api/documents/${encodeURIComponent(documentId)}`,

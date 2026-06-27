@@ -15,6 +15,7 @@ const routes = [
   { href: "/dashboard/qs/boq/upload", label: "Upload", view: "upload" },
   { href: "/dashboard/qs/boq/review", label: "Review", view: "review" },
   { href: "/dashboard/qs/boq/history", label: "History", view: "history" },
+  { href: "/dashboard/qs/estimates", label: "Estimate", view: "estimate" },
 ];
 
 function Panel({ title, description, children }: { title: string; description?: string; children: React.ReactNode }) {
@@ -47,7 +48,7 @@ function Header({ active }: { active: string }) {
         <h1 className="mt-3 text-2xl font-semibold text-white">BOQ Intelligence Engine</h1>
         <p className="mt-2 max-w-3xl text-sm text-slate-400">
           Upload BOQs, RFQs, and Scopes of Work, extract structured line items, classify trades, normalize units,
-          and prepare material matches for review. No pricing or quotation calculations are performed.
+          and prepare material matches for review before intelligent estimating.
         </p>
       </div>
       <nav className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4" aria-label="BOQ Intelligence navigation">
