@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import LoginForm from "@/components/auth/LoginForm";
 import { useAuthUser } from "@/hooks/useAuthUser";
@@ -43,7 +44,7 @@ export default function LoginPage() {
         muted
         loop
         playsInline
-        poster="/images/logos/TE%20IN%20Partnership%20With%20Roar%20logo.png"
+        poster="/icons/icon-512.png"
         style={{
           position: "absolute",
           inset: 0,
@@ -79,6 +80,28 @@ export default function LoginPage() {
           padding: "24px",
         }}
       >
+        <div
+          style={{
+            display: "grid",
+            placeItems: "center",
+            width: 92,
+            height: 92,
+            borderRadius: 24,
+            background: "linear-gradient(145deg, rgba(7,20,38,0.96), rgba(11,31,58,0.9))",
+            border: "1px solid rgba(246, 215, 122, 0.28)",
+            boxShadow: "0 22px 60px rgba(0,0,0,0.36)",
+          }}
+        >
+          <Image
+            src="/icons/icon-192.png"
+            alt="Torque Empire"
+            width={72}
+            height={72}
+            priority
+            style={{ borderRadius: 18 }}
+          />
+        </div>
+
         <div
           style={{
             width: "100%",

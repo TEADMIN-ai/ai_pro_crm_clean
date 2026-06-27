@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Torque Empire Executive Experience icon">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0b1f3a"/>
+      <stop offset="0.52" stop-color="#071426"/>
+      <stop offset="1" stop-color="#030914"/>
+    </linearGradient>
+    <linearGradient id="gold" x1="160" y1="70" x2="360" y2="410">
+      <stop offset="0" stop-color="#f6d77a"/>
+      <stop offset="0.42" stop-color="#d8a83f"/>
+      <stop offset="1" stop-color="#9b6a16"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="50%" cy="18%" r="60%">
+      <stop offset="0" stop-color="#f6d77a" stop-opacity="0.2"/>
+      <stop offset="0.45" stop-color="#d8a83f" stop-opacity="0.08"/>
+      <stop offset="1" stop-color="#d8a83f" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect x="24" y="24" width="464" height="464" rx="92" fill="url(#bg)"/>
+  <rect x="24" y="24" width="464" height="464" rx="92" fill="url(#glow)"/>
+  <rect x="34" y="34" width="444" height="444" rx="74" fill="none" stroke="#f6d77a" stroke-opacity="0.26" stroke-width="5"/>
+  <g transform="translate(256 266)" fill="url(#gold)" stroke-linejoin="round">
+    <path d="M0-178c96 20 134 70 126 150C116 82 54 154 0 188-54 154-116 82-126-28c-8-80 30-130 126-150z" fill="#d8a83f" fill-opacity="0.09" stroke="url(#gold)" stroke-width="20"/>
+    <path d="M-86-204l44 38 42-48 42 48 44-38-16 66H-70z"/>
+    <rect x="-72" y="-124" width="144" height="26"/>
+    <path d="M-94-82H94L76-32H28v148L0 142l-28-26V-32h-48z"/>
+    <path d="M-82 40l38 24-38 24M82 40L44 64l38 24" fill="none" stroke="#f6d77a" stroke-width="13" stroke-linecap="round"/>
+    <path d="M-82-82H82" stroke="#f6d77a" stroke-opacity="0.76" stroke-width="8" stroke-linecap="round"/>
+  </g>
+</svg>
