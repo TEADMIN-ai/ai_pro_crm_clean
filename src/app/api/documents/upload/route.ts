@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { logActivity } from "@/lib/activity/logActivity";
 import { runAutomation } from "@/lib/automation/automationEngine";
-import { normalizeSupportedDocumentType } from "@/lib/compliance/contractorCompliance";
+import { isSupportedDocumentType, normalizeContractorUploadDocumentType } from "@/lib/compliance/contractorCompliance";
 import { updateContractorIntelligence } from "@/lib/contractors/updateContractorIntelligence";
 import { executeContractorDocumentAnalysis } from "@/lib/documents/executeContractorDocumentAnalysis";
 import { buildContractorDocumentDownloadUrl } from "@/lib/documents/contractorDocumentDownloadUrl";
@@ -51,7 +51,7 @@ export async function POST(req: NextRequest) {
 
     const uploadedFile = formData.get("file");
     const contractorId = String(formData.get("contractorId") ?? "").trim();
-    const documentType = normalizeSupportedDocumentType(formData.get("documentType"));
+    const documentType = normalizeContractorUploadDocumentType(formData.get("documentType"));
 
     console.log("[DOCUMENT_UPLOAD_RECEIVED]", {
       hasFile: uploadedFile instanceof File,
@@ -158,6 +158,44 @@ export async function POST(req: NextRequest) {
       documentType,
       storagePath: file.name,
     });
+
+    if (!isSupportedDocumentType(documentType)) {
+      await documentRef.set(
+        {
+          aiStatus: "failed",
+          aiError: "Automated extraction is not configured for this document type. Manual verification is required.",
+          validationStatus: "REVIEW",
+          validationError: "Manual verification is required for this document type.",
+          reviewReason: "Uploaded document is present and awaiting manual verification.",
+          manualDecisionAvailable: true,
+          status: "uploaded",
+          updatedAt: new Date(),
+        },
+        { merge: true },
+      );
+
+      const savedDocument = await documentRef.get();
+
+      return NextResponse.json(
+        {
+          success: true,
+          contractorId,
+          documentId: savedDocument.id,
+          documentType,
+          analysisQueued: false,
+          document: {
+            id: savedDocument.id,
+            ...(savedDocument.data() ?? {}),
+          },
+          compliance: null,
+          readiness: null,
+          alerts: [],
+          resolvedAlerts: 0,
+          warning: "Automated extraction is not configured for this document type. Manual verification is available.",
+        },
+        { status: 200 },
+      );
+    }
 
     const execution = await executeContractorDocumentAnalysis({
       contractorId,

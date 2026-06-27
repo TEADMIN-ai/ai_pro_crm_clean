@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { isSupportedDocumentType } from "@/lib/compliance/contractorCompliance";
+import { isContractorUploadDocumentType } from "@/lib/compliance/contractorCompliance";
 import { uploadContractorDocument } from "@/lib/contractors/uploadContractorDocument";
 
 type ContractorLike = {
@@ -35,8 +35,8 @@ export default function UploadDocumentModal({
     setIsUploading(true);
 
     try {
-      if (!isSupportedDocumentType(docType)) {
-        throw new Error("Unsupported compliance document type");
+      if (!isContractorUploadDocumentType(docType)) {
+        throw new Error("Unsupported contractor document type");
       }
 
       await uploadContractorDocument(contractor.id, docType, selectedFile);

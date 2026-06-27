@@ -145,8 +145,34 @@ body {
 
 [data-module="vehicle-finance"] {
   --tex-accent: #b45309;
-  --tex-accent-strong: #123a7c;
+  --tex-accent-strong: #fde68a;
   --tex-accent-soft: rgba(180, 83, 9, 0.13);
+}
+
+.vehicle-finance-shell {
+  color: var(--tex-text);
+}
+
+.vehicle-finance-shell .enterprise-card {
+  border-color: var(--tex-border);
+  background: linear-gradient(180deg, rgba(17, 28, 45, 0.94), rgba(7, 17, 31, 0.9));
+  color: var(--tex-text);
+}
+
+.vehicle-finance-shell .text-slate-500 {
+  color: #cbd5e1;
+}
+
+.vehicle-finance-shell .text-slate-400 {
+  color: #d6e0ee;
+}
+
+.vehicle-finance-shell .text-slate-300 {
+  color: #e2e8f0;
+}
+
+.vehicle-finance-shell .placeholder\:text-slate-500::placeholder {
+  color: #94a3b8;
 }
 
 [data-module="ai"] {

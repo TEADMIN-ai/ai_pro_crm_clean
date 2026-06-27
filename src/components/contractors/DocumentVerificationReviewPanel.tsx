@@ -126,6 +126,11 @@ export default function DocumentVerificationReviewPanel({
     status: "approved" | "rejected"
   ) => {
     if (!canReview) return;
+    const reviewReason = window.prompt(status === "approved" ? "Approval note" : "Decline reason");
+    if (!reviewReason?.trim()) {
+      setLoadError(status === "approved" ? "Approval note is required." : "Decline reason is required.");
+      return;
+    }
 
     try {
       console.log("Sending documentId:", item.id);
@@ -152,6 +157,7 @@ export default function DocumentVerificationReviewPanel({
               body: JSON.stringify({
                 action: status === "approved" ? "approve" : "reject",
                 documentId: item.id,
+                reviewReason: reviewReason.trim(),
               }),
             })
           : await authFetch(API_ROUTES.DOCUMENT_STATUS(item.id), {
@@ -159,11 +165,12 @@ export default function DocumentVerificationReviewPanel({
               headers: {
                 "Content-Type": "application/json",
               },
-              body: JSON.stringify({
-                status,
-                reviewedAt: new Date(),
-              }),
-            });
+          body: JSON.stringify({
+            status,
+            reviewReason: reviewReason.trim(),
+            reviewedAt: new Date(),
+          }),
+        });
 
       if (!res.ok) {
         throw new Error("Failed to update document status");
@@ -191,19 +198,27 @@ export default function DocumentVerificationReviewPanel({
   };
 
   return (
-    <section style={{ marginTop: 30 }}>
-      <h2 style={{ marginBottom: 10 }}>Verification Review Queue</h2>
+    <section className="mt-8">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[color:var(--tex-accent)]">Manual Review</p>
+          <h2 className="text-xl font-semibold text-[color:var(--tex-text-strong)]">Verification Review Queue</h2>
+        </div>
+        <span className="tex-status-badge" data-tone="info">
+          {filteredDocs.length} pending
+        </span>
+      </div>
 
       {isLoading && (
-        <p style={{ color: "#94a3b8" }}>Loading documents...</p>
+        <p className="mt-4 text-sm text-[color:var(--tex-text-muted)]">Loading documents...</p>
       )}
 
       {loadError && !isLoading && (
-        <p style={{ color: "#94a3b8" }}>{loadError}</p>
+        <p className="mt-4 rounded-lg border border-[color:var(--tex-danger)] bg-[color:var(--tex-danger-soft)] px-3 py-2 text-sm text-[color:var(--tex-danger)]">{loadError}</p>
       )}
 
       {filteredDocs.length === 0 && !isLoading && (
-        <p className="text-gray-400" style={{ color: "#94a3b8" }}>No pending documents</p>
+        <p className="tex-empty-state mt-4">No pending documents</p>
       )}
 
       {filteredDocs.map((doc) => {
@@ -252,61 +267,56 @@ export default function DocumentVerificationReviewPanel({
           doc.docType ||
           "Document";
         const documentType = doc.type || doc.documentType || doc.docType || "unknown";
+        const fileUrl = doc.fileUrl || doc.downloadURL;
 
         return (
           <div
             key={doc.id}
-            style={{
-              border: "1px solid #1f2937",
-              borderRadius: 10,
-              padding: 15,
-              marginBottom: 15,
-              background: "#0f172a",
-              color: "white",
-            }}
+            className="mt-4 rounded-xl border border-[color:var(--tex-border)] bg-[color:var(--tex-card-strong)] p-4 text-[color:var(--tex-text)] shadow-sm"
           >
-            {/* HEADER */}
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-              }}
-            >
-              <div>
-                <strong>{displayName}</strong>
-                <p style={{ fontSize: 12, color: "#94a3b8" }}>
-                  {documentType}
-                </p>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-[color:var(--tex-border)] bg-[color:var(--tex-accent-soft)] text-xs font-black text-[color:var(--tex-accent)]">
+                    DOC
+                  </span>
+                  <strong className="break-words text-[color:var(--tex-text-strong)]">{displayName}</strong>
+                </div>
+                <p className="mt-1 text-sm text-[color:var(--tex-text-muted)]">{documentType}</p>
               </div>
 
               <span
-                style={{
-                  padding: "4px 10px",
-                  borderRadius: 6,
-                  background:
-                    normalizedStatus === "approved"
-                      ? "#16a34a"
-                      : normalizedStatus === "rejected"
-                      ? "#dc2626"
-                      : "#f59e0b",
-                  fontSize: 12,
-                }}
+                className="tex-status-badge self-start"
+                data-tone={normalizedStatus === "approved" ? "success" : normalizedStatus === "rejected" ? "danger" : "warning"}
               >
                 {statusLabel}
               </span>
             </div>
 
-            {/* CONFIDENCE */}
-            <div style={{ marginTop: 10 }}>
-              <strong>Confidence Score:</strong>{" "}
-              {doc.confidenceScore ?? 0}/100
+            <div className="mt-4 grid gap-2 text-sm sm:grid-cols-2 lg:grid-cols-4">
+              <div className="rounded-lg border border-[color:var(--tex-border)] bg-[color:var(--tex-surface)] px-3 py-2">
+                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[color:var(--tex-text-muted)]">Confidence</p>
+                <p className="mt-1 font-semibold text-[color:var(--tex-text-strong)]">{doc.confidenceScore ?? 0}/100</p>
+              </div>
+              <div className="rounded-lg border border-[color:var(--tex-border)] bg-[color:var(--tex-surface)] px-3 py-2">
+                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[color:var(--tex-text-muted)]">Extraction</p>
+                <p className="mt-1 font-semibold text-[color:var(--tex-text-strong)]">{isExtractionFailed ? "Failed / empty" : "Available"}</p>
+              </div>
+              <div className="rounded-lg border border-[color:var(--tex-border)] bg-[color:var(--tex-surface)] px-3 py-2">
+                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[color:var(--tex-text-muted)]">Text Length</p>
+                <p className="mt-1 font-semibold text-[color:var(--tex-text-strong)]">{doc.extractedTextLength ?? 0} chars</p>
+              </div>
+              <div className="rounded-lg border border-[color:var(--tex-border)] bg-[color:var(--tex-surface)] px-3 py-2">
+                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[color:var(--tex-text-muted)]">Last Action</p>
+                <p className="mt-1 font-semibold text-[color:var(--tex-text-strong)]">{doc?.lastActionAt ? new Date(doc.lastActionAt).toLocaleString("en-ZA") : "Not recorded"}</p>
+              </div>
             </div>
 
             {/* MISSING FIELDS */}
             {missingFields.length > 0 && (
-              <div style={{ marginTop: 10 }}>
-                <strong>Missing Fields:</strong>
-                <ul>
+              <div className="mt-4 text-sm">
+                <strong className="text-[color:var(--tex-text-strong)]">Missing Fields:</strong>
+                <ul className="mt-2 list-inside list-disc text-[color:var(--tex-text-muted)]">
                   {missingFields.map((f, i) => (
                     <li key={i}>{f}</li>
                   ))}
@@ -316,17 +326,17 @@ export default function DocumentVerificationReviewPanel({
 
             {/* REASON */}
             {(doc.reason || doc.reviewReason) && (
-              <div style={{ marginTop: 10 }}>
-                <strong>Reason:</strong>
-                <p>{doc.reason || doc.reviewReason}</p>
+              <div className="mt-4 text-sm">
+                <strong className="text-[color:var(--tex-text-strong)]">Reason:</strong>
+                <p className="mt-1 text-[color:var(--tex-text-muted)]">{doc.reason || doc.reviewReason}</p>
               </div>
             )}
 
             {/* CONFIDENCE NOTES */}
             {confidenceNotes.length > 0 && (
-              <div style={{ marginTop: 10 }}>
-                <strong>Confidence Notes:</strong>
-                <ul>
+              <div className="mt-4 text-sm">
+                <strong className="text-[color:var(--tex-text-strong)]">Confidence Notes:</strong>
+                <ul className="mt-2 list-inside list-disc text-[color:var(--tex-text-muted)]">
                   {confidenceNotes.map((note, i) => (
                     <li key={i}>{note}</li>
                   ))}
@@ -336,9 +346,9 @@ export default function DocumentVerificationReviewPanel({
 
             {/* SUGGESTIONS */}
             {suggestions.length > 0 && (
-              <div style={{ marginTop: 10 }}>
-                <strong>Suggestions:</strong>
-                <ul className="mt-2 list-inside list-disc text-xs text-gray-400">
+              <div className="mt-4 text-sm">
+                <strong className="text-[color:var(--tex-text-strong)]">Suggestions:</strong>
+                <ul className="mt-2 list-inside list-disc text-[color:var(--tex-text-muted)]">
                   {suggestions.map((s, i) => (
                     <li key={i}>{s}</li>
                   ))}
@@ -348,44 +358,47 @@ export default function DocumentVerificationReviewPanel({
 
             {/* MANUAL REVIEW MODE */}
             {isFail && (
-              <div className="mt-3 text-sm text-yellow-300">
+              <div className="mt-3 text-sm font-medium text-[color:var(--tex-warning)]">
                 Document failed automated verification
               </div>
             )}
 
             {needsManualReview && (
-              <div className="rounded-lg border border-yellow-500 bg-yellow-900/20 p-4">
-                <p className="text-sm font-medium text-yellow-300">
+              <div className="mt-4 rounded-lg border border-[color:var(--tex-warning)] bg-[color:var(--tex-warning-soft)] p-4">
+                <p className="text-sm font-medium text-[color:var(--tex-warning)]">
                   {isFail ? "Document failed automated verification." : "Manual verification required."}
                 </p>
 
-                <p className="mt-1 text-xs text-gray-400">
+                <p className="mt-1 text-xs text-[color:var(--tex-text-muted)]">
                   {isExtractionFailed
                     ? "AI extraction failed or returned no usable text."
                     : "Review the extracted data and confirm the final decision."}
                 </p>
 
-                {doc?.lastActionAt && (
-                  <div className="text-xs text-gray-400 mt-1">
-                    Last action: {doc?.lastActionType || "updated"} at{" "}
-                    {new Date(doc.lastActionAt).toLocaleString()}
-                  </div>
-                )}
-
                 {canReview && !hasManualDecision && (
-                  <div className="mt-4 flex gap-2">
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    {fileUrl ? (
+                      <a
+                        href={fileUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="rounded-lg border border-[color:var(--tex-border)] bg-[color:var(--tex-surface)] px-3 py-2 text-xs font-semibold text-[color:var(--tex-accent-strong)] no-underline"
+                      >
+                        View
+                      </a>
+                    ) : null}
                     <button
                       onClick={() => handleManualApprove(doc)}
-                      className="rounded bg-green-600 px-3 py-1 text-xs text-white"
+                      className="rounded-lg bg-[color:var(--tex-success)] px-3 py-2 text-xs font-semibold text-white"
                     >
-                      Approve
+                      Verify Manually
                     </button>
 
                     <button
                       onClick={() => handleManualReject(doc)}
-                      className="rounded bg-red-600 px-3 py-1 text-xs text-white"
+                      className="rounded-lg bg-[color:var(--tex-danger)] px-3 py-2 text-xs font-semibold text-white"
                     >
-                      Reject
+                      Decline
                     </button>
                   </div>
                 )}
@@ -393,23 +406,10 @@ export default function DocumentVerificationReviewPanel({
             )}
 
             {isFail && canReview && !hasManualDecision && (
-              <div
-                style={{
-                  display: "flex",
-                  gap: 10,
-                  marginTop: 15,
-                }}
-              >
+              <div className="mt-4 flex flex-wrap gap-2">
                 <button
                   onClick={() => handleManualReject(doc)}
-                  style={{
-                    background: "#475569",
-                    padding: "8px 14px",
-                    borderRadius: 6,
-                    border: "none",
-                    cursor: "pointer",
-                    color: "white",
-                  }}
+                  className="rounded-lg border border-[color:var(--tex-border)] bg-[color:var(--tex-surface)] px-3 py-2 text-xs font-semibold text-[color:var(--tex-text-strong)]"
                 >
                   Request New Upload
                 </button>

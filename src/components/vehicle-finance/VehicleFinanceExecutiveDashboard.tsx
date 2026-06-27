@@ -115,6 +115,7 @@ export default function VehicleFinanceExecutiveDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [inventory, setInventory] = useState<RoarInventoryResponse | null>(null);
+  const [inventoryError, setInventoryError] = useState<string | null>(null);
   const [selectedApplicationId, setSelectedApplicationId] = useState<string>("");
 
   useEffect(() => {
@@ -153,7 +154,10 @@ export default function VehicleFinanceExecutiveDashboard() {
       })
       .then(setInventory)
       .catch((inventoryError: unknown) => {
-        if (!controller.signal.aborted) console.warn("[vehicle-finance] Roar inventory unavailable", inventoryError);
+        if (!controller.signal.aborted) {
+          setInventoryError(inventoryError instanceof Error ? inventoryError.message : "Roar inventory unavailable");
+          console.warn("[vehicle-finance] Roar inventory unavailable", inventoryError);
+        }
       });
     return () => controller.abort();
   }, []);
@@ -272,20 +276,10 @@ export default function VehicleFinanceExecutiveDashboard() {
   ] as const;
   void applicationSummaryMetrics;
 
-  const featuredVehicles = [
-    {
-      title: "BMW M4 Competition",
-      subtitle: "Executive hero vehicle",
-      image: "/images/vehicles/bmw-m4-hero.jpg",
-      accent: "bg-cyan-400/10",
-    },
-    {
-      title: "VW Golf R32",
-      subtitle: "Featured vehicle",
-      image: "/images/vehicles/vw-golf-r32.png",
-      accent: "bg-white/5",
-    },
-  ] as const;
+  const missingImageCount =
+    inventory?.diagnostics?.brokenImageLinks ??
+    inventory?.vehicles.filter((vehicle) => !vehicle.imageUrl).length ??
+    0;
 
   return (
     <div className="relative isolate mx-auto max-w-7xl space-y-6 p-4 pb-10 md:p-6 lg:p-8">
@@ -326,8 +320,8 @@ export default function VehicleFinanceExecutiveDashboard() {
           <div className="grid gap-3 sm:grid-cols-3">
             <Link href="/dashboard/vehicle-finance/inventory" className={`${EXECUTIVE_METRIC_CARD_CLASS} block text-left no-underline transition hover:border-sky-200/30 hover:bg-sky-300/15`}>
               <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-sky-100/75">Vehicle Listings</p>
-              <p className="mt-4 text-lg font-semibold text-white">{inventory ? `${inventory.metrics.activeVehicles} Active Vehicles` : "Loading synchronized inventory..."}</p>
-              <p className="mt-2 text-xs leading-5 text-slate-300">Synced from Roar Cars website</p>
+              <p className="mt-4 text-lg font-semibold text-white">{inventory ? `${inventory.metrics.activeVehicles} Active Vehicles` : "Inventory sync unavailable"}</p>
+              <p className="mt-2 text-xs leading-5 text-slate-200">{inventoryError ?? inventory?.warning ?? "Synced from Roar Cars website"}</p>
               <p className="mt-1 text-xs leading-5 text-slate-400">Last synced {formatSyncedAt(inventory?.syncedAt ?? inventory?.source.lastSyncedAt)}</p>
             </Link>
             <Link href="/dashboard/vehicle-finance/customers" className={`${EXECUTIVE_METRIC_CARD_CLASS} block text-left no-underline transition hover:border-sky-200/30 hover:bg-sky-300/15`}>
@@ -345,7 +339,7 @@ export default function VehicleFinanceExecutiveDashboard() {
       <section id="executive-overview" className="scroll-mt-40 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {inventoryMetrics.map(([label, value]) => (
           <Card key={label} className={`${EXECUTIVE_METRIC_CARD_CLASS} flex flex-col justify-between`}>
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">{label}</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-300">{label}</p>
             <p className="mt-3 text-3xl font-semibold text-white">
               {typeof value === "number" ? value.toLocaleString("en-ZA") : String(value)}
             </p>
@@ -383,18 +377,30 @@ export default function VehicleFinanceExecutiveDashboard() {
 
       <section className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
         <Card>
-          <IdentityCardHeader title="Featured Vehicles" subtitle="Live Roar inventory highlights" />
+          <IdentityCardHeader title="Featured Vehicles" subtitle="Live Roar inventory highlights">
+            <div className="flex flex-wrap gap-2">
+              <Badge tone={inventory?.status === "LIVE" ? "success" : inventory?.status === "CACHED" ? "warning" : "danger"}>
+                {inventory?.status ?? "UNAVAILABLE"}
+              </Badge>
+              <Badge tone={missingImageCount > 0 ? "warning" : "success"}>{missingImageCount} missing images</Badge>
+            </div>
+          </IdentityCardHeader>
           <div className="mt-4 grid gap-4 md:grid-cols-2">
             {inventoryVehicles.length
               ? inventoryVehicles.slice(0, 2).map((vehicle) => (
                   <article key={vehicle.id} className="overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.03] shadow-[0_20px_50px_rgba(2,8,23,0.22)]">
                     <div className="relative aspect-[16/9] bg-slate-950/70 p-3 md:p-5">
-                      <Image
-                        src={vehicle.imageUrl ?? ROAR_SHOWROOM_SRC}
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={vehicle.imageUrl ?? "/images/roar-cars-placeholder.svg"}
                         alt={vehicle.title}
-                        fill
-                        sizes="(min-width: 768px) 44vw, 92vw"
-                        className="object-contain object-center p-2 md:p-3 lg:p-4"
+                        loading="lazy"
+                        onError={(event) => {
+                          if (!event.currentTarget.src.endsWith("/images/roar-cars-placeholder.svg")) {
+                            event.currentTarget.src = "/images/roar-cars-placeholder.svg";
+                          }
+                        }}
+                        className="h-full w-full object-contain object-center p-2 md:p-3 lg:p-4"
                       />
                     </div>
                     <div className="border-t border-white/10 p-4">
@@ -408,24 +414,17 @@ export default function VehicleFinanceExecutiveDashboard() {
                     </div>
                   </article>
                 ))
-              : featuredVehicles.map((vehicle) => (
-                  <article key={vehicle.title} className={`overflow-hidden rounded-[28px] border border-white/10 ${vehicle.accent} shadow-[0_20px_50px_rgba(2,8,23,0.22)]`}>
-                    <div className="relative aspect-[16/9] bg-slate-950/70 p-3 md:p-5">
-                      <Image
-                        src={vehicle.image}
-                        alt={vehicle.title}
-                        fill
-                        sizes="(min-width: 768px) 44vw, 92vw"
-                        className="object-contain object-center p-2 md:p-3 lg:p-4"
-                      />
-                    </div>
-                    <div className="border-t border-white/10 p-4">
-                      <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-100/70">{vehicle.subtitle}</p>
-                      <h3 className="mt-2 text-lg font-semibold text-white">{vehicle.title}</h3>
-                      <p className="mt-2 text-sm leading-6 text-slate-300">Vehicle card styling prepared for Roar Cars SA inventory integration.</p>
-                    </div>
-                  </article>
-                ))}
+              : (
+                  <div className="rounded-[24px] border border-amber-300/25 bg-amber-300/[0.08] p-5 text-amber-50 md:col-span-2">
+                    <p className="font-semibold">Inventory sync unavailable</p>
+                    <p className="mt-2 text-sm leading-6 text-slate-100">
+                      {inventoryError || inventory?.warning || "No live Roar Cars vehicles are available from the synchronized feed yet."}
+                    </p>
+                    <p className="mt-3 text-xs uppercase tracking-[0.18em] text-amber-100/80">
+                      Last sync {formatSyncedAt(inventory?.syncedAt ?? inventory?.source.lastSyncedAt)}
+                    </p>
+                  </div>
+                )}
           </div>
         </Card>
 

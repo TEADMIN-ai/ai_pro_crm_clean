@@ -9,6 +9,7 @@ export const SUPPORTED_DOCUMENT_TYPES = [
 ] as const;
 
 export type SupportedDocumentType = (typeof SUPPORTED_DOCUMENT_TYPES)[number];
+export type ContractorUploadDocumentType = SupportedDocumentType | "csd" | "cidb";
 export const LEGACY_COMPLIANCE_REQUIREMENT_KEYS = ["cipc", "tax", "bbbee", "coida", "bank"] as const;
 export type LegacyComplianceRequirementKey = (typeof LEGACY_COMPLIANCE_REQUIREMENT_KEYS)[number];
 
@@ -56,6 +57,25 @@ export function normalizeSupportedDocumentType(value: unknown): SupportedDocumen
     default:
       return null;
   }
+}
+
+export function normalizeContractorUploadDocumentType(value: unknown): ContractorUploadDocumentType | null {
+  const supported = normalizeSupportedDocumentType(value);
+  if (supported) return supported;
+
+  const normalized = normalizeDocumentTypeToken(value);
+  if (normalized === "csd" || normalized === "csdmnumber" || normalized === "csdregistration") {
+    return "csd";
+  }
+  if (normalized === "cidb" || normalized === "cidbregistration" || normalized === "cidbcertificate") {
+    return "cidb";
+  }
+
+  return null;
+}
+
+export function isContractorUploadDocumentType(value: string): value is ContractorUploadDocumentType {
+  return normalizeContractorUploadDocumentType(value) !== null;
 }
 
 export function toLegacyComplianceRequirementKey(value: unknown): LegacyComplianceRequirementKey | null {

@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import Badge from "@/components/ui/Badge";
 import Card from "@/components/ui/Card";
@@ -60,23 +60,26 @@ export default function RoarCarsInventoryWorkspace({ mode = "inventory" }: Props
   const [transmission, setTransmission] = useState("all");
   const [minPrice, setMinPrice] = useState("");
   const [maxPrice, setMaxPrice] = useState("");
+  const [syncing, setSyncing] = useState(false);
+
+  const loadInventory = useCallback(async (signal?: AbortSignal) => {
+    const response = await authFetch(API_ROUTES.VEHICLE_FINANCE_ROAR_INVENTORY, {
+      cache: "no-store",
+      signal,
+    });
+    const payload = (await response.json().catch(() => null)) as (RoarInventoryResponse & { error?: string }) | null;
+    if (!response.ok || !payload) {
+      throw new Error(payload?.error ?? `Inventory request failed (${response.status})`);
+    }
+
+    setInventory(payload);
+    setError(payload.warning ?? null);
+  }, []);
 
   useEffect(() => {
     const controller = new AbortController();
 
-    authFetch(API_ROUTES.VEHICLE_FINANCE_ROAR_INVENTORY, {
-      cache: "no-store",
-      signal: controller.signal,
-    })
-      .then(async (response) => {
-        const payload = (await response.json().catch(() => null)) as (RoarInventoryResponse & { error?: string }) | null;
-        if (!response.ok || !payload) {
-          throw new Error(payload?.error ?? `Inventory request failed (${response.status})`);
-        }
-
-        setInventory(payload);
-        setError(payload.warning ?? null);
-      })
+    loadInventory(controller.signal)
       .catch((loadError: unknown) => {
         if (controller.signal.aborted) return;
         setError(loadError instanceof Error ? loadError.message : "Live inventory temporarily unavailable");
@@ -86,7 +89,28 @@ export default function RoarCarsInventoryWorkspace({ mode = "inventory" }: Props
       });
 
     return () => controller.abort();
-  }, []);
+  }, [loadInventory]);
+
+  const retryInventorySync = useCallback(async () => {
+    try {
+      setSyncing(true);
+      setError(null);
+      const response = await authFetch(API_ROUTES.VEHICLE_FINANCE_INVENTORY_SYNC, {
+        method: "POST",
+        headers: { Accept: "application/json" },
+        cache: "no-store",
+      });
+      const payload = (await response.json().catch(() => null)) as { error?: string } | null;
+      if (!response.ok) {
+        throw new Error(payload?.error ?? `Inventory sync failed (${response.status})`);
+      }
+      await loadInventory();
+    } catch (syncError) {
+      setError(syncError instanceof Error ? syncError.message : "Inventory sync failed");
+    } finally {
+      setSyncing(false);
+    }
+  }, [loadInventory]);
 
   const vehicles = inventory?.vehicles ?? [];
   const makes = useMemo(() => [...new Set(vehicles.map((vehicle) => vehicle.make).filter(Boolean))].sort(), [vehicles]);
@@ -178,17 +202,31 @@ export default function RoarCarsInventoryWorkspace({ mode = "inventory" }: Props
       </section>
 
       {inventory?.warning || error ? (
-        <section className="rounded-[24px] border border-amber-300/20 bg-amber-300/[0.06] px-4 py-4 text-sm text-amber-50">
-          <p className="font-semibold">
-            {inventory?.status === "UNAVAILABLE" || !inventory ? "Roar inventory feed is being prepared." : "Live inventory temporarily unavailable."}
-          </p>
-          <p className="mt-1 text-slate-300">
-            {inventory?.status === "UNAVAILABLE" || !inventory
-              ? "Live inventory will appear here once the source site responds."
-              : "Last cached inventory is shown where available."}
-          </p>
+        <section className="rounded-[24px] border border-amber-300/30 bg-amber-300/[0.09] px-4 py-4 text-sm text-amber-100">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="font-semibold">
+                {inventory?.status === "UNAVAILABLE" || !inventory ? "Inventory sync unavailable." : "Live inventory temporarily unavailable."}
+              </p>
+              <p className="mt-1 text-slate-100">
+                {error || inventory?.warning || (inventory?.status === "UNAVAILABLE" || !inventory
+                  ? "Live inventory will appear here once the source site responds."
+                  : "Last cached inventory is shown where available.")}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => void retryInventorySync()}
+              disabled={syncing}
+              className="rounded-xl border border-amber-200/40 bg-slate-950/60 px-4 py-2 text-xs font-semibold text-amber-50 transition hover:bg-slate-900 disabled:opacity-60"
+            >
+              {syncing ? "Syncing..." : "Retry Sync"}
+            </button>
+          </div>
         </section>
       ) : null}
+
+      <InventoryHealthPanel inventory={inventory} error={error} syncing={syncing} onRetry={() => void retryInventorySync()} />
 
       <section className="grid gap-3 rounded-[24px] border border-white/10 bg-white/[0.04] p-4 sm:grid-cols-2 xl:grid-cols-5">
         <label className="sm:col-span-2 xl:col-span-1">
@@ -388,9 +426,66 @@ function Metric({ label, value }: { label: string; value: string | number }) {
 function MetricCard({ label, value }: { label: string; value: string | number }) {
   return (
     <Card className="rounded-[24px] border border-white/10 bg-white/[0.04] p-5">
-      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">{label}</p>
+      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-300">{label}</p>
       <p className="mt-3 text-2xl font-semibold text-white">{typeof value === "number" ? value.toLocaleString("en-ZA") : value}</p>
     </Card>
+  );
+}
+
+function InventoryHealthPanel({
+  inventory,
+  error,
+  syncing,
+  onRetry,
+}: {
+  inventory: RoarInventoryResponse | null;
+  error: string | null;
+  syncing: boolean;
+  onRetry: () => void;
+}) {
+  const diagnostics = inventory?.diagnostics;
+  const missingImageCount = diagnostics?.brokenImageLinks ?? inventory?.vehicles.filter((vehicle) => !vehicle.imageUrl).length ?? 0;
+  const healthTone = inventory?.status === "LIVE" ? "success" : inventory?.status === "CACHED" ? "warning" : "danger";
+
+  return (
+    <section className="rounded-[24px] border border-white/10 bg-slate-950/70 p-4 shadow-[0_18px_45px_rgba(2,8,23,0.2)]">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-sky-100/80">Inventory Health</p>
+          <h2 className="mt-1 text-lg font-semibold text-white">{inventory?.status ?? "UNAVAILABLE"}</h2>
+          <p className="mt-1 text-sm text-slate-200">
+            {error || inventory?.warning || "Inventory sync is reporting normally."}
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Badge tone={healthTone}>{inventory?.status ?? "UNAVAILABLE"}</Badge>
+          <button
+            type="button"
+            onClick={onRetry}
+            disabled={syncing}
+            className="rounded-lg border border-sky-300/25 bg-sky-300/10 px-3 py-2 text-xs font-semibold text-sky-100 hover:bg-sky-300/20 disabled:opacity-60"
+          >
+            {syncing ? "Syncing..." : "Retry Sync"}
+          </button>
+        </div>
+      </div>
+      <dl className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+        <HealthMetric label="Last Sync" value={formatSyncedAt(inventory?.syncedAt ?? inventory?.source.lastSyncedAt ?? null)} />
+        <HealthMetric label="Vehicle Count" value={inventory?.itemCount ?? 0} />
+        <HealthMetric label="Missing Images" value={missingImageCount} />
+        <HealthMetric label="Failed Syncs" value={diagnostics?.failedSyncs ?? 0} />
+        <HealthMetric label="Source" value={inventory?.source.type ?? "unavailable"} />
+      </dl>
+    </section>
+  );
+}
+
+function HealthMetric({ label, value }: { label: string; value: string | number }) {
+  return (
+    <div className="min-w-0 rounded-xl border border-white/10 bg-white/[0.04] p-4">
+      <dt className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-300">{label}</dt>
+      <dd className="mt-2 break-words text-sm font-semibold text-white">{typeof value === "number" ? value.toLocaleString("en-ZA") : value}</dd>
+    </div>
   );
 }
 

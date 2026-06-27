@@ -7,7 +7,7 @@ import RoarCarsBrandHeader from "@/components/vehicle-finance/RoarCarsBrandHeade
 export default function VehicleFinanceLayout({ children }: { children: ReactNode }) {
   return (
     <RequireRole allow={["admin", "manager", "staff", "dealerPilot", "vehicleFinanceStaff", "ROAR_CARS_STAFF"]}>
-      <div className="min-h-screen bg-[#050914]">
+      <div data-theme="midnight" data-module="vehicle-finance" className="vehicle-finance-shell min-h-screen bg-[#050914]">
         <RoarCarsBrandHeader />
         {children}
       </div>

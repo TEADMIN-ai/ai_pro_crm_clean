@@ -119,11 +119,11 @@ type UploadTarget = {
 const DOCUMENT_GROUPS: DocumentGroup[] = [
   { key: "registration", title: "Registration Documents", matches: ["cipc", "registration", "companyregistration"], uploadType: "cipc", uploadLabel: "CIPC" },
   { key: "tax", title: "Tax Documents", matches: ["tax", "taxclearance", "tcspin"], uploadType: "taxClearance", uploadLabel: "Tax Clearance" },
-  { key: "csd", title: "CSD Documents", matches: ["csd", "csdmnumber"], uploadType: "coida", uploadLabel: "CSD" },
+  { key: "csd", title: "CSD Documents", matches: ["csd", "csdmnumber"], uploadType: "csd", uploadLabel: "CSD" },
   { key: "bbbee", title: "B-BBEE", matches: ["bbbee", "bbee"], uploadType: "bbbee", uploadLabel: "BBBEE" },
   { key: "coida", title: "COIDA", matches: ["coida"], uploadType: "coida", uploadLabel: "COIDA" },
   { key: "bank", title: "Bank Confirmation", matches: ["bank", "bankconfirmation", "bankletter"], uploadType: "bankConfirmation", uploadLabel: "Bank Confirmation" },
-  { key: "cidb", title: "CIDB", matches: ["cidb"] },
+  { key: "cidb", title: "CIDB", matches: ["cidb"], uploadType: "cidb", uploadLabel: "CIDB" },
 ];
 
 function clean(value: unknown): string {
@@ -161,6 +161,7 @@ function documentStatus(document: ContractorDocument): string {
   if (document.verificationStatus === "VERIFIED_MANUAL") return "Manually Verified";
   if (document.verificationStatus === "REJECTED_MANUAL") return "Rejected";
   if (document.verified) return "Verified";
+  if (document.fileUrl && isExtractionFailed(document)) return "Uploaded - Review Required";
   if (document.validationStatus === "REVIEW" || document.manualDecisionAvailable) return "Pending Review";
   return clean(document.status) || (document.fileUrl ? "Uploaded" : "Missing");
 }
@@ -170,6 +171,31 @@ function documentStatusClasses(document: ContractorDocument): string {
   if (document.verificationStatus === "REJECTED_MANUAL" || document.validationStatus === "FAIL") return "border-rose-200 bg-rose-50 text-rose-700";
   if (document.verified || document.validationStatus === "PASS") return "border-emerald-200 bg-emerald-50 text-emerald-700";
   return "border-amber-200 bg-amber-50 text-amber-800";
+}
+
+function isExtractionFailed(document: ContractorDocument): boolean {
+  if (!document.fileUrl) return false;
+  return (
+    document.extractionSource === "EMPTY" ||
+    document.aiStatus === "failed" ||
+    document.validationStatus === "REVIEW" ||
+    document.manualDecisionAvailable === true ||
+    document.extractedTextLength === 0 ||
+    (typeof document.extractedText === "string" && document.extractedText.trim().length === 0)
+  );
+}
+
+function documentSectionSummary(documents: ContractorDocument[]): string {
+  if (documents.length === 0) return "No file on record";
+  const uploadedCount = documents.filter((document) => Boolean(document.fileUrl)).length;
+  const reviewCount = documents.filter(isExtractionFailed).length;
+  if (reviewCount > 0) return `${uploadedCount} uploaded, ${reviewCount} requiring review`;
+  return `${uploadedCount || documents.length} record(s)`;
+}
+
+function documentReviewNote(document: ContractorDocument): string | null {
+  if (!document.fileUrl || !isExtractionFailed(document)) return null;
+  return document.reviewReason || document.validationError || document.aiError || "File is uploaded, but no usable text was extracted. Manual review remains available.";
 }
 
 function getLastDocumentUpdate(documents: ContractorDocument[]): number | null {
@@ -193,7 +219,7 @@ function groupDocuments(documents: ContractorDocument[]) {
   const contractorUploaded = documents.filter((document) => Boolean(document.fileUrl));
   const requestedMissing = documents.filter((document) => {
     const status = normalizeToken(document.status);
-    return status === "missing" || Boolean(document.reviewReason || document.validationError);
+    return !document.fileUrl && (status === "missing" || Boolean(document.reviewReason || document.validationError));
   });
   const uncategorized = documents.filter((document) => !groupedIds.has(document.id));
 
@@ -234,6 +260,7 @@ export default function ContractorOnboardingView({ contractorId }: Props) {
   const [noteTitle, setNoteTitle] = useState("");
   const [noteMessage, setNoteMessage] = useState("");
   const [savingNote, setSavingNote] = useState(false);
+  const [activeDocumentSectionKey, setActiveDocumentSectionKey] = useState(DOCUMENT_GROUPS[0].key);
 
   async function loadOnboarding() {
     const response = await authFetch(API_ROUTES.CONTRACTOR_ONBOARDING(contractorId), {
@@ -277,6 +304,13 @@ export default function ContractorOnboardingView({ contractorId }: Props) {
     () => groupDocuments(payload?.documents ?? []),
     [payload?.documents],
   );
+  const activeDocumentSectionIndex = Math.max(
+    0,
+    groupedDocuments.grouped.findIndex((group) => group.key === activeDocumentSectionKey),
+  );
+  const activeDocumentSection = groupedDocuments.grouped[activeDocumentSectionIndex] ?? groupedDocuments.grouped[0];
+  const previousDocumentSection = groupedDocuments.grouped[activeDocumentSectionIndex - 1] ?? null;
+  const nextDocumentSection = groupedDocuments.grouped[activeDocumentSectionIndex + 1] ?? null;
 
   async function submitAcknowledgement(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -422,44 +456,90 @@ export default function ContractorOnboardingView({ contractorId }: Props) {
                 ) : null}
               </div>
 
-              <div className="mt-5 grid grid-cols-1 gap-4 lg:grid-cols-2">
-                {groupedDocuments.grouped.map((group) => {
-                  const firstDocument = group.documents[0];
-                  const uploadTarget = resolveUploadTarget(group, firstDocument);
-                  return (
-                    <div key={group.key} className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <h2 className="font-semibold text-slate-900">{group.title}</h2>
-                          <p className="mt-1 text-sm text-slate-600">
-                            {group.documents.length ? `${group.documents.length} record(s)` : "No file on record"}
-                          </p>
-                        </div>
-                        {canUpload && uploadTarget ? (
-                          <button
-                            type="button"
-                            onClick={() => openUpload(uploadTarget.documentType, uploadTarget.displayLabel)}
-                            className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100"
-                          >
-                            Upload
-                          </button>
-                        ) : null}
-                      </div>
+              <div className="mt-5 rounded-xl border border-slate-200 bg-slate-50 p-4">
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                  <div className="min-w-0">
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                      Section {activeDocumentSectionIndex + 1} of {groupedDocuments.grouped.length}
+                    </p>
+                    <h2 className="mt-1 text-lg font-semibold text-slate-950">{activeDocumentSection.title}</h2>
+                    <p className="mt-1 text-sm text-slate-600">{documentSectionSummary(activeDocumentSection.documents)}</p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      disabled={!previousDocumentSection}
+                      onClick={() => previousDocumentSection && setActiveDocumentSectionKey(previousDocumentSection.key)}
+                      className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-45"
+                    >
+                      Back
+                    </button>
+                    <button
+                      type="button"
+                      disabled={!nextDocumentSection}
+                      onClick={() => nextDocumentSection && setActiveDocumentSectionKey(nextDocumentSection.key)}
+                      className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-45"
+                    >
+                      Next
+                    </button>
+                    {canUpload && resolveUploadTarget(activeDocumentSection, activeDocumentSection.documents[0]) ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const uploadTarget = resolveUploadTarget(activeDocumentSection, activeDocumentSection.documents[0]);
+                          if (uploadTarget) openUpload(uploadTarget.documentType, uploadTarget.displayLabel);
+                        }}
+                        className="rounded-lg bg-sky-600 px-3 py-2 text-xs font-semibold text-white hover:bg-sky-700"
+                      >
+                        Upload {activeDocumentSection.uploadLabel ?? activeDocumentSection.title}
+                      </button>
+                    ) : null}
+                  </div>
+                </div>
 
-                      <div className="mt-4 space-y-3">
-                        {group.documents.length ? (
-                          group.documents.map((document) => (
-                            <DocumentRow key={document.id} contractorId={contractorId} document={document} onUpdated={loadOnboarding} canReview={payload.viewer.isPrivileged} />
-                          ))
-                        ) : (
-                          <p className="rounded-lg border border-dashed border-slate-300 bg-white px-3 py-3 text-sm text-slate-500">
-                            Awaiting {group.title.toLowerCase()}.
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
+                <nav aria-label="Document sections" className="mt-4 flex gap-2 overflow-x-auto pb-1">
+                  {groupedDocuments.grouped.map((group, index) => {
+                    const active = group.key === activeDocumentSection.key;
+                    const hasReview = group.documents.some(isExtractionFailed);
+                    return (
+                      <button
+                        key={group.key}
+                        type="button"
+                        onClick={() => setActiveDocumentSectionKey(group.key)}
+                        aria-current={active ? "step" : undefined}
+                        className={`whitespace-nowrap rounded-full border px-3 py-1.5 text-xs font-semibold ${
+                          active
+                            ? "border-sky-300 bg-sky-50 text-sky-800"
+                            : hasReview
+                              ? "border-amber-200 bg-amber-50 text-amber-800"
+                              : "border-slate-200 bg-white text-slate-600 hover:bg-slate-100"
+                        }`}
+                      >
+                        {index + 1}. {group.title}
+                      </button>
+                    );
+                  })}
+                </nav>
+
+                <div className="mt-4 space-y-3">
+                  {activeDocumentSection.documents.length ? (
+                    activeDocumentSection.documents.map((document) => (
+                      <DocumentRow
+                        key={document.id}
+                        contractorId={contractorId}
+                        document={document}
+                        onUpdated={loadOnboarding}
+                        canReview={payload.viewer.isPrivileged}
+                        canUpload={canUpload}
+                        onUploadReplacement={(documentType, label) => openUpload(documentType, label)}
+                      />
+                    ))
+                  ) : (
+                    <p className="rounded-lg border border-dashed border-slate-300 bg-white px-3 py-4 text-sm text-slate-600">
+                      No file on record for {activeDocumentSection.title.toLowerCase()}.
+                    </p>
+                  )}
+                </div>
               </div>
 
               {groupedDocuments.uncategorized.length ? (
@@ -467,7 +547,15 @@ export default function ContractorOnboardingView({ contractorId }: Props) {
                   <h2 className="font-semibold text-slate-900">Other Contractor-Uploaded Documents</h2>
                   <div className="mt-3 divide-y divide-slate-100">
                     {groupedDocuments.uncategorized.map((document) => (
-                      <DocumentRow key={document.id} contractorId={contractorId} document={document} onUpdated={loadOnboarding} canReview={payload.viewer.isPrivileged} />
+                      <DocumentRow
+                        key={document.id}
+                        contractorId={contractorId}
+                        document={document}
+                        onUpdated={loadOnboarding}
+                        canReview={payload.viewer.isPrivileged}
+                        canUpload={canUpload}
+                        onUploadReplacement={(documentType, label) => openUpload(documentType, label)}
+                      />
                     ))}
                   </div>
                 </div>
@@ -722,11 +810,15 @@ function DocumentRow({
   document,
   onUpdated,
   canReview,
+  canUpload,
+  onUploadReplacement,
 }: {
   contractorId: string;
   document: ContractorDocument;
   onUpdated: () => Promise<void>;
   canReview: boolean;
+  canUpload: boolean;
+  onUploadReplacement: (documentType: string, label: string) => void;
 }) {
   const [isOpening, setIsOpening] = useState(false);
   const [isReprocessing, setIsReprocessing] = useState(false);
@@ -849,56 +941,86 @@ function DocumentRow({
     }
   }
 
+  const documentType = clean(document.documentType) || clean(document.docType) || clean(document.id);
+  const reviewNote = documentReviewNote(document);
+  const metadata = [
+    ["Updated", document.updatedAt ? formatDate(document.updatedAt) : "No update timestamp"],
+    ["Extraction Source", document.extractionSource ?? "Not recorded"],
+    ["Text Length", `${document.extractedTextLength ?? 0} chars`],
+    ["OCR Length", `${document.ocrTextLength ?? 0} chars`],
+    ["Analysis Time", formatDate(document.analysisTimestamp)],
+    ["Manual Review", document.manualDecisionAvailable ? "Available" : canReview ? "Available to staff" : "Requires authorised staff"],
+  ] as const;
+
   return (
-    <div className="flex flex-col gap-3 rounded-lg border border-slate-200 bg-white px-3 py-3 sm:flex-row sm:items-center sm:justify-between">
-      <div className="min-w-0">
-        <div className="flex flex-wrap items-center gap-2">
-          <p className="truncate text-sm font-semibold text-slate-900">{documentLabel(document)}</p>
-          <span className={`rounded-full border px-2 py-0.5 text-[11px] font-semibold ${documentStatusClasses(document)}`}>
-            {documentStatus(document)}
-          </span>
-        </div>
-        <p className="mt-1 text-xs text-slate-500">
-          {document.updatedAt ? `Updated ${formatDate(document.updatedAt)}` : "No update timestamp"}
-        </p>
-        {document.fileUrl ? (
-          <div className="mt-2 grid gap-1 text-xs text-slate-500 sm:grid-cols-2">
-            <span>Extraction Source: {document.extractionSource ?? "Not recorded"}</span>
-            <span>Text Length: {document.extractedTextLength ?? 0} chars</span>
-            <span>OCR Length: {document.ocrTextLength ?? 0} chars</span>
-            <span>Last Analysis Time: {formatDate(document.analysisTimestamp)}</span>
+    <div className="rounded-lg border border-slate-200 bg-white px-4 py-4">
+      <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-sky-200 bg-sky-50 text-xs font-black text-sky-700">
+              DOC
+            </span>
+            <p className="min-w-[14rem] max-w-full break-words text-sm font-semibold text-slate-950">{documentLabel(document)}</p>
+            <span className={`rounded-full border px-2 py-0.5 text-[11px] font-semibold ${documentStatusClasses(document)}`}>
+              {documentStatus(document)}
+            </span>
           </div>
-        ) : null}
-        {openError ? <p className="mt-1 text-xs font-medium text-rose-600">{openError}</p> : null}
-        {reprocessStatus ? <p className="mt-1 text-xs font-medium text-slate-600">{reprocessStatus}</p> : null}
-      </div>
-      {document.fileUrl ? (
-        <div className="flex shrink-0 flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={openDocument}
-            disabled={isOpening}
-            className="inline-flex justify-center rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-xs font-semibold text-sky-700 hover:bg-sky-100 disabled:opacity-60"
-          >
-            {isOpening ? "Opening..." : "View"}
-          </button>
-          <button
-            type="button"
-            onClick={reprocessDocument}
-            disabled={isReprocessing}
-            className="inline-flex justify-center rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 disabled:opacity-60"
-          >
-            {isReprocessing ? "Processing..." : "Reprocess"}
-          </button>
-          {canReview ? (
+          {reviewNote ? (
+            <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+              <p className="font-semibold">Uploaded file requires review</p>
+              <p className="mt-1">{reviewNote}</p>
+            </div>
+          ) : null}
+          <dl className="mt-3 grid gap-2 text-xs text-slate-600 sm:grid-cols-2 xl:grid-cols-3">
+            {metadata.map(([label, value]) => (
+              <div key={label} className="min-w-0 rounded-md border border-slate-100 bg-slate-50 px-3 py-2">
+                <dt className="font-semibold uppercase tracking-[0.12em] text-slate-500">{label}</dt>
+                <dd className="mt-1 break-words font-medium text-slate-800">{value}</dd>
+              </div>
+            ))}
+          </dl>
+          {openError ? <p className="mt-2 text-xs font-medium text-rose-600">{openError}</p> : null}
+          {reprocessStatus ? <p className="mt-2 text-xs font-medium text-slate-600">{reprocessStatus}</p> : null}
+        </div>
+        <div className="flex shrink-0 flex-wrap gap-2 xl:max-w-[19rem] xl:justify-end">
+          {document.fileUrl ? (
+            <>
+              <button
+                type="button"
+                onClick={openDocument}
+                disabled={isOpening}
+                className="inline-flex justify-center rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-xs font-semibold text-sky-700 hover:bg-sky-100 disabled:opacity-60"
+              >
+                {isOpening ? "Opening..." : "View"}
+              </button>
+              <button
+                type="button"
+                onClick={reprocessDocument}
+                disabled={isReprocessing}
+                className="inline-flex justify-center rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 disabled:opacity-60"
+              >
+                {isReprocessing ? "Processing..." : "Reprocess"}
+              </button>
+            </>
+          ) : null}
+          {canUpload && documentType ? (
+            <button
+              type="button"
+              onClick={() => onUploadReplacement(documentType, documentLabel(document))}
+              className="inline-flex justify-center rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+            >
+              Upload Replacement
+            </button>
+          ) : null}
+          {canReview && document.fileUrl ? (
             <>
               <button
                 type="button"
                 onClick={() => applyManualDecision("approve")}
                 disabled={isReviewing}
-                className="inline-flex justify-center rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-xs font-semibold text-sky-700 hover:bg-sky-100 disabled:opacity-60"
+                className="inline-flex justify-center rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 disabled:opacity-60"
               >
-                {isReviewing ? "Saving..." : "Approve"}
+                {isReviewing ? "Saving..." : "Verify Manually"}
               </button>
               <button
                 type="button"
@@ -911,7 +1033,7 @@ function DocumentRow({
             </>
           ) : null}
         </div>
-      ) : null}
+      </div>
     </div>
   );
 }

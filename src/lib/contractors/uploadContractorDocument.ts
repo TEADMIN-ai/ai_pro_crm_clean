@@ -1,6 +1,6 @@
 import { authFetch } from "@/lib/client/authFetch";
 import { API_ROUTES } from "@/lib/routes";
-import type { SupportedDocumentType } from "@/lib/compliance/contractorCompliance";
+import type { ContractorUploadDocumentType } from "@/lib/compliance/contractorCompliance";
 import type { ContractorDocument } from "@/types/document";
 
 type UploadResponse = {
@@ -10,7 +10,7 @@ type UploadResponse = {
 
 export async function uploadContractorDocument(
   contractorId: string,
-  documentType: SupportedDocumentType,
+  documentType: ContractorUploadDocumentType,
   file: File
 ): Promise<ContractorDocument> {
   if (!contractorId.trim()) {
