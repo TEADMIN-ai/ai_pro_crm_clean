@@ -617,7 +617,7 @@ export default function HygieneDivisionClient({ view }: { view: HygieneView }) {
   }, [authLoading]);
 
   return (
-    <div className="space-y-6 text-slate-100">
+    <div data-module="hygiene" className="tex-shell space-y-6 text-slate-100">
       <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleEvidenceSelection} />
 
       <section className="rounded-2xl border border-white/10 bg-white/[0.04] p-5 shadow-sm">

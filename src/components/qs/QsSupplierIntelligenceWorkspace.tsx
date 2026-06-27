@@ -2,6 +2,14 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import {
+  ActionButton,
+  DashboardCard,
+  DashboardShell,
+  EmptyState,
+  ModuleHeader,
+  StatusBadge,
+} from "@/components/tex/ExecutivePrimitives";
 import { authFetch } from "@/lib/client/authFetch";
 import { API_ROUTES } from "@/lib/routes";
 import type {
@@ -31,18 +39,18 @@ function formatCurrency(value: number | null | undefined) {
 }
 
 function scoreTone(score: number) {
-  if (score >= 80) return "text-emerald-100";
-  if (score >= 60) return "text-amber-100";
-  return "text-rose-100";
+  if (score >= 80) return "success";
+  if (score >= 60) return "warning";
+  return "danger";
 }
 
 function Panel({ title, description, children }: { title: string; description?: string; children: React.ReactNode }) {
   return (
-    <section className="rounded-lg border border-white/10 bg-white/[0.03] p-4">
-      <h2 className="text-sm font-semibold text-slate-100">{title}</h2>
-      {description ? <p className="mt-1 text-sm text-slate-500">{description}</p> : null}
+    <DashboardCard>
+      <h2 className="text-sm font-semibold text-[color:var(--tex-text-strong)]">{title}</h2>
+      {description ? <p className="tex-copy mt-1 text-sm">{description}</p> : null}
       <div className="mt-4">{children}</div>
-    </section>
+    </DashboardCard>
   );
 }
 
@@ -56,13 +64,11 @@ function Header() {
 
   return (
     <header className="space-y-5">
-      <div>
-        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-cyan-200">Operation Atlas | QS Engine Phase 3</p>
-        <h1 className="mt-3 text-2xl font-semibold text-white">AI Supplier Intelligence</h1>
-        <p className="mt-2 max-w-3xl text-sm text-slate-400">
-          Compare supplier price, quality, delivery, stock, reliability, transport exposure, margin impact, and commercial risk.
-        </p>
-      </div>
+      <ModuleHeader
+        eyebrow="Operation Atlas | QS Engine Phase 3"
+        title="AI Supplier Intelligence"
+        description="Compare supplier price, quality, delivery, stock, reliability, transport exposure, margin impact, and commercial risk."
+      />
       <nav className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4" aria-label="QS supplier intelligence navigation">
         {nav.map((item) => (
           <Link
@@ -70,8 +76,8 @@ function Header() {
             href={item.href}
             className={`rounded-lg border p-3 text-sm font-semibold transition ${
               item.href === "/dashboard/qs/suppliers"
-                ? "border-cyan-400/30 bg-cyan-400/10 text-cyan-100"
-                : "border-white/10 bg-white/[0.03] text-slate-300 hover:border-white/20"
+                ? "border-[color:var(--tex-accent)] bg-[color:var(--tex-accent-soft)] text-[color:var(--tex-accent-strong)]"
+                : "border-[color:var(--tex-border)] bg-[color:var(--tex-card)] text-[color:var(--tex-text)] hover:border-[color:var(--tex-border-strong)]"
             }`}
           >
             {item.label}
@@ -98,37 +104,37 @@ function RecommendationCards({
   }, [recommendations]);
 
   if (!topRecommendations.length) {
-    return <p className="text-sm text-slate-500">Generate recommendations from an estimate to populate commercial supplier intelligence.</p>;
+    return <EmptyState title="No recommendations generated yet." description="Generate recommendations from an estimate to populate commercial supplier intelligence." />;
   }
 
   return (
     <div className="grid gap-3 lg:grid-cols-2">
       {topRecommendations.map((recommendation) => (
-        <article key={recommendation.recommendationId} className="rounded-lg border border-white/10 bg-slate-950/50 p-4">
+        <article key={recommendation.recommendationId} className="tex-ai-card">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-cyan-200">{recommendation.category.replaceAll("_", " ")}</p>
-              <h3 className="mt-2 text-base font-semibold text-white">{recommendation.supplierName}</h3>
-              <p className="mt-1 text-sm text-slate-400">{recommendation.materialName}</p>
+              <p className="tex-eyebrow">{recommendation.category.replaceAll("_", " ")}</p>
+              <h3 className="mt-2 text-base font-semibold text-[color:var(--tex-text-strong)]">{recommendation.supplierName}</h3>
+              <p className="tex-copy mt-1 text-sm">{recommendation.materialName}</p>
             </div>
             <div className="flex flex-wrap gap-2">
-              {recommendation.isSponsoredSupplier ? <span className="rounded-full border border-violet-400/30 bg-violet-400/10 px-2 py-1 text-xs font-semibold text-violet-100">Sponsored</span> : null}
-              <span className={`rounded-full border border-white/10 bg-white/[0.04] px-2 py-1 text-xs font-semibold ${scoreTone(recommendation.score)}`}>{recommendation.score}% score</span>
+              {recommendation.isSponsoredSupplier ? <StatusBadge tone="info">Sponsored</StatusBadge> : null}
+              <StatusBadge tone={scoreTone(recommendation.score)}>{recommendation.score}% score</StatusBadge>
             </div>
           </div>
-          <p className="mt-3 text-sm text-slate-300">{recommendation.explanation}</p>
+          <p className="tex-copy mt-3 text-sm">{recommendation.explanation}</p>
           <dl className="mt-4 grid gap-2 text-sm sm:grid-cols-3">
-            <div><dt className="text-slate-500">Landed Cost</dt><dd className="font-semibold text-slate-100">{formatCurrency(recommendation.landedCostInclVat)}</dd></div>
-            <div><dt className="text-slate-500">Margin Impact</dt><dd className="font-semibold text-slate-100">{formatCurrency(recommendation.marginImpact)}</dd></div>
-            <div><dt className="text-slate-500">Risk</dt><dd className="font-semibold text-slate-100">{recommendation.riskLevel}</dd></div>
+            <div><dt className="text-[color:var(--tex-text-muted)]">Landed Cost</dt><dd className="font-semibold text-[color:var(--tex-text-strong)]">{formatCurrency(recommendation.landedCostInclVat)}</dd></div>
+            <div><dt className="text-[color:var(--tex-text-muted)]">Margin Impact</dt><dd className="font-semibold text-[color:var(--tex-text-strong)]">{formatCurrency(recommendation.marginImpact)}</dd></div>
+            <div><dt className="text-[color:var(--tex-text-muted)]">Risk</dt><dd className="font-semibold text-[color:var(--tex-text-strong)]">{recommendation.riskLevel}</dd></div>
           </dl>
-          <ul className="mt-3 space-y-1 text-xs text-amber-100">
+          <ul className="mt-3 space-y-1 text-xs text-[color:var(--tex-warning)]">
             {recommendation.tradeOffs.map((tradeOff) => <li key={tradeOff}>{tradeOff}</li>)}
           </ul>
           <div className="mt-4 flex flex-wrap gap-2">
-            <button type="button" onClick={() => onContact(recommendation, "REQUEST_QUOTE")} className="rounded-lg border border-cyan-400/20 bg-cyan-400/10 px-3 py-2 text-sm font-semibold text-cyan-100">Request Quote</button>
-            <button type="button" onClick={() => onContact(recommendation, "REQUEST_DELIVERY_COST")} className="rounded-lg border border-white/10 px-3 py-2 text-sm font-semibold text-slate-200">Delivery Cost</button>
-            <button type="button" onClick={() => onContact(recommendation, "SAVE_SUPPLIER")} className="rounded-lg border border-white/10 px-3 py-2 text-sm font-semibold text-slate-200">Save Supplier</button>
+            <ActionButton onClick={() => onContact(recommendation, "REQUEST_QUOTE")}>Request Quote</ActionButton>
+            <ActionButton variant="secondary" onClick={() => onContact(recommendation, "REQUEST_DELIVERY_COST")}>Delivery Cost</ActionButton>
+            <ActionButton variant="secondary" onClick={() => onContact(recommendation, "SAVE_SUPPLIER")}>Save Supplier</ActionButton>
           </div>
         </article>
       ))}
@@ -193,7 +199,7 @@ function ListView({ suppliers, offers, estimates }: Extract<SupplierWorkspacePro
     <>
       <Panel title="Generate Supplier Recommendations" description="Runs explainable scoring against supplier offers and persists recommendation and impact records.">
         <div className="grid gap-3 lg:grid-cols-[1fr_auto]">
-          <select value={estimateId} onChange={(event) => setEstimateId(event.target.value)} className="rounded-lg border border-white/10 bg-slate-950/60 px-3 py-2 text-sm text-white">
+          <select value={estimateId} onChange={(event) => setEstimateId(event.target.value)} className="rounded-lg border border-[color:var(--tex-border)] bg-[color:var(--tex-card-strong)] px-3 py-2 text-sm text-[color:var(--tex-text)]">
             {estimates.length ? null : <option value="">No estimates available</option>}
             {estimates.map((estimate) => (
               <option key={estimate.estimateId} value={estimate.estimateId}>
@@ -201,11 +207,11 @@ function ListView({ suppliers, offers, estimates }: Extract<SupplierWorkspacePro
               </option>
             ))}
           </select>
-          <button type="button" disabled={loading || !estimateId} onClick={() => void generateRecommendations()} className="rounded-lg border border-cyan-400/20 bg-cyan-400/10 px-4 py-2 text-sm font-semibold text-cyan-100 disabled:opacity-60">
+          <button type="button" disabled={loading || !estimateId} onClick={() => void generateRecommendations()} className="tex-action-button disabled:opacity-60">
             {loading ? "Generating..." : "Generate Recommendations"}
           </button>
         </div>
-        <p className="mt-3 text-sm text-slate-400">{message}</p>
+        <p className="tex-copy mt-3 text-sm">{message}</p>
       </Panel>
 
       <Panel title="Recommendation Cards" description="Commercial impact is explained separately from sponsored supplier visibility.">
@@ -214,7 +220,7 @@ function ListView({ suppliers, offers, estimates }: Extract<SupplierWorkspacePro
 
       <Panel title="Commercial Impact Scenarios" description="Shows estimate, profit, transport, delivery, and risk impact for supplier selection changes.">
         {!scenarios.length ? (
-          <p className="text-sm text-slate-500">No scenarios generated yet.</p>
+          <EmptyState title="No scenarios generated yet." />
         ) : (
           <div className="overflow-x-auto">
             <table className="min-w-full text-left text-sm">
@@ -341,11 +347,11 @@ function DetailView({ supplier, offers }: Extract<SupplierWorkspaceProps, { view
 
 export default function QsSupplierIntelligenceWorkspace(props: SupplierWorkspaceProps) {
   return (
-    <div className="p-6 text-white">
+    <DashboardShell module="supplier" focus>
       <div className="max-w-7xl space-y-6">
         <Header />
         {props.view === "list" ? <ListView {...props} /> : <DetailView {...props} />}
       </div>
-    </div>
+    </DashboardShell>
   );
 }

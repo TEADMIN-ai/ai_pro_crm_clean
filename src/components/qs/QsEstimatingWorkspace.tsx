@@ -2,6 +2,13 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import {
+  DashboardCard,
+  DashboardShell,
+  EmptyState,
+  ModuleHeader,
+  StatusBadge,
+} from "@/components/tex/ExecutivePrimitives";
 import { authFetch } from "@/lib/client/authFetch";
 import { API_ROUTES } from "@/lib/routes";
 import type {
@@ -40,23 +47,23 @@ function formatPercent(value: number) {
 }
 
 function badgeTone(status: QSEstimate["quoteReadinessStatus"]) {
-  if (status === "quoteReady") return "border-emerald-400/25 bg-emerald-400/10 text-emerald-100";
-  if (status === "reviewRequired") return "border-amber-400/25 bg-amber-400/10 text-amber-100";
-  if (status === "pricingIncomplete") return "border-orange-400/25 bg-orange-400/10 text-orange-100";
-  return "border-rose-400/25 bg-rose-400/10 text-rose-100";
+  if (status === "quoteReady") return "success";
+  if (status === "reviewRequired") return "warning";
+  if (status === "pricingIncomplete") return "warning";
+  return "danger";
 }
 
 function Badge({ children, status }: { children: React.ReactNode; status: QSEstimate["quoteReadinessStatus"] }) {
-  return <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${badgeTone(status)}`}>{children}</span>;
+  return <StatusBadge tone={badgeTone(status)}>{children}</StatusBadge>;
 }
 
 function Panel({ title, description, children }: { title: string; description?: string; children: React.ReactNode }) {
   return (
-    <section className="rounded-lg border border-white/10 bg-white/[0.03] p-4">
-      <h2 className="text-sm font-semibold text-slate-100">{title}</h2>
-      {description ? <p className="mt-1 text-sm text-slate-500">{description}</p> : null}
+    <DashboardCard>
+      <h2 className="text-sm font-semibold text-[color:var(--tex-text-strong)]">{title}</h2>
+      {description ? <p className="tex-copy mt-1 text-sm">{description}</p> : null}
       <div className="mt-4">{children}</div>
-    </section>
+    </DashboardCard>
   );
 }
 
@@ -71,14 +78,11 @@ function Header({ active }: { active: "list" | "detail" }) {
 
   return (
     <header className="space-y-5">
-      <div>
-        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-cyan-200">TE QS Engine Phase 2</p>
-        <h1 className="mt-3 text-2xl font-semibold text-white">Intelligent Estimating Engine</h1>
-        <p className="mt-2 max-w-3xl text-sm text-slate-400">
-          Convert reviewed BOQ intelligence into costed estimates with material pricing, labour, allowances,
-          overhead, profit, risk, VAT, confidence, and quote readiness.
-        </p>
-      </div>
+      <ModuleHeader
+        eyebrow="TE QS Engine Phase 2"
+        title="Intelligent Estimating Engine"
+        description="Convert reviewed BOQ intelligence into costed estimates with material pricing, labour, allowances, overhead, profit, risk, VAT, confidence, and quote readiness."
+      />
       <nav className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4" aria-label="QS estimating navigation">
         {nav.map((item) => (
           <Link
@@ -86,8 +90,8 @@ function Header({ active }: { active: "list" | "detail" }) {
             href={item.href}
             className={`rounded-lg border p-3 text-sm font-semibold transition ${
               item.active || active === "detail"
-                ? "border-cyan-400/30 bg-cyan-400/10 text-cyan-100"
-                : "border-white/10 bg-white/[0.03] text-slate-300 hover:border-white/20"
+                ? "border-[color:var(--tex-accent)] bg-[color:var(--tex-accent-soft)] text-[color:var(--tex-accent-strong)]"
+                : "border-[color:var(--tex-border)] bg-[color:var(--tex-card)] text-[color:var(--tex-text)] hover:border-[color:var(--tex-border-strong)]"
             }`}
           >
             {item.label}
@@ -135,7 +139,7 @@ function EstimateCreatePanel({ boqDocuments }: { boqDocuments: QsBoqDocument[] }
         <select
           value={boqDocumentId}
           onChange={(event) => setBoqDocumentId(event.target.value)}
-          className="rounded-lg border border-white/10 bg-slate-950/60 px-3 py-2 text-sm text-white"
+          className="rounded-lg border border-[color:var(--tex-border)] bg-[color:var(--tex-card-strong)] px-3 py-2 text-sm text-[color:var(--tex-text)]"
         >
           {boqDocuments.length ? null : <option value="">No BOQ documents available</option>}
           {boqDocuments.map((document) => (
@@ -148,12 +152,12 @@ function EstimateCreatePanel({ boqDocuments }: { boqDocuments: QsBoqDocument[] }
           type="button"
           onClick={() => void createEstimate()}
           disabled={loading || !boqDocumentId}
-          className="rounded-lg border border-cyan-400/20 bg-cyan-400/10 px-4 py-2 text-sm font-semibold text-cyan-100 disabled:opacity-60"
+          className="tex-action-button disabled:opacity-60"
         >
           {loading ? "Calculating..." : "Generate Estimate"}
         </button>
       </div>
-      <p className="mt-3 text-sm text-slate-400">{message}</p>
+      <p className="tex-copy mt-3 text-sm">{message}</p>
     </Panel>
   );
 }
@@ -162,29 +166,29 @@ function EstimateList({ estimates }: { estimates: QSEstimate[] }) {
   return (
     <Panel title="Estimate Register" description="Current estimate records with version, readiness, value, and confidence.">
       {!estimates.length ? (
-        <div className="rounded-lg border border-dashed border-white/10 p-6 text-center text-sm text-slate-500">No QS estimates have been generated yet.</div>
+        <EmptyState title="No QS estimates have been generated yet." />
       ) : (
-        <div className="overflow-x-auto">
-          <table className="min-w-full text-left text-sm">
-            <thead className="border-b border-white/10 text-xs uppercase tracking-[0.16em] text-slate-500">
+        <div className="tex-table-wrap">
+          <table className="tex-table min-w-full">
+            <thead>
               <tr>
                 {["Estimate", "Project", "Source BOQ", "Value", "Confidence", "Readiness", "Version", "Open"].map((column) => (
                   <th key={column} className="whitespace-nowrap px-3 py-3 font-semibold">{column}</th>
                 ))}
               </tr>
             </thead>
-            <tbody className="divide-y divide-white/10 text-slate-300">
+            <tbody>
               {estimates.map((estimate) => (
                 <tr key={estimate.estimateId}>
-                  <td className="whitespace-nowrap px-3 py-3 font-mono text-xs text-cyan-100">{estimate.estimateId}</td>
-                  <td className="min-w-48 px-3 py-3 text-slate-100">{estimate.projectName ?? "Unassigned project"}</td>
+                  <td className="whitespace-nowrap px-3 py-3 font-mono text-xs text-[color:var(--tex-accent-strong)]">{estimate.estimateId}</td>
+                  <td className="min-w-48 px-3 py-3 text-[color:var(--tex-text-strong)]">{estimate.projectName ?? "Unassigned project"}</td>
                   <td className="whitespace-nowrap px-3 py-3 font-mono text-xs">{estimate.sourceBoqId}</td>
                   <td className="whitespace-nowrap px-3 py-3">{formatCurrency(estimate.totalEstimatedProjectValue)}</td>
                   <td className="whitespace-nowrap px-3 py-3">{estimate.confidenceScore}%</td>
                   <td className="whitespace-nowrap px-3 py-3"><Badge status={estimate.quoteReadinessStatus}>{estimate.quoteReadinessStatus}</Badge></td>
                   <td className="whitespace-nowrap px-3 py-3">v{estimate.version}</td>
                   <td className="whitespace-nowrap px-3 py-3">
-                    <Link className="text-cyan-200 hover:text-cyan-100" href={`/dashboard/qs/estimates/${estimate.estimateId}`}>Open</Link>
+                    <Link className="font-semibold text-[color:var(--tex-accent)]" href={`/dashboard/qs/estimates/${estimate.estimateId}`}>Open</Link>
                   </td>
                 </tr>
               ))}
@@ -213,9 +217,9 @@ function BreakdownCards({ estimate }: { estimate: QSEstimate }) {
   return (
     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
       {cards.map(([label, value]) => (
-        <section key={label} className="rounded-lg border border-white/10 bg-white/[0.03] p-4">
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">{label}</p>
-          <p className="mt-3 text-xl font-semibold text-white">{formatCurrency(Number(value))}</p>
+        <section key={label} className="tex-metric-card">
+          <p className="tex-metric-label">{label}</p>
+          <p className="mt-3 text-xl font-semibold text-[color:var(--tex-text-strong)]">{formatCurrency(Number(value))}</p>
         </section>
       ))}
     </div>
@@ -475,14 +479,14 @@ function DetailView({
     <>
       <div className="grid gap-3 lg:grid-cols-[1fr_auto] lg:items-start">
         <section>
-          <h2 className="text-xl font-semibold text-white">{estimate.projectName ?? "QS Estimate"}</h2>
-          <p className="mt-1 text-sm text-slate-400">
+          <h2 className="text-xl font-semibold text-[color:var(--tex-text-strong)]">{estimate.projectName ?? "QS Estimate"}</h2>
+          <p className="tex-copy mt-1 text-sm">
             {estimate.estimateId} | Source BOQ {estimate.sourceBoqId} | v{estimate.version} | VAT {formatPercent(estimate.assumptions.vatRate)}
           </p>
         </section>
         <div className="flex flex-wrap gap-2">
           <Badge status={estimate.quoteReadinessStatus}>{estimate.quoteReadinessStatus}</Badge>
-          <span className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-xs font-semibold text-slate-200">{estimate.confidenceScore}% confidence</span>
+          <StatusBadge tone="info">{estimate.confidenceScore}% confidence</StatusBadge>
         </div>
       </div>
       <BreakdownCards estimate={estimate} />
@@ -490,20 +494,20 @@ function DetailView({
       <SupplierRecommendationsPanel estimate={estimate} initialRecommendations={supplierRecommendations} initialScenarios={commercialScenarios} />
       <Panel title="Missing Pricing and Readiness Warnings" description="Warnings must be cleared or accepted before quote issue.">
         {estimate.missingPricingWarnings.length ? (
-          <ul className="space-y-2 text-sm text-amber-100">
+          <ul className="space-y-2 text-sm text-[color:var(--tex-warning)]">
             {estimate.missingPricingWarnings.slice(0, 20).map((warning) => <li key={warning}>{warning}</li>)}
           </ul>
         ) : (
-          <p className="text-sm text-emerald-100">No missing pricing warnings.</p>
+          <p className="text-sm text-[color:var(--tex-success)]">No missing pricing warnings.</p>
         )}
       </Panel>
       <EstimateLinesTable estimate={estimate} />
       <Panel title="Estimate Version History" description="Critical estimate recalculations are snapshotted for audit traceability.">
         <div className="grid gap-2 md:grid-cols-3">
           {history.map((entry) => (
-            <div key={entry.estimateHistoryId} className="rounded-lg border border-white/10 bg-slate-950/50 p-3 text-sm text-slate-300">
-              <p className="font-semibold text-slate-100">v{entry.version} {entry.reason}</p>
-              <p className="mt-1 text-xs text-slate-500">{entry.createdAt}</p>
+            <div key={entry.estimateHistoryId} className="rounded-lg border border-[color:var(--tex-border)] bg-[color:var(--tex-surface)] p-3 text-sm text-[color:var(--tex-text)]">
+              <p className="font-semibold text-[color:var(--tex-text-strong)]">v{entry.version} {entry.reason}</p>
+              <p className="mt-1 text-xs text-[color:var(--tex-text-muted)]">{entry.createdAt}</p>
             </div>
           ))}
         </div>
@@ -514,7 +518,7 @@ function DetailView({
 
 export default function QsEstimatingWorkspace(props: EstimatingWorkspaceProps) {
   return (
-    <div className="p-6 text-white">
+    <DashboardShell module="qs" focus>
       <div className="max-w-7xl space-y-6">
         <Header active={props.view} />
         {props.view === "list" ? (
@@ -531,6 +535,6 @@ export default function QsEstimatingWorkspace(props: EstimatingWorkspaceProps) {
           />
         )}
       </div>
-    </div>
+    </DashboardShell>
   );
 }

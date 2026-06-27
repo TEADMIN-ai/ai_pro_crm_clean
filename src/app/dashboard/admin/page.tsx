@@ -49,7 +49,7 @@ export default function AdminDashboardPage() {
 
   return (
     <RequireRole allow={["admin"]}>
-      <div className="enterprise-page enterprise-grid">
+      <div data-module="admin" className="enterprise-page enterprise-grid">
         <Card>
           <IdentityCardHeader title="Admin Control Tower" subtitle="Enterprise portfolio and compliance signals">
             <Badge tone={toneForScore(revenueHealth)}>Revenue Health {revenueHealth.toFixed(1)}%</Badge>

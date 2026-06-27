@@ -1,12 +1,20 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useState } from "react";
 import ContractorOnboardingView from "@/components/contractors/ContractorOnboardingView";
 import { useAuth } from "@/context/AuthContext";
 import { authFetch } from "@/lib/client/authFetch";
 import { API_ROUTES } from "@/lib/routes";
 import { isVehicleFinanceRole } from "@/lib/auth/roleUtils";
+import {
+  ActionButton,
+  DashboardCard,
+  DashboardShell,
+  InsightPanel,
+  MetricCard,
+  ModuleHeader,
+  StatusBadge,
+} from "@/components/tex/ExecutivePrimitives";
 import DealChart from "./DealChart";
 import KpiCard from "./KpiCard";
 
@@ -45,18 +53,25 @@ function formatUpdatedAt(value?: string | null): string {
 
 function getStatusBadgeClasses(status?: string): string {
   if (status === "READY") {
-    return "border-emerald-400/25 bg-emerald-400/10 text-emerald-200";
+    return "tex-status-badge";
   }
 
   if (status === "RISK") {
-    return "border-amber-400/25 bg-amber-400/10 text-amber-100";
+    return "tex-status-badge";
   }
 
   if (status === "BLOCKED") {
-    return "border-rose-400/25 bg-rose-400/10 text-rose-100";
+    return "tex-status-badge";
   }
 
-  return "border-white/10 bg-white/[0.04] text-slate-300";
+  return "tex-status-badge";
+}
+
+function getStatusTone(status?: string): "neutral" | "success" | "warning" | "danger" {
+  if (status === "READY") return "success";
+  if (status === "RISK") return "warning";
+  if (status === "BLOCKED") return "danger";
+  return "neutral";
 }
 
 export default function DashboardHome() {
@@ -124,9 +139,9 @@ export default function DashboardHome() {
 
   if (authLoading) {
     return (
-      <div className="dashboard-panel rounded-[28px] p-6 text-slate-300">
+      <DashboardCard>
         <p className="text-sm font-medium">Loading dashboard...</p>
-      </div>
+      </DashboardCard>
     );
   }
 
@@ -142,105 +157,71 @@ export default function DashboardHome() {
 
   if (redirecting || isVehicleFinanceRole(role)) {
     return (
-      <div className="dashboard-panel rounded-[28px] p-6 text-slate-300">
+      <DashboardCard>
         <p className="text-sm font-medium">Opening Vehicle Finance command center...</p>
-      </div>
+      </DashboardCard>
     );
   }
 
   if (loading) {
     return (
-      <div className="dashboard-panel rounded-[28px] p-6 text-slate-300">
+      <DashboardCard>
         <p className="dashboard-eyebrow">Dashboard</p>
-        <h2 className="mt-2 text-2xl font-semibold tracking-[-0.03em] text-white">
+        <h2 className="mt-2 text-2xl font-semibold tracking-[-0.03em] text-[color:var(--tex-text-strong)]">
           Preparing executive summary
         </h2>
-        <p className="mt-3 text-sm leading-6 text-slate-400">
+        <p className="tex-copy mt-3 text-sm">
           Loading dashboard summary...
         </p>
-      </div>
+      </DashboardCard>
     );
   }
 
   if (!data) {
     return (
-      <div className="dashboard-panel rounded-[28px] border-rose-500/20 p-6 text-slate-200">
+      <DashboardCard className="border-[color:var(--tex-danger)]">
         <p className="dashboard-eyebrow">Dashboard</p>
-        <h2 className="mt-2 text-2xl font-semibold tracking-[-0.03em] text-white">
+        <h2 className="mt-2 text-2xl font-semibold tracking-[-0.03em] text-[color:var(--tex-text-strong)]">
           Dashboard available
         </h2>
-        <p className="mt-2 text-sm text-slate-300">
+        <p className="tex-copy mt-2 text-sm">
           {error ?? "No data available."}
         </p>
-      </div>
+      </DashboardCard>
     );
   }
 
   return (
-    <div className="mx-auto max-w-7xl space-y-6 md:space-y-8">
-      <section className="dashboard-panel rounded-[24px] bg-[linear-gradient(90deg,rgba(8,15,30,0.96),rgba(15,23,42,0.92))] px-5 py-4">
+    <DashboardShell module="dashboard" focus className="space-y-6 md:space-y-8">
+      <DashboardCard className="px-5 py-4">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">
+            <p className="tex-metric-label">
               System Status
             </p>
-            <p className="mt-2 text-sm font-medium text-slate-100 sm:text-base">
+            <p className="mt-2 text-sm font-medium text-[color:var(--tex-text-strong)] sm:text-base">
               All systems operational - contractors actively progressing
             </p>
           </div>
-          <div className="inline-flex items-center gap-2 self-start rounded-full border border-emerald-400/20 bg-emerald-400/10 px-3 py-1.5 text-xs font-medium uppercase tracking-[0.16em] text-emerald-200">
-            <span className="h-2.5 w-2.5 rounded-full bg-emerald-300 shadow-[0_0_12px_rgba(110,231,183,0.65)]" />
+          <StatusBadge tone="success" className="self-start uppercase tracking-[0.16em]">
+            <span className="h-2.5 w-2.5 rounded-full bg-[color:var(--tex-success)]" />
             Live
-          </div>
+          </StatusBadge>
         </div>
-      </section>
+      </DashboardCard>
 
-      <section className="dashboard-panel overflow-hidden rounded-[32px] p-6 md:p-8">
-        <div className="relative flex flex-col gap-8 lg:flex-row lg:items-end lg:justify-between">
-          <div className="max-w-3xl">
-            <p className="dashboard-eyebrow">Enterprise Overview</p>
-            <h1 className="mt-3 text-3xl font-semibold tracking-[-0.05em] text-white sm:text-4xl lg:text-5xl">
-              Torque Empire AI Procurement Intelligence
-            </h1>
-            <p className="mt-4 max-w-2xl text-base leading-7 text-slate-300 sm:text-lg">
-              Real-time contractor readiness and tender performance insights
-            </p>
-            <Link
-              href="/dashboard/vehicle-finance"
-              className="mt-5 inline-flex items-center rounded-full border border-cyan-400/20 bg-cyan-400/10 px-4 py-2 text-sm font-semibold text-cyan-100 no-underline transition hover:bg-cyan-400/16"
-            >
-              Open Vehicle Finance Command Center
-            </Link>
-          </div>
-
+      <ModuleHeader
+        eyebrow="Enterprise Overview"
+        title="Torque Empire AI Procurement Intelligence"
+        description="Real-time contractor readiness and tender performance insights."
+        actions={<ActionButton href="/dashboard/vehicle-finance">Open Vehicle Finance Command Center</ActionButton>}
+      >
           <div className="grid w-full gap-3 sm:grid-cols-3 lg:max-w-xl">
-            <div className="rounded-[22px] border border-white/10 bg-white/[0.04] p-4">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">
-                Ready Ratio
-              </p>
-              <p className="mt-3 text-2xl font-semibold tracking-[-0.04em] text-white">
-                {data.totalDeals > 0 ? `${Math.round((data.readyDeals / data.totalDeals) * 100)}%` : "0%"}
-              </p>
-            </div>
-            <div className="rounded-[22px] border border-white/10 bg-white/[0.04] p-4">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">
-                Submission Rate
-              </p>
-              <p className="mt-3 text-2xl font-semibold tracking-[-0.04em] text-white">
-                {data.totalDeals > 0 ? `${Math.round((data.submitted / data.totalDeals) * 100)}%` : "0%"}
-              </p>
-            </div>
-            <div className="rounded-[22px] border border-white/10 bg-white/[0.04] p-4">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">
-                Risk Watch
-              </p>
-              <p className="mt-3 text-2xl font-semibold tracking-[-0.04em] text-white">
-                {data.riskDeals + data.blockedDeals}
-              </p>
-            </div>
+            <MetricCard label="Ready Ratio" value={data.totalDeals > 0 ? `${Math.round((data.readyDeals / data.totalDeals) * 100)}%` : "0%"} />
+            <MetricCard label="Submission Rate" value={data.totalDeals > 0 ? `${Math.round((data.submitted / data.totalDeals) * 100)}%` : "0%"} />
+            <MetricCard label="Risk Watch" value={data.riskDeals + data.blockedDeals} />
           </div>
-        </div>
-      </section>
+      </ModuleHeader>
 
       <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4 xl:gap-5">
         <KpiCard
@@ -278,71 +259,65 @@ export default function DashboardHome() {
           ]}
         />
 
-        <div className="dashboard-panel rounded-[28px] p-6 md:p-7">
+        <DashboardCard className="p-6 md:p-7">
           <p className="dashboard-eyebrow">At A Glance</p>
-          <h2 className="mt-2 text-2xl font-semibold tracking-[-0.03em] text-white">
+          <h2 className="mt-2 text-2xl font-semibold tracking-[-0.03em] text-[color:var(--tex-text-strong)]">
             Portfolio Signals
           </h2>
           <div className="mt-6 space-y-4">
-            <div className="rounded-[22px] border border-white/10 bg-white/[0.04] p-4">
+            <div className="rounded-[18px] border border-[color:var(--tex-border)] bg-[color:var(--tex-surface)] p-4">
               <div className="flex items-center justify-between gap-4">
-                <span className="text-sm font-medium text-slate-300">Ready to submit</span>
-                <span className="rounded-full border border-emerald-400/20 bg-emerald-400/10 px-3 py-1 text-xs font-medium text-emerald-200">
-                  Healthy
-                </span>
+                <span className="text-sm font-medium text-[color:var(--tex-text)]">Ready to submit</span>
+                <StatusBadge tone="success">Healthy</StatusBadge>
               </div>
-              <p className="mt-3 text-3xl font-semibold tracking-[-0.04em] text-white">
+              <p className="mt-3 text-3xl font-semibold tracking-[-0.04em] text-[color:var(--tex-text-strong)]">
                 {data.readyDeals}
               </p>
             </div>
 
-            <div className="rounded-[22px] border border-white/10 bg-white/[0.04] p-4">
+            <div className="rounded-[18px] border border-[color:var(--tex-border)] bg-[color:var(--tex-surface)] p-4">
               <div className="flex items-center justify-between gap-4">
-                <span className="text-sm font-medium text-slate-300">Blocked pipeline</span>
-                <span className="rounded-full border border-rose-400/20 bg-rose-400/10 px-3 py-1 text-xs font-medium text-rose-100">
-                  Attention
-                </span>
+                <span className="text-sm font-medium text-[color:var(--tex-text)]">Blocked pipeline</span>
+                <StatusBadge tone="danger">Attention</StatusBadge>
               </div>
-              <p className="mt-3 text-3xl font-semibold tracking-[-0.04em] text-white">
+              <p className="mt-3 text-3xl font-semibold tracking-[-0.04em] text-[color:var(--tex-text-strong)]">
                 {data.blockedDeals}
               </p>
             </div>
 
-            <div className="rounded-[22px] border border-white/10 bg-white/[0.04] p-4">
+            <div className="rounded-[18px] border border-[color:var(--tex-border)] bg-[color:var(--tex-surface)] p-4">
               <div className="flex items-center justify-between gap-4">
-                <span className="text-sm font-medium text-slate-300">Risk concentration</span>
-                <span className="rounded-full border border-amber-400/20 bg-amber-400/10 px-3 py-1 text-xs font-medium text-amber-100">
-                  Monitor
-                </span>
+                <span className="text-sm font-medium text-[color:var(--tex-text)]">Risk concentration</span>
+                <StatusBadge tone="warning">Monitor</StatusBadge>
               </div>
-              <p className="mt-3 text-3xl font-semibold tracking-[-0.04em] text-white">
+              <p className="mt-3 text-3xl font-semibold tracking-[-0.04em] text-[color:var(--tex-text-strong)]">
                 {data.riskDeals}
               </p>
             </div>
           </div>
-        </div>
+        </DashboardCard>
       </section>
 
-      <section className="dashboard-panel rounded-[28px] p-6 md:p-7">
+      <DashboardCard className="p-6 md:p-7">
         <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
           <div>
             <p className="dashboard-eyebrow">Recent Activity</p>
-            <h2 className="mt-2 text-2xl font-semibold tracking-[-0.03em] text-white">
+            <h2 className="mt-2 text-2xl font-semibold tracking-[-0.03em] text-[color:var(--tex-text-strong)]">
               Recent Tender Activity
             </h2>
-            <p className="mt-2 text-sm leading-6 text-slate-400">
+            <p className="tex-copy mt-2 text-sm">
               Live contractor engagement and submission readiness
             </p>
           </div>
-          <p className="text-sm text-slate-400">
+          <p className="tex-copy text-sm">
             Latest readiness and submission movement across tracked deals.
           </p>
         </div>
 
-        <div className="mt-6 overflow-x-auto">
-          <table className="w-full min-w-[640px] text-left text-sm text-white">
+        <div className="tex-table-wrap mt-6">
+          <table className="tex-table min-w-[640px]">
             <thead>
-              <tr className="border-b border-white/10 text-xs uppercase tracking-[0.22em] text-slate-500">
+              <tr>
                 <th className="pb-4 font-medium">Deal</th>
                 <th className="pb-4 font-medium">Status</th>
                 <th className="pb-4 font-medium">Activity</th>
@@ -354,44 +329,40 @@ export default function DashboardHome() {
               {data.recent.map((deal) => (
                 <tr
                   key={deal.id}
-                  className="border-t border-white/8 transition duration-200 hover:bg-white/[0.05]"
                 >
                   <td className="py-4 pr-4">
-                    <div className="font-medium text-white">{deal.id}</div>
-                    <div className="mt-1 text-xs uppercase tracking-[0.18em] text-slate-500">
+                    <div className="font-medium text-[color:var(--tex-text-strong)]">{deal.id}</div>
+                    <div className="mt-1 text-xs uppercase tracking-[0.18em] text-[color:var(--tex-text-muted)]">
                       Tender record
                     </div>
                   </td>
                   <td className="py-4 pr-4">
-                    <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-medium ${getStatusBadgeClasses(deal.status)}`}>
+                    <span className={getStatusBadgeClasses(deal.status)} data-tone={getStatusTone(deal.status)}>
                       {deal.status ?? "LIVE"}
                     </span>
                   </td>
-                  <td className="py-4 pr-4 text-slate-300">{deal.text}</td>
-                  <td className="py-4 text-slate-400">{formatUpdatedAt(deal.updatedAt)}</td>
+                  <td className="py-4 pr-4 text-[color:var(--tex-text)]">{deal.text}</td>
+                  <td className="py-4 text-[color:var(--tex-text-muted)]">{formatUpdatedAt(deal.updatedAt)}</td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
-      </section>
+      </DashboardCard>
 
-      <section className="dashboard-panel rounded-[28px] p-6 md:p-7">
-        <p className="dashboard-eyebrow">Executive Insight</p>
-        <div className="mt-3 rounded-[22px] border border-white/8 bg-white/[0.03] px-5 py-4">
-          <p className="text-sm leading-7 text-slate-300">
-            Insight:{" "}
-            <span className="text-white">
-              {data.totalDeals > 0 ? `${Math.round((data.readyDeals / data.totalDeals) * 100)}%` : "0%"}
-            </span>{" "}
-            of active tenders are submission-ready, while{" "}
-            <span className="text-white">
-              {data.totalDeals > 0 ? `${Math.round((data.blockedDeals / data.totalDeals) * 100)}%` : "0%"}
-            </span>{" "}
-            require compliance intervention.
-          </p>
-        </div>
-      </section>
-    </div>
+      <InsightPanel title="Executive Insight">
+        <p className="text-sm leading-7">
+          Insight:{" "}
+          <span className="font-semibold text-[color:var(--tex-text-strong)]">
+            {data.totalDeals > 0 ? `${Math.round((data.readyDeals / data.totalDeals) * 100)}%` : "0%"}
+          </span>{" "}
+          of active tenders are submission-ready, while{" "}
+          <span className="font-semibold text-[color:var(--tex-text-strong)]">
+            {data.totalDeals > 0 ? `${Math.round((data.blockedDeals / data.totalDeals) * 100)}%` : "0%"}
+          </span>{" "}
+          require compliance intervention.
+        </p>
+      </InsightPanel>
+    </DashboardShell>
   );
 }

@@ -601,7 +601,7 @@ export default function VehicleFinanceWorkspace({ initialSection }: Props) {
   } as const;
 
   return (
-    <div className="space-y-6 p-6">
+    <div data-module="vehicle-finance" className="tex-shell space-y-6">
       <div className="space-y-2">
         <p className="text-[11px] font-bold uppercase tracking-[0.3em] text-sky-200/70">Roar Cars SA · Born To Roar</p>
         <h1 className="text-2xl font-semibold tracking-tight text-slate-50 sm:text-3xl">{SECTION_TITLES[section]}</h1>
