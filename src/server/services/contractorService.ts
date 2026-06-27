@@ -1,4 +1,10 @@
 import { getFirebaseAdmin } from "@/lib/firebase/admin";
+import {
+  calculateContractorCompliance,
+  normalizeContractorUploadDocumentType,
+  normalizeSupportedDocumentType,
+  SUPPORTED_DOCUMENT_TYPES,
+} from "@/lib/compliance/contractorCompliance";
 import type { AuthorizedUser } from "@/lib/server/authz";
 import type { ContractorTier } from "@/types/contractor";
 import type { ContractorDocument } from "@/types/document";
@@ -59,16 +65,122 @@ function defaultSubmissionLimitForTier(tier: ContractorTier): number {
 
 export async function listContractors() {
   const snapshot = await getFirebaseAdmin().collection("contractors").get();
-  const contractors: Array<Record<string, unknown> & { id: string }> = snapshot.docs.map((doc) => ({
-    id: doc.id,
-    ...(doc.data() as Record<string, unknown>),
-  }));
+  const includeDemoContractors =
+    process.env.NODE_ENV !== "production" && process.env.NEXT_PUBLIC_ENABLE_DEMO_CONTRACTORS === "true";
+  const contractors = await Promise.all(
+    snapshot.docs
+      .map((doc) => ({
+        id: doc.id,
+        ...(doc.data() as Record<string, unknown>),
+      }))
+      .filter((contractor) => includeDemoContractors || !isDemoContractorRecord(contractor))
+      .map(async (contractor) => enrichContractorListItem(contractor)),
+  );
 
   return contractors.sort((a, b) => {
-      const aCreatedAt = typeof a.createdAt === "number" ? a.createdAt : 0;
-      const bCreatedAt = typeof b.createdAt === "number" ? b.createdAt : 0;
+      const aCreatedAt = typeof a["createdAt"] === "number" ? a["createdAt"] : 0;
+      const bCreatedAt = typeof b["createdAt"] === "number" ? b["createdAt"] : 0;
       return bCreatedAt - aCreatedAt;
     });
+}
+
+function isDemoContractorRecord(contractor: Record<string, unknown>): boolean {
+  return (
+    contractor.demoContractor === true ||
+    contractor.benchmarkContractor === true ||
+    contractor.regressionValidationContractor === true ||
+    contractor.operationalReplayContractor === true ||
+    contractor.canonicalProfile === true
+  );
+}
+
+function isReviewRequiredDocument(document: ContractorDocument): boolean {
+  return (
+    Boolean(document.fileUrl) &&
+    document.verified !== true &&
+    (document.validationStatus === "REVIEW" ||
+      document.manualDecisionAvailable === true ||
+      document.aiStatus === "failed" ||
+      document.extractionSource === "EMPTY" ||
+      document.status === "uploaded")
+  );
+}
+
+function latestDocumentUpdate(documents: ContractorDocument[]): number | null {
+  const values = documents
+    .map((document) => document.updatedAt ?? document.uploadedAt ?? document.createdAt ?? document.extractedAt ?? null)
+    .filter((value): value is number => typeof value === "number" && Number.isFinite(value));
+
+  return values.length ? Math.max(...values) : null;
+}
+
+function resolveDocumentSignal(documents: ContractorDocument[], type: "taxClearance" | "csd"): string {
+  const matching = documents.filter((document) => {
+    const normalized =
+      type === "csd"
+        ? normalizeContractorUploadDocumentType(document.documentType ?? document.docType ?? document.id)
+        : normalizeSupportedDocumentType(document.documentType ?? document.docType ?? document.id);
+    return normalized === type;
+  });
+
+  if (matching.some((document) => document.verified === true)) {
+    return "Verified";
+  }
+
+  if (matching.some(isReviewRequiredDocument)) {
+    return "Review required";
+  }
+
+  if (matching.some((document) => Boolean(document.fileUrl))) {
+    return "Uploaded";
+  }
+
+  return "Missing";
+}
+
+async function enrichContractorListItem(contractor: Record<string, unknown> & { id: string }) {
+  const contractorId = asString(contractor.contractorId) ?? contractor.id;
+  const documents = await listContractorDocuments(contractorId);
+  const summary = calculateContractorCompliance(documents);
+  const reviewRequiredCount = documents.filter(isReviewRequiredDocument).length;
+  const requiredDocsApprovedCount = SUPPORTED_DOCUMENT_TYPES.length - summary.docsMissing;
+  const hasFullDocumentReadiness =
+    summary.docsMissing === 0 && summary.expiredDocumentCount === 0 && summary.tenderLockStatus === "READY";
+  const complianceApproved = contractor.complianceApproved === true;
+  const overallStatus =
+    complianceApproved
+      ? "Approved / Compliant"
+      : hasFullDocumentReadiness
+        ? "Pending Review"
+        : reviewRequiredCount > 0
+          ? "Review Required"
+          : summary.docsMissing > 0
+            ? "Onboarding"
+            : "Pending Review";
+
+  return {
+    ...contractor,
+    readinessScore:
+      typeof contractor.readinessScore === "number" && Number.isFinite(contractor.readinessScore)
+        ? contractor.readinessScore
+        : summary.readinessScore,
+    complianceStatusScore:
+      typeof contractor.complianceStatusScore === "number" && Number.isFinite(contractor.complianceStatusScore)
+        ? contractor.complianceStatusScore
+        : summary.complianceStatusScore,
+    docsMissing: summary.docsMissing,
+    missingDocumentTypes: summary.missingDocumentTypes,
+    tenderLockStatus: summary.tenderLockStatus,
+    isTenderLocked: summary.isTenderLocked,
+    requiredDocsApprovedCount,
+    requiredDocsTotalCount: SUPPORTED_DOCUMENT_TYPES.length,
+    reviewRequiredCount,
+    overallStatus,
+    complianceApproved,
+    taxPinStatus: resolveDocumentSignal(documents, "taxClearance"),
+    csdStatus: resolveDocumentSignal(documents, "csd"),
+    lastDocumentUpdateAt: latestDocumentUpdate(documents) ?? contractor.lastDocumentUpdateAt ?? contractor.updatedAt ?? null,
+  };
 }
 
 export async function createContractor(

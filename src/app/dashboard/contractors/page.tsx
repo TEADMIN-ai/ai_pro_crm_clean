@@ -17,6 +17,15 @@ type ContractorListItem = {
   csdNumber?: string | null;
   csdMNumber?: string | null;
   status?: string | null;
+  overallStatus?: string | null;
+  readinessScore?: number | null;
+  requiredDocsApprovedCount?: number | null;
+  requiredDocsTotalCount?: number | null;
+  docsMissing?: number | null;
+  reviewRequiredCount?: number | null;
+  taxPinStatus?: string | null;
+  csdStatus?: string | null;
+  complianceApproved?: boolean | null;
   createdAt?: string | number | null;
   updatedAt?: string | number | null;
   lastDocumentUpdateAt?: string | number | null;
@@ -79,13 +88,50 @@ export default function ContractorsPage() {
   }, []);
 
   const statusSummary = useMemo(() => {
-    const ready = contractors.filter((contractor) => clean(contractor.status).toLowerCase() === "ready").length;
+    const ready = contractors.filter((contractor) => {
+      const status = clean(contractor.overallStatus ?? contractor.status).toLowerCase();
+      return status === "ready" || status === "approved / compliant";
+    }).length;
     const active = contractors.filter((contractor) => clean(contractor.status).toLowerCase() === "active").length;
     const pending = Math.max(contractors.length - ready - active, 0);
     return { ready: ready + active, pending };
   }, [contractors]);
 
   const canCreateContractorUser = role === "admin" || role === "manager";
+  const canApproveOnboarding = role === "admin" || role === "manager" || role === "staff";
+
+  async function approveOnboarding(contractorId: string) {
+    const approvalNotes = window.prompt("Approval notes for this onboarding portfolio");
+    if (approvalNotes === null) {
+      return;
+    }
+
+    try {
+      const response = await authFetch(API_ROUTES.CONTRACTOR_APPROVE(contractorId), {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        body: JSON.stringify({ approvalNotes }),
+      });
+      const payload = (await response.json().catch(() => null)) as {
+        error?: string;
+        blockers?: string[];
+      } | null;
+
+      if (!response.ok) {
+        throw new Error(payload?.blockers?.join("; ") || payload?.error || `Approval failed (${response.status})`);
+      }
+
+      const refreshed = await authFetch(API_ROUTES.CONTRACTORS, { cache: "no-store" });
+      const data = await refreshed.json();
+      setContractors(Array.isArray(data) ? (data as ContractorListItem[]) : []);
+      setError(null);
+    } catch (approvalError) {
+      setError(approvalError instanceof Error ? approvalError.message : "Unable to approve onboarding.");
+    }
+  }
 
   async function handleCreateContractor(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -258,10 +304,25 @@ export default function ContractorsPage() {
                 companyName={companyName}
                 taxNumber={contractor.taxPin ?? contractor.taxNumber}
                 csdNumber={contractor.csdNumber ?? contractor.csdMNumber}
+                taxPinStatus={contractor.taxPinStatus}
+                csdStatus={contractor.csdStatus}
                 onboardedAt={contractor.createdAt}
                 status={contractor.status}
+                overallStatus={contractor.overallStatus}
+                readinessScore={contractor.readinessScore}
+                requiredDocsApprovedCount={contractor.requiredDocsApprovedCount}
+                requiredDocsTotalCount={contractor.requiredDocsTotalCount}
+                docsMissing={contractor.docsMissing}
+                reviewRequiredCount={contractor.reviewRequiredCount}
                 lastDocumentUpdateAt={contractor.lastDocumentUpdateAt ?? contractor.updatedAt}
                 logoUrl={contractor.logoUrl ?? contractor.businessLogoUrl}
+                canApproveOnboarding={canApproveOnboarding && contractor.complianceApproved !== true}
+                approveDisabledReason={
+                  contractor.docsMissing || contractor.reviewRequiredCount
+                    ? `${contractor.docsMissing ?? 0} missing and ${contractor.reviewRequiredCount ?? 0} requiring review`
+                    : null
+                }
+                onApproveOnboarding={() => void approveOnboarding(contractorId)}
               />
             );
           })}

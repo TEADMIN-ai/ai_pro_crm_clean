@@ -14,6 +14,8 @@ export const API_ROUTES = {
     `/api/contractors/${encodeURIComponent(contractorId)}`,
   CONTRACTOR_DOCUMENTS: (contractorId: string) =>
     `/api/contractors/${encodeURIComponent(contractorId)}/documents`,
+  CONTRACTOR_APPROVE: (contractorId: string) =>
+    `/api/contractors/${encodeURIComponent(contractorId)}/approve`,
   CONTRACTOR_ONBOARDING: (contractorId: string) =>
     `/api/contractors/${encodeURIComponent(contractorId)}/onboarding`,
   CONTRACTOR_ACKNOWLEDGEMENTS: (contractorId: string) =>

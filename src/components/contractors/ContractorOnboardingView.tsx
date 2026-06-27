@@ -7,6 +7,13 @@ import UploadDocumentModal from "@/components/modals/UploadDocumentModal";
 import { useAuth } from "@/context/AuthContext";
 import { API_ROUTES } from "@/lib/apiRoutes";
 import { authFetch } from "@/lib/client/authFetch";
+import {
+  getDocumentTypeLabel,
+  normalizeSupportedDocumentType,
+  resolveContractorDocumentStatus,
+  SUPPORTED_DOCUMENT_TYPES,
+  type SupportedDocumentType,
+} from "@/lib/compliance/contractorCompliance";
 import type { ContractorTenderSummary } from "@/types/deal";
 import type { ContractorDocument } from "@/types/document";
 import type { ContractorTimelineItem } from "@/types/intelligenceCenter";
@@ -23,6 +30,15 @@ type ContractorRecord = {
   csdMNumber?: string | null;
   mNumber?: string | null;
   status?: string | null;
+  overallStatus?: string | null;
+  readinessScore?: number | null;
+  docsMissing?: number | null;
+  complianceApproved?: boolean | null;
+  requiredDocsApprovedCount?: number | null;
+  requiredDocsTotalCount?: number | null;
+  reviewRequiredCount?: number | null;
+  taxPinStatus?: string | null;
+  csdStatus?: string | null;
   createdAt?: string | number | null;
   updatedAt?: string | number | null;
   logoUrl?: string | null;
@@ -243,6 +259,47 @@ function getCompanyName(contractor: ContractorRecord): string {
   return clean(contractor.companyName) || clean(contractor.name) || "Contractor";
 }
 
+function buildReadinessSummary(documents: ContractorDocument[], contractor: ContractorRecord) {
+  const verifiedTypes = new Set<SupportedDocumentType>();
+  const missingLabels: string[] = [];
+
+  for (const document of documents) {
+    const normalizedType = normalizeSupportedDocumentType(document.documentType ?? document.docType ?? document.id);
+    if (!normalizedType) {
+      continue;
+    }
+
+    const status = resolveContractorDocumentStatus(document);
+    if (status === "verified" || status === "expiringSoon") {
+      verifiedTypes.add(normalizedType);
+    }
+  }
+
+  for (const type of SUPPORTED_DOCUMENT_TYPES) {
+    if (!verifiedTypes.has(type)) {
+      missingLabels.push(getDocumentTypeLabel(type));
+    }
+  }
+
+  const reviewRequiredCount = documents.filter(isExtractionFailed).length;
+  const requiredDocsApprovedCount = verifiedTypes.size;
+  const docsMissing = missingLabels.length;
+  const readinessScore =
+    typeof contractor.readinessScore === "number" && Number.isFinite(contractor.readinessScore)
+      ? contractor.readinessScore
+      : Math.round((requiredDocsApprovedCount / SUPPORTED_DOCUMENT_TYPES.length) * 100);
+
+  return {
+    readinessScore,
+    requiredDocsApprovedCount,
+    requiredDocsTotalCount: SUPPORTED_DOCUMENT_TYPES.length,
+    docsMissing,
+    reviewRequiredCount,
+    missingLabels,
+    canApprove: readinessScore === 100 && docsMissing === 0 && reviewRequiredCount === 0,
+  };
+}
+
 export default function ContractorOnboardingView({ contractorId }: Props) {
   const { loading: authLoading, role } = useAuth();
   const [payload, setPayload] = useState<OnboardingPayload | null>(null);
@@ -261,6 +318,7 @@ export default function ContractorOnboardingView({ contractorId }: Props) {
   const [noteMessage, setNoteMessage] = useState("");
   const [savingNote, setSavingNote] = useState(false);
   const [activeDocumentSectionKey, setActiveDocumentSectionKey] = useState(DOCUMENT_GROUPS[0].key);
+  const [approvingOnboarding, setApprovingOnboarding] = useState(false);
 
   async function loadOnboarding() {
     const response = await authFetch(API_ROUTES.CONTRACTOR_ONBOARDING(contractorId), {
@@ -381,6 +439,38 @@ export default function ContractorOnboardingView({ contractorId }: Props) {
     }
   }
 
+  async function approveOnboardingPortfolio() {
+    const approvalNotes = window.prompt("Approval notes for this onboarding portfolio");
+    if (approvalNotes === null || approvingOnboarding) {
+      return;
+    }
+
+    setApprovingOnboarding(true);
+    setError(null);
+
+    try {
+      const response = await authFetch(API_ROUTES.CONTRACTOR_APPROVE(contractorId), {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        body: JSON.stringify({ approvalNotes }),
+      });
+      const result = (await response.json().catch(() => null)) as { error?: string; blockers?: string[] } | null;
+
+      if (!response.ok) {
+        throw new Error(result?.blockers?.join("; ") || result?.error || `Approval failed (${response.status})`);
+      }
+
+      await loadOnboarding();
+    } catch (approvalError) {
+      setError(approvalError instanceof Error ? approvalError.message : "Unable to approve onboarding.");
+    } finally {
+      setApprovingOnboarding(false);
+    }
+  }
+
   function openUpload(documentType?: string, documentLabel?: string) {
     setSelectedDocType(documentType ?? null);
     setSelectedDocLabel(documentLabel ?? null);
@@ -411,6 +501,8 @@ export default function ContractorOnboardingView({ contractorId }: Props) {
   const lastDocumentUpdateAt = getLastDocumentUpdate(payload.documents);
   const uploadContractor = { id: contractorId, name: companyName, companyName };
   const canUpload = role === "contractor" || payload.viewer.isPrivileged;
+  const readinessSummary = buildReadinessSummary(payload.documents, payload.contractor);
+  const canApproveOnboarding = payload.viewer.isPrivileged && payload.contractor.complianceApproved !== true;
 
   return (
     <>
@@ -428,9 +520,24 @@ export default function ContractorOnboardingView({ contractorId }: Props) {
           csdNumber={payload.contractor.csdNumber ?? payload.contractor.csdMNumber ?? payload.contractor.mNumber}
           onboardedAt={payload.contractor.createdAt}
           status={payload.contractor.status}
+          overallStatus={payload.contractor.overallStatus}
+          readinessScore={readinessSummary.readinessScore}
+          requiredDocsApprovedCount={readinessSummary.requiredDocsApprovedCount}
+          requiredDocsTotalCount={readinessSummary.requiredDocsTotalCount}
+          docsMissing={readinessSummary.docsMissing}
+          reviewRequiredCount={readinessSummary.reviewRequiredCount}
+          taxPinStatus={payload.contractor.taxPinStatus}
+          csdStatus={payload.contractor.csdStatus}
           lastDocumentUpdateAt={lastDocumentUpdateAt}
           logoUrl={payload.contractor.logoUrl ?? payload.contractor.businessLogoUrl}
           href={`/dashboard/contractors/${encodeURIComponent(contractorId)}`}
+          canApproveOnboarding={canApproveOnboarding}
+          approveDisabledReason={
+            readinessSummary.canApprove
+              ? null
+              : `${readinessSummary.docsMissing} missing and ${readinessSummary.reviewRequiredCount} requiring review`
+          }
+          onApproveOnboarding={() => void approveOnboardingPortfolio()}
         />
 
         {payload.lastAction ? <LastActionBanner action={payload.lastAction} /> : null}
@@ -567,6 +674,21 @@ export default function ContractorOnboardingView({ contractorId }: Props) {
           </div>
 
           <aside className="space-y-6">
+            {payload.viewer.isPrivileged ? (
+              <OnboardingApprovalPanel
+                complianceApproved={payload.contractor.complianceApproved === true}
+                readinessScore={readinessSummary.readinessScore}
+                requiredDocsApprovedCount={readinessSummary.requiredDocsApprovedCount}
+                requiredDocsTotalCount={readinessSummary.requiredDocsTotalCount}
+                docsMissing={readinessSummary.docsMissing}
+                reviewRequiredCount={readinessSummary.reviewRequiredCount}
+                missingLabels={readinessSummary.missingLabels}
+                canApprove={readinessSummary.canApprove && canApproveOnboarding}
+                approving={approvingOnboarding}
+                onApprove={approveOnboardingPortfolio}
+              />
+            ) : null}
+
             <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
               <h2 className="text-lg font-semibold text-slate-950">Missing / Requested Documents</h2>
               <div className="mt-4 space-y-3">
@@ -670,6 +792,88 @@ type ContractorDocumentViewUrlResponse = {
 function buildDocumentViewRequestUrl(fileUrl: string): string {
   const separator = fileUrl.includes("?") ? "&" : "?";
   return `${fileUrl}${separator}format=json`;
+}
+
+function OnboardingApprovalPanel(props: {
+  complianceApproved: boolean;
+  readinessScore: number;
+  requiredDocsApprovedCount: number;
+  requiredDocsTotalCount: number;
+  docsMissing: number;
+  reviewRequiredCount: number;
+  missingLabels: string[];
+  canApprove: boolean;
+  approving: boolean;
+  onApprove: () => void;
+}) {
+  const blockerText =
+    props.missingLabels.length > 0
+      ? props.missingLabels.join(", ")
+      : props.reviewRequiredCount > 0
+        ? `${props.reviewRequiredCount} document(s) require review`
+        : "Ready for approval";
+
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h2 className="text-lg font-semibold text-slate-950">Onboarding Approval</h2>
+          <p className="mt-1 text-sm text-slate-600">
+            Approval is based on verified required documents.
+          </p>
+        </div>
+        <span className={`rounded-full border px-3 py-1 text-xs font-semibold ${
+          props.complianceApproved
+            ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+            : props.canApprove
+              ? "border-sky-200 bg-sky-50 text-sky-700"
+              : "border-amber-200 bg-amber-50 text-amber-800"
+        }`}>
+          {props.complianceApproved ? "Approved / Compliant" : props.canApprove ? "Pending Review" : "Review Required"}
+        </span>
+      </div>
+
+      <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
+        <div className="flex items-center justify-between">
+          <p className="text-sm font-semibold text-slate-700">Compliance</p>
+          <p className="text-2xl font-bold text-slate-950">{props.readinessScore}%</p>
+        </div>
+        <div className="mt-3 h-2.5 overflow-hidden rounded-full bg-slate-200">
+          <div className="h-full rounded-full bg-emerald-500" style={{ width: `${props.readinessScore}%` }} />
+        </div>
+        <dl className="mt-4 grid grid-cols-3 gap-3 text-sm">
+          <div>
+            <dt className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Approved</dt>
+            <dd className="mt-1 font-bold text-slate-950">{props.requiredDocsApprovedCount}/{props.requiredDocsTotalCount}</dd>
+          </div>
+          <div>
+            <dt className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Missing</dt>
+            <dd className="mt-1 font-bold text-slate-950">{props.docsMissing}</dd>
+          </div>
+          <div>
+            <dt className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Review</dt>
+            <dd className="mt-1 font-bold text-slate-950">{props.reviewRequiredCount}</dd>
+          </div>
+        </dl>
+      </div>
+
+      {!props.complianceApproved && !props.canApprove ? (
+        <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+          <p className="font-semibold">Approval blocked</p>
+          <p className="mt-1">{blockerText}</p>
+        </div>
+      ) : null}
+
+      <button
+        type="button"
+        onClick={props.onApprove}
+        disabled={props.complianceApproved || !props.canApprove || props.approving}
+        className="mt-4 w-full rounded-xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-600"
+      >
+        {props.complianceApproved ? "Onboarding Approved" : props.approving ? "Approving..." : "Approve Onboarding Portfolio"}
+      </button>
+    </div>
+  );
 }
 
 function LastActionBanner({ action }: { action: ContractorLastAction }) {

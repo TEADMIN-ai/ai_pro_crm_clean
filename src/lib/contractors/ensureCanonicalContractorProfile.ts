@@ -4,6 +4,10 @@ import { recordDeploymentIntelligenceEvent } from "@/lib/compliance/complianceOp
 export const TORQUE_EMPIRE_CANONICAL_CONTRACTOR_ID = "torque-empire-benchmark";
 
 export async function ensureCanonicalContractorProfile(db: Firestore) {
+  if (process.env.NODE_ENV === "production" && process.env.ALLOW_PRODUCTION_BENCHMARK_CONTRACTOR !== "true") {
+    throw new Error("benchmark_contractor_disabled_in_production");
+  }
+
   const contractorRef = db.collection("contractors").doc(TORQUE_EMPIRE_CANONICAL_CONTRACTOR_ID);
   const snapshot = await contractorRef.get();
   const now = new Date();
