@@ -1069,7 +1069,12 @@ export default function DealsPage() {
                                     </span>
                                   </td>
                                   <td className="px-6 py-4 text-sm text-slate-600">
-                                    {deal.contractorId?.trim() || "Not linked"}
+                                    <div className="space-y-1">
+                                      <p className="text-sm font-medium text-slate-900">{deal.contractorId?.trim() ? "Linked contractor" : "Not linked"}</p>
+                                      {deal.contractorId?.trim() ? (
+                                        <p className="font-mono text-xs text-slate-500">ID {deal.contractorId.trim()}</p>
+                                      ) : null}
+                                    </div>
                                   </td>
                                 </tr>
                               );

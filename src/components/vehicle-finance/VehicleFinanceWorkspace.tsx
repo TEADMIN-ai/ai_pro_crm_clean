@@ -57,6 +57,7 @@ type Section = "dashboard" | "customers" | "applications" | "document-verificati
 
 type Props = {
   initialSection: Section;
+  initialApplicationId?: string;
 };
 
 type CustomerForm = {
@@ -194,7 +195,7 @@ function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-export default function VehicleFinanceWorkspace({ initialSection }: Props) {
+export default function VehicleFinanceWorkspace({ initialSection, initialApplicationId }: Props) {
   const section = initialSection;
   const [overview, setOverview] = useState<VehicleFinanceOverview | null>(null);
   const [loading, setLoading] = useState(true);
@@ -203,7 +204,7 @@ export default function VehicleFinanceWorkspace({ initialSection }: Props) {
   const [applicationForm, setApplicationForm] = useState<ApplicationForm>(EMPTY_APPLICATION_FORM);
   const [busy, setBusy] = useState<string | null>(null);
   const [documentFiles, setDocumentFiles] = useState<Partial<Record<VehicleFinanceDocumentType, File>>>({});
-  const [selectedApplicationId, setSelectedApplicationId] = useState<string>("");
+  const [selectedApplicationId, setSelectedApplicationId] = useState<string>(initialApplicationId ?? "");
   const [inventory, setInventory] = useState<RoarInventoryResponse | null>(null);
   const [inventoryLoading, setInventoryLoading] = useState(true);
   const [inventoryError, setInventoryError] = useState<string | null>(null);
@@ -228,16 +229,24 @@ export default function VehicleFinanceWorkspace({ initialSection }: Props) {
 
       setOverview(payload);
       setError(null);
-      if (payload.applications[0]?.applicationId) {
-        const initialApplicationId = payload.applications[0].applicationId;
-        setSelectedApplicationId((current) => current || initialApplicationId);
+      const hasApplication = (applicationId: string) =>
+        payload.applications.some((application) => application.applicationId === applicationId);
+      const matchingApplicationId = initialApplicationId
+        ? payload.applications.find((application) => application.applicationId === initialApplicationId)?.applicationId ?? null
+        : null;
+
+      if (matchingApplicationId) {
+        setSelectedApplicationId((current) => (hasApplication(current) ? current : matchingApplicationId));
+      } else if (payload.applications[0]?.applicationId) {
+        const fallbackApplicationId = payload.applications[0].applicationId;
+        setSelectedApplicationId((current) => (hasApplication(current) ? current : fallbackApplicationId));
       }
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : "Vehicle finance overview unavailable");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [initialApplicationId]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -930,13 +939,12 @@ export default function VehicleFinanceWorkspace({ initialSection }: Props) {
                       <td><Badge tone={application.applicationStatus === "VERIFIED" ? "success" : "warning"}>{application.applicationStatus}</Badge></td>
                       <td>{application.fraudScore}</td>
                       <td className="text-right">
-                        <button
-                          type="button"
-                          onClick={() => setSelectedApplicationId(application.applicationId)}
-                          className="rounded-md border border-slate-600 bg-slate-900/60 px-3 py-1.5 text-xs font-semibold text-slate-100 transition hover:border-sky-300/30 hover:text-sky-100"
+                        <Link
+                          href={`/dashboard/vehicle-finance/applications/${encodeURIComponent(application.applicationId)}`}
+                          className="inline-flex rounded-md border border-slate-600 bg-slate-900/60 px-3 py-1.5 text-xs font-semibold text-slate-100 transition hover:border-sky-300/30 hover:text-sky-100"
                         >
                           Open
-                        </button>
+                        </Link>
                       </td>
                     </tr>
                   );

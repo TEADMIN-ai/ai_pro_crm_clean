@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import Image from "next/image";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
@@ -309,14 +310,12 @@ export default function RoarCarsInventoryWorkspace({ mode = "inventory" }: Props
                       <td>{vehicle.year ?? "n/a"}</td>
                       <td>{vehicle.transmission ?? "n/a"}</td>
                       <td className="text-right">
-                        <a
-                          href={vehicle.listingUrl}
-                          target="_blank"
-                          rel="noreferrer"
+                        <Link
+                          href={`/dashboard/vehicle-finance/inventory/${encodeURIComponent(vehicle.id)}`}
                           className="inline-flex rounded-md border border-sky-300/25 bg-sky-300/10 px-3 py-1.5 text-xs font-semibold text-sky-100 no-underline transition hover:bg-sky-300/20"
                         >
                           View Vehicle
-                        </a>
+                        </Link>
                       </td>
                     </tr>
                   ))}
@@ -527,14 +526,12 @@ function VehicleCard({ vehicle }: { vehicle: RoarInventoryVehicle }) {
           <span>{vehicle.fuelType ?? "Fuel type n/a"}</span>
           <span>{vehicle.bodyType ?? "Body type n/a"}</span>
         </div>
-        <a
-          href={vehicle.listingUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="mt-5 inline-flex w-full items-center justify-center rounded-xl border border-sky-300/25 bg-sky-300/10 px-4 py-2.5 text-sm font-semibold text-sky-100 no-underline transition hover:bg-sky-300/20"
-        >
-          View Vehicle
-        </a>
+      <Link
+        href={`/dashboard/vehicle-finance/inventory/${encodeURIComponent(vehicle.id)}`}
+        className="mt-5 inline-flex w-full items-center justify-center rounded-xl border border-sky-300/25 bg-sky-300/10 px-4 py-2.5 text-sm font-semibold text-sky-100 no-underline transition hover:bg-sky-300/20"
+      >
+        View Vehicle
+      </Link>
       </div>
     </article>
   );
@@ -568,14 +565,12 @@ function ListingCard({ vehicle }: { vehicle: RoarInventoryVehicle }) {
           </p>
         </div>
       </div>
-      <a
-        href={vehicle.listingUrl}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="mt-4 inline-flex w-full items-center justify-center rounded-xl border border-sky-300/25 bg-sky-300/10 px-4 py-2.5 text-sm font-semibold text-sky-100 no-underline transition hover:bg-sky-300/20"
-      >
-        View Vehicle
-      </a>
+    <Link
+      href={`/dashboard/vehicle-finance/inventory/${encodeURIComponent(vehicle.id)}`}
+      className="mt-4 inline-flex w-full items-center justify-center rounded-xl border border-sky-300/25 bg-sky-300/10 px-4 py-2.5 text-sm font-semibold text-sky-100 no-underline transition hover:bg-sky-300/20"
+    >
+      View Vehicle
+    </Link>
     </article>
   );
 }
