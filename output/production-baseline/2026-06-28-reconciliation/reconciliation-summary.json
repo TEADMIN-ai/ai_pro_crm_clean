@@ -1,0 +1,92 @@
+{
+  "generatedAt": "2026-06-28T22:10:00.000Z",
+  "finalStatus": "GREEN",
+  "productionBaselineRerun": {
+    "productionSha": "f3c185b7899183f5340a2ae23fd48eabddbf2609",
+    "vercelDeploymentId": "dpl_HGWmc3kcbL9eomStZyipHiZr16Lh",
+    "vercelReadyState": "READY",
+    "firebaseRuntimeProject": "torque-empire-ai-pro-crm"
+  },
+  "resolvedFindings": [
+    {
+      "issue": "Repository Firebase Project vs Runtime Firebase Project",
+      "expectedState": "Repository Firebase default project matches the runtime production Firebase project.",
+      "actualStateBefore": ".firebaserc default was torque-empire-crm-prod while runtime production evidence used torque-empire-ai-pro-crm.",
+      "rootCause": "Repository Firebase CLI target had not been updated after production runtime configuration moved to torque-empire-ai-pro-crm.",
+      "risk": "Rules, indexes, and function operations could be applied to the wrong Firebase project.",
+      "repairPerformed": ".firebaserc default changed to torque-empire-ai-pro-crm; prior project retained as legacyProd for traceability.",
+      "filesChanged": [".firebaserc"],
+      "deploymentRequired": "No Vercel deployment required. Firebase CLI target alignment is a repository/release-operations change.",
+      "verificationEvidence": "Post-repair Firebase index/database/function commands all targeted torque-empire-ai-pro-crm."
+    },
+    {
+      "issue": "Composite Index mismatch",
+      "expectedState": "Runtime Firestore composite indexes match firestore.indexes.json.",
+      "actualStateBefore": "Runtime project returned zero composite indexes.",
+      "rootCause": "Indexes had been deployed to the legacy/default Firebase project instead of the runtime project.",
+      "risk": "Production Firestore queries could fail with missing-index errors under live traffic.",
+      "repairPerformed": "Deployed firestore.indexes.json to torque-empire-ai-pro-crm.",
+      "filesChanged": [],
+      "deploymentRequired": "Firebase index deployment completed.",
+      "verificationEvidence": "output/production-baseline/2026-06-28-reconciliation/firebase-firestore-indexes-live.json contains the five expected deals indexes."
+    },
+    {
+      "issue": "Cloud Functions failures",
+      "expectedState": "No failed production Cloud Functions remain.",
+      "actualStateBefore": "Failed gcfv2 functions api and onUserCreate existed in us-central1.",
+      "rootCause": "Stale functions from an older deployment remained in Firebase; current repository functions source exports only onContractorDocumentCreated.",
+      "risk": "Failed stale functions created incident-response noise and could be mistaken for active production components.",
+      "repairPerformed": "Deleted failed stale functions api and onUserCreate from torque-empire-ai-pro-crm.",
+      "filesChanged": [],
+      "deploymentRequired": "Firebase functions delete completed; no app deployment required.",
+      "verificationEvidence": "output/production-baseline/2026-06-28-reconciliation/firebase-functions-live.json now lists only active functions."
+    },
+    {
+      "issue": "Delete Protection configuration",
+      "expectedState": "Runtime Firestore database has delete protection enabled.",
+      "actualStateBefore": "DELETE_PROTECTION_DISABLED.",
+      "rootCause": "Firestore database was created or maintained without delete protection.",
+      "risk": "Accidental database deletion risk.",
+      "repairPerformed": "Enabled delete protection on projects/torque-empire-ai-pro-crm/databases/(default).",
+      "filesChanged": [],
+      "deploymentRequired": "Firebase database configuration update completed.",
+      "verificationEvidence": "output/production-baseline/2026-06-28-reconciliation/firebase-firestore-database-live.json reports DELETE_PROTECTION_ENABLED."
+    },
+    {
+      "issue": "Authenticated RC1 evidence",
+      "expectedState": "Authenticated production evidence exists for required roles and Vehicle Finance persistence workflow.",
+      "actualStateBefore": "Evidence was incomplete.",
+      "rootCause": "Prior production validation did not complete and the QA seed did not include vehicleFinanceStaff.",
+      "risk": "Production could not be release-certified for authenticated workflows.",
+      "repairPerformed": "Added vehicleFinanceStaff to the QA seed, safely adopted same-email QA user documents, seeded production QA records, and ran authenticated production evidence.",
+      "filesChanged": ["scripts/qaAcceptanceSeed.ts", "scripts/productionRc1Evidence.ts"],
+      "deploymentRequired": "No Vercel deployment required for evidence tooling. Production QA records were created with qa/safeToDelete metadata.",
+      "verificationEvidence": "output/production-baseline/2026-06-28-reconciliation/authenticated-rc1-evidence.json reports passed=true."
+    }
+  ],
+  "authenticatedRc1Evidence": {
+    "passed": true,
+    "applicationId": "eaf451e6-ed8e-40ab-9f89-2730df63b49b",
+    "clientSubmissionId": "rc1-1782684488384",
+    "documentStoragePath": "vehicle-finance/eaf451e6-ed8e-40ab-9f89-2730df63b49b/ab9e3eae-711c-47c5-9a7f-96e37b59ae8c_payslip.pdf",
+    "auditIds": ["8bv5kaJSDIsattiLfJIE", "FRiWgIouUEfsYn5k37KD", "LLxpWDHNtQfP3TdnRMYf"],
+    "decisionIds": ["H8OmVXdCcecbAkKVhwhf"],
+    "eventIds": [
+      "01WRwDRynIckiy5rf7Bn",
+      "0bZlLS8e3MZ9nZioBP9s",
+      "SHB7gWFjpvKLmQKUAWYK",
+      "UcVgk40lapXcBpIujTvD",
+      "Wgz7yLWtjVmbwajC20qw",
+      "mk2HWUjv4ryPjvHh83KX",
+      "vImfPT3tuwmkuxiIiekO",
+      "yT7dgvcujOwcTXcom8zN"
+    ],
+    "rolesVerified": ["admin", "manager", "staff", "driver", "contractor", "vehicleFinanceStaff", "ROAR_CARS_STAFF"]
+  },
+  "localValidation": {
+    "typecheck": "passed",
+    "routeIntegrity": "passed",
+    "sanity": "passed"
+  },
+  "manualRemediationRequired": []
+}

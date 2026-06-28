@@ -1,0 +1,69 @@
+{
+  "generatedAt": "2026-06-28",
+  "timezone": "Africa/Johannesburg",
+  "finalStatus": {
+    "code": "RED",
+    "label": "Production Configuration Inconsistent",
+    "reason": "Production SHA is corrected, but Firebase project/index drift, failed functions, incomplete document-level Firebase audit, and incomplete authenticated RC1 workflow evidence prevent baseline sign-off."
+  },
+  "production": {
+    "url": "https://ai-pro-crm-clean.vercel.app",
+    "deploymentUrl": "https://ai-pro-crm-clean-4hy7d3w4n-chadwin-s-projects.vercel.app",
+    "deploymentId": "dpl_HGWmc3kcbL9eomStZyipHiZr16Lh",
+    "gitSha": "f3c185b7899183f5340a2ae23fd48eabddbf2609",
+    "gitRef": "main",
+    "readyState": "READY",
+    "target": "production"
+  },
+  "repository": {
+    "head": "f3c185b7899183f5340a2ae23fd48eabddbf2609",
+    "firebaseDefaultProject": "torque-empire-crm-prod",
+    "firebaseConfigFilesCaptured": true,
+    "rulesCaptured": true,
+    "indexesCaptured": true
+  },
+  "vercel": {
+    "projectName": "ai-pro-crm-clean",
+    "projectId": "prj_KKyLEBVHEJUKEdfWgD3CmtQjop0z",
+    "framework": "nextjs",
+    "nodeVersion": "24.x",
+    "cronJobs": [
+      {
+        "path": "/api/vehicle-finance/inventory-sync",
+        "schedule": "0 4 * * *"
+      }
+    ],
+    "environmentVariableNamesCaptured": true,
+    "secretValuesExported": false
+  },
+  "firebase": {
+    "activeProjectsObserved": [
+      "torque-empire-ai-pro-crm",
+      "torque-empire-crm-prod"
+    ],
+    "runtimeProjectObserved": "torque-empire-ai-pro-crm",
+    "repositoryDefaultProject": "torque-empire-crm-prod",
+    "runtimeFirestoreLocation": "africa-south1",
+    "runtimeFirestorePointInTimeRecovery": "POINT_IN_TIME_RECOVERY_ENABLED",
+    "runtimeFirestoreDeleteProtection": "DELETE_PROTECTION_DISABLED",
+    "runtimeCompositeIndexesReturned": 0,
+    "repoDefaultCompositeIndexesReturned": 5,
+    "failedFunctionsObserved": [
+      "api",
+      "onUserCreate"
+    ]
+  },
+  "localValidation": {
+    "typecheck": "passed",
+    "routeIntegrity": "passed",
+    "sanity": "passed"
+  },
+  "evidence": {
+    "deploymentEvidence": "complete",
+    "configurationEvidence": "partial",
+    "firebaseDocumentIntegrityEvidence": "incomplete",
+    "authenticatedRc1WorkflowEvidence": "incomplete",
+    "storageReferenceEvidence": "incomplete",
+    "authClaimsEvidence": "incomplete"
+  }
+}

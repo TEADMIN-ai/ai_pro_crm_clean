@@ -5,7 +5,7 @@ import { HYGIENE_COLLECTIONS } from "@/lib/hygiene/hygieneService";
 import { QS_COLLECTIONS } from "@/lib/qs/collections";
 
 type SeedAction = "seed" | "cleanup";
-type QaRole = "admin" | "manager" | "staff" | "driver" | "contractor" | "ROAR_CARS_STAFF";
+type QaRole = "admin" | "manager" | "staff" | "driver" | "contractor" | "vehicleFinanceStaff" | "ROAR_CARS_STAFF";
 
 type QaUserSpec = {
   key: string;
@@ -45,6 +45,12 @@ const QA_USERS: QaUserSpec[] = [
     name: "QA Contractor",
     passwordEnv: "TE_QA_CONTRACTOR_PASSWORD",
     contractorId: VERIFIED_CONTRACTOR_ID,
+  },
+  {
+    key: "vehicle-finance",
+    role: "vehicleFinanceStaff",
+    name: "QA Vehicle Finance Staff",
+    passwordEnv: "TE_QA_VEHICLE_FINANCE_PASSWORD",
   },
   { key: "roar", role: "ROAR_CARS_STAFF", name: "QA Roar Cars Staff", passwordEnv: "TE_QA_ROAR_PASSWORD" },
 ];
@@ -144,6 +150,31 @@ async function setQaDoc(
   await ref.set(stripUndefined({ ...payload, ...qaMetadata(environment), updatedAt: nowIso() }));
 }
 
+async function setQaUserDoc(user: SeededUser, environment: string): Promise<void> {
+  const db = getFirebaseAdmin();
+  const ref = db.collection("users").doc(user.uid);
+  const snapshot = await ref.get();
+  const payload = stripUndefined({
+    uid: user.uid,
+    name: user.name,
+    email: user.email,
+    role: user.role,
+    contractorId: user.contractorId ?? null,
+    disabled: false,
+    ...qaMetadata(environment),
+    updatedAt: nowIso(),
+  });
+
+  if (snapshot.exists && !isQaSafeRecord(snapshot.data(), environment)) {
+    const data = snapshot.data() ?? {};
+    if (typeof data.email !== "string" || data.email.toLowerCase() !== user.email.toLowerCase()) {
+      throw new Error(`Refusing to overwrite non-QA user record: ${ref.path}`);
+    }
+  }
+
+  await ref.set(payload, { merge: true });
+}
+
 async function deleteQaDoc(target: QaDocTarget, environment: string): Promise<boolean> {
   const db = getFirebaseAdmin();
   const ref = target.subcollection && target.subId
@@ -213,18 +244,7 @@ async function seedQaUsers(environment: string): Promise<SeededUser[]> {
   const users: SeededUser[] = [];
   for (const spec of QA_USERS) {
     const user = await ensureQaAuthUser(spec, environment);
-    await setQaDoc(
-      { collection: "users", id: user.uid },
-      {
-        uid: user.uid,
-        name: spec.name,
-        email: user.email,
-        role: spec.role,
-        contractorId: spec.contractorId ?? null,
-        disabled: false,
-      },
-      environment,
-    );
+    await setQaUserDoc(user, environment);
     users.push(user);
   }
   return users;

@@ -1,5 +1,6 @@
 {
   "projects": {
-    "default": "torque-empire-crm-prod"
+    "default": "torque-empire-ai-pro-crm",
+    "legacyProd": "torque-empire-crm-prod"
   }
 }
