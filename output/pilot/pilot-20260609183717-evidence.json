@@ -32,7 +32,7 @@
       "ok": true,
       "durationMs": 5338,
       "contentType": "application/json",
-      "setCookie": "session=eyJhbGciOiJSUzI1NiIsImtpZCI6IjRVUXdHZyJ9.eyJpc3MiOiJodHRwczovL3Nlc3Npb24uZmlyZWJhc2UuZ29vZ2xlLmNvbS90b3JxdWUtZW1waXJlLWFpLXByby1jcm0iLCJhdWQiOiJ0b3JxdWUtZW1waXJlLWFpLXByby1jcm0iLCJhdXRoX3RpbWUiOjE3ODEwMzAyMzksInVzZXJfaWQiOiJ6MHlYOGN5dDM4aGtmYTYwVUV5TlRPaVgyODEyIiwic3ViIjoiejB5WDhjeXQzOGhrZmE2MFVFeU5UT2lYMjgxMiIsImlhdCI6MTc4MTAzMDI0NiwiZXhwIjoxNzgxNDYyMjQ2LCJlbWFpbCI6ImNrYXJhbmlldGUuemFAZ21haWwuY29tIiwiZW1haWxfdmVyaWZpZWQiOnRydWUsImZpcmViYXNlIjp7ImlkZW50aXRpZXMiOnsiZW1haWwiOlsiY2thcmFuaWV0ZS56YUBnbWFpbC5jb20iXX0sInNpZ25faW5fcHJvdmlkZXIiOiJjdXN0b20ifX0.s8oFscE4EvLZehcKdg8PXwZZNU-Wc_cDr6rz4UGl6phc7-BhqQR9O04fZlKe7TrmYRHBVFQqq5RkFGSN_Y2W9tO6wjJg0yTSqTVuUM5r7cOo6u5pt4T6EQB40VQHpzpyIq4OaUTexH3uMq8sq8Tua_HqIo7oo0C0m2kMTqxYRTE13SzEWJs_KQwVM0-ldChwr6hu5itahXrZaPCjLYwus5KZNFXku5kgV2F2RIKUILukleyWQHHYw1iAnn23XXS7omt7RZceyuD-wxjQfL-aO-mmcC-TeeAUfFhVt5nU40gCyvdRP_rA4ygApx9ls4tzK2Qapsa6mWDiC5MlVi8NWw",
+      "setCookie": "session=<REDACTED>",
       "body": {
         "success": true,
         "uid": "z0yX8cyt38hkfa60UEyNTOiX2812"

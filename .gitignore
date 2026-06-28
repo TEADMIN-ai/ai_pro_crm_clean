@@ -27,6 +27,8 @@ pnpm-debug.log*
 .playwright-cli/
 tmp/
 output/playwright/
+output/pilot/
+evidence/
 *.stackdump
 *.dmp
 
