@@ -5,9 +5,10 @@ import { useEffect, useMemo, useState } from "react";
 
 import Badge from "@/components/ui/Badge";
 import Card, { IdentityCardHeader } from "@/components/ui/Card";
+import { ReturnButton } from "@/components/navigation/ReturnButton";
 import { authFetch } from "@/lib/client/authFetch";
 import { API_ROUTES } from "@/lib/routes";
-import type { RoarInventoryResponse, RoarInventoryVehicle } from "@/types/roarInventory";
+import type { RoarInventoryResponse } from "@/types/roarInventory";
 
 const PLACEHOLDER_IMAGE = "/images/roar-cars-placeholder.svg";
 
@@ -89,9 +90,7 @@ export default function RoarVehicleDetailView({ vehicleId }: Props) {
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <Link href="/dashboard/vehicle-finance/inventory" className="rounded-xl border border-white/15 bg-white/5 px-4 py-2 text-sm font-semibold text-white no-underline">
-              Back to Inventory
-            </Link>
+            <ReturnButton fallbackHref="/dashboard/vehicle-finance/inventory" label="Back to Inventory" className="rounded-xl border border-white/15 bg-white/5 px-4 py-2 text-sm font-semibold text-white no-underline" />
             <Link href="/dashboard/vehicle-finance/listings" className="rounded-xl border border-white/15 bg-white/5 px-4 py-2 text-sm font-semibold text-white no-underline">
               View Listings
             </Link>

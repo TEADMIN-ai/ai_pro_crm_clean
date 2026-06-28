@@ -196,6 +196,19 @@ export type QSSupplierRecommendationCategory =
 
 export type QSSupplierRiskLevel = "low" | "medium" | "high";
 
+export type QSSupplierDecisionStatus = "preferred" | "watchlist" | "blocked" | "neutral";
+
+export type QSSupplierDecisionFlagReason =
+  | "commercial_performance"
+  | "delivery_performance"
+  | "quality_concerns"
+  | "pricing_accuracy"
+  | "stock_reliability"
+  | "management_decision"
+  | "other";
+
+export type QSTrendDirection = "improving" | "stable" | "declining" | "insufficientData";
+
 export type QSSupplierContactActionType =
   | "CALL_SUPPLIER"
   | "EMAIL_SUPPLIER"
@@ -589,6 +602,158 @@ export type QSCommercialImpactScenario = QsAuditFields & {
   updatedByUid?: string | null;
 };
 
+export type QSSupplierPerformanceRating = QsAuditFields & {
+  ratingId: string;
+  supplierId: string;
+  supplierName?: string | null;
+  estimateId?: string | null;
+  projectId?: string | null;
+  deliveryReliabilityScore: number;
+  priceAccuracyScore: number;
+  qualityRating: number;
+  stockAccuracyScore: number;
+  communicationRating: number;
+  returnsDefectsRate: number;
+  invoiceAccuracyScore: number;
+  overallSupplierScore: number;
+  trendDirection: QSTrendDirection;
+  lastEvaluatedAt: QsTimestamp;
+  notes?: string | null;
+  status: QsRecordStatus;
+  version: number;
+  createdByUid?: string | null;
+  updatedByUid?: string | null;
+};
+
+export type QSRecommendationOutcome = "accepted" | "overridden" | "notUsed" | "pending";
+
+export type QSCompletedProjectFeedback = QsAuditFields & {
+  feedbackId: string;
+  estimateId: string;
+  projectId?: string | null;
+  projectName?: string | null;
+  supplierId?: string | null;
+  supplierName?: string | null;
+  recommendationId?: string | null;
+  recommendationOutcome: QSRecommendationOutcome;
+  overrideReason?: string | null;
+  expectedMaterialCost: number;
+  actualMaterialCost: number;
+  expectedLabourCost: number;
+  actualLabourCost: number;
+  expectedTransportCost: number;
+  actualTransportCost: number;
+  deliveryPerformanceScore: number;
+  defectsReturnsRate: number;
+  finalProfitMarginPercentage: number;
+  projectFeedbackScore?: number | null;
+  projectFeedbackNotes?: string | null;
+  completedAt: QsTimestamp;
+  learningStatus: "captured" | "reviewed" | "readyForTrainingExport";
+  createdByUid?: string | null;
+  updatedByUid?: string | null;
+};
+
+export type QSMaterialPriceObservation = QsAuditFields & {
+  observationId: string;
+  materialId: string;
+  materialName: string;
+  supplierId?: string | null;
+  supplierName?: string | null;
+  province?: QsProvince | null;
+  city?: string | null;
+  unit: string;
+  price: number;
+  currency: QsCurrencyCode;
+  observedAt: QsTimestamp;
+  source: QsPriceSource;
+  status: QsRecordStatus;
+  createdByUid?: string | null;
+  updatedByUid?: string | null;
+};
+
+export type QSPriceMovementSignal = {
+  materialId: string;
+  materialName: string;
+  observationCount: number;
+  firstPrice: number;
+  latestPrice: number;
+  movementPercentage: number;
+  trendDirection: QSTrendDirection;
+  confidence: "sufficientHistory" | "insufficientData";
+};
+
+export type QSSupplierDecisionFlag = QsAuditFields & {
+  flagId: string;
+  supplierId: string;
+  supplierName?: string | null;
+  status: QSSupplierDecisionStatus;
+  reason: QSSupplierDecisionFlagReason;
+  notes?: string | null;
+  setByUid: string;
+  setAt: QsTimestamp;
+  statusHistory: Array<{
+    status: QSSupplierDecisionStatus;
+    reason: QSSupplierDecisionFlagReason;
+    notes?: string | null;
+    setByUid: string;
+    setAt: QsTimestamp;
+  }>;
+  version: number;
+};
+
+export type QSTransportIntelligence = {
+  supplierId: string;
+  supplierName: string;
+  branchId?: string | null;
+  branchName?: string | null;
+  province?: QsProvince | null;
+  city?: string | null;
+  distanceKm?: number | null;
+  distanceStatus: "known" | "distanceUnavailable" | "requiresBranchGps";
+  deliveryFee: number;
+  leadTimeDays?: number | null;
+  loadingUnloadingAllowance: number;
+  transportRisk: QSSupplierRiskLevel;
+  deliveryConfidence: number;
+  explanation: string;
+};
+
+export type QSRegionalSupplierInsight = {
+  region: QsProvince;
+  cheapestSupplier?: { supplierId: string; supplierName: string; landedCostExVat: number } | null;
+  fastestDeliverySupplier?: { supplierId: string; supplierName: string; leadTimeDays: number } | null;
+  bestRatedSupplier?: { supplierId: string; supplierName: string; score: number } | null;
+  dataState: "sufficientData" | "insufficientData";
+};
+
+export type QSCommercialIntelligenceSnapshot = QsAuditFields & {
+  snapshotId: string;
+  commercialHealthScore: number;
+  averageMarginPercentage: number;
+  missingPricingCount: number;
+  lowMarginEstimateCount: number;
+  supplierRecommendationAcceptanceRate?: number | null;
+  transportRiskSummary: Record<QSSupplierRiskLevel, number>;
+  status: QsRecordStatus;
+};
+
+export type QSCommercialDashboardSummary = {
+  commercialHealthScore: number;
+  averageMarginPercentage: number;
+  missingPricingCount: number;
+  lowMarginEstimates: Array<{ estimateId: string; projectName?: string | null; marginPercentage: number; totalEstimatedProjectValue: number }>;
+  supplierPerformanceLeaderboard: Array<{ supplierId: string; supplierName: string; overallSupplierScore: number; trendDirection: QSTrendDirection }>;
+  savingsOpportunities: Array<{ scenarioId: string; estimateId: string; supplierName: string; costSaving: number; profitImpact: number }>;
+  highestRiskSupplierMaterial?: { supplierId: string; supplierName: string; materialName: string; riskLevel: QSSupplierRiskLevel; score: number } | null;
+  recommendationAcceptanceRate?: number | null;
+  priceMovementSignals: QSPriceMovementSignal[];
+  transportRiskSummary: Record<QSSupplierRiskLevel, number>;
+  recentCommercialImpactScenarios: QSCommercialImpactScenario[];
+  regionalInsights: QSRegionalSupplierInsight[];
+  dataGaps: string[];
+};
+
 export type QSSupplierContactAction = QsAuditFields & {
   contactActionId: string;
   contractorId?: string | null;
@@ -633,7 +798,12 @@ export type QsFirestoreCollection =
   | "qsSupplierOffers"
   | "qsSupplierRecommendations"
   | "qsSupplierContactActions"
-  | "qsSupplierCommercialScenarios";
+  | "qsSupplierCommercialScenarios"
+  | "qsCommercialFeedback"
+  | "qsSupplierPerformanceRatings"
+  | "qsMaterialPriceHistory"
+  | "qsSupplierDecisionFlags"
+  | "qsCommercialIntelligenceSnapshots";
 
 export type QsImportFileType = "csv" | "xlsx" | "json";
 

@@ -70,6 +70,12 @@ export const API_ROUTES = {
   QS_COMMERCIAL_IMPACT: (estimateId: string) =>
     `/api/qs/estimates/${encodeURIComponent(estimateId)}/commercial-impact`,
   QS_SUPPLIER_CONTACT_ACTIONS: "/api/qs/supplier-contact-actions",
+  QS_COMMERCIAL_INTELLIGENCE_SUMMARY: "/api/qs/commercial-intelligence/summary",
+  QS_COMMERCIAL_FEEDBACK: "/api/qs/commercial-feedback",
+  QS_SUPPLIER_PERFORMANCE_RATINGS: "/api/qs/supplier-performance-ratings",
+  QS_MATERIAL_PRICE_OBSERVATIONS: "/api/qs/material-price-observations",
+  QS_REGIONAL_SUPPLIER_INTELLIGENCE: "/api/qs/regional-supplier-intelligence",
+  QS_SUPPLIER_DECISION_FLAGS: "/api/qs/supplier-decision-flags",
   DOCUMENTS: "/api/documents",
   DOCUMENT_DETAIL: (documentId: string) =>
     `/api/documents/${encodeURIComponent(documentId)}`,

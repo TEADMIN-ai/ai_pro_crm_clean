@@ -9,6 +9,7 @@ import {
   ModuleHeader,
   StatusBadge,
 } from "@/components/tex/ExecutivePrimitives";
+import { ReturnButton } from "@/components/navigation/ReturnButton";
 import { authFetch } from "@/lib/client/authFetch";
 import { API_ROUTES } from "@/lib/routes";
 import type {
@@ -479,6 +480,7 @@ function DetailView({
     <>
       <div className="grid gap-3 lg:grid-cols-[1fr_auto] lg:items-start">
         <section>
+          <ReturnButton fallbackHref="/dashboard/qs/estimates" label="Back to Estimates" />
           <h2 className="text-xl font-semibold text-[color:var(--tex-text-strong)]">{estimate.projectName ?? "QS Estimate"}</h2>
           <p className="tex-copy mt-1 text-sm">
             {estimate.estimateId} | Source BOQ {estimate.sourceBoqId} | v{estimate.version} | VAT {formatPercent(estimate.assumptions.vatRate)}

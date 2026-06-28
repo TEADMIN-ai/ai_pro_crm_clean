@@ -9,7 +9,9 @@ import type {
   QSQuoteReadinessStatus,
   QSSupplierContactAction,
   QSSupplierContactActionType,
+  QSSupplierDecisionFlag,
   QSSupplierProductOffer,
+  QSSupplierPerformanceRating,
   QSSupplierProfile,
   QSSupplierRecommendation,
   QSSupplierRecommendationCategory,
@@ -37,6 +39,8 @@ type ScoredOffer = {
   transportImpact: number;
   costImpact: number;
   marginImpact: number;
+  decisionStatus?: QSSupplierDecisionFlag["status"];
+  decisionReason?: QSSupplierDecisionFlag["reason"];
 };
 
 export type GenerateSupplierRecommendationsResult = {
@@ -151,6 +155,8 @@ function buildTradeOffs(scored: ScoredOffer): string[] {
   if (scored.costImpact < 0) tradeOffs.push(`Costs increase by ${formatMoney(Math.abs(scored.costImpact))} versus the current estimate line.`);
   if (scored.deliveryImpactDays > 3) tradeOffs.push(`Delivery may add ${scored.deliveryImpactDays} day(s), which can affect programme sequencing.`);
   if (scored.riskLevel !== "low") tradeOffs.push(`Commercial risk is ${scored.riskLevel}; review stock, warranty, and delivery commitments before appointing.`);
+  if (scored.decisionStatus === "watchlist") tradeOffs.push(`Supplier is on watchlist for ${String(scored.decisionReason ?? "commercial review").replaceAll("_", " ")}.`);
+  if (scored.decisionStatus === "preferred") tradeOffs.push("Supplier is marked preferred; preference is disclosed and does not override scoring.");
   if (scored.supplier.isSponsoredSupplier) tradeOffs.push("Supplier is sponsored; sponsorship is displayed but is not included in recommendation scoring.");
   if (!tradeOffs.length) tradeOffs.push("No material trade-off detected against current pricing and delivery assumptions.");
   return tradeOffs;
@@ -183,9 +189,18 @@ export function scoreSupplierOffersForEstimate(
   estimate: QSEstimate,
   suppliers: QSSupplierProfile[],
   offers: QSSupplierProductOffer[],
+  intelligence: {
+    ratings?: QSSupplierPerformanceRating[];
+    decisionFlags?: QSSupplierDecisionFlag[];
+  } = {},
 ): ScoredOffer[] {
   const activeSuppliers = new Map(suppliers.filter((supplier) => supplier.status === "active").map((supplier) => [supplier.supplierId, supplier]));
   const activeOffers = offers.filter((offer) => offer.status === "active");
+  const latestRatings = new Map<string, QSSupplierPerformanceRating>();
+  for (const rating of [...(intelligence.ratings ?? [])].sort((left, right) => String(right.lastEvaluatedAt).localeCompare(String(left.lastEvaluatedAt)))) {
+    if (!latestRatings.has(rating.supplierId) && rating.status === "active") latestRatings.set(rating.supplierId, rating);
+  }
+  const decisionFlags = new Map((intelligence.decisionFlags ?? []).map((flag) => [flag.supplierId, flag]));
   const scored: ScoredOffer[] = [];
 
   for (const line of estimate.lines) {
@@ -200,22 +215,33 @@ export function scoreSupplierOffersForEstimate(
     for (const offer of lineOffers) {
       const supplier = activeSuppliers.get(offer.supplierId);
       if (!supplier) continue;
+      const decisionFlag = decisionFlags.get(supplier.supplierId);
+      if (decisionFlag?.status === "blocked") continue;
+      const rating = latestRatings.get(supplier.supplierId);
 
       const landedCostExVat = roundMoney((offer.unitPriceExVat * line.quantity) + (offer.deliveryFee ?? 0));
       const vatAmount = roundMoney(landedCostExVat * offer.vatRate);
       const stock = stockScore(offer.stockStatus, offer.availableQuantity, line.quantity);
-      const quality = roundScore((clampPercent(supplier.qualityScore, 70) * 0.65) + (qualityGradeScore(offer.qualityGrade) * 0.35));
-      const delivery = roundScore((deliveryScore(offer.leadTimeDays) * 0.7) + (clampPercent(supplier.deliveryScore, 70) * 0.3));
-      const reliability = clampPercent(supplier.reliabilityScore, 70);
+      const qualityBase = rating ? rating.qualityRating : supplier.qualityScore;
+      const deliveryBase = rating ? rating.deliveryReliabilityScore : supplier.deliveryScore;
+      const reliabilityBase = rating
+        ? (rating.deliveryReliabilityScore + rating.invoiceAccuracyScore + (100 - rating.returnsDefectsRate)) / 3
+        : supplier.reliabilityScore;
+      const stockBase = rating ? rating.stockAccuracyScore : stock;
+      const quality = roundScore((clampPercent(qualityBase, 70) * 0.65) + (qualityGradeScore(offer.qualityGrade) * 0.35));
+      const delivery = roundScore((deliveryScore(offer.leadTimeDays) * 0.7) + (clampPercent(deliveryBase, 70) * 0.3));
+      const reliability = clampPercent(reliabilityBase, 70);
       const transportScore = roundScore(100 - Math.min(80, ((offer.deliveryFee ?? 0) / Math.max(1, landedCostExVat)) * 100));
       const priceScore = roundScore(100 - (((landedCostExVat - minCost) / spread) * 55));
+      const decisionAdjustment = decisionFlag?.status === "preferred" ? 3 : decisionFlag?.status === "watchlist" ? -12 : 0;
       const overallValueScore = roundScore(
         (priceScore * 0.3)
         + (quality * 0.18)
         + (delivery * 0.16)
-        + (stock * 0.14)
+        + (clampPercent(stockBase, stock) * 0.14)
         + (reliability * 0.14)
-        + (transportScore * 0.08),
+        + (transportScore * 0.08)
+        + decisionAdjustment,
       );
       const level = riskLevel(overallValueScore, stock, reliability);
       const baseline = lineBaselineTotal(line);
@@ -231,7 +257,7 @@ export function scoreSupplierOffersForEstimate(
         priceScore,
         qualityScore: quality,
         deliveryScore: delivery,
-        stockAvailabilityScore: stock,
+        stockAvailabilityScore: roundScore(clampPercent(stockBase, stock)),
         reliabilityScore: reliability,
         transportScore,
         overallValueScore,
@@ -241,6 +267,8 @@ export function scoreSupplierOffersForEstimate(
         transportImpact: roundMoney((offer.deliveryFee ?? 0) - line.transportAllowance),
         costImpact,
         marginImpact: roundMoney(costImpact * estimate.assumptions.profitPercentage),
+        decisionStatus: decisionFlag?.status,
+        decisionReason: decisionFlag?.reason,
       });
     }
   }
@@ -253,9 +281,13 @@ export function buildSupplierRecommendations(
   suppliers: QSSupplierProfile[],
   offers: QSSupplierProductOffer[],
   createdByUid?: string | null,
+  intelligence: {
+    ratings?: QSSupplierPerformanceRating[];
+    decisionFlags?: QSSupplierDecisionFlag[];
+  } = {},
 ): QSSupplierRecommendation[] {
   const createdAt = nowIso();
-  const scored = scoreSupplierOffersForEstimate(estimate, suppliers, offers);
+  const scored = scoreSupplierOffersForEstimate(estimate, suppliers, offers, intelligence);
   const recommendations: QSSupplierRecommendation[] = [];
 
   for (const line of estimate.lines) {
@@ -421,7 +453,8 @@ export async function generateSupplierRecommendationsForEstimate(
   estimateId: string,
   createdByUid?: string | null,
 ): Promise<GenerateSupplierRecommendationsResult> {
-  const [estimate, suppliers, offers] = await Promise.all([
+  const [{ listSupplierPerformanceRatings, listSupplierDecisionFlags }, estimate, suppliers, offers] = await Promise.all([
+    import("@/lib/qs/commercial-intelligence"),
     getEstimate(estimateId),
     listSupplierProfiles(500),
     listSupplierOffers(1000),
@@ -431,7 +464,11 @@ export async function generateSupplierRecommendationsForEstimate(
     throw new Error(`QS estimate not found: ${estimateId}`);
   }
 
-  const recommendations = buildSupplierRecommendations(estimate, suppliers, offers, createdByUid);
+  const [ratings, decisionFlags] = await Promise.all([
+    listSupplierPerformanceRatings(500),
+    listSupplierDecisionFlags(500),
+  ]);
+  const recommendations = buildSupplierRecommendations(estimate, suppliers, offers, createdByUid, { ratings, decisionFlags });
   const scenarios = buildCommercialImpactScenarios(estimate, recommendations, offers, createdByUid);
 
   await Promise.all([

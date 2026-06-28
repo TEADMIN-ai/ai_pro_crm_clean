@@ -10,6 +10,7 @@ import {
   ModuleHeader,
   StatusBadge,
 } from "@/components/tex/ExecutivePrimitives";
+import { ReturnButton } from "@/components/navigation/ReturnButton";
 import { authFetch } from "@/lib/client/authFetch";
 import { API_ROUTES } from "@/lib/routes";
 import type {
@@ -300,6 +301,7 @@ function ListView({ suppliers, offers, estimates }: Extract<SupplierWorkspacePro
 function DetailView({ supplier, offers }: Extract<SupplierWorkspaceProps, { view: "detail" }>) {
   return (
     <>
+      <ReturnButton fallbackHref="/dashboard/qs/suppliers" label="Back to Suppliers" />
       <Panel title="Supplier Profile" description="Commercial, operational, monetisation, and performance profile.">
         <div className="grid gap-3 md:grid-cols-4">
           {[

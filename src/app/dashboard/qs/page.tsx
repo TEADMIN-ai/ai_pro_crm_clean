@@ -8,6 +8,7 @@ import {
 import { QS_COLLECTIONS, QS_MATERIAL_CATEGORY_SEEDS, QS_STANDARD_UNITS } from "@/lib/qs";
 
 const QS_NAV_AREAS = [
+  { label: "Commercial Intelligence", href: "/dashboard/qs/commercial-intelligence" },
   { label: "Material Intelligence Centre", href: "/dashboard/qs/materials" },
   { label: "BOQ Intelligence Engine", href: "/dashboard/qs/boq" },
   { label: "Intelligent Estimating", href: "/dashboard/qs/estimates" },
@@ -20,9 +21,9 @@ const QS_NAV_AREAS = [
 ];
 
 const QS_IMPORT_AREAS = [
-  "Recent Imports",
-  "Import Statistics",
-  "Import History",
+  { label: "Recent Imports", detail: "Review catalogue imports and supplier material uploads." },
+  { label: "Import Statistics", detail: "Track imported rows, failures, duplicate handling, and validation work." },
+  { label: "Import History", detail: "Use import audit records to support price and material governance." },
 ];
 
 export default function QsDashboardPage() {
@@ -48,9 +49,9 @@ export default function QsDashboardPage() {
           <h2 className="tex-eyebrow">Import Engine</h2>
           <div className="mt-3 grid gap-3 sm:grid-cols-3">
             {QS_IMPORT_AREAS.map((area) => (
-              <DashboardCard key={area}>
-                <h3 className="text-sm font-semibold text-[color:var(--tex-text-strong)]">{area}</h3>
-                <p className="tex-copy mt-2 text-sm">Import architecture placeholder.</p>
+              <DashboardCard key={area.label}>
+                <h3 className="text-sm font-semibold text-[color:var(--tex-text-strong)]">{area.label}</h3>
+                <p className="tex-copy mt-2 text-sm">{area.detail}</p>
               </DashboardCard>
             ))}
           </div>
@@ -74,10 +75,10 @@ export default function QsDashboardPage() {
           </DashboardCard>
 
           <DashboardCard>
-            <h2 className="text-sm font-semibold text-[color:var(--tex-text-strong)]">Learning Hooks</h2>
+            <h2 className="text-sm font-semibold text-[color:var(--tex-text-strong)]">Learning Foundation</h2>
             <p className="tex-copy mt-2 text-sm">
-              Models include historical cost, previous quote, supplier performance, project similarity,
-              and AI extraction metadata hooks.
+              Completed-project feedback, supplier ratings, recommendation outcomes, and price observations
+              now provide a structured dataset for future model training.
             </p>
           </DashboardCard>
         </div>
