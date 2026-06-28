@@ -1,5 +1,5 @@
 const requireAuthorizedUser = jest.fn();
-const synchronizeRoarInventory = jest.fn();
+const retrySync = jest.fn();
 
 jest.mock("@/lib/server/authz", () => {
   const actual = jest.requireActual("@/lib/server/authz");
@@ -13,9 +13,11 @@ jest.mock("@/lib/vehicle-finance/inventory/durableInventorySync", () => {
   class InventorySyncInProgressError extends Error {}
   return {
     InventorySyncInProgressError,
-    synchronizeRoarInventory: (...args: unknown[]) => synchronizeRoarInventory(...args),
   };
 });
+jest.mock("@/lib/vehicle-finance/inventory/roarCarsConnector", () => ({
+  retrySync: (...args: unknown[]) => retrySync(...args),
+}));
 
 import { GET, POST } from "@/app/api/vehicle-finance/inventory-sync/route";
 
@@ -25,7 +27,7 @@ describe("inventory synchronization route", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     process.env.CRON_SECRET = "test-cron-secret";
-    synchronizeRoarInventory.mockResolvedValue({ status: "SUCCEEDED", totalVehiclesStored: 2 });
+    retrySync.mockResolvedValue({ result: { status: "SUCCEEDED", totalVehiclesStored: 2 } });
   });
 
   afterAll(() => {
@@ -42,7 +44,7 @@ describe("inventory synchronization route", () => {
       }) as never,
     );
     expect(authorized.status).toBe(200);
-    expect(synchronizeRoarInventory).toHaveBeenCalledWith({ actorId: "vercel-cron", actorRole: "system" });
+    expect(retrySync).toHaveBeenCalledWith({ actorId: "vercel-cron", actorRole: "system" });
   });
 
   test("restricts manual synchronization to vehicle finance staff roles", async () => {

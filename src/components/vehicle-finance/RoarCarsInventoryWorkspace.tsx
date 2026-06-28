@@ -9,7 +9,12 @@ import Card from "@/components/ui/Card";
 import Table from "@/components/ui/Table";
 import { authFetch } from "@/lib/client/authFetch";
 import { API_ROUTES } from "@/lib/routes";
-import type { RoarInventoryResponse, RoarInventoryVehicle } from "@/types/roarInventory";
+import type {
+  RoarConnectorConfig,
+  RoarInventoryConnectorHealth,
+  RoarInventoryResponse,
+  RoarInventoryVehicle,
+} from "@/types/roarInventory";
 
 type Mode = "inventory" | "listings";
 
@@ -55,6 +60,8 @@ export default function RoarCarsInventoryWorkspace({ mode = "inventory" }: Props
   const [inventory, setInventory] = useState<RoarInventoryResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [connectorHealth, setConnectorHealth] = useState<RoarInventoryConnectorHealth | null>(null);
+  const [connectorConfig, setConnectorConfig] = useState<RoarConnectorConfig | null>(null);
   const [query, setQuery] = useState("");
   const [make, setMake] = useState("all");
   const [year, setYear] = useState("all");
@@ -77,26 +84,39 @@ export default function RoarCarsInventoryWorkspace({ mode = "inventory" }: Props
     setError(payload.warning ?? null);
   }, []);
 
+  const loadConnectorState = useCallback(async (signal?: AbortSignal) => {
+    const [healthResponse, configResponse] = await Promise.all([
+      authFetch(API_ROUTES.VEHICLE_FINANCE_INVENTORY_CONNECTOR_HEALTH, { cache: "no-store", signal }),
+      authFetch(API_ROUTES.VEHICLE_FINANCE_INVENTORY_CONNECTOR_CONFIG, { cache: "no-store", signal }),
+    ]);
+    const healthPayload = (await healthResponse.json().catch(() => null)) as { health?: RoarInventoryConnectorHealth; error?: string } | null;
+    const configPayload = (await configResponse.json().catch(() => null)) as { config?: RoarConnectorConfig; error?: string } | null;
+    if (healthResponse.ok && healthPayload?.health) setConnectorHealth(healthPayload.health);
+    if (configResponse.ok && configPayload?.config) setConnectorConfig(configPayload.config);
+  }, []);
+
   useEffect(() => {
     const controller = new AbortController();
 
-    loadInventory(controller.signal)
-      .catch((loadError: unknown) => {
-        if (controller.signal.aborted) return;
-        setError(loadError instanceof Error ? loadError.message : "Live inventory temporarily unavailable");
-      })
-      .finally(() => {
+    Promise.allSettled([
+      loadInventory(controller.signal).catch((loadError: unknown) => {
+        if (!controller.signal.aborted) {
+          setError(loadError instanceof Error ? loadError.message : "Live inventory temporarily unavailable");
+        }
+      }),
+      loadConnectorState(controller.signal),
+    ]).finally(() => {
         if (!controller.signal.aborted) setLoading(false);
       });
 
     return () => controller.abort();
-  }, [loadInventory]);
+  }, [loadConnectorState, loadInventory]);
 
   const retryInventorySync = useCallback(async () => {
     try {
       setSyncing(true);
       setError(null);
-      const response = await authFetch(API_ROUTES.VEHICLE_FINANCE_INVENTORY_SYNC, {
+      const response = await authFetch(API_ROUTES.VEHICLE_FINANCE_INVENTORY_CONNECTOR_SYNC, {
         method: "POST",
         headers: { Accept: "application/json" },
         cache: "no-store",
@@ -106,12 +126,13 @@ export default function RoarCarsInventoryWorkspace({ mode = "inventory" }: Props
         throw new Error(payload?.error ?? `Inventory sync failed (${response.status})`);
       }
       await loadInventory();
+      await loadConnectorState();
     } catch (syncError) {
       setError(syncError instanceof Error ? syncError.message : "Inventory sync failed");
     } finally {
       setSyncing(false);
     }
-  }, [loadInventory]);
+  }, [loadConnectorState, loadInventory]);
 
   const vehicles = inventory?.vehicles ?? [];
   const makes = useMemo(() => [...new Set(vehicles.map((vehicle) => vehicle.make).filter(Boolean))].sort(), [vehicles]);
@@ -198,7 +219,9 @@ export default function RoarCarsInventoryWorkspace({ mode = "inventory" }: Props
               Last synced {formatSyncedAt(inventory?.syncedAt ?? inventory?.source.lastSyncedAt ?? null)}
             </div>
           </div>
-          <p className="mt-4 text-xs uppercase tracking-[0.24em] text-sky-100/70">{inventoryStatusText}</p>
+          <p className="mt-4 text-xs uppercase tracking-[0.24em] text-sky-100/70">
+            {inventoryStatusText} Connector {connectorHealth?.connectorStatus ?? connectorConfig?.status ?? "DISCONNECTED"}.
+          </p>
         </div>
       </section>
 
@@ -227,7 +250,14 @@ export default function RoarCarsInventoryWorkspace({ mode = "inventory" }: Props
         </section>
       ) : null}
 
-      <InventoryHealthPanel inventory={inventory} error={error} syncing={syncing} onRetry={() => void retryInventorySync()} />
+      <InventoryHealthPanel
+        inventory={inventory}
+        connectorHealth={connectorHealth}
+        connectorConfig={connectorConfig}
+        error={error}
+        syncing={syncing}
+        onRetry={() => void retryInventorySync()}
+      />
 
       <section className="grid gap-3 rounded-[24px] border border-white/10 bg-white/[0.04] p-4 sm:grid-cols-2 xl:grid-cols-5">
         <label className="sm:col-span-2 xl:col-span-1">
@@ -376,7 +406,7 @@ export default function RoarCarsInventoryWorkspace({ mode = "inventory" }: Props
 
       {inventory ? (
         <p className="text-center text-xs text-slate-500">
-          Source: {inventory.source.type} · Last synced {formatSyncedAt(inventory.syncedAt ?? inventory.source.lastSyncedAt)}
+          Source: {inventory.source.type} | Last synced {formatSyncedAt(inventory.syncedAt ?? inventory.source.lastSyncedAt)}
         </p>
       ) : null}
     </main>
@@ -433,35 +463,45 @@ function MetricCard({ label, value }: { label: string; value: string | number })
 
 function InventoryHealthPanel({
   inventory,
+  connectorHealth,
+  connectorConfig,
   error,
   syncing,
   onRetry,
 }: {
   inventory: RoarInventoryResponse | null;
+  connectorHealth: RoarInventoryConnectorHealth | null;
+  connectorConfig: RoarConnectorConfig | null;
   error: string | null;
   syncing: boolean;
   onRetry: () => void;
 }) {
   const diagnostics = inventory?.diagnostics;
-  const missingImageCount = diagnostics?.brokenImageLinks ?? inventory?.vehicles.filter((vehicle) => !vehicle.imageUrl).length ?? 0;
-  const healthTone = inventory?.status === "LIVE" ? "success" : inventory?.status === "CACHED" ? "warning" : "danger";
+  const missingImageCount = connectorHealth?.missingImageCount ?? diagnostics?.brokenImageLinks ?? inventory?.vehicles.filter((vehicle) => !vehicle.imageUrl).length ?? 0;
+  const healthTone = connectorHealth?.sourceHealth === "HEALTHY" || inventory?.status === "LIVE" ? "success" : inventory?.status === "CACHED" ? "warning" : "danger";
+  const retryEnabled = connectorHealth?.retryAvailable ?? true;
 
   return (
     <section className="rounded-[24px] border border-white/10 bg-slate-950/70 p-4 shadow-[0_18px_45px_rgba(2,8,23,0.2)]">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-sky-100/80">Inventory Health</p>
-          <h2 className="mt-1 text-lg font-semibold text-white">{inventory?.status ?? "UNAVAILABLE"}</h2>
+          <h2 className="mt-1 text-lg font-semibold text-white">
+            {connectorHealth?.connectorStatus ?? connectorConfig?.status ?? inventory?.status ?? "UNAVAILABLE"}
+          </h2>
           <p className="mt-1 text-sm text-slate-200">
             {error || inventory?.warning || "Inventory sync is reporting normally."}
           </p>
+          <p className="mt-2 text-xs uppercase tracking-[0.18em] text-slate-400">
+            Source {connectorHealth?.sourceType ?? connectorConfig?.sourceType ?? inventory?.source.type ?? "API"} | Token {connectorHealth?.tokenStatus ?? connectorConfig?.tokenStatus ?? "unknown"}
+          </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Badge tone={healthTone}>{inventory?.status ?? "UNAVAILABLE"}</Badge>
+          <Badge tone={healthTone}>{connectorHealth?.sourceHealth ?? inventory?.status ?? "UNAVAILABLE"}</Badge>
           <button
             type="button"
             onClick={onRetry}
-            disabled={syncing}
+            disabled={syncing || !retryEnabled}
             className="rounded-lg border border-sky-300/25 bg-sky-300/10 px-3 py-2 text-xs font-semibold text-sky-100 hover:bg-sky-300/20 disabled:opacity-60"
           >
             {syncing ? "Syncing..." : "Retry Sync"}
@@ -469,11 +509,13 @@ function InventoryHealthPanel({
         </div>
       </div>
       <dl className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-        <HealthMetric label="Last Sync" value={formatSyncedAt(inventory?.syncedAt ?? inventory?.source.lastSyncedAt ?? null)} />
-        <HealthMetric label="Vehicle Count" value={inventory?.itemCount ?? 0} />
+        <HealthMetric label="Last Success" value={formatSyncedAt(connectorHealth?.lastSuccessfulSyncAt ?? inventory?.syncedAt ?? inventory?.source.lastSyncedAt ?? null)} />
+        <HealthMetric label="Last Attempt" value={formatSyncedAt(connectorHealth?.lastAttemptedSyncAt ?? null)} />
+        <HealthMetric label="Vehicle Count" value={connectorHealth?.vehicleCount ?? inventory?.itemCount ?? 0} />
         <HealthMetric label="Missing Images" value={missingImageCount} />
+        <HealthMetric label="Failed Images" value={connectorHealth?.failedImageCount ?? diagnostics?.brokenImageLinks ?? 0} />
         <HealthMetric label="Failed Syncs" value={diagnostics?.failedSyncs ?? 0} />
-        <HealthMetric label="Source" value={inventory?.source.type ?? "unavailable"} />
+        <HealthMetric label="Source" value={connectorHealth?.sourceUrl ?? inventory?.source.type ?? "unavailable"} />
       </dl>
     </section>
   );
@@ -532,6 +574,14 @@ function VehicleCard({ vehicle }: { vehicle: RoarInventoryVehicle }) {
       >
         View Vehicle
       </Link>
+      <Link
+        href={vehicle.listingUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="mt-2 inline-flex w-full items-center justify-center rounded-xl border border-white/10 px-4 py-2.5 text-sm font-semibold text-slate-200 no-underline transition hover:bg-white/[0.04]"
+      >
+        Original Listing
+      </Link>
       </div>
     </article>
   );
@@ -561,7 +611,7 @@ function ListingCard({ vehicle }: { vehicle: RoarInventoryVehicle }) {
           <h3 className="mt-2 line-clamp-2 text-base font-semibold text-white">{vehicle.title}</h3>
           <p className="mt-1 text-sm text-slate-300">{formatCurrency(vehicle.priceNumber ?? vehicle.price)}</p>
           <p className="mt-1 text-xs text-slate-400">
-            {formatMileage(vehicle.mileageNumber ?? vehicle.mileage)} · {vehicle.transmission ?? "n/a"} · {vehicle.year ?? "n/a"}
+            {formatMileage(vehicle.mileageNumber ?? vehicle.mileage)} | {vehicle.transmission ?? "n/a"} | {vehicle.year ?? "n/a"}
           </p>
         </div>
       </div>
@@ -570,6 +620,14 @@ function ListingCard({ vehicle }: { vehicle: RoarInventoryVehicle }) {
       className="mt-4 inline-flex w-full items-center justify-center rounded-xl border border-sky-300/25 bg-sky-300/10 px-4 py-2.5 text-sm font-semibold text-sky-100 no-underline transition hover:bg-sky-300/20"
     >
       View Vehicle
+    </Link>
+    <Link
+      href={vehicle.listingUrl}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="mt-2 inline-flex w-full items-center justify-center rounded-xl border border-white/10 px-4 py-2.5 text-sm font-semibold text-slate-200 no-underline transition hover:bg-white/[0.04]"
+    >
+      Original Listing
     </Link>
     </article>
   );

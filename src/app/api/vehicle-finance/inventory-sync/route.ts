@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 
 import {
   InventorySyncInProgressError,
-  synchronizeRoarInventory,
 } from "@/lib/vehicle-finance/inventory/durableInventorySync";
+import { retrySync } from "@/lib/vehicle-finance/inventory/roarCarsConnector";
 import {
   assertVehicleFinanceStaffRole,
   AuthorizationError,
@@ -35,7 +35,7 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const result = await synchronizeRoarInventory({ actorId: "vercel-cron", actorRole: "system" });
+    const result = await retrySync({ actorId: "vercel-cron", actorRole: "system" });
     return NextResponse.json(result);
   } catch (error) {
     return syncError(error);
@@ -46,7 +46,7 @@ export async function POST(request: NextRequest) {
   try {
     const user = await requireAuthorizedUser(request);
     assertVehicleFinanceStaffRole(user);
-    const result = await synchronizeRoarInventory({
+    const result = await retrySync({
       actorId: user.uid,
       actorEmail: user.email,
       actorRole: user.role,
