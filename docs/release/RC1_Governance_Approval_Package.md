@@ -74,6 +74,24 @@ Before RC1 is approved, the recreated `rc1-candidate` tag must pass:
 3. Tag verification check.
 4. Confirmation that no raw Firebase session cookie or custom token remains in the tag tree.
 
+## Final Governance Secret Scan
+
+Result: `PASS`
+
+The recreated `rc1-candidate` tag was scanned for high-confidence credential patterns:
+
+- JWT/session-cookie structure: no matches.
+- Raw `session=eyJ...` Firebase session cookies: no matches.
+- Raw bearer-token values: no matches.
+- Common raw API key and token prefixes: no matches.
+
+Historical inventory identified the original credential introduction points:
+
+- Firebase session cookie: commit `c0eb158` (`Production Pilot Certification - PASS`).
+- Firebase custom token: commit `cca74b6` (`Inventory recovery sprint completed`).
+
+The current RC1 candidate tree is sanitized. The exposed Firebase session user has been revoked in Firebase Auth.
+
 ## Release Recommendation
 
-RC1 may proceed only if the recreated tag passes the final governance secret scan.
+RC1 may proceed from the recreated security-clean candidate tag.
