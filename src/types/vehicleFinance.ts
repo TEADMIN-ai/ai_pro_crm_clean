@@ -33,6 +33,7 @@ export type VehicleFinanceApplication = {
   applicationId: string;
   customerId: string;
   vehicleId: string;
+  clientSubmissionId?: string | null;
   vehicleInventoryId?: string | null;
   vehicleTitle?: string | null;
   vehiclePrice?: number | null;
@@ -46,6 +47,11 @@ export type VehicleFinanceApplication = {
   applicationStatus: "NEW" | "IN_REVIEW" | "VERIFIED" | "FLAGGED" | "REJECTED";
   fraudScore: number;
   verificationStatus: "PENDING" | "REVIEW" | "VERIFIED" | "FLAGGED";
+  isDeleted?: boolean;
+  archived?: boolean;
+  inactive?: boolean;
+  createdByUid?: string | null;
+  createdVia?: "web" | "email" | "api" | "system";
   createdAt: string;
   updatedAt: string;
 };

@@ -50,6 +50,7 @@ describe("vehicle finance application inventory linkage", () => {
           customerId: "customer-1",
           vehicleId: "untrusted-id",
           vehicleInventoryId: "stock-1",
+          clientSubmissionId: "submission-1",
           vehicleTitle: "Untrusted title",
           vehiclePrice: 1,
           dealerName: "Roar Cars",
@@ -63,6 +64,7 @@ describe("vehicle finance application inventory linkage", () => {
       expect.objectContaining({
         vehicleId: "stock-1",
         vehicleInventoryId: "stock-1",
+        clientSubmissionId: "submission-1",
         vehicleTitle: "2022 BMW 320i",
         vehiclePrice: 500000,
         inventorySource: "roarcarssa.com",

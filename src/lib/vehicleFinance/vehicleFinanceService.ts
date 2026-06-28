@@ -27,12 +27,32 @@ const APPLICATION_COLLECTION = "vehicleFinanceApplications";
 const DOCUMENT_COLLECTION = "vehicleFinanceDocuments";
 const ASSESSMENT_COLLECTION = "vehicleFinanceAssessments";
 const CERTIFICATE_COLLECTION = "vehicleFinanceCertificates";
+const APPLICATION_EVENT_COLLECTION = "vehicleFinanceApplicationEvents";
 
 type ActorContext = {
   actorId?: string;
   actorRole?: string;
   actorName?: string;
 };
+
+type VehicleFinanceOperation =
+  | "Application Created"
+  | "Application Updated"
+  | "Application Create Failed"
+  | "Email Sent"
+  | "Email Failed"
+  | "Storage Uploaded"
+  | "Storage Upload Failed"
+  | "Storage Deleted"
+  | "Cleanup Executed"
+  | "Audit Created"
+  | "Audit Failed"
+  | "Metric Created"
+  | "Metric Failed"
+  | "Decision Log Created"
+  | "Decision Log Failed"
+  | "Document Record Created"
+  | "Document Record Failed";
 
 function asString(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
@@ -109,6 +129,7 @@ function normalizeApplicationData(id: string, data: Record<string, unknown>): Ve
     applicationId: id,
     customerId: asString(data.customerId),
     vehicleId: asString(data.vehicleId),
+    clientSubmissionId: asString(data.clientSubmissionId) || null,
     vehicleInventoryId: asString(data.vehicleInventoryId) || null,
     vehicleTitle: asString(data.vehicleTitle) || null,
     vehiclePrice: asNumber(data.vehiclePrice, 0) || null,
@@ -122,6 +143,11 @@ function normalizeApplicationData(id: string, data: Record<string, unknown>): Ve
     applicationStatus: (asString(data.applicationStatus) || "NEW") as VehicleFinanceApplication["applicationStatus"],
     fraudScore: scoreClamp(asNumber(data.fraudScore)),
     verificationStatus: (asString(data.verificationStatus) || "PENDING") as VehicleFinanceApplication["verificationStatus"],
+    isDeleted: data.isDeleted === true,
+    archived: data.archived === true,
+    inactive: data.inactive === true,
+    createdByUid: asString(data.createdByUid) || null,
+    createdVia: (asString(data.createdVia) || "web") as VehicleFinanceApplication["createdVia"],
     createdAt: toIso(data.createdAt),
     updatedAt: toIso(data.updatedAt ?? data.createdAt),
   };
@@ -198,6 +224,86 @@ async function recordAuditEvent(args: {
   });
 }
 
+function serializeVehicleFinanceError(error: unknown) {
+  if (error instanceof Error) {
+    return {
+      message: error.message,
+      name: error.name,
+      stack: error.stack ?? null,
+    };
+  }
+  return {
+    message: String(error),
+    name: "UnknownError",
+    stack: null,
+  };
+}
+
+async function recordVehicleFinanceOperation(args: {
+  operation: VehicleFinanceOperation;
+  applicationId?: string | null;
+  userId?: string | null;
+  actor?: ActorContext;
+  targetId?: string | null;
+  status: "success" | "failure" | "warning";
+  exception?: unknown;
+  metadata?: Record<string, unknown>;
+}) {
+  const timestamp = new Date().toISOString();
+  const payload = {
+    operation: args.operation,
+    applicationId: args.applicationId ?? null,
+    userId: args.userId ?? args.actor?.actorId ?? null,
+    actorRole: args.actor?.actorRole ?? null,
+    actorName: args.actor?.actorName ?? null,
+    targetId: args.targetId ?? null,
+    status: args.status,
+    timestamp,
+    exception: args.exception ? serializeVehicleFinanceError(args.exception) : null,
+    metadata: args.metadata ?? {},
+  };
+
+  try {
+    await getFirebaseAdmin().collection(APPLICATION_EVENT_COLLECTION).add(payload);
+  } catch (logError) {
+    const serialized = serializeVehicleFinanceError(logError);
+    console.error("[vehicle-finance] operation log failed", {
+      ...payload,
+      loggingException: serialized,
+    });
+  }
+}
+
+async function safeRecordAuditEvent(args: Parameters<typeof recordAuditEvent>[0]) {
+  try {
+    await recordAuditEvent(args);
+    await recordVehicleFinanceOperation({
+      operation: "Audit Created",
+      applicationId: args.applicationId,
+      actor: args.actor,
+      targetId: args.targetId,
+      status: "success",
+      metadata: { eventType: args.eventType },
+    });
+  } catch (error) {
+    console.error("[vehicle-finance] audit event failed", {
+      applicationId: args.applicationId ?? null,
+      userId: args.actor.actorId ?? null,
+      operation: "Audit Created",
+      exception: serializeVehicleFinanceError(error),
+    });
+    await recordVehicleFinanceOperation({
+      operation: "Audit Failed",
+      applicationId: args.applicationId,
+      actor: args.actor,
+      targetId: args.targetId,
+      status: "failure",
+      exception: error,
+      metadata: { eventType: args.eventType },
+    });
+  }
+}
+
 async function recordDecisionLog(args: {
   applicationId: string;
   previousFraudScore: number | null;
@@ -218,6 +324,31 @@ async function recordDecisionLog(args: {
   });
 }
 
+async function safeRecordDecisionLog(args: Parameters<typeof recordDecisionLog>[0]) {
+  try {
+    await recordDecisionLog(args);
+    await recordVehicleFinanceOperation({
+      operation: "Decision Log Created",
+      applicationId: args.applicationId,
+      status: "success",
+      metadata: { triggerEvent: args.triggerEvent },
+    });
+  } catch (error) {
+    console.error("[vehicle-finance] decision log failed", {
+      applicationId: args.applicationId,
+      operation: "Decision Log Created",
+      exception: serializeVehicleFinanceError(error),
+    });
+    await recordVehicleFinanceOperation({
+      operation: "Decision Log Failed",
+      applicationId: args.applicationId,
+      status: "failure",
+      exception: error,
+      metadata: { triggerEvent: args.triggerEvent },
+    });
+  }
+}
+
 async function recordSystemMetric(args: {
   metricType: string;
   route: string;
@@ -235,6 +366,70 @@ async function recordSystemMetric(args: {
     timestamp: new Date(),
     metadata: args.metadata ?? {},
   });
+}
+
+async function safeRecordSystemMetric(args: Parameters<typeof recordSystemMetric>[0]) {
+  try {
+    await recordSystemMetric(args);
+    await recordVehicleFinanceOperation({
+      operation: "Metric Created",
+      applicationId: args.applicationId,
+      targetId: args.targetId,
+      status: "success",
+      metadata: { metricType: args.metricType, route: args.route },
+    });
+  } catch (error) {
+    console.error("[vehicle-finance] system metric failed", {
+      applicationId: args.applicationId ?? null,
+      targetId: args.targetId ?? null,
+      operation: "Metric Created",
+      exception: serializeVehicleFinanceError(error),
+    });
+    await recordVehicleFinanceOperation({
+      operation: "Metric Failed",
+      applicationId: args.applicationId,
+      targetId: args.targetId,
+      status: "failure",
+      exception: error,
+      metadata: { metricType: args.metricType, route: args.route },
+    });
+  }
+}
+
+async function writeWithRetry(operation: () => Promise<unknown>, args: {
+  operationName: string;
+  applicationId?: string | null;
+  userId?: string | null;
+  attempts?: number;
+}) {
+  const attempts = args.attempts ?? 2;
+  let lastError: unknown;
+
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try {
+      await operation();
+      if (attempt > 1) {
+        console.info("[vehicle-finance] write retry succeeded", {
+          applicationId: args.applicationId ?? null,
+          userId: args.userId ?? null,
+          operation: args.operationName,
+          attempt,
+        });
+      }
+      return;
+    } catch (error) {
+      lastError = error;
+      console.warn("[vehicle-finance] write attempt failed", {
+        applicationId: args.applicationId ?? null,
+        userId: args.userId ?? null,
+        operation: args.operationName,
+        attempt,
+        exception: serializeVehicleFinanceError(error),
+      });
+    }
+  }
+
+  throw lastError;
 }
 
 function assessTextConsistency(args: {
@@ -404,13 +599,38 @@ async function saveVehicleFinanceDocument(args: {
   const storagePath = `vehicle-finance/${args.applicationId}/${documentId}_${args.documentType}.pdf`;
   const bucket = getFirebaseStorageBucket();
   const file = bucket.file(storagePath);
-  await file.save(args.fileBuffer, {
-    contentType: "application/pdf",
-    resumable: false,
-    metadata: {
-      cacheControl: "private, max-age=0, no-transform",
-    },
-  });
+  try {
+    await file.save(args.fileBuffer, {
+      contentType: "application/pdf",
+      resumable: false,
+      metadata: {
+        cacheControl: "private, max-age=0, no-transform",
+      },
+    });
+    await recordVehicleFinanceOperation({
+      operation: "Storage Uploaded",
+      applicationId: args.applicationId,
+      targetId: documentId,
+      status: "success",
+      metadata: { storagePath, documentType: args.documentType },
+    });
+  } catch (error) {
+    console.error("[vehicle-finance] storage upload failed", {
+      applicationId: args.applicationId,
+      targetId: documentId,
+      operation: "Storage Uploaded",
+      exception: serializeVehicleFinanceError(error),
+    });
+    await recordVehicleFinanceOperation({
+      operation: "Storage Upload Failed",
+      applicationId: args.applicationId,
+      targetId: documentId,
+      status: "failure",
+      exception: error,
+      metadata: { storagePath, documentType: args.documentType },
+    });
+    throw error;
+  }
 
   const [signedUrl] = await file.getSignedUrl({
     action: "read",
@@ -434,13 +654,38 @@ async function saveVehicleFinanceDocument(args: {
     extractionSource: args.extractionSource,
   };
 
-  await getFirebaseAdmin()
-    .collection(DOCUMENT_COLLECTION)
-    .doc(documentId)
-    .set({
-      ...record,
-      certificateUrl: signedUrl,
+  try {
+    await getFirebaseAdmin()
+      .collection(DOCUMENT_COLLECTION)
+      .doc(documentId)
+      .set({
+        ...record,
+        certificateUrl: signedUrl,
+      });
+    await recordVehicleFinanceOperation({
+      operation: "Document Record Created",
+      applicationId: args.applicationId,
+      targetId: documentId,
+      status: "success",
+      metadata: { storagePath, documentType: args.documentType },
     });
+  } catch (error) {
+    console.error("[vehicle-finance] document record write failed", {
+      applicationId: args.applicationId,
+      targetId: documentId,
+      operation: "Document Record Created",
+      exception: serializeVehicleFinanceError(error),
+    });
+    await recordVehicleFinanceOperation({
+      operation: "Document Record Failed",
+      applicationId: args.applicationId,
+      targetId: documentId,
+      status: "failure",
+      exception: error,
+      metadata: { storagePath, documentType: args.documentType },
+    });
+    throw error;
+  }
 
   return { record, signedUrl, storagePath };
 }
@@ -506,7 +751,7 @@ async function recalculateApplicationAssessment(applicationId: string, actor?: A
     { merge: true },
   );
 
-  await recordDecisionLog({
+  await safeRecordDecisionLog({
     applicationId,
     previousFraudScore: previousAssessment?.overallFraudScore ?? null,
     newFraudScore: overallFraudScore,
@@ -520,7 +765,7 @@ async function recalculateApplicationAssessment(applicationId: string, actor?: A
     },
   });
 
-  await recordAuditEvent({
+  await safeRecordAuditEvent({
     eventType: "VEHICLE_FINANCE_APPLICATION_REASSESSED",
     actor: actor ?? {},
     applicationId,
@@ -559,7 +804,7 @@ export async function createVehicleFinanceCustomer(input: {
   };
 
   await getFirebaseAdmin().collection(CUSTOMER_COLLECTION).doc(customerId).set(record);
-  await recordAuditEvent({
+  await safeRecordAuditEvent({
     eventType: "VEHICLE_FINANCE_CUSTOMER_CREATED",
     actor,
     customerId,
@@ -581,6 +826,7 @@ export async function listVehicleFinanceCustomers(): Promise<VehicleFinanceCusto
 export async function createVehicleFinanceApplication(input: {
   customerId: string;
   vehicleId: string;
+  clientSubmissionId?: string | null;
   dealerName: string;
   dealValue: number;
   vehicleInventoryId?: string;
@@ -592,11 +838,26 @@ export async function createVehicleFinanceApplication(input: {
   vehicleListingUrl?: string | null;
   inventorySource?: string | null;
 }, actor: ActorContext) {
+  const clientSubmissionId = asString(input.clientSubmissionId);
+  if (clientSubmissionId) {
+    const existingSnapshot = await getFirebaseAdmin()
+      .collection(APPLICATION_COLLECTION)
+      .where("clientSubmissionId", "==", clientSubmissionId)
+      .limit(1)
+      .get();
+    const existing = existingSnapshot.docs[0];
+    if (existing) {
+      return normalizeApplicationData(existing.id, (existing.data() ?? {}) as Record<string, unknown>);
+    }
+  }
+
   const applicationId = crypto.randomUUID();
+  const now = new Date().toISOString();
   const record: VehicleFinanceApplication = {
     applicationId,
     customerId: input.customerId,
     vehicleId: input.vehicleId,
+    clientSubmissionId: clientSubmissionId || null,
     vehicleInventoryId: input.vehicleInventoryId ?? null,
     vehicleTitle: input.vehicleTitle ?? null,
     vehiclePrice: input.vehiclePrice ?? null,
@@ -610,12 +871,58 @@ export async function createVehicleFinanceApplication(input: {
     applicationStatus: "NEW",
     fraudScore: 100,
     verificationStatus: "PENDING",
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
+    isDeleted: false,
+    archived: false,
+    inactive: false,
+    createdByUid: actor.actorId ?? null,
+    createdVia: "web",
+    createdAt: now,
+    updatedAt: now,
   };
 
-  await getFirebaseAdmin().collection(APPLICATION_COLLECTION).doc(applicationId).set(record);
-  await recordAuditEvent({
+  try {
+    await writeWithRetry(
+      () => getFirebaseAdmin().collection(APPLICATION_COLLECTION).doc(applicationId).set(record),
+      {
+        operationName: "Application Created",
+        applicationId,
+        userId: actor.actorId ?? null,
+      },
+    );
+    await recordVehicleFinanceOperation({
+      operation: "Application Created",
+      applicationId,
+      actor,
+      status: "success",
+      metadata: {
+        customerId: input.customerId,
+        vehicleId: input.vehicleId,
+        clientSubmissionId: record.clientSubmissionId,
+      },
+    });
+  } catch (error) {
+    console.error("[vehicle-finance] primary application write failed", {
+      applicationId,
+      userId: actor.actorId ?? null,
+      operation: "Application Created",
+      exception: serializeVehicleFinanceError(error),
+    });
+    await recordVehicleFinanceOperation({
+      operation: "Application Create Failed",
+      applicationId,
+      actor,
+      status: "failure",
+      exception: error,
+      metadata: {
+        customerId: input.customerId,
+        vehicleId: input.vehicleId,
+        clientSubmissionId: record.clientSubmissionId,
+      },
+    });
+    throw error;
+  }
+
+  await safeRecordAuditEvent({
     eventType: "VEHICLE_FINANCE_APPLICATION_CREATED",
     actor,
     customerId: input.customerId,
@@ -793,7 +1100,7 @@ export async function uploadVehicleFinanceDocument(args: {
     aiAnalysis: documentAnalysis,
   });
 
-  await recordAuditEvent({
+  await safeRecordAuditEvent({
     eventType: "VEHICLE_FINANCE_DOCUMENT_UPLOADED",
     actor,
     applicationId: args.applicationId,
@@ -874,7 +1181,7 @@ export async function uploadVehicleFinanceDocument(args: {
     }
   }
 
-  await recordSystemMetric({
+  await safeRecordSystemMetric({
     metricType: "vehicle_finance_document_upload",
     route: "vehicle-finance.documents.upload",
     durationMs: 0,
@@ -1004,7 +1311,7 @@ export async function generateVehicleFinanceCertificate(applicationId: string, a
     { merge: true },
   );
 
-  await recordAuditEvent({
+  await safeRecordAuditEvent({
     eventType: "VEHICLE_FINANCE_CERTIFICATE_GENERATED",
     actor,
     applicationId,
@@ -1013,7 +1320,7 @@ export async function generateVehicleFinanceCertificate(applicationId: string, a
     metadata: { documentCount: documents.length },
   });
 
-  await recordSystemMetric({
+  await safeRecordSystemMetric({
     metricType: "vehicle_finance_certificate_generation",
     route: "vehicle-finance.certificates.generate",
     durationMs: 0,

@@ -217,7 +217,7 @@ export default function VehicleFinanceWorkspace({ initialSection, initialApplica
   const [timelineLoading, setTimelineLoading] = useState(false);
   const [timelineSyncPending, setTimelineSyncPending] = useState(false);
 
-  const loadOverview = useCallback(async () => {
+  const loadOverview = useCallback(async (preferredApplicationId?: string) => {
     try {
       setLoading(true);
       const response = await authFetch("/api/vehicle-finance/overview", { cache: "no-store" });
@@ -231,12 +231,16 @@ export default function VehicleFinanceWorkspace({ initialSection, initialApplica
       setError(null);
       const hasApplication = (applicationId: string) =>
         payload.applications.some((application) => application.applicationId === applicationId);
-      const matchingApplicationId = initialApplicationId
+      const matchingApplicationId = preferredApplicationId && hasApplication(preferredApplicationId)
+        ? preferredApplicationId
+        : initialApplicationId
         ? payload.applications.find((application) => application.applicationId === initialApplicationId)?.applicationId ?? null
         : null;
 
       if (matchingApplicationId) {
-        setSelectedApplicationId((current) => (hasApplication(current) ? current : matchingApplicationId));
+        setSelectedApplicationId((current) =>
+          preferredApplicationId === matchingApplicationId ? matchingApplicationId : hasApplication(current) ? current : matchingApplicationId,
+        );
       } else if (payload.applications[0]?.applicationId) {
         const fallbackApplicationId = payload.applications[0].applicationId;
         setSelectedApplicationId((current) => (hasApplication(current) ? current : fallbackApplicationId));
@@ -407,10 +411,11 @@ export default function VehicleFinanceWorkspace({ initialSection, initialApplica
     return new Map(certificates.map((certificate) => [certificate.applicationId, certificate]));
   }, [certificates]);
 
-  async function refresh() {
-    await loadOverview();
-    if (selectedApplicationId) {
-      await loadTimeline(selectedApplicationId);
+  async function refresh(preferredApplicationId?: string) {
+    await loadOverview(preferredApplicationId);
+    const timelineApplicationId = preferredApplicationId || selectedApplicationId;
+    if (timelineApplicationId) {
+      await loadTimeline(timelineApplicationId);
     }
   }
 
@@ -449,6 +454,9 @@ export default function VehicleFinanceWorkspace({ initialSection, initialApplica
     event.preventDefault();
     try {
       setBusy("application");
+      const clientSubmissionId = typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+        ? crypto.randomUUID()
+        : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
       const vehicleId = applicationForm.vehicleId.trim() || selectedInventoryVehicle?.id || "";
       const vehicleSnapshot = selectedInventoryVehicle
         ? {
@@ -469,18 +477,23 @@ export default function VehicleFinanceWorkspace({ initialSection, initialApplica
         body: JSON.stringify({
           customerId: applicationForm.customerId.trim(),
           vehicleId,
+          clientSubmissionId,
           dealerName: applicationForm.dealerName.trim(),
           dealValue: Number(applicationForm.dealValue) || 0,
           ...(vehicleSnapshot ?? {}),
         }),
       });
-      const payload = (await response.json().catch(() => null)) as { error?: string } | null;
+      const payload = (await response.json().catch(() => null)) as { error?: string; application?: VehicleFinanceApplication } | null;
       if (!response.ok) {
         throw new Error(payload?.error ?? `Application create failed (${response.status})`);
       }
+      const createdApplicationId = payload?.application?.applicationId ?? "";
+      if (createdApplicationId) {
+        setSelectedApplicationId(createdApplicationId);
+      }
       setApplicationForm(EMPTY_APPLICATION_FORM);
       setSelectedInventoryVehicleId("");
-      await refresh();
+      await refresh(createdApplicationId);
     } catch (applicationError) {
       setError(applicationError instanceof Error ? applicationError.message : "Application creation failed");
     } finally {

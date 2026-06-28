@@ -43,6 +43,7 @@ export async function POST(request: NextRequest) {
     assertVehicleFinanceRole(user);
     const body = (await request.json()) as Record<string, unknown>;
     const customerId = getString(body.customerId);
+    const clientSubmissionId = getString(body.clientSubmissionId);
     let vehicleId = getString(body.vehicleId) || getString(body.vehicleInventoryId) || getString(body.vehicleTitle);
     const vehicleInventoryId = getString(body.vehicleInventoryId);
     let vehicleTitle = getString(body.vehicleTitle) || null;
@@ -81,6 +82,7 @@ export async function POST(request: NextRequest) {
       {
         customerId,
         vehicleId,
+        clientSubmissionId: clientSubmissionId || undefined,
         dealerName,
         dealValue,
         vehicleInventoryId: vehicleInventoryId || undefined,
