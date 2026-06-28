@@ -25,6 +25,8 @@ pnpm-debug.log*
 .codex-*
 .artifacts-*
 .playwright-cli/
+tmp/
+output/playwright/
 *.stackdump
 *.dmp
 
