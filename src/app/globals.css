@@ -15,11 +15,27 @@
   --tex-border-strong: rgba(15, 23, 42, 0.18);
   --tex-text: #152033;
   --tex-text-strong: #071426;
-  --tex-text-muted: #64748b;
-  --tex-text-subtle: #8793a5;
+  --tex-text-muted: #475569;
+  --tex-text-subtle: #64748b;
   --tex-accent: #2563eb;
   --tex-accent-strong: #123a7c;
   --tex-accent-soft: rgba(37, 99, 235, 0.1);
+  --tex-primary-action: #1d4ed8;
+  --tex-primary-action-hover: #1e40af;
+  --tex-primary-action-text: #ffffff;
+  --tex-secondary-action: #ffffff;
+  --tex-secondary-action-text: #123a7c;
+  --tex-destructive-action: #b91c1c;
+  --tex-destructive-action-hover: #991b1b;
+  --tex-disabled-bg: #e2e8f0;
+  --tex-disabled-text: #64748b;
+  --tex-table-header-bg: rgba(15, 23, 42, 0.04);
+  --tex-table-row-hover: rgba(37, 99, 235, 0.08);
+  --tex-nav-text: #dbeafe;
+  --tex-nav-muted: #cbd5e1;
+  --tex-nav-active-bg: rgba(37, 99, 235, 0.18);
+  --tex-nav-active-border: rgba(147, 197, 253, 0.45);
+  --tex-nav-hover-bg: rgba(255, 255, 255, 0.08);
   --tex-success: #047857;
   --tex-success-soft: rgba(5, 150, 105, 0.12);
   --tex-warning: #b45309;
@@ -65,11 +81,27 @@
   --tex-border-strong: rgba(203, 213, 225, 0.22);
   --tex-text: #e7edf6;
   --tex-text-strong: #f8fbff;
-  --tex-text-muted: #a4b1c4;
-  --tex-text-subtle: #7c8aa0;
+  --tex-text-muted: #cbd5e1;
+  --tex-text-subtle: #a4b1c4;
   --tex-accent: #60a5fa;
   --tex-accent-strong: #bfdbfe;
   --tex-accent-soft: rgba(96, 165, 250, 0.12);
+  --tex-primary-action: #3b82f6;
+  --tex-primary-action-hover: #60a5fa;
+  --tex-primary-action-text: #061322;
+  --tex-secondary-action: #111c2d;
+  --tex-secondary-action-text: #dbeafe;
+  --tex-destructive-action: #fb7185;
+  --tex-destructive-action-hover: #f43f5e;
+  --tex-disabled-bg: #26364f;
+  --tex-disabled-text: #a4b1c4;
+  --tex-table-header-bg: rgba(203, 213, 225, 0.08);
+  --tex-table-row-hover: rgba(96, 165, 250, 0.12);
+  --tex-nav-text: #f8fbff;
+  --tex-nav-muted: #cbd5e1;
+  --tex-nav-active-bg: rgba(96, 165, 250, 0.18);
+  --tex-nav-active-border: rgba(147, 197, 253, 0.45);
+  --tex-nav-hover-bg: rgba(255, 255, 255, 0.08);
   --tex-success: #34d399;
   --tex-success-soft: rgba(16, 185, 129, 0.13);
   --tex-warning: #fbbf24;
@@ -145,8 +177,13 @@ body {
 
 [data-module="vehicle-finance"] {
   --tex-accent: #b45309;
-  --tex-accent-strong: #fde68a;
+  --tex-accent-strong: #92400e;
   --tex-accent-soft: rgba(180, 83, 9, 0.13);
+}
+
+[data-theme="midnight"] [data-module="vehicle-finance"],
+.vehicle-finance-shell {
+  --tex-accent-strong: #fde68a;
 }
 
 .vehicle-finance-shell {
@@ -352,8 +389,8 @@ body {
   gap: 0.45rem;
   border: 1px solid color-mix(in srgb, var(--tex-accent) 34%, transparent);
   border-radius: 9999px;
-  background: var(--tex-accent);
-  color: #ffffff;
+  background: var(--tex-primary-action);
+  color: var(--tex-primary-action-text);
   font-size: 0.88rem;
   font-weight: 760;
   min-height: 2.55rem;
@@ -362,15 +399,37 @@ body {
   transition: filter 160ms ease, transform 160ms ease, box-shadow 160ms ease;
 }
 
-.tex-action-button:hover {
-  filter: brightness(0.96);
+.tex-action-button:hover:not(:disabled) {
+  background: var(--tex-primary-action-hover);
   box-shadow: var(--tex-shadow-sm);
   transform: translateY(-1px);
 }
 
 .tex-action-button--secondary {
-  background: var(--tex-surface);
-  color: var(--tex-accent-strong);
+  background: var(--tex-secondary-action);
+  color: var(--tex-secondary-action-text);
+  border-color: var(--tex-border-strong);
+}
+
+.tex-action-button--danger {
+  background: var(--tex-destructive-action);
+  color: #ffffff;
+  border-color: color-mix(in srgb, var(--tex-destructive-action) 60%, transparent);
+}
+
+.tex-action-button--danger:hover:not(:disabled) {
+  background: var(--tex-destructive-action-hover);
+}
+
+.tex-action-button:disabled,
+.tex-action-button[aria-disabled="true"] {
+  cursor: not-allowed;
+  background: var(--tex-disabled-bg);
+  color: var(--tex-disabled-text);
+  border-color: var(--tex-border);
+  box-shadow: none;
+  opacity: 1;
+  transform: none;
 }
 
 .tex-empty-state {
@@ -422,6 +481,7 @@ body {
 
 .tex-table th,
 .enterprise-table th {
+  background: var(--tex-table-header-bg);
   color: var(--tex-text-muted);
   font-size: 0.72rem;
   font-weight: 800;
@@ -439,7 +499,55 @@ body {
 
 .tex-table tr:hover td,
 .enterprise-table tr:hover td {
-  background: var(--tex-accent-soft);
+  background: var(--tex-table-row-hover);
+}
+
+.tex-workspace-nav-item {
+  border-color: transparent;
+  color: var(--tex-nav-muted);
+}
+
+.tex-workspace-nav-item:hover {
+  border-color: var(--tex-border-strong);
+  background: var(--tex-nav-hover-bg);
+  color: var(--tex-nav-text);
+}
+
+.tex-workspace-nav-item[aria-current="page"] {
+  border-color: var(--tex-nav-active-border);
+  background: var(--tex-nav-active-bg);
+  color: var(--tex-nav-text);
+  box-shadow: 0 12px 28px rgba(8, 145, 178, 0.14);
+}
+
+.tex-workspace-nav-icon {
+  border-color: var(--tex-border);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--tex-nav-muted);
+}
+
+.tex-workspace-nav-item:hover .tex-workspace-nav-icon,
+.tex-workspace-nav-item[aria-current="page"] .tex-workspace-nav-icon {
+  border-color: var(--tex-nav-active-border);
+  background: var(--tex-nav-active-bg);
+  color: var(--tex-nav-text);
+}
+
+.tex-workspace-nav-badge {
+  color: var(--tex-nav-text);
+}
+
+.tex-label,
+.tex-helper,
+.tex-metadata {
+  color: var(--tex-text-muted);
+}
+
+.tex-metadata {
+  font-size: 0.78rem;
+  font-weight: 650;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
 }
 
 .enterprise-page {

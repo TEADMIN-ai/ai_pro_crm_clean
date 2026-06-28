@@ -68,9 +68,16 @@ async function runSmokeChecks() {
       { path: "/api/contractors", allowedStatuses: [401, 403] },
       { path: "/api/deals", allowedStatuses: [401, 403] },
       { path: "/api/auth/health", allowedStatuses: [200, 401, 403] },
+      { path: "/api/health/firebase", allowedStatuses: [200, 401, 403] },
       { path: "/api/contractors/smoke-check/documents", allowedStatuses: [200, 401, 403] },
       { path: "/api/documents/smoke-check/execute", allowedStatuses: [200, 404, 405] },
+      { path: "/api/vehicle-finance/inventory/connector/health", allowedStatuses: [401, 403] },
+      { path: "/api/qs/commercial-intelligence/summary", allowedStatuses: [401, 403] },
+      { path: "/api/hygiene", allowedStatuses: [401, 403] },
       { path: "/dashboard/contractors", allowedStatuses: [200, 307, 308] },
+      { path: "/dashboard/vehicle-finance", allowedStatuses: [200, 307, 308] },
+      { path: "/dashboard/qs", allowedStatuses: [200, 307, 308] },
+      { path: "/dashboard/hygiene", allowedStatuses: [200, 307, 308] },
     ];
 
     for (const endpoint of endpoints) {

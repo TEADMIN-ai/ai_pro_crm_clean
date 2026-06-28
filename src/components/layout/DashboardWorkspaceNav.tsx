@@ -127,7 +127,7 @@ const ROAR_CARS_NAV_ITEMS: DashboardNavItem[] = [
 ];
 
 function DashboardNavIcon({ itemKey, active }: { itemKey: DashboardNavItem["key"]; active: boolean }) {
-  const iconClassName = active ? "text-cyan-100" : "text-slate-500 group-hover:text-slate-200";
+  const iconClassName = active ? "text-[color:var(--tex-nav-text)]" : "text-[color:var(--tex-nav-muted)]";
 
   switch (itemKey) {
     case "deals":
@@ -207,16 +207,16 @@ function DashboardNavIcon({ itemKey, active }: { itemKey: DashboardNavItem["key"
 function getBadgeClasses(severity: GovernanceNavBadge["severity"]) {
   switch (severity) {
     case "CRITICAL":
-      return "border-rose-400/30 bg-rose-500/15 text-rose-100";
+      return "border-rose-300/45 bg-rose-500/20 text-rose-50";
     case "HIGH":
-      return "border-orange-400/30 bg-orange-500/15 text-orange-100";
+      return "border-orange-300/45 bg-orange-500/20 text-orange-50";
     case "MODERATE":
-      return "border-amber-400/30 bg-amber-500/15 text-amber-100";
+      return "border-amber-300/45 bg-amber-500/20 text-amber-50";
     case "LOW":
-      return "border-sky-400/30 bg-sky-500/15 text-sky-100";
+      return "border-sky-300/45 bg-sky-500/20 text-sky-50";
     case "CLEAR":
     default:
-      return "border-emerald-400/25 bg-emerald-500/12 text-emerald-100";
+      return "border-emerald-300/45 bg-emerald-500/20 text-emerald-50";
   }
 }
 
@@ -264,26 +264,10 @@ export default function DashboardWorkspaceNav({
               key={item.href}
               href={item.href}
               aria-current={active ? "page" : undefined}
-              className={`group flex items-center justify-between gap-3 rounded-2xl border px-4 py-3 text-sm font-medium transition ${
-                active
-                  ? item.key === "governance"
-                    ? "border-teal-400/30 bg-teal-400/12 text-white shadow-[0_12px_28px_rgba(20,184,166,0.14)]"
-                    : "border-cyan-400/20 bg-cyan-400/10 text-cyan-100 shadow-[0_12px_28px_rgba(8,145,178,0.12)]"
-                  : item.key === "governance"
-                    ? "border-transparent text-slate-300 hover:border-teal-400/20 hover:bg-teal-400/10 hover:text-white"
-                    : "border-transparent text-slate-400 hover:border-white/10 hover:bg-white/[0.04] hover:text-white"
-              }`}
+              className="tex-workspace-nav-item group flex items-center justify-between gap-3 rounded-2xl border px-4 py-3 text-sm font-semibold transition"
             >
               <span className="flex items-center gap-3">
-                <span className={`inline-flex h-8 w-8 items-center justify-center rounded-xl border ${
-                  active
-                    ? item.key === "governance"
-                      ? "border-teal-300/30 bg-teal-300/10"
-                      : "border-cyan-300/30 bg-cyan-300/10"
-                    : item.key === "governance"
-                      ? "border-teal-400/15 bg-teal-400/5"
-                      : "border-white/10 bg-white/[0.03]"
-                }`}>
+                <span className="tex-workspace-nav-icon inline-flex h-8 w-8 items-center justify-center rounded-xl border transition">
                   <DashboardNavIcon itemKey={item.key} active={active} />
                 </span>
                 <span className="tracking-[0.01em]">{item.label}</span>
@@ -304,13 +288,7 @@ export default function DashboardWorkspaceNav({
               key={item.href}
               href={item.href}
               aria-current={active ? "page" : undefined}
-              className={`inline-flex items-center gap-2 whitespace-nowrap rounded-full border px-3 py-2 text-sm font-medium ${
-                active
-                  ? item.key === "governance"
-                    ? "border-teal-400/25 bg-teal-400/12 text-teal-100"
-                    : "border-cyan-400/20 bg-cyan-400/10 text-cyan-100"
-                  : "border-white/10 bg-white/[0.03] text-slate-300"
-              }`}
+              className="tex-workspace-nav-item inline-flex items-center gap-2 whitespace-nowrap rounded-full border px-3 py-2 text-sm font-semibold"
             >
               <DashboardNavIcon itemKey={item.key} active={active} />
               <span>{item.label}</span>
