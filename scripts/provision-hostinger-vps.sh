@@ -63,6 +63,7 @@ echo "Populate /var/www/ai_pro_crm/.env.production manually. Do not print secret
 
 echo "[11/12] Install and build"
 npm ci
+mkdir -p tmp/auth-prod-deploy tmp/inventory-prod-deploy
 npm run typecheck
 npm run lint
 npm test
@@ -100,3 +101,4 @@ sudo nginx -t
 sudo systemctl reload nginx
 
 echo "Provisioning scaffold complete. Validate via hosts-file override before DNS cutover."
+
