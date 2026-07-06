@@ -1,101 +1,52 @@
-import { NextRequest, NextResponse } from "next/server";
-import { getAuth } from "firebase-admin/auth";
-import { normalizeContractorId, normalizeRole } from "@/lib/auth/userProfile";
-import { getFirebaseAdmin } from "@/lib/firebase/admin";
-import { resolveAuthorizedIdentity } from "@/lib/server/authz";
-export const runtime = "nodejs";
+﻿import { NextRequest, NextResponse } from 'next/server';
+import { getAuth } from 'firebase-admin/auth';
+import { buildUserProfile } from '@/lib/auth/userProfile';
+import { getFirebaseAdmin } from '@/lib/firebase/admin';
+import { resolveAuthorizedIdentity } from '@/lib/server/authz';
+import { resolveWorkspace, WorkspaceResolutionError } from '@/lib/workspaces/workspaceResolver';
+export const runtime = 'nodejs';
 
 function extractBearerToken(authorizationHeader: string | null): string | null {
-  if (!authorizationHeader) {
-    return null;
-  }
-
-  const [scheme, token] = authorizationHeader.split(" ");
-
-  if (scheme !== "Bearer" || !token) {
-    return null;
-  }
-
-  return token;
+  if (!authorizationHeader) return null;
+  const [scheme, token] = authorizationHeader.split(' ');
+  return scheme === 'Bearer' && token ? token : null;
 }
 
 export async function GET(request: NextRequest) {
-  console.info("[/api/me] START /api/me");
-
-  const authorizationHeader = request.headers.get("authorization");
-  const token = extractBearerToken(authorizationHeader);
-
-  if (!token) {
-    console.error("[/api/me] Missing bearer token");
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
+  const token = extractBearerToken(request.headers.get('authorization'));
+  if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   try {
-    console.info("[/api/me] Verifying bearer token");
-
     const decodedToken = await getAuth().verifyIdToken(token);
-
-    console.info("[/api/me] TOKEN VERIFIED", { uid: decodedToken.uid });
-
-    console.info("[/api/me] BEFORE FIRESTORE READ", { uid: decodedToken.uid });
-
+    const tokenClaims = decodedToken as Record<string, unknown>;
     let profileData: Record<string, unknown> = {};
-    const firestoreReadStartedAt = Date.now();
-
     try {
-      console.info("[/api/me] FIRESTORE READ START", { uid: decodedToken.uid });
-      const profileSnapshot = await getFirebaseAdmin()
-        .collection("users")
-        .doc(decodedToken.uid)
-        .get();
-      const firestoreReadDurationMs = Date.now() - firestoreReadStartedAt;
-      profileData = profileSnapshot.exists
-        ? ((profileSnapshot.data() ?? {}) as Record<string, unknown>)
-        : {};
-      console.info("[/api/me] FIRESTORE READ SUCCESS", {
-        uid: decodedToken.uid,
-        profileExists: profileSnapshot.exists,
-        durationMs: firestoreReadDurationMs,
-      });
+      const profileSnapshot = await getFirebaseAdmin().collection('users').doc(decodedToken.uid).get();
+      profileData = profileSnapshot.exists ? ((profileSnapshot.data() ?? {}) as Record<string, unknown>) : {};
     } catch (profileError) {
-      const firestoreReadDurationMs = Date.now() - firestoreReadStartedAt;
-      console.error("[/api/me] FIRESTORE READ FAILURE", {
-        uid: decodedToken.uid,
-        durationMs: firestoreReadDurationMs,
-        error: profileError,
-      });
-      return NextResponse.json({ error: "PROFILE_LOOKUP_FAILED" }, { status: 500 });
+      console.error('[/api/me] FIRESTORE READ FAILURE', profileError);
+      return NextResponse.json({ error: 'PROFILE_LOOKUP_FAILED' }, { status: 500 });
     }
-
-    console.info("[/api/me] BEFORE ROLE RESOLUTION", { uid: decodedToken.uid });
-
-    const resolved = await resolveAuthorizedIdentity({
-      uid: decodedToken.uid,
-      email: decodedToken.email ?? undefined,
-      role: decodedToken.role,
-      contractorId: decodedToken.contractorId,
-      profile: {
-        name: typeof profileData.name === "string" ? profileData.name : undefined,
-        email: typeof profileData.email === "string" ? profileData.email : undefined,
-        role: normalizeRole(profileData.role),
-        status: typeof profileData.status === "string" ? profileData.status : undefined,
-        contractorId: normalizeContractorId(profileData.contractorId),
-        createdAt: profileData.createdAt,
-      },
-    });
-
-    const responseBody = {
+    const profile = buildUserProfile(profileData);
+    const resolved = await resolveAuthorizedIdentity({ uid: decodedToken.uid, email: decodedToken.email ?? undefined, role: decodedToken.role, contractorId: decodedToken.contractorId, profile });
+    const workspace = resolveWorkspace({ workspace: resolved.profile?.workspace ?? profile.workspace, workspaceId: resolved.profile?.workspaceId ?? profile.workspaceId ?? tokenClaims.workspaceId, slug: resolved.profile?.workspaceSlug ?? profile.workspaceSlug ?? tokenClaims.workspaceSlug });
+    return NextResponse.json({
       uid: resolved.uid,
       email: resolved.email ?? null,
       role: resolved.role,
       contractorId: resolved.contractorId ?? null,
-    };
-
-    console.info("[/api/me] RESPONSE SENT", responseBody);
-
-    return NextResponse.json(responseBody, { status: 200 });
+      capabilities: resolved.capabilities,
+      workspace,
+      workspaceId: workspace.id,
+      workspaceSlug: workspace.slug,
+      company: resolved.profile?.company ?? null,
+      status: resolved.profile?.status ?? null,
+    }, { status: 200 });
   } catch (error) {
-    console.error("[/api/me] Auth flow failed", error);
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (error instanceof WorkspaceResolutionError) {
+      console.error('[/api/me] Workspace resolution failed', error);
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
+    console.error('[/api/me] Auth flow failed', error);
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 }
