@@ -1,0 +1,1848 @@
+{
+  "generatedAt": "2026-07-07T13:59:24.075Z",
+  "sourceReport": "output/maintenance/production-data-cleanup-report.json",
+  "executiveSummary": {
+    "mode": "dry-run",
+    "collectionsScanned": 23,
+    "recordsFound": 655,
+    "recommendedForDeletion": 10,
+    "recommendedToKeep": 628,
+    "manualReview": 17,
+    "brokenReferences": 166,
+    "storageInconsistencies": 4,
+    "duplicateGroups": 1,
+    "deletionDependencyRisks": 18,
+    "noDeletionPerformed": true
+  },
+  "scores": {
+    "dataIntegrityScore": 74,
+    "referenceHealthScore": 75,
+    "storageHealthScore": 95,
+    "productionReadinessScore": 71,
+    "qaContaminationScore": 96
+  },
+  "integrityClassification": {
+    "users": {
+      "category": "Users",
+      "recordCount": 163,
+      "issues": [
+        {
+          "collection": "users",
+          "referenceField": "contractorId",
+          "missingTarget": "contractors/Gn5fIDMVQLRRR9wXRjavs0UvtSh1",
+          "records": [
+            "users/Gn5fIDMVQLRRR9wXRjavs0UvtSh1"
+          ],
+          "likelyCause": "A record still points at a Firebase/user UID that is not present in users/ or was seeded outside the canonical user lifecycle.",
+          "severity": "High",
+          "repairRecommendation": "Repair only if this is a real account; delete only approved QA users and dependent QA records together."
+        },
+        {
+          "collection": "users",
+          "referenceField": "contractorId",
+          "missingTarget": "contractors/HqabSqyhqDdYmvHch6RO6mWwJGK2",
+          "records": [
+            "users/HqabSqyhqDdYmvHch6RO6mWwJGK2"
+          ],
+          "likelyCause": "A record still points at a Firebase/user UID that is not present in users/ or was seeded outside the canonical user lifecycle.",
+          "severity": "High",
+          "repairRecommendation": "Repair only if this is a real account; delete only approved QA users and dependent QA records together."
+        },
+        {
+          "collection": "users",
+          "referenceField": "contractorId",
+          "missingTarget": "contractors/dLZ8CElXeoWDJSIidaDULKoejHr1",
+          "records": [
+            "users/dLZ8CElXeoWDJSIidaDULKoejHr1"
+          ],
+          "likelyCause": "A record still points at a Firebase/user UID that is not present in users/ or was seeded outside the canonical user lifecycle.",
+          "severity": "High",
+          "repairRecommendation": "Repair only if this is a real account; delete only approved QA users and dependent QA records together."
+        },
+        {
+          "collection": "users",
+          "referenceField": "contractorId",
+          "missingTarget": "contractors/z0yX8cyt38hkfa60UEyNTOiX2812",
+          "records": [
+            "users/z0yX8cyt38hkfa60UEyNTOiX2812"
+          ],
+          "likelyCause": "A record still points at a Firebase/user UID that is not present in users/ or was seeded outside the canonical user lifecycle.",
+          "severity": "High",
+          "repairRecommendation": "Repair only if this is a real account; delete only approved QA users and dependent QA records together."
+        },
+        {
+          "collection": "contractors",
+          "referenceField": "authUid",
+          "missingTarget": "users/CzEqgwRTDmT6u2XEtSJ20BVKR8B2",
+          "records": [
+            "contractors/CzEqgwRTDmT6u2XEtSJ20BVKR8B2"
+          ],
+          "likelyCause": "A record still points at a Firebase/user UID that is not present in users/ or was seeded outside the canonical user lifecycle.",
+          "severity": "High",
+          "repairRecommendation": "Repair only if this is a real account; delete only approved QA users and dependent QA records together."
+        },
+        {
+          "collection": "contractors",
+          "referenceField": "userId",
+          "missingTarget": "users/CzEqgwRTDmT6u2XEtSJ20BVKR8B2",
+          "records": [
+            "contractors/CzEqgwRTDmT6u2XEtSJ20BVKR8B2"
+          ],
+          "likelyCause": "A record still points at a Firebase/user UID that is not present in users/ or was seeded outside the canonical user lifecycle.",
+          "severity": "High",
+          "repairRecommendation": "Repair only if this is a real account; delete only approved QA users and dependent QA records together."
+        },
+        {
+          "collection": "contractors",
+          "referenceField": "authUid",
+          "missingTarget": "users/GqsT6LCH6wyIas8Meb8c",
+          "records": [
+            "contractors/GqsT6LCH6wyIas8Meb8c"
+          ],
+          "likelyCause": "A record still points at a Firebase/user UID that is not present in users/ or was seeded outside the canonical user lifecycle.",
+          "severity": "High",
+          "repairRecommendation": "Repair only if this is a real account; delete only approved QA users and dependent QA records together."
+        },
+        {
+          "collection": "contractors",
+          "referenceField": "authUid",
+          "missingTarget": "users/KLGcJzb3ZEGf2rNpHNVg",
+          "records": [
+            "contractors/KLGcJzb3ZEGf2rNpHNVg"
+          ],
+          "likelyCause": "A record still points at a Firebase/user UID that is not present in users/ or was seeded outside the canonical user lifecycle.",
+          "severity": "High",
+          "repairRecommendation": "Repair only if this is a real account; delete only approved QA users and dependent QA records together."
+        },
+        {
+          "collection": "contractors",
+          "referenceField": "authUid",
+          "missingTarget": "users/ND4HCW4KdEmXLGTDKMfF",
+          "records": [
+            "contractors/ND4HCW4KdEmXLGTDKMfF"
+          ],
+          "likelyCause": "A record still points at a Firebase/user UID that is not present in users/ or was seeded outside the canonical user lifecycle.",
+          "severity": "High",
+          "repairRecommendation": "Repair only if this is a real account; delete only approved QA users and dependent QA records together."
+        },
+        {
+          "collection": "contractors",
+          "referenceField": "authUid",
+          "missingTarget": "users/a1CxFTpi5AatIkGXUXOkh50F1h93",
+          "records": [
+            "contractors/a1CxFTpi5AatIkGXUXOkh50F1h93"
+          ],
+          "likelyCause": "A record still points at a Firebase/user UID that is not present in users/ or was seeded outside the canonical user lifecycle.",
+          "severity": "High",
+          "repairRecommendation": "Repair only if this is a real account; delete only approved QA users and dependent QA records together."
+        },
+        {
+          "collection": "contractors",
+          "referenceField": "userId",
+          "missingTarget": "users/a1CxFTpi5AatIkGXUXOkh50F1h93",
+          "records": [
+            "contractors/a1CxFTpi5AatIkGXUXOkh50F1h93"
+          ],
+          "likelyCause": "A record still points at a Firebase/user UID that is not present in users/ or was seeded outside the canonical user lifecycle.",
+          "severity": "High",
+          "repairRecommendation": "Repair only if this is a real account; delete only approved QA users and dependent QA records together."
+        },
+        {
+          "collection": "contractors",
+          "referenceField": "authUid",
+          "missingTarget": "users/b2qz6m1aW2NNzVLjQg8K",
+          "records": [
+            "contractors/b2qz6m1aW2NNzVLjQg8K"
+          ],
+          "likelyCause": "A record still points at a Firebase/user UID that is not present in users/ or was seeded outside the canonical user lifecycle.",
+          "severity": "High",
+          "repairRecommendation": "Repair only if this is a real account; delete only approved QA users and dependent QA records together."
+        },
+        {
+          "collection": "contractors",
+          "referenceField": "authUid",
+          "missingTarget": "users/jxjgsfgHW0ouOJc2ZHYW",
+          "records": [
+            "contractors/jxjgsfgHW0ouOJc2ZHYW"
+          ],
+          "likelyCause": "A record still points at a Firebase/user UID that is not present in users/ or was seeded outside the canonical user lifecycle.",
+          "severity": "High",
+          "repairRecommendation": "Repair only if this is a real account; delete only approved QA users and dependent QA records together."
+        },
+        {
+          "collection": "contractors",
+          "referenceField": "authUid",
+          "missingTarget": "users/l2czruUhWdKiS4HJ9rft",
+          "records": [
+            "contractors/l2czruUhWdKiS4HJ9rft"
+          ],
+          "likelyCause": "A record still points at a Firebase/user UID that is not present in users/ or was seeded outside the canonical user lifecycle.",
+          "severity": "High",
+          "repairRecommendation": "Repair only if this is a real account; delete only approved QA users and dependent QA records together."
+        },
+        {
+          "collection": "contractors",
+          "referenceField": "authUid",
+          "missingTarget": "users/lkImwod6FgYrklknDS5T",
+          "records": [
+            "contractors/lkImwod6FgYrklknDS5T"
+          ],
+          "likelyCause": "A record still points at a Firebase/user UID that is not present in users/ or was seeded outside the canonical user lifecycle.",
+          "severity": "High",
+          "repairRecommendation": "Repair only if this is a real account; delete only approved QA users and dependent QA records together."
+        },
+        {
+          "collection": "contractors",
+          "referenceField": "authUid",
+          "missingTarget": "users/m1EwzLOO115tWim5baab",
+          "records": [
+            "contractors/m1EwzLOO115tWim5baab"
+          ],
+          "likelyCause": "A record still points at a Firebase/user UID that is not present in users/ or was seeded outside the canonical user lifecycle.",
+          "severity": "High",
+          "repairRecommendation": "Repair only if this is a real account; delete only approved QA users and dependent QA records together."
+        },
+        {
+          "collection": "contractors",
+          "referenceField": "authUid",
+          "missingTarget": "users/pdinEHoFvUWuMG5O1MCl9gGdzfz2",
+          "records": [
+            "contractors/pdinEHoFvUWuMG5O1MCl9gGdzfz2"
+          ],
+          "likelyCause": "A record still points at a Firebase/user UID that is not present in users/ or was seeded outside the canonical user lifecycle.",
+          "severity": "High",
+          "repairRecommendation": "Repair only if this is a real account; delete only approved QA users and dependent QA records together."
+        },
+        {
+          "collection": "contractors",
+          "referenceField": "userId",
+          "missingTarget": "users/pdinEHoFvUWuMG5O1MCl9gGdzfz2",
+          "records": [
+            "contractors/pdinEHoFvUWuMG5O1MCl9gGdzfz2"
+          ],
+          "likelyCause": "A record still points at a Firebase/user UID that is not present in users/ or was seeded outside the canonical user lifecycle.",
+          "severity": "High",
+          "repairRecommendation": "Repair only if this is a real account; delete only approved QA users and dependent QA records together."
+        },
+        {
+          "collection": "contractors",
+          "referenceField": "authUid",
+          "missingTarget": "users/qZTJeNRRviDlHFXq3cmF",
+          "records": [
+            "contractors/qZTJeNRRviDlHFXq3cmF"
+          ],
+          "likelyCause": "A record still points at a Firebase/user UID that is not present in users/ or was seeded outside the canonical user lifecycle.",
+          "severity": "High",
+          "repairRecommendation": "Repair only if this is a real account; delete only approved QA users and dependent QA records together."
+        },
+        {
+          "collection": "contractors",
+          "referenceField": "authUid",
+          "missingTarget": "users/sYEU6aqqiEV4Gvu6eTBSmovlJa12",
+          "records": [
+            "contractors/sYEU6aqqiEV4Gvu6eTBSmovlJa12"
+          ],
+          "likelyCause": "A record still points at a Firebase/user UID that is not present in users/ or was seeded outside the canonical user lifecycle.",
+          "severity": "High",
+          "repairRecommendation": "Repair only if this is a real account; delete only approved QA users and dependent QA records together."
+        },
+        {
+          "collection": "contractors",
+          "referenceField": "userId",
+          "missingTarget": "users/sYEU6aqqiEV4Gvu6eTBSmovlJa12",
+          "records": [
+            "contractors/sYEU6aqqiEV4Gvu6eTBSmovlJa12"
+          ],
+          "likelyCause": "A record still points at a Firebase/user UID that is not present in users/ or was seeded outside the canonical user lifecycle.",
+          "severity": "High",
+          "repairRecommendation": "Repair only if this is a real account; delete only approved QA users and dependent QA records together."
+        },
+        {
+          "collection": "contractors",
+          "referenceField": "authUid",
+          "missingTarget": "users/vOwPwNDdKwhvJLS9dl33AQ3bIBk1",
+          "records": [
+            "contractors/vOwPwNDdKwhvJLS9dl33AQ3bIBk1"
+          ],
+          "likelyCause": "A record still points at a Firebase/user UID that is not present in users/ or was seeded outside the canonical user lifecycle.",
+          "severity": "High",
+          "repairRecommendation": "Repair only if this is a real account; delete only approved QA users and dependent QA records together."
+        },
+        {
+          "collection": "contractors",
+          "referenceField": "userId",
+          "missingTarget": "users/vOwPwNDdKwhvJLS9dl33AQ3bIBk1",
+          "records": [
+            "contractors/vOwPwNDdKwhvJLS9dl33AQ3bIBk1"
+          ],
+          "likelyCause": "A record still points at a Firebase/user UID that is not present in users/ or was seeded outside the canonical user lifecycle.",
+          "severity": "High",
+          "repairRecommendation": "Repair only if this is a real account; delete only approved QA users and dependent QA records together."
+        },
+        {
+          "collection": "contractors",
+          "referenceField": "authUid",
+          "missingTarget": "users/vW511XxAZNSDe9BwTyFYeOjM04S2",
+          "records": [
+            "contractors/vW511XxAZNSDe9BwTyFYeOjM04S2"
+          ],
+          "likelyCause": "A record still points at a Firebase/user UID that is not present in users/ or was seeded outside the canonical user lifecycle.",
+          "severity": "High",
+          "repairRecommendation": "Repair only if this is a real account; delete only approved QA users and dependent QA records together."
+        },
+        {
+          "collection": "contractors",
+          "referenceField": "userId",
+          "missingTarget": "users/vW511XxAZNSDe9BwTyFYeOjM04S2",
+          "records": [
+            "contractors/vW511XxAZNSDe9BwTyFYeOjM04S2"
+          ],
+          "likelyCause": "A record still points at a Firebase/user UID that is not present in users/ or was seeded outside the canonical user lifecycle.",
+          "severity": "High",
+          "repairRecommendation": "Repair only if this is a real account; delete only approved QA users and dependent QA records together."
+        },
+        {
+          "collection": "tenderPackRequests",
+          "referenceField": "requestedBy",
+          "missingTarget": "users/vOwPwNDdKwhvJLS9dl33AQ3bIBk1",
+          "records": [
+            "tenderPackRequests/somMJhpLiIGwCje0xrIG"
+          ],
+          "likelyCause": "A record still points at a Firebase/user UID that is not present in users/ or was seeded outside the canonical user lifecycle.",
+          "severity": "High",
+          "repairRecommendation": "Repair only if this is a real account; delete only approved QA users and dependent QA records together."
+        },
+        {
+          "collection": "auditLogs",
+          "referenceField": "userId",
+          "missingTarget": "users/system",
+          "records": [
+            "auditLogs/1IKVTdj1kTliwZv6wAHE",
+            "auditLogs/1mgQOUbm3ndSP1xJ73vo",
+            "auditLogs/2hjPG9NT0Toe89IkxPYv",
+            "auditLogs/2vShLbqstZQA1SkgArEq",
+            "auditLogs/39mZuMeybdqSrbVFWZP7",
+            "auditLogs/3jXVT8fYCMwyz30XeHcF",
+            "auditLogs/3vICeozMW7qtHUZiUpfs",
+            "auditLogs/4Cb0DHNwETsTZlJTHA6a",
+            "auditLogs/5PZuCIBbO7NCS0VaHGBS",
+            "auditLogs/5ZxWeBJ4RwilQhw9QqPn",
+            "auditLogs/5t5YzBCZw94pZqmFYs2g",
+            "auditLogs/6BiGcnRQxFXRXEiZfzjZ",
+            "auditLogs/7caOxspNxt2fIdYPV11N",
+            "auditLogs/88imIOpgDwR8s9WEBbBm",
+            "auditLogs/APWzaUOY25dkLbYHute5",
+            "auditLogs/AeCJpzSJUH3Mu73FpbGF",
+            "auditLogs/Ato3pkpjFKJWV3wY9cX5",
+            "auditLogs/BKIcu32HHdtuOBkTLBFw",
+            "auditLogs/Bbpa4JEiBqAKjEiXy5Mh",
+            "auditLogs/BtgFwn6wqZiQ2iUElBSD",
+            "auditLogs/BzmQyHDuWZ7pY0rPj7da",
+            "auditLogs/C0Zh0rB1RVckFgFEzYEx",
+            "auditLogs/CYQbcsRvS3pkKZZRZ9nz",
+            "auditLogs/Dtb6e4vfCfaV2iyiTYQS",
+            "auditLogs/E9UbHJYCWpw97hhihz3y",
+            "auditLogs/ESbCSRKX7tlXwGq3JnI4",
+            "auditLogs/F3q0PpQZ68yKDhRvLnn0",
+            "auditLogs/Faz83LkDNiFelAUscZiE",
+            "auditLogs/FeWhr9ytQLdwO028RMty",
+            "auditLogs/FhZfIVvGAXtI5GSevhA3",
+            "auditLogs/HggdiK4ReTYxQEPqeanw",
+            "auditLogs/IWTt4ym1DKixAOxQwKJw",
+            "auditLogs/IdD3fpF0dOjp5b3762fD",
+            "auditLogs/IoVRZUIPyNUA3V1aKenT",
+            "auditLogs/J51ZDmmsHIHqc8MBhcPU",
+            "auditLogs/JyD3SfV5wTjpCwF4Auo8",
+            "auditLogs/KTTSMrjhxaH6Z9MWdRAw",
+            "auditLogs/KtY6Z6lFxJSnWN6ahyXf",
+            "auditLogs/LDTAGGkV3Sm9JeCDI9Qp",
+            "auditLogs/LHo1ikIlwziF4AwIDmFq",
+            "auditLogs/LYCC9GZAx7OAOEBWvKLP",
+            "auditLogs/MJvjpcjKKSRV2CKqyCwk",
+            "auditLogs/N3XVCPOTaszjTywNNZLm",
+            "auditLogs/Ne8Lc6D9v30taKGAzmsi",
+            "auditLogs/ORIxFrN1tLPBVP0GKpn3",
+            "auditLogs/OfVamRFhdsjdZvU3jCuG",
+            "auditLogs/P6gZI2pfZnkSQAasim2L",
+            "auditLogs/PCxwBZacZwCISE1woP0c",
+            "auditLogs/PecmkzLjQffbhrskHEcX",
+            "auditLogs/Py2K6R1nydHs0zh5iPiq",
+            "auditLogs/Q7qQw35sQ1M9QfPrI1Ch",
+            "auditLogs/QOYKq3YDv8tKrNPjzuwc",
+            "auditLogs/QTaB0BNZBBJHp85GdJsB",
+            "auditLogs/R1Vp1MaL0kNYWjKx8RDA",
+            "auditLogs/RKffVt6FUZ5ojvwVpZDs",
+            "auditLogs/RwElucTjipuw29tF7jSE",
+            "auditLogs/SKXVifLZBysyHGcZaKgy",
+            "auditLogs/TBIYdhr4Fs39Qoc5bo4k",
+            "auditLogs/UBB5yemESZEqCza9RXhn",
+            "auditLogs/VBLWprJNETZjv6Qjyxat",
+            "auditLogs/VrLimcHmbW8DmnHPP5Gf",
+            "auditLogs/VsLeKqz5yQ9NQUWYFuxV",
+            "auditLogs/XxfUjJFImiLBigjzbs3U",
+            "auditLogs/YCzUc489PeXLcqez4JFM",
+            "auditLogs/YSYcUgc9ekfpObudEmH2",
+            "auditLogs/YpdKbBkLkUngC5z6V21d",
+            "auditLogs/Z7kpiSt5JtVqPeHlYxNs",
+            "auditLogs/ZChjqcNFAXn4dCn2vndn",
+            "auditLogs/a41KmqOudwIKWmpA1TrJ",
+            "auditLogs/aEMh2DTYSUdHMXjFvh8X",
+            "auditLogs/ak3qBzzisPCezztYKDSs",
+            "auditLogs/bAoAHnrpG2Muary12qSX",
+            "auditLogs/bIEZ3cA1HZIl7QSrjVIY",
+            "auditLogs/cClQsnUURB5mypMg8mpa",
+            "auditLogs/cG9QVDevGHc4cGhLZ8MV",
+            "auditLogs/cJBrMmaxc0vvS8azvleo",
+            "auditLogs/dt8YZweUAJ08CfOte7aF",
+            "auditLogs/e6Q3UGapL4XgKvimz850",
+            "auditLogs/eXpz60NbpWtQpXuhTGjP",
+            "auditLogs/fQcl7dbPibiZFuujyj2c",
+            "auditLogs/fS1O802IxzO23VpIH49m",
+            "auditLogs/fckqkFQm7A2xehVAVqzT",
+            "auditLogs/ftyQ3g0pimPCV3sWlJ8G",
+            "auditLogs/g0SMvqbIGysefE1hOiHP",
+            "auditLogs/gAhqrEfoK1uxfhnCqN4C",
+            "auditLogs/h60zxqS8fLhAO8E8qwn4",
+            "auditLogs/hAtvhnAY3iYtN0Pgi6k4",
+            "auditLogs/hYEKhu5JfdH97VaeeIGM",
+            "auditLogs/hv8s59dwHDNwyTK8kLuW",
+            "auditLogs/hxfdDUSHibqO8Q5nnGn1",
+            "auditLogs/i35xYVlqhbjhfUI8OxQE",
+            "auditLogs/iIK2ocuh79ikEVXTSnKz",
+            "auditLogs/iYRPYGrY1T1w0AJwzyI4",
+            "auditLogs/k4lb1dmcEd3aL0rp4cc3",
+            "auditLogs/k5hS8zPVaRwIuV2vH2Ml",
+            "auditLogs/lU8Q1Y1vTLRTuTcK6gjA",
+            "auditLogs/m7FEgCMul8NcHItG0VP3",
+            "auditLogs/maxLkXvNQoh3Cd1spKIu",
+            "auditLogs/md3xjkiA1ViyYPLS9y5Z",
+            "auditLogs/n0zv0vVe6SQmMAUXb6CN",
+            "auditLogs/nxrXetk3r6pS1xhTvn19",
+            "auditLogs/o2vKKlC36gsdzsfPewSB",
+            "auditLogs/oG4xJgs9FU2HSufaE5jo",
+            "auditLogs/onh7KAkmtumZUS41KPyb",
+            "auditLogs/ozXeDdlu6qgKJUhjheqw",
+            "auditLogs/qV7ABzQo5QylYXmzm3Ff",
+            "auditLogs/qetydKw1UDZNozOnH1dj",
+            "auditLogs/rYIFHUoJ5XiY4CtA4lDY",
+            "auditLogs/royv605SRlue3z1paQ2c",
+            "auditLogs/w9jTzEC735KIXhRDACMk",
+            "auditLogs/x6RPzEd75lfarSUZowbR",
+            "auditLogs/xN8hgMJuI1ZuKDPtjsSM",
+            "auditLogs/xevxdgGvfLU2vEMYkM2l",
+            "auditLogs/y73iqFLgpnLF6ubUJ1QP",
+            "auditLogs/yLxP0not379QJxURx7HM",
+            "auditLogs/yhS4hpVwFDLYSWnXnrGW"
+          ],
+          "likelyCause": "A record still points at a Firebase/user UID that is not present in users/ or was seeded outside the canonical user lifecycle.",
+          "severity": "High",
+          "repairRecommendation": "Repair only if this is a real account; delete only approved QA users and dependent QA records together."
+        },
+        {
+          "collection": "auditLogs",
+          "referenceField": "userId",
+          "missingTarget": "users/ekUvq3lC7HUEwICe5rcCQBWovSF3",
+          "records": [
+            "auditLogs/4nCBuvn28ZIRV2bNbbHu",
+            "auditLogs/bZ8ollkB6BTxpkN0Ot7A",
+            "auditLogs/nC0o5EzHwpL1cWXKb39O"
+          ],
+          "likelyCause": "A record still points at a Firebase/user UID that is not present in users/ or was seeded outside the canonical user lifecycle.",
+          "severity": "High",
+          "repairRecommendation": "Repair only if this is a real account; delete only approved QA users and dependent QA records together."
+        },
+        {
+          "collection": "auditLogs",
+          "referenceField": "userId",
+          "missingTarget": "users/mIvgcVQzo4gdFyNHNIMn1SLElCp1",
+          "records": [
+            "auditLogs/9oF773w4EnN7kfovBjIn",
+            "auditLogs/AHoLTAYMKAjGCek9QQ43",
+            "auditLogs/MbGKIxMrupbIoFwjB6Nd",
+            "auditLogs/S8Vyf34dCiyWIqpRqaUV",
+            "auditLogs/ePeXlzYdYpXGJwDInp1a",
+            "auditLogs/jcUKS890KY7Kg8FRFEEs",
+            "auditLogs/n4FK6Z6cqie1yZCHykOq"
+          ],
+          "likelyCause": "A record still points at a Firebase/user UID that is not present in users/ or was seeded outside the canonical user lifecycle.",
+          "severity": "High",
+          "repairRecommendation": "Repair only if this is a real account; delete only approved QA users and dependent QA records together."
+        },
+        {
+          "collection": "auditLogs",
+          "referenceField": "userId",
+          "missingTarget": "users/weafIuxbamYoEoJaSytAvumVxK62",
+          "records": [
+            "auditLogs/AD08srdKa8gfAJlAIgK4",
+            "auditLogs/TewUpVl2ThobrldS2OQX",
+            "auditLogs/WjgiavN3apUXJVNH1KE3",
+            "auditLogs/Z43XPkg6gkh48AvoBCTw",
+            "auditLogs/tf8KBDluM7AoTR2RVSlq"
+          ],
+          "likelyCause": "A record still points at a Firebase/user UID that is not present in users/ or was seeded outside the canonical user lifecycle.",
+          "severity": "High",
+          "repairRecommendation": "Repair only if this is a real account; delete only approved QA users and dependent QA records together."
+        },
+        {
+          "collection": "auditLogs",
+          "referenceField": "userId",
+          "missingTarget": "users/0WhoPx5Y3wMWQ8Xn26CqDCueFnj2",
+          "records": [
+            "auditLogs/CkLixe25Co09LzUVdF6X",
+            "auditLogs/O7xqBLnob9Ebs1dMt6ZA",
+            "auditLogs/UO7wW22qxxdwuUUcAOnB",
+            "auditLogs/Uf4BPnrzpvGBreeQcJzA",
+            "auditLogs/Wb7c67U45tcXER91hjUH"
+          ],
+          "likelyCause": "A record still points at a Firebase/user UID that is not present in users/ or was seeded outside the canonical user lifecycle.",
+          "severity": "High",
+          "repairRecommendation": "Repair only if this is a real account; delete only approved QA users and dependent QA records together."
+        },
+        {
+          "collection": "auditLogs",
+          "referenceField": "userId",
+          "missingTarget": "users/vOwPwNDdKwhvJLS9dl33AQ3bIBk1",
+          "records": [
+            "auditLogs/VPj8qxRmiNTLOvVNHIJd"
+          ],
+          "likelyCause": "A record still points at a Firebase/user UID that is not present in users/ or was seeded outside the canonical user lifecycle.",
+          "severity": "High",
+          "repairRecommendation": "Repair only if this is a real account; delete only approved QA users and dependent QA records together."
+        }
+      ]
+    },
+    "contractors": {
+      "category": "Contractors",
+      "recordCount": 0,
+      "issues": []
+    },
+    "applications": {
+      "category": "Applications",
+      "recordCount": 3,
+      "issues": [
+        {
+          "collection": "vehicleFinanceApplications",
+          "referenceField": "vehicleId",
+          "missingTarget": "inventory/140fdfcc3f4147c3aba6739585ba7644",
+          "records": [
+            "vehicleFinanceApplications/75f8e2a2-d9d7-468f-9cdc-4aa4293e1be2",
+            "vehicleFinanceApplications/bbd83683-a1ed-4a0d-bd88-5e6967118e1c"
+          ],
+          "likelyCause": "Legacy or test data uses a reference shape that no longer resolves to a canonical document.",
+          "severity": "Medium",
+          "repairRecommendation": "Manual review required before cleanup."
+        },
+        {
+          "collection": "vehicleFinanceApplications",
+          "referenceField": "vehicleId",
+          "missingTarget": "inventory/BMW 320d M Sport",
+          "records": [
+            "vehicleFinanceApplications/a02a6245-d007-444b-8bba-cbb14979b882"
+          ],
+          "likelyCause": "Legacy or test data uses a reference shape that no longer resolves to a canonical document.",
+          "severity": "Medium",
+          "repairRecommendation": "Manual review required before cleanup."
+        }
+      ]
+    },
+    "documents": {
+      "category": "Documents",
+      "recordCount": 0,
+      "issues": []
+    },
+    "notifications": {
+      "category": "Notifications",
+      "recordCount": 0,
+      "issues": []
+    },
+    "auditLogs": {
+      "category": "Audit Logs",
+      "recordCount": 0,
+      "issues": []
+    },
+    "storage": {
+      "category": "Storage",
+      "recordCount": 4,
+      "issues": [
+        {
+          "storagePath": "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf",
+          "firestoreReference": "documents/smoke-check",
+          "exists": "unknown",
+          "referenced": true,
+          "recommendedAction": "Manually verify external/URL storage reference; do not delete Firestore record until the storage owner and retention requirement are confirmed.",
+          "message": "Storage URL requires manual leak verification: https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf"
+        },
+        {
+          "storagePath": "http://roarcarssa.com/uploads/4e713ce84f96421cb0b2144f9af759a8.jpeg",
+          "firestoreReference": "inventory/3af5debda40edb54942fdeb31463e6bfca91e322",
+          "exists": "unknown",
+          "referenced": true,
+          "recommendedAction": "Manually verify external/URL storage reference; do not delete Firestore record until the storage owner and retention requirement are confirmed.",
+          "message": "Storage URL requires manual leak verification: http://roarcarssa.com/uploads/4e713ce84f96421cb0b2144f9af759a8.jpeg"
+        },
+        {
+          "storagePath": "http://roarcarssa.com/uploads/f2f0dddb0e3440848bdfc377f69e1496.jpeg",
+          "firestoreReference": "inventory/910e3cffe3519e68fd8e5fa80101f34b01461f83",
+          "exists": "unknown",
+          "referenced": true,
+          "recommendedAction": "Manually verify external/URL storage reference; do not delete Firestore record until the storage owner and retention requirement are confirmed.",
+          "message": "Storage URL requires manual leak verification: http://roarcarssa.com/uploads/f2f0dddb0e3440848bdfc377f69e1496.jpeg"
+        },
+        {
+          "storagePath": "images/roar-cars-placeholder.svg",
+          "firestoreReference": "inventory/qa-v1-roar-vehicle",
+          "exists": false,
+          "referenced": true,
+          "recommendedAction": "Repair or remove the Firestore storage reference before deleting related records; verify whether the file was intentionally removed.",
+          "message": "Referenced storage object does not exist: images/roar-cars-placeholder.svg"
+        }
+      ]
+    },
+    "workflowRecords": {
+      "category": "Workflow Records",
+      "recordCount": 0,
+      "issues": []
+    },
+    "tenderRecords": {
+      "category": "Tender Records",
+      "recordCount": 0,
+      "issues": []
+    },
+    "vehicleFinance": {
+      "category": "Vehicle Finance",
+      "recordCount": 0,
+      "issues": []
+    },
+    "other": {
+      "category": "Other",
+      "recordCount": 0,
+      "issues": []
+    }
+  },
+  "brokenReferenceBreakdown": [
+    {
+      "category": "Applications",
+      "recordCount": 3,
+      "issues": [
+        {
+          "collection": "vehicleFinanceApplications",
+          "referenceField": "vehicleId",
+          "missingTarget": "inventory/140fdfcc3f4147c3aba6739585ba7644",
+          "records": [
+            "vehicleFinanceApplications/75f8e2a2-d9d7-468f-9cdc-4aa4293e1be2",
+            "vehicleFinanceApplications/bbd83683-a1ed-4a0d-bd88-5e6967118e1c"
+          ],
+          "likelyCause": "Legacy or test data uses a reference shape that no longer resolves to a canonical document.",
+          "severity": "Medium",
+          "repairRecommendation": "Manual review required before cleanup."
+        },
+        {
+          "collection": "vehicleFinanceApplications",
+          "referenceField": "vehicleId",
+          "missingTarget": "inventory/BMW 320d M Sport",
+          "records": [
+            "vehicleFinanceApplications/a02a6245-d007-444b-8bba-cbb14979b882"
+          ],
+          "likelyCause": "Legacy or test data uses a reference shape that no longer resolves to a canonical document.",
+          "severity": "Medium",
+          "repairRecommendation": "Manual review required before cleanup."
+        }
+      ]
+    },
+    {
+      "category": "Users",
+      "recordCount": 163,
+      "issues": [
+        {
+          "collection": "users",
+          "referenceField": "contractorId",
+          "missingTarget": "contractors/Gn5fIDMVQLRRR9wXRjavs0UvtSh1",
+          "records": [
+            "users/Gn5fIDMVQLRRR9wXRjavs0UvtSh1"
+          ],
+          "likelyCause": "A record still points at a Firebase/user UID that is not present in users/ or was seeded outside the canonical user lifecycle.",
+          "severity": "High",
+          "repairRecommendation": "Repair only if this is a real account; delete only approved QA users and dependent QA records together."
+        },
+        {
+          "collection": "users",
+          "referenceField": "contractorId",
+          "missingTarget": "contractors/HqabSqyhqDdYmvHch6RO6mWwJGK2",
+          "records": [
+            "users/HqabSqyhqDdYmvHch6RO6mWwJGK2"
+          ],
+          "likelyCause": "A record still points at a Firebase/user UID that is not present in users/ or was seeded outside the canonical user lifecycle.",
+          "severity": "High",
+          "repairRecommendation": "Repair only if this is a real account; delete only approved QA users and dependent QA records together."
+        },
+        {
+          "collection": "users",
+          "referenceField": "contractorId",
+          "missingTarget": "contractors/dLZ8CElXeoWDJSIidaDULKoejHr1",
+          "records": [
+            "users/dLZ8CElXeoWDJSIidaDULKoejHr1"
+          ],
+          "likelyCause": "A record still points at a Firebase/user UID that is not present in users/ or was seeded outside the canonical user lifecycle.",
+          "severity": "High",
+          "repairRecommendation": "Repair only if this is a real account; delete only approved QA users and dependent QA records together."
+        },
+        {
+          "collection": "users",
+          "referenceField": "contractorId",
+          "missingTarget": "contractors/z0yX8cyt38hkfa60UEyNTOiX2812",
+          "records": [
+            "users/z0yX8cyt38hkfa60UEyNTOiX2812"
+          ],
+          "likelyCause": "A record still points at a Firebase/user UID that is not present in users/ or was seeded outside the canonical user lifecycle.",
+          "severity": "High",
+          "repairRecommendation": "Repair only if this is a real account; delete only approved QA users and dependent QA records together."
+        },
+        {
+          "collection": "contractors",
+          "referenceField": "authUid",
+          "missingTarget": "users/CzEqgwRTDmT6u2XEtSJ20BVKR8B2",
+          "records": [
+            "contractors/CzEqgwRTDmT6u2XEtSJ20BVKR8B2"
+          ],
+          "likelyCause": "A record still points at a Firebase/user UID that is not present in users/ or was seeded outside the canonical user lifecycle.",
+          "severity": "High",
+          "repairRecommendation": "Repair only if this is a real account; delete only approved QA users and dependent QA records together."
+        },
+        {
+          "collection": "contractors",
+          "referenceField": "userId",
+          "missingTarget": "users/CzEqgwRTDmT6u2XEtSJ20BVKR8B2",
+          "records": [
+            "contractors/CzEqgwRTDmT6u2XEtSJ20BVKR8B2"
+          ],
+          "likelyCause": "A record still points at a Firebase/user UID that is not present in users/ or was seeded outside the canonical user lifecycle.",
+          "severity": "High",
+          "repairRecommendation": "Repair only if this is a real account; delete only approved QA users and dependent QA records together."
+        },
+        {
+          "collection": "contractors",
+          "referenceField": "authUid",
+          "missingTarget": "users/GqsT6LCH6wyIas8Meb8c",
+          "records": [
+            "contractors/GqsT6LCH6wyIas8Meb8c"
+          ],
+          "likelyCause": "A record still points at a Firebase/user UID that is not present in users/ or was seeded outside the canonical user lifecycle.",
+          "severity": "High",
+          "repairRecommendation": "Repair only if this is a real account; delete only approved QA users and dependent QA records together."
+        },
+        {
+          "collection": "contractors",
+          "referenceField": "authUid",
+          "missingTarget": "users/KLGcJzb3ZEGf2rNpHNVg",
+          "records": [
+            "contractors/KLGcJzb3ZEGf2rNpHNVg"
+          ],
+          "likelyCause": "A record still points at a Firebase/user UID that is not present in users/ or was seeded outside the canonical user lifecycle.",
+          "severity": "High",
+          "repairRecommendation": "Repair only if this is a real account; delete only approved QA users and dependent QA records together."
+        },
+        {
+          "collection": "contractors",
+          "referenceField": "authUid",
+          "missingTarget": "users/ND4HCW4KdEmXLGTDKMfF",
+          "records": [
+            "contractors/ND4HCW4KdEmXLGTDKMfF"
+          ],
+          "likelyCause": "A record still points at a Firebase/user UID that is not present in users/ or was seeded outside the canonical user lifecycle.",
+          "severity": "High",
+          "repairRecommendation": "Repair only if this is a real account; delete only approved QA users and dependent QA records together."
+        },
+        {
+          "collection": "contractors",
+          "referenceField": "authUid",
+          "missingTarget": "users/a1CxFTpi5AatIkGXUXOkh50F1h93",
+          "records": [
+            "contractors/a1CxFTpi5AatIkGXUXOkh50F1h93"
+          ],
+          "likelyCause": "A record still points at a Firebase/user UID that is not present in users/ or was seeded outside the canonical user lifecycle.",
+          "severity": "High",
+          "repairRecommendation": "Repair only if this is a real account; delete only approved QA users and dependent QA records together."
+        },
+        {
+          "collection": "contractors",
+          "referenceField": "userId",
+          "missingTarget": "users/a1CxFTpi5AatIkGXUXOkh50F1h93",
+          "records": [
+            "contractors/a1CxFTpi5AatIkGXUXOkh50F1h93"
+          ],
+          "likelyCause": "A record still points at a Firebase/user UID that is not present in users/ or was seeded outside the canonical user lifecycle.",
+          "severity": "High",
+          "repairRecommendation": "Repair only if this is a real account; delete only approved QA users and dependent QA records together."
+        },
+        {
+          "collection": "contractors",
+          "referenceField": "authUid",
+          "missingTarget": "users/b2qz6m1aW2NNzVLjQg8K",
+          "records": [
+            "contractors/b2qz6m1aW2NNzVLjQg8K"
+          ],
+          "likelyCause": "A record still points at a Firebase/user UID that is not present in users/ or was seeded outside the canonical user lifecycle.",
+          "severity": "High",
+          "repairRecommendation": "Repair only if this is a real account; delete only approved QA users and dependent QA records together."
+        },
+        {
+          "collection": "contractors",
+          "referenceField": "authUid",
+          "missingTarget": "users/jxjgsfgHW0ouOJc2ZHYW",
+          "records": [
+            "contractors/jxjgsfgHW0ouOJc2ZHYW"
+          ],
+          "likelyCause": "A record still points at a Firebase/user UID that is not present in users/ or was seeded outside the canonical user lifecycle.",
+          "severity": "High",
+          "repairRecommendation": "Repair only if this is a real account; delete only approved QA users and dependent QA records together."
+        },
+        {
+          "collection": "contractors",
+          "referenceField": "authUid",
+          "missingTarget": "users/l2czruUhWdKiS4HJ9rft",
+          "records": [
+            "contractors/l2czruUhWdKiS4HJ9rft"
+          ],
+          "likelyCause": "A record still points at a Firebase/user UID that is not present in users/ or was seeded outside the canonical user lifecycle.",
+          "severity": "High",
+          "repairRecommendation": "Repair only if this is a real account; delete only approved QA users and dependent QA records together."
+        },
+        {
+          "collection": "contractors",
+          "referenceField": "authUid",
+          "missingTarget": "users/lkImwod6FgYrklknDS5T",
+          "records": [
+            "contractors/lkImwod6FgYrklknDS5T"
+          ],
+          "likelyCause": "A record still points at a Firebase/user UID that is not present in users/ or was seeded outside the canonical user lifecycle.",
+          "severity": "High",
+          "repairRecommendation": "Repair only if this is a real account; delete only approved QA users and dependent QA records together."
+        },
+        {
+          "collection": "contractors",
+          "referenceField": "authUid",
+          "missingTarget": "users/m1EwzLOO115tWim5baab",
+          "records": [
+            "contractors/m1EwzLOO115tWim5baab"
+          ],
+          "likelyCause": "A record still points at a Firebase/user UID that is not present in users/ or was seeded outside the canonical user lifecycle.",
+          "severity": "High",
+          "repairRecommendation": "Repair only if this is a real account; delete only approved QA users and dependent QA records together."
+        },
+        {
+          "collection": "contractors",
+          "referenceField": "authUid",
+          "missingTarget": "users/pdinEHoFvUWuMG5O1MCl9gGdzfz2",
+          "records": [
+            "contractors/pdinEHoFvUWuMG5O1MCl9gGdzfz2"
+          ],
+          "likelyCause": "A record still points at a Firebase/user UID that is not present in users/ or was seeded outside the canonical user lifecycle.",
+          "severity": "High",
+          "repairRecommendation": "Repair only if this is a real account; delete only approved QA users and dependent QA records together."
+        },
+        {
+          "collection": "contractors",
+          "referenceField": "userId",
+          "missingTarget": "users/pdinEHoFvUWuMG5O1MCl9gGdzfz2",
+          "records": [
+            "contractors/pdinEHoFvUWuMG5O1MCl9gGdzfz2"
+          ],
+          "likelyCause": "A record still points at a Firebase/user UID that is not present in users/ or was seeded outside the canonical user lifecycle.",
+          "severity": "High",
+          "repairRecommendation": "Repair only if this is a real account; delete only approved QA users and dependent QA records together."
+        },
+        {
+          "collection": "contractors",
+          "referenceField": "authUid",
+          "missingTarget": "users/qZTJeNRRviDlHFXq3cmF",
+          "records": [
+            "contractors/qZTJeNRRviDlHFXq3cmF"
+          ],
+          "likelyCause": "A record still points at a Firebase/user UID that is not present in users/ or was seeded outside the canonical user lifecycle.",
+          "severity": "High",
+          "repairRecommendation": "Repair only if this is a real account; delete only approved QA users and dependent QA records together."
+        },
+        {
+          "collection": "contractors",
+          "referenceField": "authUid",
+          "missingTarget": "users/sYEU6aqqiEV4Gvu6eTBSmovlJa12",
+          "records": [
+            "contractors/sYEU6aqqiEV4Gvu6eTBSmovlJa12"
+          ],
+          "likelyCause": "A record still points at a Firebase/user UID that is not present in users/ or was seeded outside the canonical user lifecycle.",
+          "severity": "High",
+          "repairRecommendation": "Repair only if this is a real account; delete only approved QA users and dependent QA records together."
+        },
+        {
+          "collection": "contractors",
+          "referenceField": "userId",
+          "missingTarget": "users/sYEU6aqqiEV4Gvu6eTBSmovlJa12",
+          "records": [
+            "contractors/sYEU6aqqiEV4Gvu6eTBSmovlJa12"
+          ],
+          "likelyCause": "A record still points at a Firebase/user UID that is not present in users/ or was seeded outside the canonical user lifecycle.",
+          "severity": "High",
+          "repairRecommendation": "Repair only if this is a real account; delete only approved QA users and dependent QA records together."
+        },
+        {
+          "collection": "contractors",
+          "referenceField": "authUid",
+          "missingTarget": "users/vOwPwNDdKwhvJLS9dl33AQ3bIBk1",
+          "records": [
+            "contractors/vOwPwNDdKwhvJLS9dl33AQ3bIBk1"
+          ],
+          "likelyCause": "A record still points at a Firebase/user UID that is not present in users/ or was seeded outside the canonical user lifecycle.",
+          "severity": "High",
+          "repairRecommendation": "Repair only if this is a real account; delete only approved QA users and dependent QA records together."
+        },
+        {
+          "collection": "contractors",
+          "referenceField": "userId",
+          "missingTarget": "users/vOwPwNDdKwhvJLS9dl33AQ3bIBk1",
+          "records": [
+            "contractors/vOwPwNDdKwhvJLS9dl33AQ3bIBk1"
+          ],
+          "likelyCause": "A record still points at a Firebase/user UID that is not present in users/ or was seeded outside the canonical user lifecycle.",
+          "severity": "High",
+          "repairRecommendation": "Repair only if this is a real account; delete only approved QA users and dependent QA records together."
+        },
+        {
+          "collection": "contractors",
+          "referenceField": "authUid",
+          "missingTarget": "users/vW511XxAZNSDe9BwTyFYeOjM04S2",
+          "records": [
+            "contractors/vW511XxAZNSDe9BwTyFYeOjM04S2"
+          ],
+          "likelyCause": "A record still points at a Firebase/user UID that is not present in users/ or was seeded outside the canonical user lifecycle.",
+          "severity": "High",
+          "repairRecommendation": "Repair only if this is a real account; delete only approved QA users and dependent QA records together."
+        },
+        {
+          "collection": "contractors",
+          "referenceField": "userId",
+          "missingTarget": "users/vW511XxAZNSDe9BwTyFYeOjM04S2",
+          "records": [
+            "contractors/vW511XxAZNSDe9BwTyFYeOjM04S2"
+          ],
+          "likelyCause": "A record still points at a Firebase/user UID that is not present in users/ or was seeded outside the canonical user lifecycle.",
+          "severity": "High",
+          "repairRecommendation": "Repair only if this is a real account; delete only approved QA users and dependent QA records together."
+        },
+        {
+          "collection": "tenderPackRequests",
+          "referenceField": "requestedBy",
+          "missingTarget": "users/vOwPwNDdKwhvJLS9dl33AQ3bIBk1",
+          "records": [
+            "tenderPackRequests/somMJhpLiIGwCje0xrIG"
+          ],
+          "likelyCause": "A record still points at a Firebase/user UID that is not present in users/ or was seeded outside the canonical user lifecycle.",
+          "severity": "High",
+          "repairRecommendation": "Repair only if this is a real account; delete only approved QA users and dependent QA records together."
+        },
+        {
+          "collection": "auditLogs",
+          "referenceField": "userId",
+          "missingTarget": "users/system",
+          "records": [
+            "auditLogs/1IKVTdj1kTliwZv6wAHE",
+            "auditLogs/1mgQOUbm3ndSP1xJ73vo",
+            "auditLogs/2hjPG9NT0Toe89IkxPYv",
+            "auditLogs/2vShLbqstZQA1SkgArEq",
+            "auditLogs/39mZuMeybdqSrbVFWZP7",
+            "auditLogs/3jXVT8fYCMwyz30XeHcF",
+            "auditLogs/3vICeozMW7qtHUZiUpfs",
+            "auditLogs/4Cb0DHNwETsTZlJTHA6a",
+            "auditLogs/5PZuCIBbO7NCS0VaHGBS",
+            "auditLogs/5ZxWeBJ4RwilQhw9QqPn",
+            "auditLogs/5t5YzBCZw94pZqmFYs2g",
+            "auditLogs/6BiGcnRQxFXRXEiZfzjZ",
+            "auditLogs/7caOxspNxt2fIdYPV11N",
+            "auditLogs/88imIOpgDwR8s9WEBbBm",
+            "auditLogs/APWzaUOY25dkLbYHute5",
+            "auditLogs/AeCJpzSJUH3Mu73FpbGF",
+            "auditLogs/Ato3pkpjFKJWV3wY9cX5",
+            "auditLogs/BKIcu32HHdtuOBkTLBFw",
+            "auditLogs/Bbpa4JEiBqAKjEiXy5Mh",
+            "auditLogs/BtgFwn6wqZiQ2iUElBSD",
+            "auditLogs/BzmQyHDuWZ7pY0rPj7da",
+            "auditLogs/C0Zh0rB1RVckFgFEzYEx",
+            "auditLogs/CYQbcsRvS3pkKZZRZ9nz",
+            "auditLogs/Dtb6e4vfCfaV2iyiTYQS",
+            "auditLogs/E9UbHJYCWpw97hhihz3y",
+            "auditLogs/ESbCSRKX7tlXwGq3JnI4",
+            "auditLogs/F3q0PpQZ68yKDhRvLnn0",
+            "auditLogs/Faz83LkDNiFelAUscZiE",
+            "auditLogs/FeWhr9ytQLdwO028RMty",
+            "auditLogs/FhZfIVvGAXtI5GSevhA3",
+            "auditLogs/HggdiK4ReTYxQEPqeanw",
+            "auditLogs/IWTt4ym1DKixAOxQwKJw",
+            "auditLogs/IdD3fpF0dOjp5b3762fD",
+            "auditLogs/IoVRZUIPyNUA3V1aKenT",
+            "auditLogs/J51ZDmmsHIHqc8MBhcPU",
+            "auditLogs/JyD3SfV5wTjpCwF4Auo8",
+            "auditLogs/KTTSMrjhxaH6Z9MWdRAw",
+            "auditLogs/KtY6Z6lFxJSnWN6ahyXf",
+            "auditLogs/LDTAGGkV3Sm9JeCDI9Qp",
+            "auditLogs/LHo1ikIlwziF4AwIDmFq",
+            "auditLogs/LYCC9GZAx7OAOEBWvKLP",
+            "auditLogs/MJvjpcjKKSRV2CKqyCwk",
+            "auditLogs/N3XVCPOTaszjTywNNZLm",
+            "auditLogs/Ne8Lc6D9v30taKGAzmsi",
+            "auditLogs/ORIxFrN1tLPBVP0GKpn3",
+            "auditLogs/OfVamRFhdsjdZvU3jCuG",
+            "auditLogs/P6gZI2pfZnkSQAasim2L",
+            "auditLogs/PCxwBZacZwCISE1woP0c",
+            "auditLogs/PecmkzLjQffbhrskHEcX",
+            "auditLogs/Py2K6R1nydHs0zh5iPiq",
+            "auditLogs/Q7qQw35sQ1M9QfPrI1Ch",
+            "auditLogs/QOYKq3YDv8tKrNPjzuwc",
+            "auditLogs/QTaB0BNZBBJHp85GdJsB",
+            "auditLogs/R1Vp1MaL0kNYWjKx8RDA",
+            "auditLogs/RKffVt6FUZ5ojvwVpZDs",
+            "auditLogs/RwElucTjipuw29tF7jSE",
+            "auditLogs/SKXVifLZBysyHGcZaKgy",
+            "auditLogs/TBIYdhr4Fs39Qoc5bo4k",
+            "auditLogs/UBB5yemESZEqCza9RXhn",
+            "auditLogs/VBLWprJNETZjv6Qjyxat",
+            "auditLogs/VrLimcHmbW8DmnHPP5Gf",
+            "auditLogs/VsLeKqz5yQ9NQUWYFuxV",
+            "auditLogs/XxfUjJFImiLBigjzbs3U",
+            "auditLogs/YCzUc489PeXLcqez4JFM",
+            "auditLogs/YSYcUgc9ekfpObudEmH2",
+            "auditLogs/YpdKbBkLkUngC5z6V21d",
+            "auditLogs/Z7kpiSt5JtVqPeHlYxNs",
+            "auditLogs/ZChjqcNFAXn4dCn2vndn",
+            "auditLogs/a41KmqOudwIKWmpA1TrJ",
+            "auditLogs/aEMh2DTYSUdHMXjFvh8X",
+            "auditLogs/ak3qBzzisPCezztYKDSs",
+            "auditLogs/bAoAHnrpG2Muary12qSX",
+            "auditLogs/bIEZ3cA1HZIl7QSrjVIY",
+            "auditLogs/cClQsnUURB5mypMg8mpa",
+            "auditLogs/cG9QVDevGHc4cGhLZ8MV",
+            "auditLogs/cJBrMmaxc0vvS8azvleo",
+            "auditLogs/dt8YZweUAJ08CfOte7aF",
+            "auditLogs/e6Q3UGapL4XgKvimz850",
+            "auditLogs/eXpz60NbpWtQpXuhTGjP",
+            "auditLogs/fQcl7dbPibiZFuujyj2c",
+            "auditLogs/fS1O802IxzO23VpIH49m",
+            "auditLogs/fckqkFQm7A2xehVAVqzT",
+            "auditLogs/ftyQ3g0pimPCV3sWlJ8G",
+            "auditLogs/g0SMvqbIGysefE1hOiHP",
+            "auditLogs/gAhqrEfoK1uxfhnCqN4C",
+            "auditLogs/h60zxqS8fLhAO8E8qwn4",
+            "auditLogs/hAtvhnAY3iYtN0Pgi6k4",
+            "auditLogs/hYEKhu5JfdH97VaeeIGM",
+            "auditLogs/hv8s59dwHDNwyTK8kLuW",
+            "auditLogs/hxfdDUSHibqO8Q5nnGn1",
+            "auditLogs/i35xYVlqhbjhfUI8OxQE",
+            "auditLogs/iIK2ocuh79ikEVXTSnKz",
+            "auditLogs/iYRPYGrY1T1w0AJwzyI4",
+            "auditLogs/k4lb1dmcEd3aL0rp4cc3",
+            "auditLogs/k5hS8zPVaRwIuV2vH2Ml",
+            "auditLogs/lU8Q1Y1vTLRTuTcK6gjA",
+            "auditLogs/m7FEgCMul8NcHItG0VP3",
+            "auditLogs/maxLkXvNQoh3Cd1spKIu",
+            "auditLogs/md3xjkiA1ViyYPLS9y5Z",
+            "auditLogs/n0zv0vVe6SQmMAUXb6CN",
+            "auditLogs/nxrXetk3r6pS1xhTvn19",
+            "auditLogs/o2vKKlC36gsdzsfPewSB",
+            "auditLogs/oG4xJgs9FU2HSufaE5jo",
+            "auditLogs/onh7KAkmtumZUS41KPyb",
+            "auditLogs/ozXeDdlu6qgKJUhjheqw",
+            "auditLogs/qV7ABzQo5QylYXmzm3Ff",
+            "auditLogs/qetydKw1UDZNozOnH1dj",
+            "auditLogs/rYIFHUoJ5XiY4CtA4lDY",
+            "auditLogs/royv605SRlue3z1paQ2c",
+            "auditLogs/w9jTzEC735KIXhRDACMk",
+            "auditLogs/x6RPzEd75lfarSUZowbR",
+            "auditLogs/xN8hgMJuI1ZuKDPtjsSM",
+            "auditLogs/xevxdgGvfLU2vEMYkM2l",
+            "auditLogs/y73iqFLgpnLF6ubUJ1QP",
+            "auditLogs/yLxP0not379QJxURx7HM",
+            "auditLogs/yhS4hpVwFDLYSWnXnrGW"
+          ],
+          "likelyCause": "A record still points at a Firebase/user UID that is not present in users/ or was seeded outside the canonical user lifecycle.",
+          "severity": "High",
+          "repairRecommendation": "Repair only if this is a real account; delete only approved QA users and dependent QA records together."
+        },
+        {
+          "collection": "auditLogs",
+          "referenceField": "userId",
+          "missingTarget": "users/ekUvq3lC7HUEwICe5rcCQBWovSF3",
+          "records": [
+            "auditLogs/4nCBuvn28ZIRV2bNbbHu",
+            "auditLogs/bZ8ollkB6BTxpkN0Ot7A",
+            "auditLogs/nC0o5EzHwpL1cWXKb39O"
+          ],
+          "likelyCause": "A record still points at a Firebase/user UID that is not present in users/ or was seeded outside the canonical user lifecycle.",
+          "severity": "High",
+          "repairRecommendation": "Repair only if this is a real account; delete only approved QA users and dependent QA records together."
+        },
+        {
+          "collection": "auditLogs",
+          "referenceField": "userId",
+          "missingTarget": "users/mIvgcVQzo4gdFyNHNIMn1SLElCp1",
+          "records": [
+            "auditLogs/9oF773w4EnN7kfovBjIn",
+            "auditLogs/AHoLTAYMKAjGCek9QQ43",
+            "auditLogs/MbGKIxMrupbIoFwjB6Nd",
+            "auditLogs/S8Vyf34dCiyWIqpRqaUV",
+            "auditLogs/ePeXlzYdYpXGJwDInp1a",
+            "auditLogs/jcUKS890KY7Kg8FRFEEs",
+            "auditLogs/n4FK6Z6cqie1yZCHykOq"
+          ],
+          "likelyCause": "A record still points at a Firebase/user UID that is not present in users/ or was seeded outside the canonical user lifecycle.",
+          "severity": "High",
+          "repairRecommendation": "Repair only if this is a real account; delete only approved QA users and dependent QA records together."
+        },
+        {
+          "collection": "auditLogs",
+          "referenceField": "userId",
+          "missingTarget": "users/weafIuxbamYoEoJaSytAvumVxK62",
+          "records": [
+            "auditLogs/AD08srdKa8gfAJlAIgK4",
+            "auditLogs/TewUpVl2ThobrldS2OQX",
+            "auditLogs/WjgiavN3apUXJVNH1KE3",
+            "auditLogs/Z43XPkg6gkh48AvoBCTw",
+            "auditLogs/tf8KBDluM7AoTR2RVSlq"
+          ],
+          "likelyCause": "A record still points at a Firebase/user UID that is not present in users/ or was seeded outside the canonical user lifecycle.",
+          "severity": "High",
+          "repairRecommendation": "Repair only if this is a real account; delete only approved QA users and dependent QA records together."
+        },
+        {
+          "collection": "auditLogs",
+          "referenceField": "userId",
+          "missingTarget": "users/0WhoPx5Y3wMWQ8Xn26CqDCueFnj2",
+          "records": [
+            "auditLogs/CkLixe25Co09LzUVdF6X",
+            "auditLogs/O7xqBLnob9Ebs1dMt6ZA",
+            "auditLogs/UO7wW22qxxdwuUUcAOnB",
+            "auditLogs/Uf4BPnrzpvGBreeQcJzA",
+            "auditLogs/Wb7c67U45tcXER91hjUH"
+          ],
+          "likelyCause": "A record still points at a Firebase/user UID that is not present in users/ or was seeded outside the canonical user lifecycle.",
+          "severity": "High",
+          "repairRecommendation": "Repair only if this is a real account; delete only approved QA users and dependent QA records together."
+        },
+        {
+          "collection": "auditLogs",
+          "referenceField": "userId",
+          "missingTarget": "users/vOwPwNDdKwhvJLS9dl33AQ3bIBk1",
+          "records": [
+            "auditLogs/VPj8qxRmiNTLOvVNHIJd"
+          ],
+          "likelyCause": "A record still points at a Firebase/user UID that is not present in users/ or was seeded outside the canonical user lifecycle.",
+          "severity": "High",
+          "repairRecommendation": "Repair only if this is a real account; delete only approved QA users and dependent QA records together."
+        }
+      ]
+    }
+  ],
+  "manualReviewBreakdown": [
+    {
+      "documentId": "72YwD2xe3US1nuQIZ8b073QvgCd2",
+      "collection": "users",
+      "path": "users/72YwD2xe3US1nuQIZ8b073QvgCd2",
+      "label": "QA Contractor",
+      "reasonFlagged": [
+        "matched /\\bqa\\b/i",
+        "matched /@qa\\./i",
+        "matched /qa-v\\d+/i",
+        "explicit test/mock/sample flag"
+      ],
+      "likelyReal": false,
+      "likelyQa": true,
+      "likelyDuplicate": false,
+      "recommendation": "REPAIR",
+      "references": {
+        "contractorId": "qa-v1-contractor-verified"
+      },
+      "storagePaths": []
+    },
+    {
+      "documentId": "CzEqgwRTDmT6u2XEtSJ20BVKR8B2",
+      "collection": "contractors",
+      "path": "contractors/CzEqgwRTDmT6u2XEtSJ20BVKR8B2",
+      "label": "TEST CONTRACTOR 02",
+      "reasonFlagged": [
+        "matched /\\btest\\b/i"
+      ],
+      "likelyReal": false,
+      "likelyQa": true,
+      "likelyDuplicate": false,
+      "recommendation": "REPAIR",
+      "references": {
+        "authUid": "CzEqgwRTDmT6u2XEtSJ20BVKR8B2",
+        "userId": "CzEqgwRTDmT6u2XEtSJ20BVKR8B2"
+      },
+      "storagePaths": []
+    },
+    {
+      "documentId": "GqsT6LCH6wyIas8Meb8c",
+      "collection": "contractors",
+      "path": "contractors/GqsT6LCH6wyIas8Meb8c",
+      "label": "Test Contractor",
+      "reasonFlagged": [
+        "matched /\\btest\\b/i"
+      ],
+      "likelyReal": false,
+      "likelyQa": true,
+      "likelyDuplicate": true,
+      "recommendation": "REPAIR",
+      "references": {
+        "authUid": "GqsT6LCH6wyIas8Meb8c"
+      },
+      "storagePaths": []
+    },
+    {
+      "documentId": "KLGcJzb3ZEGf2rNpHNVg",
+      "collection": "contractors",
+      "path": "contractors/KLGcJzb3ZEGf2rNpHNVg",
+      "label": "Test Contractor",
+      "reasonFlagged": [
+        "matched /\\btest\\b/i"
+      ],
+      "likelyReal": false,
+      "likelyQa": true,
+      "likelyDuplicate": true,
+      "recommendation": "REPAIR",
+      "references": {
+        "authUid": "KLGcJzb3ZEGf2rNpHNVg"
+      },
+      "storagePaths": []
+    },
+    {
+      "documentId": "ND4HCW4KdEmXLGTDKMfF",
+      "collection": "contractors",
+      "path": "contractors/ND4HCW4KdEmXLGTDKMfF",
+      "label": "Stability Check 1775308790400",
+      "reasonFlagged": [
+        "matched /example\\.com/i"
+      ],
+      "likelyReal": true,
+      "likelyQa": false,
+      "likelyDuplicate": false,
+      "recommendation": "KEEP",
+      "references": {
+        "authUid": "ND4HCW4KdEmXLGTDKMfF"
+      },
+      "storagePaths": []
+    },
+    {
+      "documentId": "a1CxFTpi5AatIkGXUXOkh50F1h93",
+      "collection": "contractors",
+      "path": "contractors/a1CxFTpi5AatIkGXUXOkh50F1h93",
+      "label": "QA E2E Contractor 20260605100015",
+      "reasonFlagged": [
+        "matched /\\bqa\\b/i",
+        "matched /example\\.com/i"
+      ],
+      "likelyReal": false,
+      "likelyQa": true,
+      "likelyDuplicate": false,
+      "recommendation": "REPAIR",
+      "references": {
+        "authUid": "a1CxFTpi5AatIkGXUXOkh50F1h93",
+        "userId": "a1CxFTpi5AatIkGXUXOkh50F1h93"
+      },
+      "storagePaths": []
+    },
+    {
+      "documentId": "b2qz6m1aW2NNzVLjQg8K",
+      "collection": "contractors",
+      "path": "contractors/b2qz6m1aW2NNzVLjQg8K",
+      "label": "Stability Check 1775307838",
+      "reasonFlagged": [
+        "matched /example\\.com/i"
+      ],
+      "likelyReal": true,
+      "likelyQa": false,
+      "likelyDuplicate": false,
+      "recommendation": "KEEP",
+      "references": {
+        "authUid": "b2qz6m1aW2NNzVLjQg8K"
+      },
+      "storagePaths": []
+    },
+    {
+      "documentId": "jxjgsfgHW0ouOJc2ZHYW",
+      "collection": "contractors",
+      "path": "contractors/jxjgsfgHW0ouOJc2ZHYW",
+      "label": "Test Contractor",
+      "reasonFlagged": [
+        "matched /\\btest\\b/i"
+      ],
+      "likelyReal": false,
+      "likelyQa": true,
+      "likelyDuplicate": true,
+      "recommendation": "REPAIR",
+      "references": {
+        "authUid": "jxjgsfgHW0ouOJc2ZHYW"
+      },
+      "storagePaths": []
+    },
+    {
+      "documentId": "lkImwod6FgYrklknDS5T",
+      "collection": "contractors",
+      "path": "contractors/lkImwod6FgYrklknDS5T",
+      "label": "Test Contractor",
+      "reasonFlagged": [
+        "matched /\\btest\\b/i"
+      ],
+      "likelyReal": false,
+      "likelyQa": true,
+      "likelyDuplicate": true,
+      "recommendation": "REPAIR",
+      "references": {
+        "authUid": "lkImwod6FgYrklknDS5T"
+      },
+      "storagePaths": []
+    },
+    {
+      "documentId": "m1EwzLOO115tWim5baab",
+      "collection": "contractors",
+      "path": "contractors/m1EwzLOO115tWim5baab",
+      "label": "Test Contractor",
+      "reasonFlagged": [
+        "matched /\\btest\\b/i"
+      ],
+      "likelyReal": false,
+      "likelyQa": true,
+      "likelyDuplicate": true,
+      "recommendation": "REPAIR",
+      "references": {
+        "authUid": "m1EwzLOO115tWim5baab"
+      },
+      "storagePaths": []
+    },
+    {
+      "documentId": "qZTJeNRRviDlHFXq3cmF",
+      "collection": "contractors",
+      "path": "contractors/qZTJeNRRviDlHFXq3cmF",
+      "label": "Test Contractor",
+      "reasonFlagged": [
+        "matched /\\btest\\b/i"
+      ],
+      "likelyReal": false,
+      "likelyQa": true,
+      "likelyDuplicate": true,
+      "recommendation": "REPAIR",
+      "references": {
+        "authUid": "qZTJeNRRviDlHFXq3cmF"
+      },
+      "storagePaths": []
+    },
+    {
+      "documentId": "qa-v1-contractor-verified",
+      "collection": "contractors",
+      "path": "contractors/qa-v1-contractor-verified",
+      "label": "QA v1 Verified Documents Contractor",
+      "reasonFlagged": [
+        "matched /\\bqa\\b/i",
+        "matched /@qa\\./i",
+        "matched /qa-v\\d+/i",
+        "explicit test/mock/sample flag"
+      ],
+      "likelyReal": false,
+      "likelyQa": true,
+      "likelyDuplicate": false,
+      "recommendation": "REPAIR",
+      "references": {
+        "authUid": "72YwD2xe3US1nuQIZ8b073QvgCd2",
+        "userId": "72YwD2xe3US1nuQIZ8b073QvgCd2"
+      },
+      "storagePaths": []
+    },
+    {
+      "documentId": "sYEU6aqqiEV4Gvu6eTBSmovlJa12",
+      "collection": "contractors",
+      "path": "contractors/sYEU6aqqiEV4Gvu6eTBSmovlJa12",
+      "label": "Pilot Contractor",
+      "reasonFlagged": [
+        "matched /example\\.com/i"
+      ],
+      "likelyReal": true,
+      "likelyQa": false,
+      "likelyDuplicate": false,
+      "recommendation": "KEEP",
+      "references": {
+        "authUid": "sYEU6aqqiEV4Gvu6eTBSmovlJa12",
+        "userId": "sYEU6aqqiEV4Gvu6eTBSmovlJa12"
+      },
+      "storagePaths": []
+    },
+    {
+      "documentId": "vW511XxAZNSDe9BwTyFYeOjM04S2",
+      "collection": "contractors",
+      "path": "contractors/vW511XxAZNSDe9BwTyFYeOjM04S2",
+      "label": "Test Contractor",
+      "reasonFlagged": [
+        "matched /\\btest\\b/i"
+      ],
+      "likelyReal": false,
+      "likelyQa": true,
+      "likelyDuplicate": true,
+      "recommendation": "REPAIR",
+      "references": {
+        "authUid": "vW511XxAZNSDe9BwTyFYeOjM04S2",
+        "userId": "vW511XxAZNSDe9BwTyFYeOjM04S2"
+      },
+      "storagePaths": []
+    },
+    {
+      "documentId": "9f6pkwHdf2ZURxyRyf8i",
+      "collection": "deals",
+      "path": "deals/9f6pkwHdf2ZURxyRyf8i",
+      "label": "QA E2E Tender Pack Validation 20260605",
+      "reasonFlagged": [
+        "matched /\\bqa\\b/i"
+      ],
+      "likelyReal": false,
+      "likelyQa": true,
+      "likelyDuplicate": false,
+      "recommendation": "REPAIR",
+      "references": {
+        "contractorId": "a1CxFTpi5AatIkGXUXOkh50F1h93"
+      },
+      "storagePaths": []
+    },
+    {
+      "documentId": "qa-v1-vf-application",
+      "collection": "vehicleFinanceApplications",
+      "path": "vehicleFinanceApplications/qa-v1-vf-application",
+      "label": "qa-v1-vf-application",
+      "reasonFlagged": [
+        "matched /\\bqa\\b/i",
+        "matched /qa-v\\d+/i",
+        "explicit test/mock/sample flag"
+      ],
+      "likelyReal": false,
+      "likelyQa": true,
+      "likelyDuplicate": false,
+      "recommendation": "REPAIR",
+      "references": {
+        "customerId": "qa-v1-vf-customer",
+        "vehicleId": "qa-v1-roar-vehicle"
+      },
+      "storagePaths": []
+    },
+    {
+      "documentId": "qa-v1-vf-application",
+      "collection": "vehicleFinanceAssessments",
+      "path": "vehicleFinanceAssessments/qa-v1-vf-application",
+      "label": "qa-v1-vf-application",
+      "reasonFlagged": [
+        "matched /\\bqa\\b/i",
+        "matched /qa-v\\d+/i",
+        "explicit test/mock/sample flag"
+      ],
+      "likelyReal": false,
+      "likelyQa": true,
+      "likelyDuplicate": false,
+      "recommendation": "REPAIR",
+      "references": {
+        "applicationId": "qa-v1-vf-application"
+      },
+      "storagePaths": []
+    }
+  ],
+  "storageAnalysis": [
+    {
+      "storagePath": "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf",
+      "firestoreReference": "documents/smoke-check",
+      "exists": "unknown",
+      "referenced": true,
+      "recommendedAction": "Manually verify external/URL storage reference; do not delete Firestore record until the storage owner and retention requirement are confirmed.",
+      "message": "Storage URL requires manual leak verification: https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf"
+    },
+    {
+      "storagePath": "http://roarcarssa.com/uploads/4e713ce84f96421cb0b2144f9af759a8.jpeg",
+      "firestoreReference": "inventory/3af5debda40edb54942fdeb31463e6bfca91e322",
+      "exists": "unknown",
+      "referenced": true,
+      "recommendedAction": "Manually verify external/URL storage reference; do not delete Firestore record until the storage owner and retention requirement are confirmed.",
+      "message": "Storage URL requires manual leak verification: http://roarcarssa.com/uploads/4e713ce84f96421cb0b2144f9af759a8.jpeg"
+    },
+    {
+      "storagePath": "http://roarcarssa.com/uploads/f2f0dddb0e3440848bdfc377f69e1496.jpeg",
+      "firestoreReference": "inventory/910e3cffe3519e68fd8e5fa80101f34b01461f83",
+      "exists": "unknown",
+      "referenced": true,
+      "recommendedAction": "Manually verify external/URL storage reference; do not delete Firestore record until the storage owner and retention requirement are confirmed.",
+      "message": "Storage URL requires manual leak verification: http://roarcarssa.com/uploads/f2f0dddb0e3440848bdfc377f69e1496.jpeg"
+    },
+    {
+      "storagePath": "images/roar-cars-placeholder.svg",
+      "firestoreReference": "inventory/qa-v1-roar-vehicle",
+      "exists": false,
+      "referenced": true,
+      "recommendedAction": "Repair or remove the Firestore storage reference before deleting related records; verify whether the file was intentionally removed.",
+      "message": "Referenced storage object does not exist: images/roar-cars-placeholder.svg"
+    }
+  ],
+  "deletionRiskMatrix": [
+    {
+      "path": "users/4AEUqmHRJ9WRNpvPv2qO8D1Qqrj1",
+      "collection": "users",
+      "documentId": "4AEUqmHRJ9WRNpvPv2qO8D1Qqrj1",
+      "label": "QA Driver",
+      "whySelected": [
+        "matched /\\bqa\\b/i",
+        "matched /@qa\\./i",
+        "matched /qa-v\\d+/i",
+        "explicit test/mock/sample flag"
+      ],
+      "inboundReferences": [],
+      "createsOrphans": false,
+      "dependentRepairRequiredFirst": false,
+      "recommendation": "SAFE TO DELETE AFTER APPROVAL"
+    },
+    {
+      "path": "users/4tGDSPiGPSYsRwkRgMYiiqVddo52",
+      "collection": "users",
+      "documentId": "4tGDSPiGPSYsRwkRgMYiiqVddo52",
+      "label": "QA Admin",
+      "whySelected": [
+        "matched /\\bqa\\b/i",
+        "matched /@qa\\./i",
+        "matched /qa-v\\d+/i",
+        "explicit test/mock/sample flag"
+      ],
+      "inboundReferences": [],
+      "createsOrphans": false,
+      "dependentRepairRequiredFirst": false,
+      "recommendation": "SAFE TO DELETE AFTER APPROVAL"
+    },
+    {
+      "path": "users/52dhyG1wjkfJfdM0X9wYRp5y2Ry1",
+      "collection": "users",
+      "documentId": "52dhyG1wjkfJfdM0X9wYRp5y2Ry1",
+      "label": "QA Staff",
+      "whySelected": [
+        "matched /\\bqa\\b/i",
+        "matched /@qa\\./i",
+        "matched /qa-v\\d+/i",
+        "explicit test/mock/sample flag"
+      ],
+      "inboundReferences": [],
+      "createsOrphans": false,
+      "dependentRepairRequiredFirst": false,
+      "recommendation": "SAFE TO DELETE AFTER APPROVAL"
+    },
+    {
+      "path": "users/CWg6bLyMiNfiY96VVhxJcU58FCm2",
+      "collection": "users",
+      "documentId": "CWg6bLyMiNfiY96VVhxJcU58FCm2",
+      "label": "QA Manager",
+      "whySelected": [
+        "matched /\\bqa\\b/i",
+        "matched /@qa\\./i",
+        "matched /qa-v\\d+/i",
+        "explicit test/mock/sample flag"
+      ],
+      "inboundReferences": [],
+      "createsOrphans": false,
+      "dependentRepairRequiredFirst": false,
+      "recommendation": "SAFE TO DELETE AFTER APPROVAL"
+    },
+    {
+      "path": "users/CgWVU9ePjCQpj7nQSAEN6IYwbz73",
+      "collection": "users",
+      "documentId": "CgWVU9ePjCQpj7nQSAEN6IYwbz73",
+      "label": "QA admin prod-f3c185b-1782677481358",
+      "whySelected": [
+        "matched /\\bqa\\b/i",
+        "matched /@qa\\./i"
+      ],
+      "inboundReferences": [],
+      "createsOrphans": false,
+      "dependentRepairRequiredFirst": false,
+      "recommendation": "SAFE TO DELETE AFTER APPROVAL"
+    },
+    {
+      "path": "users/GXTrRmOBByg0lW0A2WXsBSmxQrX2",
+      "collection": "users",
+      "documentId": "GXTrRmOBByg0lW0A2WXsBSmxQrX2",
+      "label": "QA Vehicle Finance Staff",
+      "whySelected": [
+        "matched /\\bqa\\b/i",
+        "matched /@qa\\./i",
+        "matched /qa-v\\d+/i",
+        "explicit test/mock/sample flag"
+      ],
+      "inboundReferences": [
+        {
+          "sourcePath": "vehicleFinanceApplicationEvents/0bZlLS8e3MZ9nZioBP9s",
+          "sourceCollection": "vehicleFinanceApplicationEvents",
+          "field": "userId"
+        },
+        {
+          "sourcePath": "vehicleFinanceApplicationEvents/Wgz7yLWtjVmbwajC20qw",
+          "sourceCollection": "vehicleFinanceApplicationEvents",
+          "field": "userId"
+        },
+        {
+          "sourcePath": "vehicleFinanceApplicationEvents/mk2HWUjv4ryPjvHh83KX",
+          "sourceCollection": "vehicleFinanceApplicationEvents",
+          "field": "userId"
+        },
+        {
+          "sourcePath": "vehicleFinanceApplicationEvents/yT7dgvcujOwcTXcom8zN",
+          "sourceCollection": "vehicleFinanceApplicationEvents",
+          "field": "userId"
+        },
+        {
+          "sourcePath": "auditLogs/8bv5kaJSDIsattiLfJIE",
+          "sourceCollection": "auditLogs",
+          "field": "actorId"
+        },
+        {
+          "sourcePath": "auditLogs/FRiWgIouUEfsYn5k37KD",
+          "sourceCollection": "auditLogs",
+          "field": "actorId"
+        },
+        {
+          "sourcePath": "auditLogs/LLxpWDHNtQfP3TdnRMYf",
+          "sourceCollection": "auditLogs",
+          "field": "actorId"
+        }
+      ],
+      "createsOrphans": true,
+      "dependentRepairRequiredFirst": true,
+      "recommendation": "REPAIR DEPENDENCIES BEFORE DELETE"
+    },
+    {
+      "path": "users/bcjkMdsemiRjnGIz54UOYKdfdeY2",
+      "collection": "users",
+      "documentId": "bcjkMdsemiRjnGIz54UOYKdfdeY2",
+      "label": "QA Roar Cars Staff",
+      "whySelected": [
+        "matched /\\bqa\\b/i",
+        "matched /@qa\\./i",
+        "matched /qa-v\\d+/i",
+        "explicit test/mock/sample flag"
+      ],
+      "inboundReferences": [],
+      "createsOrphans": false,
+      "dependentRepairRequiredFirst": false,
+      "recommendation": "SAFE TO DELETE AFTER APPROVAL"
+    },
+    {
+      "path": "contractors/qa-v1-contractor-incomplete",
+      "collection": "contractors",
+      "documentId": "qa-v1-contractor-incomplete",
+      "label": "QA v1 Incomplete Documents Contractor",
+      "whySelected": [
+        "matched /\\bqa\\b/i",
+        "matched /qa-v\\d+/i",
+        "explicit test/mock/sample flag"
+      ],
+      "inboundReferences": [],
+      "createsOrphans": false,
+      "dependentRepairRequiredFirst": false,
+      "recommendation": "SAFE TO DELETE AFTER APPROVAL"
+    },
+    {
+      "path": "contractors/test-contractor-1",
+      "collection": "contractors",
+      "documentId": "test-contractor-1",
+      "label": "test-contractor-1",
+      "whySelected": [
+        "matched /\\btest\\b/i"
+      ],
+      "inboundReferences": [
+        {
+          "sourcePath": "documents/smoke-check",
+          "sourceCollection": "documents",
+          "field": "contractorId"
+        },
+        {
+          "sourcePath": "deals/SA2OfC91tynyZHJidLjP",
+          "sourceCollection": "deals",
+          "field": "contractorId"
+        },
+        {
+          "sourcePath": "contractorActivity/1iQoFwsM2tn0QkGl2QOh",
+          "sourceCollection": "contractorActivity",
+          "field": "contractorId"
+        },
+        {
+          "sourcePath": "contractorActivity/93B6PhSlO9vrrEOR8unE",
+          "sourceCollection": "contractorActivity",
+          "field": "contractorId"
+        },
+        {
+          "sourcePath": "contractorActivity/ERfnxaoo1v70qkzBiZXd",
+          "sourceCollection": "contractorActivity",
+          "field": "contractorId"
+        },
+        {
+          "sourcePath": "contractorActivity/J6CRBmcCUBJP9yaY3JoL",
+          "sourceCollection": "contractorActivity",
+          "field": "contractorId"
+        },
+        {
+          "sourcePath": "contractorActivity/r5xAtlP3ckFmhOw4BTjN",
+          "sourceCollection": "contractorActivity",
+          "field": "contractorId"
+        },
+        {
+          "sourcePath": "automationAlerts/7Y2wbD6s3lc5s1txIzo7",
+          "sourceCollection": "automationAlerts",
+          "field": "contractorId"
+        },
+        {
+          "sourcePath": "automationAlerts/oatIo5I4FZYZpswS0krO",
+          "sourceCollection": "automationAlerts",
+          "field": "contractorId"
+        }
+      ],
+      "createsOrphans": true,
+      "dependentRepairRequiredFirst": true,
+      "recommendation": "REPAIR DEPENDENCIES BEFORE DELETE"
+    },
+    {
+      "path": "vehicleFinanceCustomers/qa-v1-vf-customer",
+      "collection": "vehicleFinanceCustomers",
+      "documentId": "qa-v1-vf-customer",
+      "label": "qa-v1-finance@example.invalid",
+      "whySelected": [
+        "matched /\\bqa\\b/i",
+        "matched /qa-v\\d+/i",
+        "explicit test/mock/sample flag"
+      ],
+      "inboundReferences": [
+        {
+          "sourcePath": "vehicleFinanceApplications/eaf451e6-ed8e-40ab-9f89-2730df63b49b",
+          "sourceCollection": "vehicleFinanceApplications",
+          "field": "customerId"
+        },
+        {
+          "sourcePath": "vehicleFinanceApplications/qa-v1-vf-application",
+          "sourceCollection": "vehicleFinanceApplications",
+          "field": "customerId"
+        }
+      ],
+      "createsOrphans": true,
+      "dependentRepairRequiredFirst": true,
+      "recommendation": "REPAIR DEPENDENCIES BEFORE DELETE"
+    }
+  ],
+  "duplicateGroups": [
+    {
+      "collection": "contractors",
+      "key": "contractors:email:test@demo.com",
+      "records": [
+        "contractors/GqsT6LCH6wyIas8Meb8c",
+        "contractors/KLGcJzb3ZEGf2rNpHNVg",
+        "contractors/jxjgsfgHW0ouOJc2ZHYW",
+        "contractors/lkImwod6FgYrklknDS5T",
+        "contractors/m1EwzLOO115tWim5baab",
+        "contractors/qZTJeNRRviDlHFXq3cmF",
+        "contractors/vW511XxAZNSDe9BwTyFYeOjM04S2"
+      ]
+    }
+  ],
+  "deletionDependencyRisks": [
+    {
+      "level": "high",
+      "path": "documents/smoke-check",
+      "message": "Would reference deleted record contractors/test-contractor-1 through contractorId"
+    },
+    {
+      "level": "high",
+      "path": "deals/SA2OfC91tynyZHJidLjP",
+      "message": "Would reference deleted record contractors/test-contractor-1 through contractorId"
+    },
+    {
+      "level": "high",
+      "path": "vehicleFinanceApplications/eaf451e6-ed8e-40ab-9f89-2730df63b49b",
+      "message": "Would reference deleted record vehicleFinanceCustomers/qa-v1-vf-customer through customerId"
+    },
+    {
+      "level": "high",
+      "path": "vehicleFinanceApplications/qa-v1-vf-application",
+      "message": "Would reference deleted record vehicleFinanceCustomers/qa-v1-vf-customer through customerId"
+    },
+    {
+      "level": "high",
+      "path": "vehicleFinanceApplicationEvents/0bZlLS8e3MZ9nZioBP9s",
+      "message": "Would reference deleted record users/GXTrRmOBByg0lW0A2WXsBSmxQrX2 through userId"
+    },
+    {
+      "level": "high",
+      "path": "vehicleFinanceApplicationEvents/Wgz7yLWtjVmbwajC20qw",
+      "message": "Would reference deleted record users/GXTrRmOBByg0lW0A2WXsBSmxQrX2 through userId"
+    },
+    {
+      "level": "high",
+      "path": "vehicleFinanceApplicationEvents/mk2HWUjv4ryPjvHh83KX",
+      "message": "Would reference deleted record users/GXTrRmOBByg0lW0A2WXsBSmxQrX2 through userId"
+    },
+    {
+      "level": "high",
+      "path": "vehicleFinanceApplicationEvents/yT7dgvcujOwcTXcom8zN",
+      "message": "Would reference deleted record users/GXTrRmOBByg0lW0A2WXsBSmxQrX2 through userId"
+    },
+    {
+      "level": "high",
+      "path": "auditLogs/8bv5kaJSDIsattiLfJIE",
+      "message": "Would reference deleted record users/GXTrRmOBByg0lW0A2WXsBSmxQrX2 through actorId"
+    },
+    {
+      "level": "high",
+      "path": "auditLogs/FRiWgIouUEfsYn5k37KD",
+      "message": "Would reference deleted record users/GXTrRmOBByg0lW0A2WXsBSmxQrX2 through actorId"
+    },
+    {
+      "level": "high",
+      "path": "auditLogs/LLxpWDHNtQfP3TdnRMYf",
+      "message": "Would reference deleted record users/GXTrRmOBByg0lW0A2WXsBSmxQrX2 through actorId"
+    },
+    {
+      "level": "high",
+      "path": "contractorActivity/1iQoFwsM2tn0QkGl2QOh",
+      "message": "Would reference deleted record contractors/test-contractor-1 through contractorId"
+    },
+    {
+      "level": "high",
+      "path": "contractorActivity/93B6PhSlO9vrrEOR8unE",
+      "message": "Would reference deleted record contractors/test-contractor-1 through contractorId"
+    },
+    {
+      "level": "high",
+      "path": "contractorActivity/ERfnxaoo1v70qkzBiZXd",
+      "message": "Would reference deleted record contractors/test-contractor-1 through contractorId"
+    },
+    {
+      "level": "high",
+      "path": "contractorActivity/J6CRBmcCUBJP9yaY3JoL",
+      "message": "Would reference deleted record contractors/test-contractor-1 through contractorId"
+    },
+    {
+      "level": "high",
+      "path": "contractorActivity/r5xAtlP3ckFmhOw4BTjN",
+      "message": "Would reference deleted record contractors/test-contractor-1 through contractorId"
+    },
+    {
+      "level": "high",
+      "path": "automationAlerts/7Y2wbD6s3lc5s1txIzo7",
+      "message": "Would reference deleted record contractors/test-contractor-1 through contractorId"
+    },
+    {
+      "level": "high",
+      "path": "automationAlerts/oatIo5I4FZYZpswS0krO",
+      "message": "Would reference deleted record contractors/test-contractor-1 through contractorId"
+    }
+  ],
+  "recommendedCleanupOrder": [
+    "1. Freeze deletes until workspace migration and auth profile repair are complete.",
+    "2. Repair or classify broken references in real production records, starting with Users, Contractors, Vehicle Finance, and Documents.",
+    "3. Resolve duplicate contractor group for test@demo.com and choose canonical delete/keep records.",
+    "4. Verify four storage inconsistencies manually and repair missing object references before any record deletion.",
+    "5. Delete low-risk QA users with no inbound references only after an explicit approval file is prepared.",
+    "6. Delete QA contractor/deal/vehicle-finance chains only as grouped operations after dependent records are approved.",
+    "7. Rerun dry-run cleanup and confirm zero new broken references before any apply run."
+  ]
+}

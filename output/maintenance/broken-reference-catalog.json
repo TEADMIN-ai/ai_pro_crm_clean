@@ -1,0 +1,3193 @@
+{
+  "summary": {
+    "generatedAt": "2026-07-07T18:13:35.251Z",
+    "sourceReport": "output/maintenance/production-data-cleanup-report.json",
+    "totalBrokenReferences": 166,
+    "byStrategy": {
+      "RELINK": 16,
+      "ARCHIVE": 12,
+      "MANUAL REVIEW": 1,
+      "KEEP": 137
+    },
+    "bySeverity": {
+      "Critical": 4,
+      "High": 24,
+      "Medium": 22,
+      "Low": 116
+    },
+    "currentScores": {
+      "dataIntegrity": 74,
+      "referenceHealth": 75,
+      "productionReadiness": 71
+    },
+    "targetScores": {
+      "dataIntegrity": ">95",
+      "referenceHealth": ">98",
+      "productionReadiness": ">95"
+    },
+    "estimatedAfterRepair": {
+      "dataIntegrity": 96,
+      "referenceHealth": 99,
+      "productionReadiness": 96,
+      "rationale": "If all 166 broken references are repaired or intentionally preserved with virtual/denormalized targets, all four storage inconsistencies are resolved, and QA chains are archived/deleted only after dependency repair."
+    }
+  },
+  "catalog": [
+    {
+      "issueId": "BR-001",
+      "collection": "users",
+      "documentId": "Gn5fIDMVQLRRR9wXRjavs0UvtSh1",
+      "sourcePath": "users/Gn5fIDMVQLRRR9wXRjavs0UvtSh1",
+      "referenceField": "contractorId",
+      "expectedTarget": "contractors/{contractorId}",
+      "missingTarget": "contractors/Gn5fIDMVQLRRR9wXRjavs0UvtSh1",
+      "relationshipType": "User profile to contractor ownership",
+      "rootCause": "Legacy user profile stores contractorId as a Firebase UID or stale contractor identifier without a matching contractors/ document.",
+      "severity": "Critical",
+      "repairStrategy": "RELINK",
+      "repairExplanation": "Find the canonical target document and update the reference field to that ID; do not infer during runtime.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "Shannon  Saleh",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-002",
+      "collection": "users",
+      "documentId": "HqabSqyhqDdYmvHch6RO6mWwJGK2",
+      "sourcePath": "users/HqabSqyhqDdYmvHch6RO6mWwJGK2",
+      "referenceField": "contractorId",
+      "expectedTarget": "contractors/{contractorId}",
+      "missingTarget": "contractors/HqabSqyhqDdYmvHch6RO6mWwJGK2",
+      "relationshipType": "User profile to contractor ownership",
+      "rootCause": "Legacy user profile stores contractorId as a Firebase UID or stale contractor identifier without a matching contractors/ document.",
+      "severity": "Critical",
+      "repairStrategy": "RELINK",
+      "repairExplanation": "Find the canonical target document and update the reference field to that ID; do not infer during runtime.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "Sarah Lee Lennets",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-003",
+      "collection": "users",
+      "documentId": "dLZ8CElXeoWDJSIidaDULKoejHr1",
+      "sourcePath": "users/dLZ8CElXeoWDJSIidaDULKoejHr1",
+      "referenceField": "contractorId",
+      "expectedTarget": "contractors/{contractorId}",
+      "missingTarget": "contractors/dLZ8CElXeoWDJSIidaDULKoejHr1",
+      "relationshipType": "User profile to contractor ownership",
+      "rootCause": "Legacy user profile stores contractorId as a Firebase UID or stale contractor identifier without a matching contractors/ document.",
+      "severity": "Critical",
+      "repairStrategy": "RELINK",
+      "repairExplanation": "Find the canonical target document and update the reference field to that ID; do not infer during runtime.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "Maxine Coetzee",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-004",
+      "collection": "users",
+      "documentId": "z0yX8cyt38hkfa60UEyNTOiX2812",
+      "sourcePath": "users/z0yX8cyt38hkfa60UEyNTOiX2812",
+      "referenceField": "contractorId",
+      "expectedTarget": "contractors/{contractorId}",
+      "missingTarget": "contractors/z0yX8cyt38hkfa60UEyNTOiX2812",
+      "relationshipType": "User profile to contractor ownership",
+      "rootCause": "Legacy user profile stores contractorId as a Firebase UID or stale contractor identifier without a matching contractors/ document.",
+      "severity": "Critical",
+      "repairStrategy": "RELINK",
+      "repairExplanation": "Find the canonical target document and update the reference field to that ID; do not infer during runtime.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "Mr K",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-005",
+      "collection": "contractors",
+      "documentId": "CzEqgwRTDmT6u2XEtSJ20BVKR8B2",
+      "sourcePath": "contractors/CzEqgwRTDmT6u2XEtSJ20BVKR8B2",
+      "referenceField": "authUid",
+      "expectedTarget": "users/{authUid}",
+      "missingTarget": "users/CzEqgwRTDmT6u2XEtSJ20BVKR8B2",
+      "relationshipType": "Contractor to Firebase/user identity",
+      "rootCause": "Contractor profile was seeded or imported with an auth UID that does not exist in the production users/ collection.",
+      "severity": "High",
+      "repairStrategy": "ARCHIVE",
+      "repairExplanation": "Archive the non-production/test business record and its dependent chain after approval; avoid physical delete until dependency checks pass.",
+      "sourceRecommendation": "manual-review",
+      "sourceLabel": "TEST CONTRACTOR 02",
+      "sourceReasons": [
+        "matched /\\btest\\b/i"
+      ]
+    },
+    {
+      "issueId": "BR-006",
+      "collection": "contractors",
+      "documentId": "CzEqgwRTDmT6u2XEtSJ20BVKR8B2",
+      "sourcePath": "contractors/CzEqgwRTDmT6u2XEtSJ20BVKR8B2",
+      "referenceField": "userId",
+      "expectedTarget": "users/{userId}",
+      "missingTarget": "users/CzEqgwRTDmT6u2XEtSJ20BVKR8B2",
+      "relationshipType": "Contractor to Firebase/user identity",
+      "rootCause": "Contractor profile was seeded or imported with an auth UID that does not exist in the production users/ collection.",
+      "severity": "High",
+      "repairStrategy": "ARCHIVE",
+      "repairExplanation": "Archive the non-production/test business record and its dependent chain after approval; avoid physical delete until dependency checks pass.",
+      "sourceRecommendation": "manual-review",
+      "sourceLabel": "TEST CONTRACTOR 02",
+      "sourceReasons": [
+        "matched /\\btest\\b/i"
+      ]
+    },
+    {
+      "issueId": "BR-007",
+      "collection": "contractors",
+      "documentId": "GqsT6LCH6wyIas8Meb8c",
+      "sourcePath": "contractors/GqsT6LCH6wyIas8Meb8c",
+      "referenceField": "authUid",
+      "expectedTarget": "users/{authUid}",
+      "missingTarget": "users/GqsT6LCH6wyIas8Meb8c",
+      "relationshipType": "Contractor to Firebase/user identity",
+      "rootCause": "Contractor profile was seeded or imported with an auth UID that does not exist in the production users/ collection.",
+      "severity": "High",
+      "repairStrategy": "ARCHIVE",
+      "repairExplanation": "Archive the non-production/test business record and its dependent chain after approval; avoid physical delete until dependency checks pass.",
+      "sourceRecommendation": "manual-review",
+      "sourceLabel": "Test Contractor",
+      "sourceReasons": [
+        "matched /\\btest\\b/i"
+      ]
+    },
+    {
+      "issueId": "BR-008",
+      "collection": "contractors",
+      "documentId": "KLGcJzb3ZEGf2rNpHNVg",
+      "sourcePath": "contractors/KLGcJzb3ZEGf2rNpHNVg",
+      "referenceField": "authUid",
+      "expectedTarget": "users/{authUid}",
+      "missingTarget": "users/KLGcJzb3ZEGf2rNpHNVg",
+      "relationshipType": "Contractor to Firebase/user identity",
+      "rootCause": "Contractor profile was seeded or imported with an auth UID that does not exist in the production users/ collection.",
+      "severity": "High",
+      "repairStrategy": "ARCHIVE",
+      "repairExplanation": "Archive the non-production/test business record and its dependent chain after approval; avoid physical delete until dependency checks pass.",
+      "sourceRecommendation": "manual-review",
+      "sourceLabel": "Test Contractor",
+      "sourceReasons": [
+        "matched /\\btest\\b/i"
+      ]
+    },
+    {
+      "issueId": "BR-009",
+      "collection": "contractors",
+      "documentId": "ND4HCW4KdEmXLGTDKMfF",
+      "sourcePath": "contractors/ND4HCW4KdEmXLGTDKMfF",
+      "referenceField": "authUid",
+      "expectedTarget": "users/{authUid}",
+      "missingTarget": "users/ND4HCW4KdEmXLGTDKMfF",
+      "relationshipType": "Contractor to Firebase/user identity",
+      "rootCause": "Contractor profile was seeded or imported with an auth UID that does not exist in the production users/ collection.",
+      "severity": "High",
+      "repairStrategy": "RELINK",
+      "repairExplanation": "Find the canonical target document and update the reference field to that ID; do not infer during runtime.",
+      "sourceRecommendation": "manual-review",
+      "sourceLabel": "Stability Check 1775308790400",
+      "sourceReasons": [
+        "matched /example\\.com/i"
+      ]
+    },
+    {
+      "issueId": "BR-010",
+      "collection": "contractors",
+      "documentId": "a1CxFTpi5AatIkGXUXOkh50F1h93",
+      "sourcePath": "contractors/a1CxFTpi5AatIkGXUXOkh50F1h93",
+      "referenceField": "authUid",
+      "expectedTarget": "users/{authUid}",
+      "missingTarget": "users/a1CxFTpi5AatIkGXUXOkh50F1h93",
+      "relationshipType": "Contractor to Firebase/user identity",
+      "rootCause": "Contractor profile was seeded or imported with an auth UID that does not exist in the production users/ collection.",
+      "severity": "High",
+      "repairStrategy": "ARCHIVE",
+      "repairExplanation": "Archive the non-production/test business record and its dependent chain after approval; avoid physical delete until dependency checks pass.",
+      "sourceRecommendation": "manual-review",
+      "sourceLabel": "QA E2E Contractor 20260605100015",
+      "sourceReasons": [
+        "matched /\\bqa\\b/i",
+        "matched /example\\.com/i"
+      ]
+    },
+    {
+      "issueId": "BR-011",
+      "collection": "contractors",
+      "documentId": "a1CxFTpi5AatIkGXUXOkh50F1h93",
+      "sourcePath": "contractors/a1CxFTpi5AatIkGXUXOkh50F1h93",
+      "referenceField": "userId",
+      "expectedTarget": "users/{userId}",
+      "missingTarget": "users/a1CxFTpi5AatIkGXUXOkh50F1h93",
+      "relationshipType": "Contractor to Firebase/user identity",
+      "rootCause": "Contractor profile was seeded or imported with an auth UID that does not exist in the production users/ collection.",
+      "severity": "High",
+      "repairStrategy": "ARCHIVE",
+      "repairExplanation": "Archive the non-production/test business record and its dependent chain after approval; avoid physical delete until dependency checks pass.",
+      "sourceRecommendation": "manual-review",
+      "sourceLabel": "QA E2E Contractor 20260605100015",
+      "sourceReasons": [
+        "matched /\\bqa\\b/i",
+        "matched /example\\.com/i"
+      ]
+    },
+    {
+      "issueId": "BR-012",
+      "collection": "contractors",
+      "documentId": "b2qz6m1aW2NNzVLjQg8K",
+      "sourcePath": "contractors/b2qz6m1aW2NNzVLjQg8K",
+      "referenceField": "authUid",
+      "expectedTarget": "users/{authUid}",
+      "missingTarget": "users/b2qz6m1aW2NNzVLjQg8K",
+      "relationshipType": "Contractor to Firebase/user identity",
+      "rootCause": "Contractor profile was seeded or imported with an auth UID that does not exist in the production users/ collection.",
+      "severity": "High",
+      "repairStrategy": "RELINK",
+      "repairExplanation": "Find the canonical target document and update the reference field to that ID; do not infer during runtime.",
+      "sourceRecommendation": "manual-review",
+      "sourceLabel": "Stability Check 1775307838",
+      "sourceReasons": [
+        "matched /example\\.com/i"
+      ]
+    },
+    {
+      "issueId": "BR-013",
+      "collection": "contractors",
+      "documentId": "jxjgsfgHW0ouOJc2ZHYW",
+      "sourcePath": "contractors/jxjgsfgHW0ouOJc2ZHYW",
+      "referenceField": "authUid",
+      "expectedTarget": "users/{authUid}",
+      "missingTarget": "users/jxjgsfgHW0ouOJc2ZHYW",
+      "relationshipType": "Contractor to Firebase/user identity",
+      "rootCause": "Contractor profile was seeded or imported with an auth UID that does not exist in the production users/ collection.",
+      "severity": "High",
+      "repairStrategy": "ARCHIVE",
+      "repairExplanation": "Archive the non-production/test business record and its dependent chain after approval; avoid physical delete until dependency checks pass.",
+      "sourceRecommendation": "manual-review",
+      "sourceLabel": "Test Contractor",
+      "sourceReasons": [
+        "matched /\\btest\\b/i"
+      ]
+    },
+    {
+      "issueId": "BR-014",
+      "collection": "contractors",
+      "documentId": "l2czruUhWdKiS4HJ9rft",
+      "sourcePath": "contractors/l2czruUhWdKiS4HJ9rft",
+      "referenceField": "authUid",
+      "expectedTarget": "users/{authUid}",
+      "missingTarget": "users/l2czruUhWdKiS4HJ9rft",
+      "relationshipType": "Contractor to Firebase/user identity",
+      "rootCause": "Contractor profile was seeded or imported with an auth UID that does not exist in the production users/ collection.",
+      "severity": "High",
+      "repairStrategy": "RELINK",
+      "repairExplanation": "Find the canonical target document and update the reference field to that ID; do not infer during runtime.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "John Dow",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-015",
+      "collection": "contractors",
+      "documentId": "lkImwod6FgYrklknDS5T",
+      "sourcePath": "contractors/lkImwod6FgYrklknDS5T",
+      "referenceField": "authUid",
+      "expectedTarget": "users/{authUid}",
+      "missingTarget": "users/lkImwod6FgYrklknDS5T",
+      "relationshipType": "Contractor to Firebase/user identity",
+      "rootCause": "Contractor profile was seeded or imported with an auth UID that does not exist in the production users/ collection.",
+      "severity": "High",
+      "repairStrategy": "ARCHIVE",
+      "repairExplanation": "Archive the non-production/test business record and its dependent chain after approval; avoid physical delete until dependency checks pass.",
+      "sourceRecommendation": "manual-review",
+      "sourceLabel": "Test Contractor",
+      "sourceReasons": [
+        "matched /\\btest\\b/i"
+      ]
+    },
+    {
+      "issueId": "BR-016",
+      "collection": "contractors",
+      "documentId": "m1EwzLOO115tWim5baab",
+      "sourcePath": "contractors/m1EwzLOO115tWim5baab",
+      "referenceField": "authUid",
+      "expectedTarget": "users/{authUid}",
+      "missingTarget": "users/m1EwzLOO115tWim5baab",
+      "relationshipType": "Contractor to Firebase/user identity",
+      "rootCause": "Contractor profile was seeded or imported with an auth UID that does not exist in the production users/ collection.",
+      "severity": "High",
+      "repairStrategy": "ARCHIVE",
+      "repairExplanation": "Archive the non-production/test business record and its dependent chain after approval; avoid physical delete until dependency checks pass.",
+      "sourceRecommendation": "manual-review",
+      "sourceLabel": "Test Contractor",
+      "sourceReasons": [
+        "matched /\\btest\\b/i"
+      ]
+    },
+    {
+      "issueId": "BR-017",
+      "collection": "contractors",
+      "documentId": "pdinEHoFvUWuMG5O1MCl9gGdzfz2",
+      "sourcePath": "contractors/pdinEHoFvUWuMG5O1MCl9gGdzfz2",
+      "referenceField": "authUid",
+      "expectedTarget": "users/{authUid}",
+      "missingTarget": "users/pdinEHoFvUWuMG5O1MCl9gGdzfz2",
+      "relationshipType": "Contractor to Firebase/user identity",
+      "rootCause": "Contractor profile was seeded or imported with an auth UID that does not exist in the production users/ collection.",
+      "severity": "High",
+      "repairStrategy": "RELINK",
+      "repairExplanation": "Find the canonical target document and update the reference field to that ID; do not infer during runtime.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "Pilot Created Contractor Pty Ltd",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-018",
+      "collection": "contractors",
+      "documentId": "pdinEHoFvUWuMG5O1MCl9gGdzfz2",
+      "sourcePath": "contractors/pdinEHoFvUWuMG5O1MCl9gGdzfz2",
+      "referenceField": "userId",
+      "expectedTarget": "users/{userId}",
+      "missingTarget": "users/pdinEHoFvUWuMG5O1MCl9gGdzfz2",
+      "relationshipType": "Contractor to Firebase/user identity",
+      "rootCause": "Contractor profile was seeded or imported with an auth UID that does not exist in the production users/ collection.",
+      "severity": "High",
+      "repairStrategy": "RELINK",
+      "repairExplanation": "Find the canonical target document and update the reference field to that ID; do not infer during runtime.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "Pilot Created Contractor Pty Ltd",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-019",
+      "collection": "contractors",
+      "documentId": "qZTJeNRRviDlHFXq3cmF",
+      "sourcePath": "contractors/qZTJeNRRviDlHFXq3cmF",
+      "referenceField": "authUid",
+      "expectedTarget": "users/{authUid}",
+      "missingTarget": "users/qZTJeNRRviDlHFXq3cmF",
+      "relationshipType": "Contractor to Firebase/user identity",
+      "rootCause": "Contractor profile was seeded or imported with an auth UID that does not exist in the production users/ collection.",
+      "severity": "High",
+      "repairStrategy": "ARCHIVE",
+      "repairExplanation": "Archive the non-production/test business record and its dependent chain after approval; avoid physical delete until dependency checks pass.",
+      "sourceRecommendation": "manual-review",
+      "sourceLabel": "Test Contractor",
+      "sourceReasons": [
+        "matched /\\btest\\b/i"
+      ]
+    },
+    {
+      "issueId": "BR-020",
+      "collection": "contractors",
+      "documentId": "sYEU6aqqiEV4Gvu6eTBSmovlJa12",
+      "sourcePath": "contractors/sYEU6aqqiEV4Gvu6eTBSmovlJa12",
+      "referenceField": "authUid",
+      "expectedTarget": "users/{authUid}",
+      "missingTarget": "users/sYEU6aqqiEV4Gvu6eTBSmovlJa12",
+      "relationshipType": "Contractor to Firebase/user identity",
+      "rootCause": "Contractor profile was seeded or imported with an auth UID that does not exist in the production users/ collection.",
+      "severity": "High",
+      "repairStrategy": "RELINK",
+      "repairExplanation": "Find the canonical target document and update the reference field to that ID; do not infer during runtime.",
+      "sourceRecommendation": "manual-review",
+      "sourceLabel": "Pilot Contractor",
+      "sourceReasons": [
+        "matched /example\\.com/i"
+      ]
+    },
+    {
+      "issueId": "BR-021",
+      "collection": "contractors",
+      "documentId": "sYEU6aqqiEV4Gvu6eTBSmovlJa12",
+      "sourcePath": "contractors/sYEU6aqqiEV4Gvu6eTBSmovlJa12",
+      "referenceField": "userId",
+      "expectedTarget": "users/{userId}",
+      "missingTarget": "users/sYEU6aqqiEV4Gvu6eTBSmovlJa12",
+      "relationshipType": "Contractor to Firebase/user identity",
+      "rootCause": "Contractor profile was seeded or imported with an auth UID that does not exist in the production users/ collection.",
+      "severity": "High",
+      "repairStrategy": "RELINK",
+      "repairExplanation": "Find the canonical target document and update the reference field to that ID; do not infer during runtime.",
+      "sourceRecommendation": "manual-review",
+      "sourceLabel": "Pilot Contractor",
+      "sourceReasons": [
+        "matched /example\\.com/i"
+      ]
+    },
+    {
+      "issueId": "BR-022",
+      "collection": "contractors",
+      "documentId": "vOwPwNDdKwhvJLS9dl33AQ3bIBk1",
+      "sourcePath": "contractors/vOwPwNDdKwhvJLS9dl33AQ3bIBk1",
+      "referenceField": "authUid",
+      "expectedTarget": "users/{authUid}",
+      "missingTarget": "users/vOwPwNDdKwhvJLS9dl33AQ3bIBk1",
+      "relationshipType": "Contractor to Firebase/user identity",
+      "rootCause": "Contractor profile was seeded or imported with an auth UID that does not exist in the production users/ collection.",
+      "severity": "High",
+      "repairStrategy": "RELINK",
+      "repairExplanation": "Find the canonical target document and update the reference field to that ID; do not infer during runtime.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "Pilot Contractor Pty Ltd",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-023",
+      "collection": "contractors",
+      "documentId": "vOwPwNDdKwhvJLS9dl33AQ3bIBk1",
+      "sourcePath": "contractors/vOwPwNDdKwhvJLS9dl33AQ3bIBk1",
+      "referenceField": "userId",
+      "expectedTarget": "users/{userId}",
+      "missingTarget": "users/vOwPwNDdKwhvJLS9dl33AQ3bIBk1",
+      "relationshipType": "Contractor to Firebase/user identity",
+      "rootCause": "Contractor profile was seeded or imported with an auth UID that does not exist in the production users/ collection.",
+      "severity": "High",
+      "repairStrategy": "RELINK",
+      "repairExplanation": "Find the canonical target document and update the reference field to that ID; do not infer during runtime.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "Pilot Contractor Pty Ltd",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-024",
+      "collection": "contractors",
+      "documentId": "vW511XxAZNSDe9BwTyFYeOjM04S2",
+      "sourcePath": "contractors/vW511XxAZNSDe9BwTyFYeOjM04S2",
+      "referenceField": "authUid",
+      "expectedTarget": "users/{authUid}",
+      "missingTarget": "users/vW511XxAZNSDe9BwTyFYeOjM04S2",
+      "relationshipType": "Contractor to Firebase/user identity",
+      "rootCause": "Contractor profile was seeded or imported with an auth UID that does not exist in the production users/ collection.",
+      "severity": "High",
+      "repairStrategy": "ARCHIVE",
+      "repairExplanation": "Archive the non-production/test business record and its dependent chain after approval; avoid physical delete until dependency checks pass.",
+      "sourceRecommendation": "manual-review",
+      "sourceLabel": "Test Contractor",
+      "sourceReasons": [
+        "matched /\\btest\\b/i"
+      ]
+    },
+    {
+      "issueId": "BR-025",
+      "collection": "contractors",
+      "documentId": "vW511XxAZNSDe9BwTyFYeOjM04S2",
+      "sourcePath": "contractors/vW511XxAZNSDe9BwTyFYeOjM04S2",
+      "referenceField": "userId",
+      "expectedTarget": "users/{userId}",
+      "missingTarget": "users/vW511XxAZNSDe9BwTyFYeOjM04S2",
+      "relationshipType": "Contractor to Firebase/user identity",
+      "rootCause": "Contractor profile was seeded or imported with an auth UID that does not exist in the production users/ collection.",
+      "severity": "High",
+      "repairStrategy": "ARCHIVE",
+      "repairExplanation": "Archive the non-production/test business record and its dependent chain after approval; avoid physical delete until dependency checks pass.",
+      "sourceRecommendation": "manual-review",
+      "sourceLabel": "Test Contractor",
+      "sourceReasons": [
+        "matched /\\btest\\b/i"
+      ]
+    },
+    {
+      "issueId": "BR-026",
+      "collection": "tenderPackRequests",
+      "documentId": "somMJhpLiIGwCje0xrIG",
+      "sourcePath": "tenderPackRequests/somMJhpLiIGwCje0xrIG",
+      "referenceField": "requestedBy",
+      "expectedTarget": "users/{requestedBy}",
+      "missingTarget": "users/vOwPwNDdKwhvJLS9dl33AQ3bIBk1",
+      "relationshipType": "Tender/deal record to parent business entity",
+      "rootCause": "Legacy data shape or deleted seed data left a dangling reference.",
+      "severity": "Medium",
+      "repairStrategy": "MANUAL REVIEW",
+      "repairExplanation": "Needs owner confirmation before choosing restore, relink, archive, or delete.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "somMJhpLiIGwCje0xrIG",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-027",
+      "collection": "vehicleFinanceApplications",
+      "documentId": "75f8e2a2-d9d7-468f-9cdc-4aa4293e1be2",
+      "sourcePath": "vehicleFinanceApplications/75f8e2a2-d9d7-468f-9cdc-4aa4293e1be2",
+      "referenceField": "vehicleId",
+      "expectedTarget": "inventory/{vehicleId}",
+      "missingTarget": "inventory/140fdfcc3f4147c3aba6739585ba7644",
+      "relationshipType": "Vehicle finance application to inventory vehicle",
+      "rootCause": "Vehicle finance sample/legacy records reference inventory/application/customer IDs that are absent from the current production read model.",
+      "severity": "High",
+      "repairStrategy": "RELINK",
+      "repairExplanation": "Find the canonical target document and update the reference field to that ID; do not infer during runtime.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "75f8e2a2-d9d7-468f-9cdc-4aa4293e1be2",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-028",
+      "collection": "vehicleFinanceApplications",
+      "documentId": "a02a6245-d007-444b-8bba-cbb14979b882",
+      "sourcePath": "vehicleFinanceApplications/a02a6245-d007-444b-8bba-cbb14979b882",
+      "referenceField": "vehicleId",
+      "expectedTarget": "inventory/{vehicleId}",
+      "missingTarget": "inventory/BMW 320d M Sport",
+      "relationshipType": "Vehicle finance application to inventory vehicle",
+      "rootCause": "Vehicle finance sample/legacy records reference inventory/application/customer IDs that are absent from the current production read model.",
+      "severity": "High",
+      "repairStrategy": "RELINK",
+      "repairExplanation": "Find the canonical target document and update the reference field to that ID; do not infer during runtime.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "a02a6245-d007-444b-8bba-cbb14979b882",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-029",
+      "collection": "vehicleFinanceApplications",
+      "documentId": "bbd83683-a1ed-4a0d-bd88-5e6967118e1c",
+      "sourcePath": "vehicleFinanceApplications/bbd83683-a1ed-4a0d-bd88-5e6967118e1c",
+      "referenceField": "vehicleId",
+      "expectedTarget": "inventory/{vehicleId}",
+      "missingTarget": "inventory/140fdfcc3f4147c3aba6739585ba7644",
+      "relationshipType": "Vehicle finance application to inventory vehicle",
+      "rootCause": "Vehicle finance sample/legacy records reference inventory/application/customer IDs that are absent from the current production read model.",
+      "severity": "High",
+      "repairStrategy": "RELINK",
+      "repairExplanation": "Find the canonical target document and update the reference field to that ID; do not infer during runtime.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "bbd83683-a1ed-4a0d-bd88-5e6967118e1c",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-030",
+      "collection": "auditLogs",
+      "documentId": "1IKVTdj1kTliwZv6wAHE",
+      "sourcePath": "auditLogs/1IKVTdj1kTliwZv6wAHE",
+      "referenceField": "userId",
+      "expectedTarget": "users/{userId}",
+      "missingTarget": "users/system",
+      "relationshipType": "Immutable operational event to actor/target",
+      "rootCause": "System-generated audit entries use a virtual actor that is not represented by a users/ document.",
+      "severity": "Low",
+      "repairStrategy": "KEEP",
+      "repairExplanation": "Preserve immutable operational history; repair reporting with virtual actor labels or denormalized metadata instead of deleting audit evidence.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "1IKVTdj1kTliwZv6wAHE",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-031",
+      "collection": "auditLogs",
+      "documentId": "1mgQOUbm3ndSP1xJ73vo",
+      "sourcePath": "auditLogs/1mgQOUbm3ndSP1xJ73vo",
+      "referenceField": "userId",
+      "expectedTarget": "users/{userId}",
+      "missingTarget": "users/system",
+      "relationshipType": "Immutable operational event to actor/target",
+      "rootCause": "System-generated audit entries use a virtual actor that is not represented by a users/ document.",
+      "severity": "Low",
+      "repairStrategy": "KEEP",
+      "repairExplanation": "Preserve immutable operational history; repair reporting with virtual actor labels or denormalized metadata instead of deleting audit evidence.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "1mgQOUbm3ndSP1xJ73vo",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-032",
+      "collection": "auditLogs",
+      "documentId": "2hjPG9NT0Toe89IkxPYv",
+      "sourcePath": "auditLogs/2hjPG9NT0Toe89IkxPYv",
+      "referenceField": "userId",
+      "expectedTarget": "users/{userId}",
+      "missingTarget": "users/system",
+      "relationshipType": "Immutable operational event to actor/target",
+      "rootCause": "System-generated audit entries use a virtual actor that is not represented by a users/ document.",
+      "severity": "Low",
+      "repairStrategy": "KEEP",
+      "repairExplanation": "Preserve immutable operational history; repair reporting with virtual actor labels or denormalized metadata instead of deleting audit evidence.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "2hjPG9NT0Toe89IkxPYv",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-033",
+      "collection": "auditLogs",
+      "documentId": "2vShLbqstZQA1SkgArEq",
+      "sourcePath": "auditLogs/2vShLbqstZQA1SkgArEq",
+      "referenceField": "userId",
+      "expectedTarget": "users/{userId}",
+      "missingTarget": "users/system",
+      "relationshipType": "Immutable operational event to actor/target",
+      "rootCause": "System-generated audit entries use a virtual actor that is not represented by a users/ document.",
+      "severity": "Low",
+      "repairStrategy": "KEEP",
+      "repairExplanation": "Preserve immutable operational history; repair reporting with virtual actor labels or denormalized metadata instead of deleting audit evidence.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "2vShLbqstZQA1SkgArEq",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-034",
+      "collection": "auditLogs",
+      "documentId": "39mZuMeybdqSrbVFWZP7",
+      "sourcePath": "auditLogs/39mZuMeybdqSrbVFWZP7",
+      "referenceField": "userId",
+      "expectedTarget": "users/{userId}",
+      "missingTarget": "users/system",
+      "relationshipType": "Immutable operational event to actor/target",
+      "rootCause": "System-generated audit entries use a virtual actor that is not represented by a users/ document.",
+      "severity": "Low",
+      "repairStrategy": "KEEP",
+      "repairExplanation": "Preserve immutable operational history; repair reporting with virtual actor labels or denormalized metadata instead of deleting audit evidence.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "39mZuMeybdqSrbVFWZP7",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-035",
+      "collection": "auditLogs",
+      "documentId": "3jXVT8fYCMwyz30XeHcF",
+      "sourcePath": "auditLogs/3jXVT8fYCMwyz30XeHcF",
+      "referenceField": "userId",
+      "expectedTarget": "users/{userId}",
+      "missingTarget": "users/system",
+      "relationshipType": "Immutable operational event to actor/target",
+      "rootCause": "System-generated audit entries use a virtual actor that is not represented by a users/ document.",
+      "severity": "Low",
+      "repairStrategy": "KEEP",
+      "repairExplanation": "Preserve immutable operational history; repair reporting with virtual actor labels or denormalized metadata instead of deleting audit evidence.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "3jXVT8fYCMwyz30XeHcF",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-036",
+      "collection": "auditLogs",
+      "documentId": "3vICeozMW7qtHUZiUpfs",
+      "sourcePath": "auditLogs/3vICeozMW7qtHUZiUpfs",
+      "referenceField": "userId",
+      "expectedTarget": "users/{userId}",
+      "missingTarget": "users/system",
+      "relationshipType": "Immutable operational event to actor/target",
+      "rootCause": "System-generated audit entries use a virtual actor that is not represented by a users/ document.",
+      "severity": "Low",
+      "repairStrategy": "KEEP",
+      "repairExplanation": "Preserve immutable operational history; repair reporting with virtual actor labels or denormalized metadata instead of deleting audit evidence.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "3vICeozMW7qtHUZiUpfs",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-037",
+      "collection": "auditLogs",
+      "documentId": "4Cb0DHNwETsTZlJTHA6a",
+      "sourcePath": "auditLogs/4Cb0DHNwETsTZlJTHA6a",
+      "referenceField": "userId",
+      "expectedTarget": "users/{userId}",
+      "missingTarget": "users/system",
+      "relationshipType": "Immutable operational event to actor/target",
+      "rootCause": "System-generated audit entries use a virtual actor that is not represented by a users/ document.",
+      "severity": "Low",
+      "repairStrategy": "KEEP",
+      "repairExplanation": "Preserve immutable operational history; repair reporting with virtual actor labels or denormalized metadata instead of deleting audit evidence.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "4Cb0DHNwETsTZlJTHA6a",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-038",
+      "collection": "auditLogs",
+      "documentId": "4nCBuvn28ZIRV2bNbbHu",
+      "sourcePath": "auditLogs/4nCBuvn28ZIRV2bNbbHu",
+      "referenceField": "userId",
+      "expectedTarget": "users/{userId}",
+      "missingTarget": "users/ekUvq3lC7HUEwICe5rcCQBWovSF3",
+      "relationshipType": "Immutable operational event to actor/target",
+      "rootCause": "Legacy data shape or deleted seed data left a dangling reference.",
+      "severity": "Medium",
+      "repairStrategy": "KEEP",
+      "repairExplanation": "Preserve immutable operational history; repair reporting with virtual actor labels or denormalized metadata instead of deleting audit evidence.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "4nCBuvn28ZIRV2bNbbHu",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-039",
+      "collection": "auditLogs",
+      "documentId": "5PZuCIBbO7NCS0VaHGBS",
+      "sourcePath": "auditLogs/5PZuCIBbO7NCS0VaHGBS",
+      "referenceField": "userId",
+      "expectedTarget": "users/{userId}",
+      "missingTarget": "users/system",
+      "relationshipType": "Immutable operational event to actor/target",
+      "rootCause": "System-generated audit entries use a virtual actor that is not represented by a users/ document.",
+      "severity": "Low",
+      "repairStrategy": "KEEP",
+      "repairExplanation": "Preserve immutable operational history; repair reporting with virtual actor labels or denormalized metadata instead of deleting audit evidence.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "5PZuCIBbO7NCS0VaHGBS",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-040",
+      "collection": "auditLogs",
+      "documentId": "5ZxWeBJ4RwilQhw9QqPn",
+      "sourcePath": "auditLogs/5ZxWeBJ4RwilQhw9QqPn",
+      "referenceField": "userId",
+      "expectedTarget": "users/{userId}",
+      "missingTarget": "users/system",
+      "relationshipType": "Immutable operational event to actor/target",
+      "rootCause": "System-generated audit entries use a virtual actor that is not represented by a users/ document.",
+      "severity": "Low",
+      "repairStrategy": "KEEP",
+      "repairExplanation": "Preserve immutable operational history; repair reporting with virtual actor labels or denormalized metadata instead of deleting audit evidence.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "5ZxWeBJ4RwilQhw9QqPn",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-041",
+      "collection": "auditLogs",
+      "documentId": "5t5YzBCZw94pZqmFYs2g",
+      "sourcePath": "auditLogs/5t5YzBCZw94pZqmFYs2g",
+      "referenceField": "userId",
+      "expectedTarget": "users/{userId}",
+      "missingTarget": "users/system",
+      "relationshipType": "Immutable operational event to actor/target",
+      "rootCause": "System-generated audit entries use a virtual actor that is not represented by a users/ document.",
+      "severity": "Low",
+      "repairStrategy": "KEEP",
+      "repairExplanation": "Preserve immutable operational history; repair reporting with virtual actor labels or denormalized metadata instead of deleting audit evidence.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "5t5YzBCZw94pZqmFYs2g",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-042",
+      "collection": "auditLogs",
+      "documentId": "6BiGcnRQxFXRXEiZfzjZ",
+      "sourcePath": "auditLogs/6BiGcnRQxFXRXEiZfzjZ",
+      "referenceField": "userId",
+      "expectedTarget": "users/{userId}",
+      "missingTarget": "users/system",
+      "relationshipType": "Immutable operational event to actor/target",
+      "rootCause": "System-generated audit entries use a virtual actor that is not represented by a users/ document.",
+      "severity": "Low",
+      "repairStrategy": "KEEP",
+      "repairExplanation": "Preserve immutable operational history; repair reporting with virtual actor labels or denormalized metadata instead of deleting audit evidence.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "6BiGcnRQxFXRXEiZfzjZ",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-043",
+      "collection": "auditLogs",
+      "documentId": "7caOxspNxt2fIdYPV11N",
+      "sourcePath": "auditLogs/7caOxspNxt2fIdYPV11N",
+      "referenceField": "userId",
+      "expectedTarget": "users/{userId}",
+      "missingTarget": "users/system",
+      "relationshipType": "Immutable operational event to actor/target",
+      "rootCause": "System-generated audit entries use a virtual actor that is not represented by a users/ document.",
+      "severity": "Low",
+      "repairStrategy": "KEEP",
+      "repairExplanation": "Preserve immutable operational history; repair reporting with virtual actor labels or denormalized metadata instead of deleting audit evidence.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "7caOxspNxt2fIdYPV11N",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-044",
+      "collection": "auditLogs",
+      "documentId": "88imIOpgDwR8s9WEBbBm",
+      "sourcePath": "auditLogs/88imIOpgDwR8s9WEBbBm",
+      "referenceField": "userId",
+      "expectedTarget": "users/{userId}",
+      "missingTarget": "users/system",
+      "relationshipType": "Immutable operational event to actor/target",
+      "rootCause": "System-generated audit entries use a virtual actor that is not represented by a users/ document.",
+      "severity": "Low",
+      "repairStrategy": "KEEP",
+      "repairExplanation": "Preserve immutable operational history; repair reporting with virtual actor labels or denormalized metadata instead of deleting audit evidence.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "88imIOpgDwR8s9WEBbBm",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-045",
+      "collection": "auditLogs",
+      "documentId": "9oF773w4EnN7kfovBjIn",
+      "sourcePath": "auditLogs/9oF773w4EnN7kfovBjIn",
+      "referenceField": "userId",
+      "expectedTarget": "users/{userId}",
+      "missingTarget": "users/mIvgcVQzo4gdFyNHNIMn1SLElCp1",
+      "relationshipType": "Immutable operational event to actor/target",
+      "rootCause": "Legacy data shape or deleted seed data left a dangling reference.",
+      "severity": "Medium",
+      "repairStrategy": "KEEP",
+      "repairExplanation": "Preserve immutable operational history; repair reporting with virtual actor labels or denormalized metadata instead of deleting audit evidence.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "9oF773w4EnN7kfovBjIn",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-046",
+      "collection": "auditLogs",
+      "documentId": "AD08srdKa8gfAJlAIgK4",
+      "sourcePath": "auditLogs/AD08srdKa8gfAJlAIgK4",
+      "referenceField": "userId",
+      "expectedTarget": "users/{userId}",
+      "missingTarget": "users/weafIuxbamYoEoJaSytAvumVxK62",
+      "relationshipType": "Immutable operational event to actor/target",
+      "rootCause": "Legacy data shape or deleted seed data left a dangling reference.",
+      "severity": "Medium",
+      "repairStrategy": "KEEP",
+      "repairExplanation": "Preserve immutable operational history; repair reporting with virtual actor labels or denormalized metadata instead of deleting audit evidence.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "AD08srdKa8gfAJlAIgK4",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-047",
+      "collection": "auditLogs",
+      "documentId": "AHoLTAYMKAjGCek9QQ43",
+      "sourcePath": "auditLogs/AHoLTAYMKAjGCek9QQ43",
+      "referenceField": "userId",
+      "expectedTarget": "users/{userId}",
+      "missingTarget": "users/mIvgcVQzo4gdFyNHNIMn1SLElCp1",
+      "relationshipType": "Immutable operational event to actor/target",
+      "rootCause": "Legacy data shape or deleted seed data left a dangling reference.",
+      "severity": "Medium",
+      "repairStrategy": "KEEP",
+      "repairExplanation": "Preserve immutable operational history; repair reporting with virtual actor labels or denormalized metadata instead of deleting audit evidence.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "AHoLTAYMKAjGCek9QQ43",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-048",
+      "collection": "auditLogs",
+      "documentId": "APWzaUOY25dkLbYHute5",
+      "sourcePath": "auditLogs/APWzaUOY25dkLbYHute5",
+      "referenceField": "userId",
+      "expectedTarget": "users/{userId}",
+      "missingTarget": "users/system",
+      "relationshipType": "Immutable operational event to actor/target",
+      "rootCause": "System-generated audit entries use a virtual actor that is not represented by a users/ document.",
+      "severity": "Low",
+      "repairStrategy": "KEEP",
+      "repairExplanation": "Preserve immutable operational history; repair reporting with virtual actor labels or denormalized metadata instead of deleting audit evidence.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "APWzaUOY25dkLbYHute5",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-049",
+      "collection": "auditLogs",
+      "documentId": "AeCJpzSJUH3Mu73FpbGF",
+      "sourcePath": "auditLogs/AeCJpzSJUH3Mu73FpbGF",
+      "referenceField": "userId",
+      "expectedTarget": "users/{userId}",
+      "missingTarget": "users/system",
+      "relationshipType": "Immutable operational event to actor/target",
+      "rootCause": "System-generated audit entries use a virtual actor that is not represented by a users/ document.",
+      "severity": "Low",
+      "repairStrategy": "KEEP",
+      "repairExplanation": "Preserve immutable operational history; repair reporting with virtual actor labels or denormalized metadata instead of deleting audit evidence.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "AeCJpzSJUH3Mu73FpbGF",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-050",
+      "collection": "auditLogs",
+      "documentId": "Ato3pkpjFKJWV3wY9cX5",
+      "sourcePath": "auditLogs/Ato3pkpjFKJWV3wY9cX5",
+      "referenceField": "userId",
+      "expectedTarget": "users/{userId}",
+      "missingTarget": "users/system",
+      "relationshipType": "Immutable operational event to actor/target",
+      "rootCause": "System-generated audit entries use a virtual actor that is not represented by a users/ document.",
+      "severity": "Low",
+      "repairStrategy": "KEEP",
+      "repairExplanation": "Preserve immutable operational history; repair reporting with virtual actor labels or denormalized metadata instead of deleting audit evidence.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "Ato3pkpjFKJWV3wY9cX5",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-051",
+      "collection": "auditLogs",
+      "documentId": "BKIcu32HHdtuOBkTLBFw",
+      "sourcePath": "auditLogs/BKIcu32HHdtuOBkTLBFw",
+      "referenceField": "userId",
+      "expectedTarget": "users/{userId}",
+      "missingTarget": "users/system",
+      "relationshipType": "Immutable operational event to actor/target",
+      "rootCause": "System-generated audit entries use a virtual actor that is not represented by a users/ document.",
+      "severity": "Low",
+      "repairStrategy": "KEEP",
+      "repairExplanation": "Preserve immutable operational history; repair reporting with virtual actor labels or denormalized metadata instead of deleting audit evidence.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "BKIcu32HHdtuOBkTLBFw",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-052",
+      "collection": "auditLogs",
+      "documentId": "Bbpa4JEiBqAKjEiXy5Mh",
+      "sourcePath": "auditLogs/Bbpa4JEiBqAKjEiXy5Mh",
+      "referenceField": "userId",
+      "expectedTarget": "users/{userId}",
+      "missingTarget": "users/system",
+      "relationshipType": "Immutable operational event to actor/target",
+      "rootCause": "System-generated audit entries use a virtual actor that is not represented by a users/ document.",
+      "severity": "Low",
+      "repairStrategy": "KEEP",
+      "repairExplanation": "Preserve immutable operational history; repair reporting with virtual actor labels or denormalized metadata instead of deleting audit evidence.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "Bbpa4JEiBqAKjEiXy5Mh",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-053",
+      "collection": "auditLogs",
+      "documentId": "BtgFwn6wqZiQ2iUElBSD",
+      "sourcePath": "auditLogs/BtgFwn6wqZiQ2iUElBSD",
+      "referenceField": "userId",
+      "expectedTarget": "users/{userId}",
+      "missingTarget": "users/system",
+      "relationshipType": "Immutable operational event to actor/target",
+      "rootCause": "System-generated audit entries use a virtual actor that is not represented by a users/ document.",
+      "severity": "Low",
+      "repairStrategy": "KEEP",
+      "repairExplanation": "Preserve immutable operational history; repair reporting with virtual actor labels or denormalized metadata instead of deleting audit evidence.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "BtgFwn6wqZiQ2iUElBSD",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-054",
+      "collection": "auditLogs",
+      "documentId": "BzmQyHDuWZ7pY0rPj7da",
+      "sourcePath": "auditLogs/BzmQyHDuWZ7pY0rPj7da",
+      "referenceField": "userId",
+      "expectedTarget": "users/{userId}",
+      "missingTarget": "users/system",
+      "relationshipType": "Immutable operational event to actor/target",
+      "rootCause": "System-generated audit entries use a virtual actor that is not represented by a users/ document.",
+      "severity": "Low",
+      "repairStrategy": "KEEP",
+      "repairExplanation": "Preserve immutable operational history; repair reporting with virtual actor labels or denormalized metadata instead of deleting audit evidence.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "BzmQyHDuWZ7pY0rPj7da",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-055",
+      "collection": "auditLogs",
+      "documentId": "C0Zh0rB1RVckFgFEzYEx",
+      "sourcePath": "auditLogs/C0Zh0rB1RVckFgFEzYEx",
+      "referenceField": "userId",
+      "expectedTarget": "users/{userId}",
+      "missingTarget": "users/system",
+      "relationshipType": "Immutable operational event to actor/target",
+      "rootCause": "System-generated audit entries use a virtual actor that is not represented by a users/ document.",
+      "severity": "Low",
+      "repairStrategy": "KEEP",
+      "repairExplanation": "Preserve immutable operational history; repair reporting with virtual actor labels or denormalized metadata instead of deleting audit evidence.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "C0Zh0rB1RVckFgFEzYEx",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-056",
+      "collection": "auditLogs",
+      "documentId": "CYQbcsRvS3pkKZZRZ9nz",
+      "sourcePath": "auditLogs/CYQbcsRvS3pkKZZRZ9nz",
+      "referenceField": "userId",
+      "expectedTarget": "users/{userId}",
+      "missingTarget": "users/system",
+      "relationshipType": "Immutable operational event to actor/target",
+      "rootCause": "System-generated audit entries use a virtual actor that is not represented by a users/ document.",
+      "severity": "Low",
+      "repairStrategy": "KEEP",
+      "repairExplanation": "Preserve immutable operational history; repair reporting with virtual actor labels or denormalized metadata instead of deleting audit evidence.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "CYQbcsRvS3pkKZZRZ9nz",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-057",
+      "collection": "auditLogs",
+      "documentId": "CkLixe25Co09LzUVdF6X",
+      "sourcePath": "auditLogs/CkLixe25Co09LzUVdF6X",
+      "referenceField": "userId",
+      "expectedTarget": "users/{userId}",
+      "missingTarget": "users/0WhoPx5Y3wMWQ8Xn26CqDCueFnj2",
+      "relationshipType": "Immutable operational event to actor/target",
+      "rootCause": "Legacy data shape or deleted seed data left a dangling reference.",
+      "severity": "Medium",
+      "repairStrategy": "KEEP",
+      "repairExplanation": "Preserve immutable operational history; repair reporting with virtual actor labels or denormalized metadata instead of deleting audit evidence.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "CkLixe25Co09LzUVdF6X",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-058",
+      "collection": "auditLogs",
+      "documentId": "Dtb6e4vfCfaV2iyiTYQS",
+      "sourcePath": "auditLogs/Dtb6e4vfCfaV2iyiTYQS",
+      "referenceField": "userId",
+      "expectedTarget": "users/{userId}",
+      "missingTarget": "users/system",
+      "relationshipType": "Immutable operational event to actor/target",
+      "rootCause": "System-generated audit entries use a virtual actor that is not represented by a users/ document.",
+      "severity": "Low",
+      "repairStrategy": "KEEP",
+      "repairExplanation": "Preserve immutable operational history; repair reporting with virtual actor labels or denormalized metadata instead of deleting audit evidence.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "Dtb6e4vfCfaV2iyiTYQS",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-059",
+      "collection": "auditLogs",
+      "documentId": "E9UbHJYCWpw97hhihz3y",
+      "sourcePath": "auditLogs/E9UbHJYCWpw97hhihz3y",
+      "referenceField": "userId",
+      "expectedTarget": "users/{userId}",
+      "missingTarget": "users/system",
+      "relationshipType": "Immutable operational event to actor/target",
+      "rootCause": "System-generated audit entries use a virtual actor that is not represented by a users/ document.",
+      "severity": "Low",
+      "repairStrategy": "KEEP",
+      "repairExplanation": "Preserve immutable operational history; repair reporting with virtual actor labels or denormalized metadata instead of deleting audit evidence.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "E9UbHJYCWpw97hhihz3y",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-060",
+      "collection": "auditLogs",
+      "documentId": "ESbCSRKX7tlXwGq3JnI4",
+      "sourcePath": "auditLogs/ESbCSRKX7tlXwGq3JnI4",
+      "referenceField": "userId",
+      "expectedTarget": "users/{userId}",
+      "missingTarget": "users/system",
+      "relationshipType": "Immutable operational event to actor/target",
+      "rootCause": "System-generated audit entries use a virtual actor that is not represented by a users/ document.",
+      "severity": "Low",
+      "repairStrategy": "KEEP",
+      "repairExplanation": "Preserve immutable operational history; repair reporting with virtual actor labels or denormalized metadata instead of deleting audit evidence.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "ESbCSRKX7tlXwGq3JnI4",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-061",
+      "collection": "auditLogs",
+      "documentId": "F3q0PpQZ68yKDhRvLnn0",
+      "sourcePath": "auditLogs/F3q0PpQZ68yKDhRvLnn0",
+      "referenceField": "userId",
+      "expectedTarget": "users/{userId}",
+      "missingTarget": "users/system",
+      "relationshipType": "Immutable operational event to actor/target",
+      "rootCause": "System-generated audit entries use a virtual actor that is not represented by a users/ document.",
+      "severity": "Low",
+      "repairStrategy": "KEEP",
+      "repairExplanation": "Preserve immutable operational history; repair reporting with virtual actor labels or denormalized metadata instead of deleting audit evidence.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "F3q0PpQZ68yKDhRvLnn0",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-062",
+      "collection": "auditLogs",
+      "documentId": "Faz83LkDNiFelAUscZiE",
+      "sourcePath": "auditLogs/Faz83LkDNiFelAUscZiE",
+      "referenceField": "userId",
+      "expectedTarget": "users/{userId}",
+      "missingTarget": "users/system",
+      "relationshipType": "Immutable operational event to actor/target",
+      "rootCause": "System-generated audit entries use a virtual actor that is not represented by a users/ document.",
+      "severity": "Low",
+      "repairStrategy": "KEEP",
+      "repairExplanation": "Preserve immutable operational history; repair reporting with virtual actor labels or denormalized metadata instead of deleting audit evidence.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "Faz83LkDNiFelAUscZiE",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-063",
+      "collection": "auditLogs",
+      "documentId": "FeWhr9ytQLdwO028RMty",
+      "sourcePath": "auditLogs/FeWhr9ytQLdwO028RMty",
+      "referenceField": "userId",
+      "expectedTarget": "users/{userId}",
+      "missingTarget": "users/system",
+      "relationshipType": "Immutable operational event to actor/target",
+      "rootCause": "System-generated audit entries use a virtual actor that is not represented by a users/ document.",
+      "severity": "Low",
+      "repairStrategy": "KEEP",
+      "repairExplanation": "Preserve immutable operational history; repair reporting with virtual actor labels or denormalized metadata instead of deleting audit evidence.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "FeWhr9ytQLdwO028RMty",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-064",
+      "collection": "auditLogs",
+      "documentId": "FhZfIVvGAXtI5GSevhA3",
+      "sourcePath": "auditLogs/FhZfIVvGAXtI5GSevhA3",
+      "referenceField": "userId",
+      "expectedTarget": "users/{userId}",
+      "missingTarget": "users/system",
+      "relationshipType": "Immutable operational event to actor/target",
+      "rootCause": "System-generated audit entries use a virtual actor that is not represented by a users/ document.",
+      "severity": "Low",
+      "repairStrategy": "KEEP",
+      "repairExplanation": "Preserve immutable operational history; repair reporting with virtual actor labels or denormalized metadata instead of deleting audit evidence.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "FhZfIVvGAXtI5GSevhA3",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-065",
+      "collection": "auditLogs",
+      "documentId": "HggdiK4ReTYxQEPqeanw",
+      "sourcePath": "auditLogs/HggdiK4ReTYxQEPqeanw",
+      "referenceField": "userId",
+      "expectedTarget": "users/{userId}",
+      "missingTarget": "users/system",
+      "relationshipType": "Immutable operational event to actor/target",
+      "rootCause": "System-generated audit entries use a virtual actor that is not represented by a users/ document.",
+      "severity": "Low",
+      "repairStrategy": "KEEP",
+      "repairExplanation": "Preserve immutable operational history; repair reporting with virtual actor labels or denormalized metadata instead of deleting audit evidence.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "HggdiK4ReTYxQEPqeanw",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-066",
+      "collection": "auditLogs",
+      "documentId": "IWTt4ym1DKixAOxQwKJw",
+      "sourcePath": "auditLogs/IWTt4ym1DKixAOxQwKJw",
+      "referenceField": "userId",
+      "expectedTarget": "users/{userId}",
+      "missingTarget": "users/system",
+      "relationshipType": "Immutable operational event to actor/target",
+      "rootCause": "System-generated audit entries use a virtual actor that is not represented by a users/ document.",
+      "severity": "Low",
+      "repairStrategy": "KEEP",
+      "repairExplanation": "Preserve immutable operational history; repair reporting with virtual actor labels or denormalized metadata instead of deleting audit evidence.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "IWTt4ym1DKixAOxQwKJw",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-067",
+      "collection": "auditLogs",
+      "documentId": "IdD3fpF0dOjp5b3762fD",
+      "sourcePath": "auditLogs/IdD3fpF0dOjp5b3762fD",
+      "referenceField": "userId",
+      "expectedTarget": "users/{userId}",
+      "missingTarget": "users/system",
+      "relationshipType": "Immutable operational event to actor/target",
+      "rootCause": "System-generated audit entries use a virtual actor that is not represented by a users/ document.",
+      "severity": "Low",
+      "repairStrategy": "KEEP",
+      "repairExplanation": "Preserve immutable operational history; repair reporting with virtual actor labels or denormalized metadata instead of deleting audit evidence.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "IdD3fpF0dOjp5b3762fD",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-068",
+      "collection": "auditLogs",
+      "documentId": "IoVRZUIPyNUA3V1aKenT",
+      "sourcePath": "auditLogs/IoVRZUIPyNUA3V1aKenT",
+      "referenceField": "userId",
+      "expectedTarget": "users/{userId}",
+      "missingTarget": "users/system",
+      "relationshipType": "Immutable operational event to actor/target",
+      "rootCause": "System-generated audit entries use a virtual actor that is not represented by a users/ document.",
+      "severity": "Low",
+      "repairStrategy": "KEEP",
+      "repairExplanation": "Preserve immutable operational history; repair reporting with virtual actor labels or denormalized metadata instead of deleting audit evidence.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "IoVRZUIPyNUA3V1aKenT",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-069",
+      "collection": "auditLogs",
+      "documentId": "J51ZDmmsHIHqc8MBhcPU",
+      "sourcePath": "auditLogs/J51ZDmmsHIHqc8MBhcPU",
+      "referenceField": "userId",
+      "expectedTarget": "users/{userId}",
+      "missingTarget": "users/system",
+      "relationshipType": "Immutable operational event to actor/target",
+      "rootCause": "System-generated audit entries use a virtual actor that is not represented by a users/ document.",
+      "severity": "Low",
+      "repairStrategy": "KEEP",
+      "repairExplanation": "Preserve immutable operational history; repair reporting with virtual actor labels or denormalized metadata instead of deleting audit evidence.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "J51ZDmmsHIHqc8MBhcPU",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-070",
+      "collection": "auditLogs",
+      "documentId": "JyD3SfV5wTjpCwF4Auo8",
+      "sourcePath": "auditLogs/JyD3SfV5wTjpCwF4Auo8",
+      "referenceField": "userId",
+      "expectedTarget": "users/{userId}",
+      "missingTarget": "users/system",
+      "relationshipType": "Immutable operational event to actor/target",
+      "rootCause": "System-generated audit entries use a virtual actor that is not represented by a users/ document.",
+      "severity": "Low",
+      "repairStrategy": "KEEP",
+      "repairExplanation": "Preserve immutable operational history; repair reporting with virtual actor labels or denormalized metadata instead of deleting audit evidence.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "JyD3SfV5wTjpCwF4Auo8",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-071",
+      "collection": "auditLogs",
+      "documentId": "KTTSMrjhxaH6Z9MWdRAw",
+      "sourcePath": "auditLogs/KTTSMrjhxaH6Z9MWdRAw",
+      "referenceField": "userId",
+      "expectedTarget": "users/{userId}",
+      "missingTarget": "users/system",
+      "relationshipType": "Immutable operational event to actor/target",
+      "rootCause": "System-generated audit entries use a virtual actor that is not represented by a users/ document.",
+      "severity": "Low",
+      "repairStrategy": "KEEP",
+      "repairExplanation": "Preserve immutable operational history; repair reporting with virtual actor labels or denormalized metadata instead of deleting audit evidence.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "KTTSMrjhxaH6Z9MWdRAw",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-072",
+      "collection": "auditLogs",
+      "documentId": "KtY6Z6lFxJSnWN6ahyXf",
+      "sourcePath": "auditLogs/KtY6Z6lFxJSnWN6ahyXf",
+      "referenceField": "userId",
+      "expectedTarget": "users/{userId}",
+      "missingTarget": "users/system",
+      "relationshipType": "Immutable operational event to actor/target",
+      "rootCause": "System-generated audit entries use a virtual actor that is not represented by a users/ document.",
+      "severity": "Low",
+      "repairStrategy": "KEEP",
+      "repairExplanation": "Preserve immutable operational history; repair reporting with virtual actor labels or denormalized metadata instead of deleting audit evidence.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "KtY6Z6lFxJSnWN6ahyXf",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-073",
+      "collection": "auditLogs",
+      "documentId": "LDTAGGkV3Sm9JeCDI9Qp",
+      "sourcePath": "auditLogs/LDTAGGkV3Sm9JeCDI9Qp",
+      "referenceField": "userId",
+      "expectedTarget": "users/{userId}",
+      "missingTarget": "users/system",
+      "relationshipType": "Immutable operational event to actor/target",
+      "rootCause": "System-generated audit entries use a virtual actor that is not represented by a users/ document.",
+      "severity": "Low",
+      "repairStrategy": "KEEP",
+      "repairExplanation": "Preserve immutable operational history; repair reporting with virtual actor labels or denormalized metadata instead of deleting audit evidence.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "LDTAGGkV3Sm9JeCDI9Qp",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-074",
+      "collection": "auditLogs",
+      "documentId": "LHo1ikIlwziF4AwIDmFq",
+      "sourcePath": "auditLogs/LHo1ikIlwziF4AwIDmFq",
+      "referenceField": "userId",
+      "expectedTarget": "users/{userId}",
+      "missingTarget": "users/system",
+      "relationshipType": "Immutable operational event to actor/target",
+      "rootCause": "System-generated audit entries use a virtual actor that is not represented by a users/ document.",
+      "severity": "Low",
+      "repairStrategy": "KEEP",
+      "repairExplanation": "Preserve immutable operational history; repair reporting with virtual actor labels or denormalized metadata instead of deleting audit evidence.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "LHo1ikIlwziF4AwIDmFq",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-075",
+      "collection": "auditLogs",
+      "documentId": "LYCC9GZAx7OAOEBWvKLP",
+      "sourcePath": "auditLogs/LYCC9GZAx7OAOEBWvKLP",
+      "referenceField": "userId",
+      "expectedTarget": "users/{userId}",
+      "missingTarget": "users/system",
+      "relationshipType": "Immutable operational event to actor/target",
+      "rootCause": "System-generated audit entries use a virtual actor that is not represented by a users/ document.",
+      "severity": "Low",
+      "repairStrategy": "KEEP",
+      "repairExplanation": "Preserve immutable operational history; repair reporting with virtual actor labels or denormalized metadata instead of deleting audit evidence.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "LYCC9GZAx7OAOEBWvKLP",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-076",
+      "collection": "auditLogs",
+      "documentId": "MJvjpcjKKSRV2CKqyCwk",
+      "sourcePath": "auditLogs/MJvjpcjKKSRV2CKqyCwk",
+      "referenceField": "userId",
+      "expectedTarget": "users/{userId}",
+      "missingTarget": "users/system",
+      "relationshipType": "Immutable operational event to actor/target",
+      "rootCause": "System-generated audit entries use a virtual actor that is not represented by a users/ document.",
+      "severity": "Low",
+      "repairStrategy": "KEEP",
+      "repairExplanation": "Preserve immutable operational history; repair reporting with virtual actor labels or denormalized metadata instead of deleting audit evidence.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "MJvjpcjKKSRV2CKqyCwk",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-077",
+      "collection": "auditLogs",
+      "documentId": "MbGKIxMrupbIoFwjB6Nd",
+      "sourcePath": "auditLogs/MbGKIxMrupbIoFwjB6Nd",
+      "referenceField": "userId",
+      "expectedTarget": "users/{userId}",
+      "missingTarget": "users/mIvgcVQzo4gdFyNHNIMn1SLElCp1",
+      "relationshipType": "Immutable operational event to actor/target",
+      "rootCause": "Legacy data shape or deleted seed data left a dangling reference.",
+      "severity": "Medium",
+      "repairStrategy": "KEEP",
+      "repairExplanation": "Preserve immutable operational history; repair reporting with virtual actor labels or denormalized metadata instead of deleting audit evidence.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "MbGKIxMrupbIoFwjB6Nd",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-078",
+      "collection": "auditLogs",
+      "documentId": "N3XVCPOTaszjTywNNZLm",
+      "sourcePath": "auditLogs/N3XVCPOTaszjTywNNZLm",
+      "referenceField": "userId",
+      "expectedTarget": "users/{userId}",
+      "missingTarget": "users/system",
+      "relationshipType": "Immutable operational event to actor/target",
+      "rootCause": "System-generated audit entries use a virtual actor that is not represented by a users/ document.",
+      "severity": "Low",
+      "repairStrategy": "KEEP",
+      "repairExplanation": "Preserve immutable operational history; repair reporting with virtual actor labels or denormalized metadata instead of deleting audit evidence.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "N3XVCPOTaszjTywNNZLm",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-079",
+      "collection": "auditLogs",
+      "documentId": "Ne8Lc6D9v30taKGAzmsi",
+      "sourcePath": "auditLogs/Ne8Lc6D9v30taKGAzmsi",
+      "referenceField": "userId",
+      "expectedTarget": "users/{userId}",
+      "missingTarget": "users/system",
+      "relationshipType": "Immutable operational event to actor/target",
+      "rootCause": "System-generated audit entries use a virtual actor that is not represented by a users/ document.",
+      "severity": "Low",
+      "repairStrategy": "KEEP",
+      "repairExplanation": "Preserve immutable operational history; repair reporting with virtual actor labels or denormalized metadata instead of deleting audit evidence.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "Ne8Lc6D9v30taKGAzmsi",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-080",
+      "collection": "auditLogs",
+      "documentId": "O7xqBLnob9Ebs1dMt6ZA",
+      "sourcePath": "auditLogs/O7xqBLnob9Ebs1dMt6ZA",
+      "referenceField": "userId",
+      "expectedTarget": "users/{userId}",
+      "missingTarget": "users/0WhoPx5Y3wMWQ8Xn26CqDCueFnj2",
+      "relationshipType": "Immutable operational event to actor/target",
+      "rootCause": "Legacy data shape or deleted seed data left a dangling reference.",
+      "severity": "Medium",
+      "repairStrategy": "KEEP",
+      "repairExplanation": "Preserve immutable operational history; repair reporting with virtual actor labels or denormalized metadata instead of deleting audit evidence.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "O7xqBLnob9Ebs1dMt6ZA",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-081",
+      "collection": "auditLogs",
+      "documentId": "ORIxFrN1tLPBVP0GKpn3",
+      "sourcePath": "auditLogs/ORIxFrN1tLPBVP0GKpn3",
+      "referenceField": "userId",
+      "expectedTarget": "users/{userId}",
+      "missingTarget": "users/system",
+      "relationshipType": "Immutable operational event to actor/target",
+      "rootCause": "System-generated audit entries use a virtual actor that is not represented by a users/ document.",
+      "severity": "Low",
+      "repairStrategy": "KEEP",
+      "repairExplanation": "Preserve immutable operational history; repair reporting with virtual actor labels or denormalized metadata instead of deleting audit evidence.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "ORIxFrN1tLPBVP0GKpn3",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-082",
+      "collection": "auditLogs",
+      "documentId": "OfVamRFhdsjdZvU3jCuG",
+      "sourcePath": "auditLogs/OfVamRFhdsjdZvU3jCuG",
+      "referenceField": "userId",
+      "expectedTarget": "users/{userId}",
+      "missingTarget": "users/system",
+      "relationshipType": "Immutable operational event to actor/target",
+      "rootCause": "System-generated audit entries use a virtual actor that is not represented by a users/ document.",
+      "severity": "Low",
+      "repairStrategy": "KEEP",
+      "repairExplanation": "Preserve immutable operational history; repair reporting with virtual actor labels or denormalized metadata instead of deleting audit evidence.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "OfVamRFhdsjdZvU3jCuG",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-083",
+      "collection": "auditLogs",
+      "documentId": "P6gZI2pfZnkSQAasim2L",
+      "sourcePath": "auditLogs/P6gZI2pfZnkSQAasim2L",
+      "referenceField": "userId",
+      "expectedTarget": "users/{userId}",
+      "missingTarget": "users/system",
+      "relationshipType": "Immutable operational event to actor/target",
+      "rootCause": "System-generated audit entries use a virtual actor that is not represented by a users/ document.",
+      "severity": "Low",
+      "repairStrategy": "KEEP",
+      "repairExplanation": "Preserve immutable operational history; repair reporting with virtual actor labels or denormalized metadata instead of deleting audit evidence.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "P6gZI2pfZnkSQAasim2L",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-084",
+      "collection": "auditLogs",
+      "documentId": "PCxwBZacZwCISE1woP0c",
+      "sourcePath": "auditLogs/PCxwBZacZwCISE1woP0c",
+      "referenceField": "userId",
+      "expectedTarget": "users/{userId}",
+      "missingTarget": "users/system",
+      "relationshipType": "Immutable operational event to actor/target",
+      "rootCause": "System-generated audit entries use a virtual actor that is not represented by a users/ document.",
+      "severity": "Low",
+      "repairStrategy": "KEEP",
+      "repairExplanation": "Preserve immutable operational history; repair reporting with virtual actor labels or denormalized metadata instead of deleting audit evidence.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "PCxwBZacZwCISE1woP0c",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-085",
+      "collection": "auditLogs",
+      "documentId": "PecmkzLjQffbhrskHEcX",
+      "sourcePath": "auditLogs/PecmkzLjQffbhrskHEcX",
+      "referenceField": "userId",
+      "expectedTarget": "users/{userId}",
+      "missingTarget": "users/system",
+      "relationshipType": "Immutable operational event to actor/target",
+      "rootCause": "System-generated audit entries use a virtual actor that is not represented by a users/ document.",
+      "severity": "Low",
+      "repairStrategy": "KEEP",
+      "repairExplanation": "Preserve immutable operational history; repair reporting with virtual actor labels or denormalized metadata instead of deleting audit evidence.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "PecmkzLjQffbhrskHEcX",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-086",
+      "collection": "auditLogs",
+      "documentId": "Py2K6R1nydHs0zh5iPiq",
+      "sourcePath": "auditLogs/Py2K6R1nydHs0zh5iPiq",
+      "referenceField": "userId",
+      "expectedTarget": "users/{userId}",
+      "missingTarget": "users/system",
+      "relationshipType": "Immutable operational event to actor/target",
+      "rootCause": "System-generated audit entries use a virtual actor that is not represented by a users/ document.",
+      "severity": "Low",
+      "repairStrategy": "KEEP",
+      "repairExplanation": "Preserve immutable operational history; repair reporting with virtual actor labels or denormalized metadata instead of deleting audit evidence.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "Py2K6R1nydHs0zh5iPiq",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-087",
+      "collection": "auditLogs",
+      "documentId": "Q7qQw35sQ1M9QfPrI1Ch",
+      "sourcePath": "auditLogs/Q7qQw35sQ1M9QfPrI1Ch",
+      "referenceField": "userId",
+      "expectedTarget": "users/{userId}",
+      "missingTarget": "users/system",
+      "relationshipType": "Immutable operational event to actor/target",
+      "rootCause": "System-generated audit entries use a virtual actor that is not represented by a users/ document.",
+      "severity": "Low",
+      "repairStrategy": "KEEP",
+      "repairExplanation": "Preserve immutable operational history; repair reporting with virtual actor labels or denormalized metadata instead of deleting audit evidence.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "Q7qQw35sQ1M9QfPrI1Ch",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-088",
+      "collection": "auditLogs",
+      "documentId": "QOYKq3YDv8tKrNPjzuwc",
+      "sourcePath": "auditLogs/QOYKq3YDv8tKrNPjzuwc",
+      "referenceField": "userId",
+      "expectedTarget": "users/{userId}",
+      "missingTarget": "users/system",
+      "relationshipType": "Immutable operational event to actor/target",
+      "rootCause": "System-generated audit entries use a virtual actor that is not represented by a users/ document.",
+      "severity": "Low",
+      "repairStrategy": "KEEP",
+      "repairExplanation": "Preserve immutable operational history; repair reporting with virtual actor labels or denormalized metadata instead of deleting audit evidence.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "QOYKq3YDv8tKrNPjzuwc",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-089",
+      "collection": "auditLogs",
+      "documentId": "QTaB0BNZBBJHp85GdJsB",
+      "sourcePath": "auditLogs/QTaB0BNZBBJHp85GdJsB",
+      "referenceField": "userId",
+      "expectedTarget": "users/{userId}",
+      "missingTarget": "users/system",
+      "relationshipType": "Immutable operational event to actor/target",
+      "rootCause": "System-generated audit entries use a virtual actor that is not represented by a users/ document.",
+      "severity": "Low",
+      "repairStrategy": "KEEP",
+      "repairExplanation": "Preserve immutable operational history; repair reporting with virtual actor labels or denormalized metadata instead of deleting audit evidence.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "QTaB0BNZBBJHp85GdJsB",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-090",
+      "collection": "auditLogs",
+      "documentId": "R1Vp1MaL0kNYWjKx8RDA",
+      "sourcePath": "auditLogs/R1Vp1MaL0kNYWjKx8RDA",
+      "referenceField": "userId",
+      "expectedTarget": "users/{userId}",
+      "missingTarget": "users/system",
+      "relationshipType": "Immutable operational event to actor/target",
+      "rootCause": "System-generated audit entries use a virtual actor that is not represented by a users/ document.",
+      "severity": "Low",
+      "repairStrategy": "KEEP",
+      "repairExplanation": "Preserve immutable operational history; repair reporting with virtual actor labels or denormalized metadata instead of deleting audit evidence.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "R1Vp1MaL0kNYWjKx8RDA",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-091",
+      "collection": "auditLogs",
+      "documentId": "RKffVt6FUZ5ojvwVpZDs",
+      "sourcePath": "auditLogs/RKffVt6FUZ5ojvwVpZDs",
+      "referenceField": "userId",
+      "expectedTarget": "users/{userId}",
+      "missingTarget": "users/system",
+      "relationshipType": "Immutable operational event to actor/target",
+      "rootCause": "System-generated audit entries use a virtual actor that is not represented by a users/ document.",
+      "severity": "Low",
+      "repairStrategy": "KEEP",
+      "repairExplanation": "Preserve immutable operational history; repair reporting with virtual actor labels or denormalized metadata instead of deleting audit evidence.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "RKffVt6FUZ5ojvwVpZDs",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-092",
+      "collection": "auditLogs",
+      "documentId": "RwElucTjipuw29tF7jSE",
+      "sourcePath": "auditLogs/RwElucTjipuw29tF7jSE",
+      "referenceField": "userId",
+      "expectedTarget": "users/{userId}",
+      "missingTarget": "users/system",
+      "relationshipType": "Immutable operational event to actor/target",
+      "rootCause": "System-generated audit entries use a virtual actor that is not represented by a users/ document.",
+      "severity": "Low",
+      "repairStrategy": "KEEP",
+      "repairExplanation": "Preserve immutable operational history; repair reporting with virtual actor labels or denormalized metadata instead of deleting audit evidence.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "RwElucTjipuw29tF7jSE",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-093",
+      "collection": "auditLogs",
+      "documentId": "S8Vyf34dCiyWIqpRqaUV",
+      "sourcePath": "auditLogs/S8Vyf34dCiyWIqpRqaUV",
+      "referenceField": "userId",
+      "expectedTarget": "users/{userId}",
+      "missingTarget": "users/mIvgcVQzo4gdFyNHNIMn1SLElCp1",
+      "relationshipType": "Immutable operational event to actor/target",
+      "rootCause": "Legacy data shape or deleted seed data left a dangling reference.",
+      "severity": "Medium",
+      "repairStrategy": "KEEP",
+      "repairExplanation": "Preserve immutable operational history; repair reporting with virtual actor labels or denormalized metadata instead of deleting audit evidence.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "S8Vyf34dCiyWIqpRqaUV",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-094",
+      "collection": "auditLogs",
+      "documentId": "SKXVifLZBysyHGcZaKgy",
+      "sourcePath": "auditLogs/SKXVifLZBysyHGcZaKgy",
+      "referenceField": "userId",
+      "expectedTarget": "users/{userId}",
+      "missingTarget": "users/system",
+      "relationshipType": "Immutable operational event to actor/target",
+      "rootCause": "System-generated audit entries use a virtual actor that is not represented by a users/ document.",
+      "severity": "Low",
+      "repairStrategy": "KEEP",
+      "repairExplanation": "Preserve immutable operational history; repair reporting with virtual actor labels or denormalized metadata instead of deleting audit evidence.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "SKXVifLZBysyHGcZaKgy",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-095",
+      "collection": "auditLogs",
+      "documentId": "TBIYdhr4Fs39Qoc5bo4k",
+      "sourcePath": "auditLogs/TBIYdhr4Fs39Qoc5bo4k",
+      "referenceField": "userId",
+      "expectedTarget": "users/{userId}",
+      "missingTarget": "users/system",
+      "relationshipType": "Immutable operational event to actor/target",
+      "rootCause": "System-generated audit entries use a virtual actor that is not represented by a users/ document.",
+      "severity": "Low",
+      "repairStrategy": "KEEP",
+      "repairExplanation": "Preserve immutable operational history; repair reporting with virtual actor labels or denormalized metadata instead of deleting audit evidence.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "TBIYdhr4Fs39Qoc5bo4k",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-096",
+      "collection": "auditLogs",
+      "documentId": "TewUpVl2ThobrldS2OQX",
+      "sourcePath": "auditLogs/TewUpVl2ThobrldS2OQX",
+      "referenceField": "userId",
+      "expectedTarget": "users/{userId}",
+      "missingTarget": "users/weafIuxbamYoEoJaSytAvumVxK62",
+      "relationshipType": "Immutable operational event to actor/target",
+      "rootCause": "Legacy data shape or deleted seed data left a dangling reference.",
+      "severity": "Medium",
+      "repairStrategy": "KEEP",
+      "repairExplanation": "Preserve immutable operational history; repair reporting with virtual actor labels or denormalized metadata instead of deleting audit evidence.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "TewUpVl2ThobrldS2OQX",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-097",
+      "collection": "auditLogs",
+      "documentId": "UBB5yemESZEqCza9RXhn",
+      "sourcePath": "auditLogs/UBB5yemESZEqCza9RXhn",
+      "referenceField": "userId",
+      "expectedTarget": "users/{userId}",
+      "missingTarget": "users/system",
+      "relationshipType": "Immutable operational event to actor/target",
+      "rootCause": "System-generated audit entries use a virtual actor that is not represented by a users/ document.",
+      "severity": "Low",
+      "repairStrategy": "KEEP",
+      "repairExplanation": "Preserve immutable operational history; repair reporting with virtual actor labels or denormalized metadata instead of deleting audit evidence.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "UBB5yemESZEqCza9RXhn",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-098",
+      "collection": "auditLogs",
+      "documentId": "UO7wW22qxxdwuUUcAOnB",
+      "sourcePath": "auditLogs/UO7wW22qxxdwuUUcAOnB",
+      "referenceField": "userId",
+      "expectedTarget": "users/{userId}",
+      "missingTarget": "users/0WhoPx5Y3wMWQ8Xn26CqDCueFnj2",
+      "relationshipType": "Immutable operational event to actor/target",
+      "rootCause": "Legacy data shape or deleted seed data left a dangling reference.",
+      "severity": "Medium",
+      "repairStrategy": "KEEP",
+      "repairExplanation": "Preserve immutable operational history; repair reporting with virtual actor labels or denormalized metadata instead of deleting audit evidence.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "UO7wW22qxxdwuUUcAOnB",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-099",
+      "collection": "auditLogs",
+      "documentId": "Uf4BPnrzpvGBreeQcJzA",
+      "sourcePath": "auditLogs/Uf4BPnrzpvGBreeQcJzA",
+      "referenceField": "userId",
+      "expectedTarget": "users/{userId}",
+      "missingTarget": "users/0WhoPx5Y3wMWQ8Xn26CqDCueFnj2",
+      "relationshipType": "Immutable operational event to actor/target",
+      "rootCause": "Legacy data shape or deleted seed data left a dangling reference.",
+      "severity": "Medium",
+      "repairStrategy": "KEEP",
+      "repairExplanation": "Preserve immutable operational history; repair reporting with virtual actor labels or denormalized metadata instead of deleting audit evidence.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "Uf4BPnrzpvGBreeQcJzA",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-100",
+      "collection": "auditLogs",
+      "documentId": "VBLWprJNETZjv6Qjyxat",
+      "sourcePath": "auditLogs/VBLWprJNETZjv6Qjyxat",
+      "referenceField": "userId",
+      "expectedTarget": "users/{userId}",
+      "missingTarget": "users/system",
+      "relationshipType": "Immutable operational event to actor/target",
+      "rootCause": "System-generated audit entries use a virtual actor that is not represented by a users/ document.",
+      "severity": "Low",
+      "repairStrategy": "KEEP",
+      "repairExplanation": "Preserve immutable operational history; repair reporting with virtual actor labels or denormalized metadata instead of deleting audit evidence.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "VBLWprJNETZjv6Qjyxat",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-101",
+      "collection": "auditLogs",
+      "documentId": "VPj8qxRmiNTLOvVNHIJd",
+      "sourcePath": "auditLogs/VPj8qxRmiNTLOvVNHIJd",
+      "referenceField": "userId",
+      "expectedTarget": "users/{userId}",
+      "missingTarget": "users/vOwPwNDdKwhvJLS9dl33AQ3bIBk1",
+      "relationshipType": "Immutable operational event to actor/target",
+      "rootCause": "Legacy data shape or deleted seed data left a dangling reference.",
+      "severity": "Medium",
+      "repairStrategy": "KEEP",
+      "repairExplanation": "Preserve immutable operational history; repair reporting with virtual actor labels or denormalized metadata instead of deleting audit evidence.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "VPj8qxRmiNTLOvVNHIJd",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-102",
+      "collection": "auditLogs",
+      "documentId": "VrLimcHmbW8DmnHPP5Gf",
+      "sourcePath": "auditLogs/VrLimcHmbW8DmnHPP5Gf",
+      "referenceField": "userId",
+      "expectedTarget": "users/{userId}",
+      "missingTarget": "users/system",
+      "relationshipType": "Immutable operational event to actor/target",
+      "rootCause": "System-generated audit entries use a virtual actor that is not represented by a users/ document.",
+      "severity": "Low",
+      "repairStrategy": "KEEP",
+      "repairExplanation": "Preserve immutable operational history; repair reporting with virtual actor labels or denormalized metadata instead of deleting audit evidence.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "VrLimcHmbW8DmnHPP5Gf",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-103",
+      "collection": "auditLogs",
+      "documentId": "VsLeKqz5yQ9NQUWYFuxV",
+      "sourcePath": "auditLogs/VsLeKqz5yQ9NQUWYFuxV",
+      "referenceField": "userId",
+      "expectedTarget": "users/{userId}",
+      "missingTarget": "users/system",
+      "relationshipType": "Immutable operational event to actor/target",
+      "rootCause": "System-generated audit entries use a virtual actor that is not represented by a users/ document.",
+      "severity": "Low",
+      "repairStrategy": "KEEP",
+      "repairExplanation": "Preserve immutable operational history; repair reporting with virtual actor labels or denormalized metadata instead of deleting audit evidence.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "VsLeKqz5yQ9NQUWYFuxV",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-104",
+      "collection": "auditLogs",
+      "documentId": "Wb7c67U45tcXER91hjUH",
+      "sourcePath": "auditLogs/Wb7c67U45tcXER91hjUH",
+      "referenceField": "userId",
+      "expectedTarget": "users/{userId}",
+      "missingTarget": "users/0WhoPx5Y3wMWQ8Xn26CqDCueFnj2",
+      "relationshipType": "Immutable operational event to actor/target",
+      "rootCause": "Legacy data shape or deleted seed data left a dangling reference.",
+      "severity": "Medium",
+      "repairStrategy": "KEEP",
+      "repairExplanation": "Preserve immutable operational history; repair reporting with virtual actor labels or denormalized metadata instead of deleting audit evidence.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "Wb7c67U45tcXER91hjUH",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-105",
+      "collection": "auditLogs",
+      "documentId": "WjgiavN3apUXJVNH1KE3",
+      "sourcePath": "auditLogs/WjgiavN3apUXJVNH1KE3",
+      "referenceField": "userId",
+      "expectedTarget": "users/{userId}",
+      "missingTarget": "users/weafIuxbamYoEoJaSytAvumVxK62",
+      "relationshipType": "Immutable operational event to actor/target",
+      "rootCause": "Legacy data shape or deleted seed data left a dangling reference.",
+      "severity": "Medium",
+      "repairStrategy": "KEEP",
+      "repairExplanation": "Preserve immutable operational history; repair reporting with virtual actor labels or denormalized metadata instead of deleting audit evidence.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "WjgiavN3apUXJVNH1KE3",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-106",
+      "collection": "auditLogs",
+      "documentId": "XxfUjJFImiLBigjzbs3U",
+      "sourcePath": "auditLogs/XxfUjJFImiLBigjzbs3U",
+      "referenceField": "userId",
+      "expectedTarget": "users/{userId}",
+      "missingTarget": "users/system",
+      "relationshipType": "Immutable operational event to actor/target",
+      "rootCause": "System-generated audit entries use a virtual actor that is not represented by a users/ document.",
+      "severity": "Low",
+      "repairStrategy": "KEEP",
+      "repairExplanation": "Preserve immutable operational history; repair reporting with virtual actor labels or denormalized metadata instead of deleting audit evidence.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "XxfUjJFImiLBigjzbs3U",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-107",
+      "collection": "auditLogs",
+      "documentId": "YCzUc489PeXLcqez4JFM",
+      "sourcePath": "auditLogs/YCzUc489PeXLcqez4JFM",
+      "referenceField": "userId",
+      "expectedTarget": "users/{userId}",
+      "missingTarget": "users/system",
+      "relationshipType": "Immutable operational event to actor/target",
+      "rootCause": "System-generated audit entries use a virtual actor that is not represented by a users/ document.",
+      "severity": "Low",
+      "repairStrategy": "KEEP",
+      "repairExplanation": "Preserve immutable operational history; repair reporting with virtual actor labels or denormalized metadata instead of deleting audit evidence.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "YCzUc489PeXLcqez4JFM",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-108",
+      "collection": "auditLogs",
+      "documentId": "YSYcUgc9ekfpObudEmH2",
+      "sourcePath": "auditLogs/YSYcUgc9ekfpObudEmH2",
+      "referenceField": "userId",
+      "expectedTarget": "users/{userId}",
+      "missingTarget": "users/system",
+      "relationshipType": "Immutable operational event to actor/target",
+      "rootCause": "System-generated audit entries use a virtual actor that is not represented by a users/ document.",
+      "severity": "Low",
+      "repairStrategy": "KEEP",
+      "repairExplanation": "Preserve immutable operational history; repair reporting with virtual actor labels or denormalized metadata instead of deleting audit evidence.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "YSYcUgc9ekfpObudEmH2",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-109",
+      "collection": "auditLogs",
+      "documentId": "YpdKbBkLkUngC5z6V21d",
+      "sourcePath": "auditLogs/YpdKbBkLkUngC5z6V21d",
+      "referenceField": "userId",
+      "expectedTarget": "users/{userId}",
+      "missingTarget": "users/system",
+      "relationshipType": "Immutable operational event to actor/target",
+      "rootCause": "System-generated audit entries use a virtual actor that is not represented by a users/ document.",
+      "severity": "Low",
+      "repairStrategy": "KEEP",
+      "repairExplanation": "Preserve immutable operational history; repair reporting with virtual actor labels or denormalized metadata instead of deleting audit evidence.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "YpdKbBkLkUngC5z6V21d",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-110",
+      "collection": "auditLogs",
+      "documentId": "Z43XPkg6gkh48AvoBCTw",
+      "sourcePath": "auditLogs/Z43XPkg6gkh48AvoBCTw",
+      "referenceField": "userId",
+      "expectedTarget": "users/{userId}",
+      "missingTarget": "users/weafIuxbamYoEoJaSytAvumVxK62",
+      "relationshipType": "Immutable operational event to actor/target",
+      "rootCause": "Legacy data shape or deleted seed data left a dangling reference.",
+      "severity": "Medium",
+      "repairStrategy": "KEEP",
+      "repairExplanation": "Preserve immutable operational history; repair reporting with virtual actor labels or denormalized metadata instead of deleting audit evidence.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "Z43XPkg6gkh48AvoBCTw",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-111",
+      "collection": "auditLogs",
+      "documentId": "Z7kpiSt5JtVqPeHlYxNs",
+      "sourcePath": "auditLogs/Z7kpiSt5JtVqPeHlYxNs",
+      "referenceField": "userId",
+      "expectedTarget": "users/{userId}",
+      "missingTarget": "users/system",
+      "relationshipType": "Immutable operational event to actor/target",
+      "rootCause": "System-generated audit entries use a virtual actor that is not represented by a users/ document.",
+      "severity": "Low",
+      "repairStrategy": "KEEP",
+      "repairExplanation": "Preserve immutable operational history; repair reporting with virtual actor labels or denormalized metadata instead of deleting audit evidence.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "Z7kpiSt5JtVqPeHlYxNs",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-112",
+      "collection": "auditLogs",
+      "documentId": "ZChjqcNFAXn4dCn2vndn",
+      "sourcePath": "auditLogs/ZChjqcNFAXn4dCn2vndn",
+      "referenceField": "userId",
+      "expectedTarget": "users/{userId}",
+      "missingTarget": "users/system",
+      "relationshipType": "Immutable operational event to actor/target",
+      "rootCause": "System-generated audit entries use a virtual actor that is not represented by a users/ document.",
+      "severity": "Low",
+      "repairStrategy": "KEEP",
+      "repairExplanation": "Preserve immutable operational history; repair reporting with virtual actor labels or denormalized metadata instead of deleting audit evidence.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "ZChjqcNFAXn4dCn2vndn",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-113",
+      "collection": "auditLogs",
+      "documentId": "a41KmqOudwIKWmpA1TrJ",
+      "sourcePath": "auditLogs/a41KmqOudwIKWmpA1TrJ",
+      "referenceField": "userId",
+      "expectedTarget": "users/{userId}",
+      "missingTarget": "users/system",
+      "relationshipType": "Immutable operational event to actor/target",
+      "rootCause": "System-generated audit entries use a virtual actor that is not represented by a users/ document.",
+      "severity": "Low",
+      "repairStrategy": "KEEP",
+      "repairExplanation": "Preserve immutable operational history; repair reporting with virtual actor labels or denormalized metadata instead of deleting audit evidence.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "a41KmqOudwIKWmpA1TrJ",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-114",
+      "collection": "auditLogs",
+      "documentId": "aEMh2DTYSUdHMXjFvh8X",
+      "sourcePath": "auditLogs/aEMh2DTYSUdHMXjFvh8X",
+      "referenceField": "userId",
+      "expectedTarget": "users/{userId}",
+      "missingTarget": "users/system",
+      "relationshipType": "Immutable operational event to actor/target",
+      "rootCause": "System-generated audit entries use a virtual actor that is not represented by a users/ document.",
+      "severity": "Low",
+      "repairStrategy": "KEEP",
+      "repairExplanation": "Preserve immutable operational history; repair reporting with virtual actor labels or denormalized metadata instead of deleting audit evidence.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "aEMh2DTYSUdHMXjFvh8X",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-115",
+      "collection": "auditLogs",
+      "documentId": "ak3qBzzisPCezztYKDSs",
+      "sourcePath": "auditLogs/ak3qBzzisPCezztYKDSs",
+      "referenceField": "userId",
+      "expectedTarget": "users/{userId}",
+      "missingTarget": "users/system",
+      "relationshipType": "Immutable operational event to actor/target",
+      "rootCause": "System-generated audit entries use a virtual actor that is not represented by a users/ document.",
+      "severity": "Low",
+      "repairStrategy": "KEEP",
+      "repairExplanation": "Preserve immutable operational history; repair reporting with virtual actor labels or denormalized metadata instead of deleting audit evidence.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "ak3qBzzisPCezztYKDSs",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-116",
+      "collection": "auditLogs",
+      "documentId": "bAoAHnrpG2Muary12qSX",
+      "sourcePath": "auditLogs/bAoAHnrpG2Muary12qSX",
+      "referenceField": "userId",
+      "expectedTarget": "users/{userId}",
+      "missingTarget": "users/system",
+      "relationshipType": "Immutable operational event to actor/target",
+      "rootCause": "System-generated audit entries use a virtual actor that is not represented by a users/ document.",
+      "severity": "Low",
+      "repairStrategy": "KEEP",
+      "repairExplanation": "Preserve immutable operational history; repair reporting with virtual actor labels or denormalized metadata instead of deleting audit evidence.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "bAoAHnrpG2Muary12qSX",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-117",
+      "collection": "auditLogs",
+      "documentId": "bIEZ3cA1HZIl7QSrjVIY",
+      "sourcePath": "auditLogs/bIEZ3cA1HZIl7QSrjVIY",
+      "referenceField": "userId",
+      "expectedTarget": "users/{userId}",
+      "missingTarget": "users/system",
+      "relationshipType": "Immutable operational event to actor/target",
+      "rootCause": "System-generated audit entries use a virtual actor that is not represented by a users/ document.",
+      "severity": "Low",
+      "repairStrategy": "KEEP",
+      "repairExplanation": "Preserve immutable operational history; repair reporting with virtual actor labels or denormalized metadata instead of deleting audit evidence.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "bIEZ3cA1HZIl7QSrjVIY",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-118",
+      "collection": "auditLogs",
+      "documentId": "bZ8ollkB6BTxpkN0Ot7A",
+      "sourcePath": "auditLogs/bZ8ollkB6BTxpkN0Ot7A",
+      "referenceField": "userId",
+      "expectedTarget": "users/{userId}",
+      "missingTarget": "users/ekUvq3lC7HUEwICe5rcCQBWovSF3",
+      "relationshipType": "Immutable operational event to actor/target",
+      "rootCause": "Legacy data shape or deleted seed data left a dangling reference.",
+      "severity": "Medium",
+      "repairStrategy": "KEEP",
+      "repairExplanation": "Preserve immutable operational history; repair reporting with virtual actor labels or denormalized metadata instead of deleting audit evidence.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "bZ8ollkB6BTxpkN0Ot7A",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-119",
+      "collection": "auditLogs",
+      "documentId": "cClQsnUURB5mypMg8mpa",
+      "sourcePath": "auditLogs/cClQsnUURB5mypMg8mpa",
+      "referenceField": "userId",
+      "expectedTarget": "users/{userId}",
+      "missingTarget": "users/system",
+      "relationshipType": "Immutable operational event to actor/target",
+      "rootCause": "System-generated audit entries use a virtual actor that is not represented by a users/ document.",
+      "severity": "Low",
+      "repairStrategy": "KEEP",
+      "repairExplanation": "Preserve immutable operational history; repair reporting with virtual actor labels or denormalized metadata instead of deleting audit evidence.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "cClQsnUURB5mypMg8mpa",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-120",
+      "collection": "auditLogs",
+      "documentId": "cG9QVDevGHc4cGhLZ8MV",
+      "sourcePath": "auditLogs/cG9QVDevGHc4cGhLZ8MV",
+      "referenceField": "userId",
+      "expectedTarget": "users/{userId}",
+      "missingTarget": "users/system",
+      "relationshipType": "Immutable operational event to actor/target",
+      "rootCause": "System-generated audit entries use a virtual actor that is not represented by a users/ document.",
+      "severity": "Low",
+      "repairStrategy": "KEEP",
+      "repairExplanation": "Preserve immutable operational history; repair reporting with virtual actor labels or denormalized metadata instead of deleting audit evidence.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "cG9QVDevGHc4cGhLZ8MV",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-121",
+      "collection": "auditLogs",
+      "documentId": "cJBrMmaxc0vvS8azvleo",
+      "sourcePath": "auditLogs/cJBrMmaxc0vvS8azvleo",
+      "referenceField": "userId",
+      "expectedTarget": "users/{userId}",
+      "missingTarget": "users/system",
+      "relationshipType": "Immutable operational event to actor/target",
+      "rootCause": "System-generated audit entries use a virtual actor that is not represented by a users/ document.",
+      "severity": "Low",
+      "repairStrategy": "KEEP",
+      "repairExplanation": "Preserve immutable operational history; repair reporting with virtual actor labels or denormalized metadata instead of deleting audit evidence.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "cJBrMmaxc0vvS8azvleo",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-122",
+      "collection": "auditLogs",
+      "documentId": "dt8YZweUAJ08CfOte7aF",
+      "sourcePath": "auditLogs/dt8YZweUAJ08CfOte7aF",
+      "referenceField": "userId",
+      "expectedTarget": "users/{userId}",
+      "missingTarget": "users/system",
+      "relationshipType": "Immutable operational event to actor/target",
+      "rootCause": "System-generated audit entries use a virtual actor that is not represented by a users/ document.",
+      "severity": "Low",
+      "repairStrategy": "KEEP",
+      "repairExplanation": "Preserve immutable operational history; repair reporting with virtual actor labels or denormalized metadata instead of deleting audit evidence.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "dt8YZweUAJ08CfOte7aF",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-123",
+      "collection": "auditLogs",
+      "documentId": "e6Q3UGapL4XgKvimz850",
+      "sourcePath": "auditLogs/e6Q3UGapL4XgKvimz850",
+      "referenceField": "userId",
+      "expectedTarget": "users/{userId}",
+      "missingTarget": "users/system",
+      "relationshipType": "Immutable operational event to actor/target",
+      "rootCause": "System-generated audit entries use a virtual actor that is not represented by a users/ document.",
+      "severity": "Low",
+      "repairStrategy": "KEEP",
+      "repairExplanation": "Preserve immutable operational history; repair reporting with virtual actor labels or denormalized metadata instead of deleting audit evidence.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "e6Q3UGapL4XgKvimz850",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-124",
+      "collection": "auditLogs",
+      "documentId": "ePeXlzYdYpXGJwDInp1a",
+      "sourcePath": "auditLogs/ePeXlzYdYpXGJwDInp1a",
+      "referenceField": "userId",
+      "expectedTarget": "users/{userId}",
+      "missingTarget": "users/mIvgcVQzo4gdFyNHNIMn1SLElCp1",
+      "relationshipType": "Immutable operational event to actor/target",
+      "rootCause": "Legacy data shape or deleted seed data left a dangling reference.",
+      "severity": "Medium",
+      "repairStrategy": "KEEP",
+      "repairExplanation": "Preserve immutable operational history; repair reporting with virtual actor labels or denormalized metadata instead of deleting audit evidence.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "ePeXlzYdYpXGJwDInp1a",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-125",
+      "collection": "auditLogs",
+      "documentId": "eXpz60NbpWtQpXuhTGjP",
+      "sourcePath": "auditLogs/eXpz60NbpWtQpXuhTGjP",
+      "referenceField": "userId",
+      "expectedTarget": "users/{userId}",
+      "missingTarget": "users/system",
+      "relationshipType": "Immutable operational event to actor/target",
+      "rootCause": "System-generated audit entries use a virtual actor that is not represented by a users/ document.",
+      "severity": "Low",
+      "repairStrategy": "KEEP",
+      "repairExplanation": "Preserve immutable operational history; repair reporting with virtual actor labels or denormalized metadata instead of deleting audit evidence.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "eXpz60NbpWtQpXuhTGjP",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-126",
+      "collection": "auditLogs",
+      "documentId": "fQcl7dbPibiZFuujyj2c",
+      "sourcePath": "auditLogs/fQcl7dbPibiZFuujyj2c",
+      "referenceField": "userId",
+      "expectedTarget": "users/{userId}",
+      "missingTarget": "users/system",
+      "relationshipType": "Immutable operational event to actor/target",
+      "rootCause": "System-generated audit entries use a virtual actor that is not represented by a users/ document.",
+      "severity": "Low",
+      "repairStrategy": "KEEP",
+      "repairExplanation": "Preserve immutable operational history; repair reporting with virtual actor labels or denormalized metadata instead of deleting audit evidence.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "fQcl7dbPibiZFuujyj2c",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-127",
+      "collection": "auditLogs",
+      "documentId": "fS1O802IxzO23VpIH49m",
+      "sourcePath": "auditLogs/fS1O802IxzO23VpIH49m",
+      "referenceField": "userId",
+      "expectedTarget": "users/{userId}",
+      "missingTarget": "users/system",
+      "relationshipType": "Immutable operational event to actor/target",
+      "rootCause": "System-generated audit entries use a virtual actor that is not represented by a users/ document.",
+      "severity": "Low",
+      "repairStrategy": "KEEP",
+      "repairExplanation": "Preserve immutable operational history; repair reporting with virtual actor labels or denormalized metadata instead of deleting audit evidence.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "fS1O802IxzO23VpIH49m",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-128",
+      "collection": "auditLogs",
+      "documentId": "fckqkFQm7A2xehVAVqzT",
+      "sourcePath": "auditLogs/fckqkFQm7A2xehVAVqzT",
+      "referenceField": "userId",
+      "expectedTarget": "users/{userId}",
+      "missingTarget": "users/system",
+      "relationshipType": "Immutable operational event to actor/target",
+      "rootCause": "System-generated audit entries use a virtual actor that is not represented by a users/ document.",
+      "severity": "Low",
+      "repairStrategy": "KEEP",
+      "repairExplanation": "Preserve immutable operational history; repair reporting with virtual actor labels or denormalized metadata instead of deleting audit evidence.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "fckqkFQm7A2xehVAVqzT",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-129",
+      "collection": "auditLogs",
+      "documentId": "ftyQ3g0pimPCV3sWlJ8G",
+      "sourcePath": "auditLogs/ftyQ3g0pimPCV3sWlJ8G",
+      "referenceField": "userId",
+      "expectedTarget": "users/{userId}",
+      "missingTarget": "users/system",
+      "relationshipType": "Immutable operational event to actor/target",
+      "rootCause": "System-generated audit entries use a virtual actor that is not represented by a users/ document.",
+      "severity": "Low",
+      "repairStrategy": "KEEP",
+      "repairExplanation": "Preserve immutable operational history; repair reporting with virtual actor labels or denormalized metadata instead of deleting audit evidence.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "ftyQ3g0pimPCV3sWlJ8G",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-130",
+      "collection": "auditLogs",
+      "documentId": "g0SMvqbIGysefE1hOiHP",
+      "sourcePath": "auditLogs/g0SMvqbIGysefE1hOiHP",
+      "referenceField": "userId",
+      "expectedTarget": "users/{userId}",
+      "missingTarget": "users/system",
+      "relationshipType": "Immutable operational event to actor/target",
+      "rootCause": "System-generated audit entries use a virtual actor that is not represented by a users/ document.",
+      "severity": "Low",
+      "repairStrategy": "KEEP",
+      "repairExplanation": "Preserve immutable operational history; repair reporting with virtual actor labels or denormalized metadata instead of deleting audit evidence.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "g0SMvqbIGysefE1hOiHP",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-131",
+      "collection": "auditLogs",
+      "documentId": "gAhqrEfoK1uxfhnCqN4C",
+      "sourcePath": "auditLogs/gAhqrEfoK1uxfhnCqN4C",
+      "referenceField": "userId",
+      "expectedTarget": "users/{userId}",
+      "missingTarget": "users/system",
+      "relationshipType": "Immutable operational event to actor/target",
+      "rootCause": "System-generated audit entries use a virtual actor that is not represented by a users/ document.",
+      "severity": "Low",
+      "repairStrategy": "KEEP",
+      "repairExplanation": "Preserve immutable operational history; repair reporting with virtual actor labels or denormalized metadata instead of deleting audit evidence.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "gAhqrEfoK1uxfhnCqN4C",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-132",
+      "collection": "auditLogs",
+      "documentId": "h60zxqS8fLhAO8E8qwn4",
+      "sourcePath": "auditLogs/h60zxqS8fLhAO8E8qwn4",
+      "referenceField": "userId",
+      "expectedTarget": "users/{userId}",
+      "missingTarget": "users/system",
+      "relationshipType": "Immutable operational event to actor/target",
+      "rootCause": "System-generated audit entries use a virtual actor that is not represented by a users/ document.",
+      "severity": "Low",
+      "repairStrategy": "KEEP",
+      "repairExplanation": "Preserve immutable operational history; repair reporting with virtual actor labels or denormalized metadata instead of deleting audit evidence.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "h60zxqS8fLhAO8E8qwn4",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-133",
+      "collection": "auditLogs",
+      "documentId": "hAtvhnAY3iYtN0Pgi6k4",
+      "sourcePath": "auditLogs/hAtvhnAY3iYtN0Pgi6k4",
+      "referenceField": "userId",
+      "expectedTarget": "users/{userId}",
+      "missingTarget": "users/system",
+      "relationshipType": "Immutable operational event to actor/target",
+      "rootCause": "System-generated audit entries use a virtual actor that is not represented by a users/ document.",
+      "severity": "Low",
+      "repairStrategy": "KEEP",
+      "repairExplanation": "Preserve immutable operational history; repair reporting with virtual actor labels or denormalized metadata instead of deleting audit evidence.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "hAtvhnAY3iYtN0Pgi6k4",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-134",
+      "collection": "auditLogs",
+      "documentId": "hYEKhu5JfdH97VaeeIGM",
+      "sourcePath": "auditLogs/hYEKhu5JfdH97VaeeIGM",
+      "referenceField": "userId",
+      "expectedTarget": "users/{userId}",
+      "missingTarget": "users/system",
+      "relationshipType": "Immutable operational event to actor/target",
+      "rootCause": "System-generated audit entries use a virtual actor that is not represented by a users/ document.",
+      "severity": "Low",
+      "repairStrategy": "KEEP",
+      "repairExplanation": "Preserve immutable operational history; repair reporting with virtual actor labels or denormalized metadata instead of deleting audit evidence.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "hYEKhu5JfdH97VaeeIGM",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-135",
+      "collection": "auditLogs",
+      "documentId": "hv8s59dwHDNwyTK8kLuW",
+      "sourcePath": "auditLogs/hv8s59dwHDNwyTK8kLuW",
+      "referenceField": "userId",
+      "expectedTarget": "users/{userId}",
+      "missingTarget": "users/system",
+      "relationshipType": "Immutable operational event to actor/target",
+      "rootCause": "System-generated audit entries use a virtual actor that is not represented by a users/ document.",
+      "severity": "Low",
+      "repairStrategy": "KEEP",
+      "repairExplanation": "Preserve immutable operational history; repair reporting with virtual actor labels or denormalized metadata instead of deleting audit evidence.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "hv8s59dwHDNwyTK8kLuW",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-136",
+      "collection": "auditLogs",
+      "documentId": "hxfdDUSHibqO8Q5nnGn1",
+      "sourcePath": "auditLogs/hxfdDUSHibqO8Q5nnGn1",
+      "referenceField": "userId",
+      "expectedTarget": "users/{userId}",
+      "missingTarget": "users/system",
+      "relationshipType": "Immutable operational event to actor/target",
+      "rootCause": "System-generated audit entries use a virtual actor that is not represented by a users/ document.",
+      "severity": "Low",
+      "repairStrategy": "KEEP",
+      "repairExplanation": "Preserve immutable operational history; repair reporting with virtual actor labels or denormalized metadata instead of deleting audit evidence.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "hxfdDUSHibqO8Q5nnGn1",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-137",
+      "collection": "auditLogs",
+      "documentId": "i35xYVlqhbjhfUI8OxQE",
+      "sourcePath": "auditLogs/i35xYVlqhbjhfUI8OxQE",
+      "referenceField": "userId",
+      "expectedTarget": "users/{userId}",
+      "missingTarget": "users/system",
+      "relationshipType": "Immutable operational event to actor/target",
+      "rootCause": "System-generated audit entries use a virtual actor that is not represented by a users/ document.",
+      "severity": "Low",
+      "repairStrategy": "KEEP",
+      "repairExplanation": "Preserve immutable operational history; repair reporting with virtual actor labels or denormalized metadata instead of deleting audit evidence.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "i35xYVlqhbjhfUI8OxQE",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-138",
+      "collection": "auditLogs",
+      "documentId": "iIK2ocuh79ikEVXTSnKz",
+      "sourcePath": "auditLogs/iIK2ocuh79ikEVXTSnKz",
+      "referenceField": "userId",
+      "expectedTarget": "users/{userId}",
+      "missingTarget": "users/system",
+      "relationshipType": "Immutable operational event to actor/target",
+      "rootCause": "System-generated audit entries use a virtual actor that is not represented by a users/ document.",
+      "severity": "Low",
+      "repairStrategy": "KEEP",
+      "repairExplanation": "Preserve immutable operational history; repair reporting with virtual actor labels or denormalized metadata instead of deleting audit evidence.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "iIK2ocuh79ikEVXTSnKz",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-139",
+      "collection": "auditLogs",
+      "documentId": "iYRPYGrY1T1w0AJwzyI4",
+      "sourcePath": "auditLogs/iYRPYGrY1T1w0AJwzyI4",
+      "referenceField": "userId",
+      "expectedTarget": "users/{userId}",
+      "missingTarget": "users/system",
+      "relationshipType": "Immutable operational event to actor/target",
+      "rootCause": "System-generated audit entries use a virtual actor that is not represented by a users/ document.",
+      "severity": "Low",
+      "repairStrategy": "KEEP",
+      "repairExplanation": "Preserve immutable operational history; repair reporting with virtual actor labels or denormalized metadata instead of deleting audit evidence.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "iYRPYGrY1T1w0AJwzyI4",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-140",
+      "collection": "auditLogs",
+      "documentId": "jcUKS890KY7Kg8FRFEEs",
+      "sourcePath": "auditLogs/jcUKS890KY7Kg8FRFEEs",
+      "referenceField": "userId",
+      "expectedTarget": "users/{userId}",
+      "missingTarget": "users/mIvgcVQzo4gdFyNHNIMn1SLElCp1",
+      "relationshipType": "Immutable operational event to actor/target",
+      "rootCause": "Legacy data shape or deleted seed data left a dangling reference.",
+      "severity": "Medium",
+      "repairStrategy": "KEEP",
+      "repairExplanation": "Preserve immutable operational history; repair reporting with virtual actor labels or denormalized metadata instead of deleting audit evidence.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "jcUKS890KY7Kg8FRFEEs",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-141",
+      "collection": "auditLogs",
+      "documentId": "k4lb1dmcEd3aL0rp4cc3",
+      "sourcePath": "auditLogs/k4lb1dmcEd3aL0rp4cc3",
+      "referenceField": "userId",
+      "expectedTarget": "users/{userId}",
+      "missingTarget": "users/system",
+      "relationshipType": "Immutable operational event to actor/target",
+      "rootCause": "System-generated audit entries use a virtual actor that is not represented by a users/ document.",
+      "severity": "Low",
+      "repairStrategy": "KEEP",
+      "repairExplanation": "Preserve immutable operational history; repair reporting with virtual actor labels or denormalized metadata instead of deleting audit evidence.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "k4lb1dmcEd3aL0rp4cc3",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-142",
+      "collection": "auditLogs",
+      "documentId": "k5hS8zPVaRwIuV2vH2Ml",
+      "sourcePath": "auditLogs/k5hS8zPVaRwIuV2vH2Ml",
+      "referenceField": "userId",
+      "expectedTarget": "users/{userId}",
+      "missingTarget": "users/system",
+      "relationshipType": "Immutable operational event to actor/target",
+      "rootCause": "System-generated audit entries use a virtual actor that is not represented by a users/ document.",
+      "severity": "Low",
+      "repairStrategy": "KEEP",
+      "repairExplanation": "Preserve immutable operational history; repair reporting with virtual actor labels or denormalized metadata instead of deleting audit evidence.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "k5hS8zPVaRwIuV2vH2Ml",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-143",
+      "collection": "auditLogs",
+      "documentId": "lU8Q1Y1vTLRTuTcK6gjA",
+      "sourcePath": "auditLogs/lU8Q1Y1vTLRTuTcK6gjA",
+      "referenceField": "userId",
+      "expectedTarget": "users/{userId}",
+      "missingTarget": "users/system",
+      "relationshipType": "Immutable operational event to actor/target",
+      "rootCause": "System-generated audit entries use a virtual actor that is not represented by a users/ document.",
+      "severity": "Low",
+      "repairStrategy": "KEEP",
+      "repairExplanation": "Preserve immutable operational history; repair reporting with virtual actor labels or denormalized metadata instead of deleting audit evidence.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "lU8Q1Y1vTLRTuTcK6gjA",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-144",
+      "collection": "auditLogs",
+      "documentId": "m7FEgCMul8NcHItG0VP3",
+      "sourcePath": "auditLogs/m7FEgCMul8NcHItG0VP3",
+      "referenceField": "userId",
+      "expectedTarget": "users/{userId}",
+      "missingTarget": "users/system",
+      "relationshipType": "Immutable operational event to actor/target",
+      "rootCause": "System-generated audit entries use a virtual actor that is not represented by a users/ document.",
+      "severity": "Low",
+      "repairStrategy": "KEEP",
+      "repairExplanation": "Preserve immutable operational history; repair reporting with virtual actor labels or denormalized metadata instead of deleting audit evidence.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "m7FEgCMul8NcHItG0VP3",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-145",
+      "collection": "auditLogs",
+      "documentId": "maxLkXvNQoh3Cd1spKIu",
+      "sourcePath": "auditLogs/maxLkXvNQoh3Cd1spKIu",
+      "referenceField": "userId",
+      "expectedTarget": "users/{userId}",
+      "missingTarget": "users/system",
+      "relationshipType": "Immutable operational event to actor/target",
+      "rootCause": "System-generated audit entries use a virtual actor that is not represented by a users/ document.",
+      "severity": "Low",
+      "repairStrategy": "KEEP",
+      "repairExplanation": "Preserve immutable operational history; repair reporting with virtual actor labels or denormalized metadata instead of deleting audit evidence.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "maxLkXvNQoh3Cd1spKIu",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-146",
+      "collection": "auditLogs",
+      "documentId": "md3xjkiA1ViyYPLS9y5Z",
+      "sourcePath": "auditLogs/md3xjkiA1ViyYPLS9y5Z",
+      "referenceField": "userId",
+      "expectedTarget": "users/{userId}",
+      "missingTarget": "users/system",
+      "relationshipType": "Immutable operational event to actor/target",
+      "rootCause": "System-generated audit entries use a virtual actor that is not represented by a users/ document.",
+      "severity": "Low",
+      "repairStrategy": "KEEP",
+      "repairExplanation": "Preserve immutable operational history; repair reporting with virtual actor labels or denormalized metadata instead of deleting audit evidence.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "md3xjkiA1ViyYPLS9y5Z",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-147",
+      "collection": "auditLogs",
+      "documentId": "n0zv0vVe6SQmMAUXb6CN",
+      "sourcePath": "auditLogs/n0zv0vVe6SQmMAUXb6CN",
+      "referenceField": "userId",
+      "expectedTarget": "users/{userId}",
+      "missingTarget": "users/system",
+      "relationshipType": "Immutable operational event to actor/target",
+      "rootCause": "System-generated audit entries use a virtual actor that is not represented by a users/ document.",
+      "severity": "Low",
+      "repairStrategy": "KEEP",
+      "repairExplanation": "Preserve immutable operational history; repair reporting with virtual actor labels or denormalized metadata instead of deleting audit evidence.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "n0zv0vVe6SQmMAUXb6CN",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-148",
+      "collection": "auditLogs",
+      "documentId": "n4FK6Z6cqie1yZCHykOq",
+      "sourcePath": "auditLogs/n4FK6Z6cqie1yZCHykOq",
+      "referenceField": "userId",
+      "expectedTarget": "users/{userId}",
+      "missingTarget": "users/mIvgcVQzo4gdFyNHNIMn1SLElCp1",
+      "relationshipType": "Immutable operational event to actor/target",
+      "rootCause": "Legacy data shape or deleted seed data left a dangling reference.",
+      "severity": "Medium",
+      "repairStrategy": "KEEP",
+      "repairExplanation": "Preserve immutable operational history; repair reporting with virtual actor labels or denormalized metadata instead of deleting audit evidence.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "n4FK6Z6cqie1yZCHykOq",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-149",
+      "collection": "auditLogs",
+      "documentId": "nC0o5EzHwpL1cWXKb39O",
+      "sourcePath": "auditLogs/nC0o5EzHwpL1cWXKb39O",
+      "referenceField": "userId",
+      "expectedTarget": "users/{userId}",
+      "missingTarget": "users/ekUvq3lC7HUEwICe5rcCQBWovSF3",
+      "relationshipType": "Immutable operational event to actor/target",
+      "rootCause": "Legacy data shape or deleted seed data left a dangling reference.",
+      "severity": "Medium",
+      "repairStrategy": "KEEP",
+      "repairExplanation": "Preserve immutable operational history; repair reporting with virtual actor labels or denormalized metadata instead of deleting audit evidence.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "nC0o5EzHwpL1cWXKb39O",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-150",
+      "collection": "auditLogs",
+      "documentId": "nxrXetk3r6pS1xhTvn19",
+      "sourcePath": "auditLogs/nxrXetk3r6pS1xhTvn19",
+      "referenceField": "userId",
+      "expectedTarget": "users/{userId}",
+      "missingTarget": "users/system",
+      "relationshipType": "Immutable operational event to actor/target",
+      "rootCause": "System-generated audit entries use a virtual actor that is not represented by a users/ document.",
+      "severity": "Low",
+      "repairStrategy": "KEEP",
+      "repairExplanation": "Preserve immutable operational history; repair reporting with virtual actor labels or denormalized metadata instead of deleting audit evidence.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "nxrXetk3r6pS1xhTvn19",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-151",
+      "collection": "auditLogs",
+      "documentId": "o2vKKlC36gsdzsfPewSB",
+      "sourcePath": "auditLogs/o2vKKlC36gsdzsfPewSB",
+      "referenceField": "userId",
+      "expectedTarget": "users/{userId}",
+      "missingTarget": "users/system",
+      "relationshipType": "Immutable operational event to actor/target",
+      "rootCause": "System-generated audit entries use a virtual actor that is not represented by a users/ document.",
+      "severity": "Low",
+      "repairStrategy": "KEEP",
+      "repairExplanation": "Preserve immutable operational history; repair reporting with virtual actor labels or denormalized metadata instead of deleting audit evidence.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "o2vKKlC36gsdzsfPewSB",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-152",
+      "collection": "auditLogs",
+      "documentId": "oG4xJgs9FU2HSufaE5jo",
+      "sourcePath": "auditLogs/oG4xJgs9FU2HSufaE5jo",
+      "referenceField": "userId",
+      "expectedTarget": "users/{userId}",
+      "missingTarget": "users/system",
+      "relationshipType": "Immutable operational event to actor/target",
+      "rootCause": "System-generated audit entries use a virtual actor that is not represented by a users/ document.",
+      "severity": "Low",
+      "repairStrategy": "KEEP",
+      "repairExplanation": "Preserve immutable operational history; repair reporting with virtual actor labels or denormalized metadata instead of deleting audit evidence.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "oG4xJgs9FU2HSufaE5jo",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-153",
+      "collection": "auditLogs",
+      "documentId": "onh7KAkmtumZUS41KPyb",
+      "sourcePath": "auditLogs/onh7KAkmtumZUS41KPyb",
+      "referenceField": "userId",
+      "expectedTarget": "users/{userId}",
+      "missingTarget": "users/system",
+      "relationshipType": "Immutable operational event to actor/target",
+      "rootCause": "System-generated audit entries use a virtual actor that is not represented by a users/ document.",
+      "severity": "Low",
+      "repairStrategy": "KEEP",
+      "repairExplanation": "Preserve immutable operational history; repair reporting with virtual actor labels or denormalized metadata instead of deleting audit evidence.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "onh7KAkmtumZUS41KPyb",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-154",
+      "collection": "auditLogs",
+      "documentId": "ozXeDdlu6qgKJUhjheqw",
+      "sourcePath": "auditLogs/ozXeDdlu6qgKJUhjheqw",
+      "referenceField": "userId",
+      "expectedTarget": "users/{userId}",
+      "missingTarget": "users/system",
+      "relationshipType": "Immutable operational event to actor/target",
+      "rootCause": "System-generated audit entries use a virtual actor that is not represented by a users/ document.",
+      "severity": "Low",
+      "repairStrategy": "KEEP",
+      "repairExplanation": "Preserve immutable operational history; repair reporting with virtual actor labels or denormalized metadata instead of deleting audit evidence.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "ozXeDdlu6qgKJUhjheqw",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-155",
+      "collection": "auditLogs",
+      "documentId": "qV7ABzQo5QylYXmzm3Ff",
+      "sourcePath": "auditLogs/qV7ABzQo5QylYXmzm3Ff",
+      "referenceField": "userId",
+      "expectedTarget": "users/{userId}",
+      "missingTarget": "users/system",
+      "relationshipType": "Immutable operational event to actor/target",
+      "rootCause": "System-generated audit entries use a virtual actor that is not represented by a users/ document.",
+      "severity": "Low",
+      "repairStrategy": "KEEP",
+      "repairExplanation": "Preserve immutable operational history; repair reporting with virtual actor labels or denormalized metadata instead of deleting audit evidence.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "qV7ABzQo5QylYXmzm3Ff",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-156",
+      "collection": "auditLogs",
+      "documentId": "qetydKw1UDZNozOnH1dj",
+      "sourcePath": "auditLogs/qetydKw1UDZNozOnH1dj",
+      "referenceField": "userId",
+      "expectedTarget": "users/{userId}",
+      "missingTarget": "users/system",
+      "relationshipType": "Immutable operational event to actor/target",
+      "rootCause": "System-generated audit entries use a virtual actor that is not represented by a users/ document.",
+      "severity": "Low",
+      "repairStrategy": "KEEP",
+      "repairExplanation": "Preserve immutable operational history; repair reporting with virtual actor labels or denormalized metadata instead of deleting audit evidence.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "qetydKw1UDZNozOnH1dj",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-157",
+      "collection": "auditLogs",
+      "documentId": "rYIFHUoJ5XiY4CtA4lDY",
+      "sourcePath": "auditLogs/rYIFHUoJ5XiY4CtA4lDY",
+      "referenceField": "userId",
+      "expectedTarget": "users/{userId}",
+      "missingTarget": "users/system",
+      "relationshipType": "Immutable operational event to actor/target",
+      "rootCause": "System-generated audit entries use a virtual actor that is not represented by a users/ document.",
+      "severity": "Low",
+      "repairStrategy": "KEEP",
+      "repairExplanation": "Preserve immutable operational history; repair reporting with virtual actor labels or denormalized metadata instead of deleting audit evidence.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "rYIFHUoJ5XiY4CtA4lDY",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-158",
+      "collection": "auditLogs",
+      "documentId": "royv605SRlue3z1paQ2c",
+      "sourcePath": "auditLogs/royv605SRlue3z1paQ2c",
+      "referenceField": "userId",
+      "expectedTarget": "users/{userId}",
+      "missingTarget": "users/system",
+      "relationshipType": "Immutable operational event to actor/target",
+      "rootCause": "System-generated audit entries use a virtual actor that is not represented by a users/ document.",
+      "severity": "Low",
+      "repairStrategy": "KEEP",
+      "repairExplanation": "Preserve immutable operational history; repair reporting with virtual actor labels or denormalized metadata instead of deleting audit evidence.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "royv605SRlue3z1paQ2c",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-159",
+      "collection": "auditLogs",
+      "documentId": "tf8KBDluM7AoTR2RVSlq",
+      "sourcePath": "auditLogs/tf8KBDluM7AoTR2RVSlq",
+      "referenceField": "userId",
+      "expectedTarget": "users/{userId}",
+      "missingTarget": "users/weafIuxbamYoEoJaSytAvumVxK62",
+      "relationshipType": "Immutable operational event to actor/target",
+      "rootCause": "Legacy data shape or deleted seed data left a dangling reference.",
+      "severity": "Medium",
+      "repairStrategy": "KEEP",
+      "repairExplanation": "Preserve immutable operational history; repair reporting with virtual actor labels or denormalized metadata instead of deleting audit evidence.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "tf8KBDluM7AoTR2RVSlq",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-160",
+      "collection": "auditLogs",
+      "documentId": "w9jTzEC735KIXhRDACMk",
+      "sourcePath": "auditLogs/w9jTzEC735KIXhRDACMk",
+      "referenceField": "userId",
+      "expectedTarget": "users/{userId}",
+      "missingTarget": "users/system",
+      "relationshipType": "Immutable operational event to actor/target",
+      "rootCause": "System-generated audit entries use a virtual actor that is not represented by a users/ document.",
+      "severity": "Low",
+      "repairStrategy": "KEEP",
+      "repairExplanation": "Preserve immutable operational history; repair reporting with virtual actor labels or denormalized metadata instead of deleting audit evidence.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "w9jTzEC735KIXhRDACMk",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-161",
+      "collection": "auditLogs",
+      "documentId": "x6RPzEd75lfarSUZowbR",
+      "sourcePath": "auditLogs/x6RPzEd75lfarSUZowbR",
+      "referenceField": "userId",
+      "expectedTarget": "users/{userId}",
+      "missingTarget": "users/system",
+      "relationshipType": "Immutable operational event to actor/target",
+      "rootCause": "System-generated audit entries use a virtual actor that is not represented by a users/ document.",
+      "severity": "Low",
+      "repairStrategy": "KEEP",
+      "repairExplanation": "Preserve immutable operational history; repair reporting with virtual actor labels or denormalized metadata instead of deleting audit evidence.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "x6RPzEd75lfarSUZowbR",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-162",
+      "collection": "auditLogs",
+      "documentId": "xN8hgMJuI1ZuKDPtjsSM",
+      "sourcePath": "auditLogs/xN8hgMJuI1ZuKDPtjsSM",
+      "referenceField": "userId",
+      "expectedTarget": "users/{userId}",
+      "missingTarget": "users/system",
+      "relationshipType": "Immutable operational event to actor/target",
+      "rootCause": "System-generated audit entries use a virtual actor that is not represented by a users/ document.",
+      "severity": "Low",
+      "repairStrategy": "KEEP",
+      "repairExplanation": "Preserve immutable operational history; repair reporting with virtual actor labels or denormalized metadata instead of deleting audit evidence.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "xN8hgMJuI1ZuKDPtjsSM",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-163",
+      "collection": "auditLogs",
+      "documentId": "xevxdgGvfLU2vEMYkM2l",
+      "sourcePath": "auditLogs/xevxdgGvfLU2vEMYkM2l",
+      "referenceField": "userId",
+      "expectedTarget": "users/{userId}",
+      "missingTarget": "users/system",
+      "relationshipType": "Immutable operational event to actor/target",
+      "rootCause": "System-generated audit entries use a virtual actor that is not represented by a users/ document.",
+      "severity": "Low",
+      "repairStrategy": "KEEP",
+      "repairExplanation": "Preserve immutable operational history; repair reporting with virtual actor labels or denormalized metadata instead of deleting audit evidence.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "xevxdgGvfLU2vEMYkM2l",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-164",
+      "collection": "auditLogs",
+      "documentId": "y73iqFLgpnLF6ubUJ1QP",
+      "sourcePath": "auditLogs/y73iqFLgpnLF6ubUJ1QP",
+      "referenceField": "userId",
+      "expectedTarget": "users/{userId}",
+      "missingTarget": "users/system",
+      "relationshipType": "Immutable operational event to actor/target",
+      "rootCause": "System-generated audit entries use a virtual actor that is not represented by a users/ document.",
+      "severity": "Low",
+      "repairStrategy": "KEEP",
+      "repairExplanation": "Preserve immutable operational history; repair reporting with virtual actor labels or denormalized metadata instead of deleting audit evidence.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "y73iqFLgpnLF6ubUJ1QP",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-165",
+      "collection": "auditLogs",
+      "documentId": "yLxP0not379QJxURx7HM",
+      "sourcePath": "auditLogs/yLxP0not379QJxURx7HM",
+      "referenceField": "userId",
+      "expectedTarget": "users/{userId}",
+      "missingTarget": "users/system",
+      "relationshipType": "Immutable operational event to actor/target",
+      "rootCause": "System-generated audit entries use a virtual actor that is not represented by a users/ document.",
+      "severity": "Low",
+      "repairStrategy": "KEEP",
+      "repairExplanation": "Preserve immutable operational history; repair reporting with virtual actor labels or denormalized metadata instead of deleting audit evidence.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "yLxP0not379QJxURx7HM",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    },
+    {
+      "issueId": "BR-166",
+      "collection": "auditLogs",
+      "documentId": "yhS4hpVwFDLYSWnXnrGW",
+      "sourcePath": "auditLogs/yhS4hpVwFDLYSWnXnrGW",
+      "referenceField": "userId",
+      "expectedTarget": "users/{userId}",
+      "missingTarget": "users/system",
+      "relationshipType": "Immutable operational event to actor/target",
+      "rootCause": "System-generated audit entries use a virtual actor that is not represented by a users/ document.",
+      "severity": "Low",
+      "repairStrategy": "KEEP",
+      "repairExplanation": "Preserve immutable operational history; repair reporting with virtual actor labels or denormalized metadata instead of deleting audit evidence.",
+      "sourceRecommendation": "keep",
+      "sourceLabel": "yhS4hpVwFDLYSWnXnrGW",
+      "sourceReasons": [
+        "no cleanup signal"
+      ]
+    }
+  ]
+}
