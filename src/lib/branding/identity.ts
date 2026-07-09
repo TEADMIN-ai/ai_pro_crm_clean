@@ -22,12 +22,12 @@ export const TORQUE_EMPIRE_BRAND = {
 } as const;
 
 export const TORQUE_EMPIRE_BRAND_ASSETS = {
-  logoPrimarySvg: "/brand/logo/torque-empire-primary.svg",
+  logoPrimarySvg: "/corporate/logo/torque-empire-primary.svg",
   logoPrimaryPng: "/corporate/logo/torque-empire-primary.png",
-  logoDarkPng: "/brand/logo/torque-empire-dark.png",
-  logoLightPng: "/brand/logo/torque-empire-light.png",
-  monogramSvg: "/brand/logo/torque-empire-monogram.svg",
-  faviconPng: "/brand/logo/favicon.png",
+  logoDarkPng: "/corporate/logo/torque-empire-dark.png",
+  logoLightPng: "/corporate/logo/torque-empire-light.png",
+  monogramSvg: "/corporate/logo/torque-empire-monogram.svg",
+  faviconPng: "/corporate/logo/favicon.png",
 } as const;
 
 export type TorqueEmpireBrandAssetName = keyof typeof TORQUE_EMPIRE_BRAND_ASSETS;

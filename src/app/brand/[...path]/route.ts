@@ -1,11 +1,11 @@
-import { promises as fs } from "node:fs";
+﻿import { promises as fs } from "node:fs";
 import path from "node:path";
 
 import { NextResponse } from "next/server";
 
 export const runtime = "nodejs";
 
-const corporateRoot = path.join(process.cwd(), "public", "corporate");
+const brandRoot = path.join(process.cwd(), "public", "corporate");
 
 function resolveContentType(filePath: string): string {
   const ext = path.extname(filePath).toLowerCase();
@@ -34,16 +34,16 @@ export async function GET(_request: Request, { params }: { params: Promise<{ pat
   const resolvedParams = await params;
   const segments = resolvedParams.path ?? [];
   if (segments.length === 0) {
-    return NextResponse.json({ error: "Missing corporate asset path" }, { status: 404 });
+    return NextResponse.json({ error: "Missing brand asset path" }, { status: 404 });
   }
 
   const relativePath = path.join(...segments);
-  const targetPath = path.join(corporateRoot, relativePath);
-  const normalizedRoot = path.normalize(corporateRoot + path.sep);
+  const targetPath = path.join(brandRoot, relativePath);
+  const normalizedRoot = path.normalize(brandRoot + path.sep);
   const normalizedTarget = path.normalize(targetPath);
 
   if (!normalizedTarget.startsWith(normalizedRoot)) {
-    return NextResponse.json({ error: "Invalid corporate asset path" }, { status: 400 });
+    return NextResponse.json({ error: "Invalid brand asset path" }, { status: 400 });
   }
 
   try {
@@ -55,6 +55,8 @@ export async function GET(_request: Request, { params }: { params: Promise<{ pat
       },
     });
   } catch {
-    return NextResponse.json({ error: "Corporate asset not found" }, { status: 404 });
+    return NextResponse.json({ error: "Brand asset not found" }, { status: 404 });
   }
 }
+
+

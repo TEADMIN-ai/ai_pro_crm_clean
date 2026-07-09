@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 420" role="img" aria-label="Torque Empire TEOS logo">
+  <defs>
+    <linearGradient id="monogramBg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#07111f"/>
+      <stop offset="1" stop-color="#0b2f57"/>
+    </linearGradient>
+  </defs>
+  <rect width="1600" height="420" fill="transparent" fill-opacity="0"/>
+  <g transform="translate(56 60)">
+    <rect width="300" height="300" rx="66" fill="url(#monogramBg)"/>
+    <rect x="0" y="0" width="300" height="300" rx="66" fill="none" stroke="rgba(255,255,255,0.16)" stroke-width="6"/>
+    <text x="150" y="157" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="110" font-weight="900" fill="#ffffff">TE</text>
+    <rect x="55" y="216" width="190" height="10" rx="5" fill="#1d4ed8"/>
+    <text x="150" y="248" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="34" font-weight="700" fill="rgba(255,255,255,0.8)">TEOS</text>
+  </g>
+  <text x="420" y="182" font-family="Arial, Helvetica, sans-serif" font-size="86" font-weight="900" fill="#07111f">Torque Empire</text>
+  <rect x="420" y="210" width="280" height="8" rx="4" fill="#1d4ed8"/>
+  <text x="420" y="286" font-family="Arial, Helvetica, sans-serif" font-size="38" font-weight="700" fill="#5b6878">TEOS Platform</text>
+</svg>

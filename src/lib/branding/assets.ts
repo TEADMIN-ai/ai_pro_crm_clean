@@ -3,7 +3,7 @@ import path from "node:path";
 
 import { TORQUE_EMPIRE_BRAND_ASSETS } from "@/lib/branding/identity";
 
-const brandRoot = path.join(process.cwd(), "assets", "corporate", "logo");
+const brandRoot = path.join(process.cwd(), "public", "corporate", "logo");
 
 export { TORQUE_EMPIRE_BRAND_ASSETS };
 
