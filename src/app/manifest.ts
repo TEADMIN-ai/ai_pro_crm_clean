@@ -1,37 +1,33 @@
-import type { MetadataRoute } from "next";
+﻿import type { MetadataRoute } from "next";
+
+import { TORQUE_EMPIRE_BRAND } from "@/lib/branding/identity";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "Torque Empire AI Pro CRM",
-    short_name: "Torque AI",
-    description: "Torque Empire AI Pro CRM executive operations workspace.",
+    name: TORQUE_EMPIRE_BRAND.platformName,
+    short_name: TORQUE_EMPIRE_BRAND.shortName,
+    description: TORQUE_EMPIRE_BRAND.description,
     id: "/",
-    start_url: "/dashboard/hygiene/jobs",
+    start_url: "/",
     scope: "/",
     display: "standalone",
-    background_color: "#071426",
-    theme_color: "#071426",
+    background_color: TORQUE_EMPIRE_BRAND.colors.surface,
+    theme_color: TORQUE_EMPIRE_BRAND.colors.blue,
     icons: [
       {
-        src: "/icons/icon-192.png",
-        sizes: "192x192",
-        type: "image/png",
-        purpose: "any",
-      },
-      {
-        src: "/icons/icon-512.png",
+        src: "/icon",
         sizes: "512x512",
         type: "image/png",
         purpose: "any",
       },
       {
-        src: "/icons/maskable-icon-192.png",
-        sizes: "192x192",
+        src: "/brand/logo/favicon.png",
+        sizes: "512x512",
         type: "image/png",
-        purpose: "maskable",
+        purpose: "any",
       },
       {
-        src: "/icons/maskable-icon-512.png",
+        src: "/corporate/logo/torque-empire-primary.png",
         sizes: "512x512",
         type: "image/png",
         purpose: "maskable",

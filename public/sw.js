@@ -1,15 +1,14 @@
-const CACHE_NAME = "torque-empire-pwa-v2-tex-icons";
+﻿const CACHE_NAME = "torque-empire-pwa-v3-brand";
 const APP_SHELL = [
   "/",
   "/login",
   "/dashboard/hygiene/jobs",
   "/manifest.webmanifest",
-  "/favicon.ico",
-  "/icons/icon-192.png",
-  "/icons/icon-512.png",
-  "/icons/maskable-icon-192.png",
-  "/icons/maskable-icon-512.png",
-  "/icons/apple-touch-icon.png",
+  "/icon",
+  "/apple-icon",
+  "/brand/logo/favicon.png",
+  "/corporate/logo/torque-empire-primary.png",
+  "/brand/logo/torque-empire-light.png",
 ];
 
 self.addEventListener("install", (event) => {

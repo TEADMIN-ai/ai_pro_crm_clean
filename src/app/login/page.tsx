@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect } from "react";
 import Image from "next/image";
@@ -44,7 +44,7 @@ export default function LoginPage() {
         muted
         loop
         playsInline
-        poster="/icons/icon-512.png"
+        poster="/corporate/logo/torque-empire-primary.png"
         style={{
           position: "absolute",
           inset: 0,
@@ -93,8 +93,8 @@ export default function LoginPage() {
           }}
         >
           <Image
-            src="/icons/icon-192.png"
-            alt="Torque Empire"
+            src="/brand/logo/favicon.png"
+            alt="Torque Empire TEOS"
             width={72}
             height={72}
             priority
@@ -130,3 +130,5 @@ export default function LoginPage() {
     </div>
   );
 }
+
+
