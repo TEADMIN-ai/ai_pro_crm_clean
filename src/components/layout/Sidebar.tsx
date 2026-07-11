@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -24,7 +24,7 @@ export default function Sidebar() {
           borderRight: `1px solid ${empireColors.border}`,
         }}
       >
-        Loading navigation...
+        Loading Torque Empire...
       </aside>
     );
   }
@@ -149,7 +149,7 @@ export default function Sidebar() {
         top: 0,
       }}
     >
-      <h2 style={{ marginBottom: 8, fontSize: 20 }}>Workspace</h2>
+      <h2 style={{ marginBottom: 8, fontSize: 20 }}>Torque Empire TEOS</h2>
 
       <div style={{ fontSize: 14, color: empireColors.textSecondary }}>Role: {role}</div>
 
@@ -179,12 +179,12 @@ export default function Sidebar() {
 }
 
 const linkStyle = (active: boolean): CSSProperties => ({
-  color: active ? "#2563EB" : empireColors.textSecondary,
+  color: active ? "#0B2F57" : empireColors.textSecondary,
   textDecoration: "none",
   padding: "12px 14px",
   borderRadius: 12,
-  border: `1px solid ${active ? "#DBEAFE" : "transparent"}`,
-  background: active ? "#EFF6FF" : "transparent",
+  border: `1px solid ${active ? "#D9E2EC" : "transparent"}`,
+  background: active ? "#F4F7FB" : "transparent",
   boxShadow: "none",
   fontWeight: active ? 600 : 500,
   transition: "all 0.25s ease",

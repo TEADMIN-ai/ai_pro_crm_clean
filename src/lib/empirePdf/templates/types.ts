@@ -195,6 +195,7 @@ export type IntelligentFillResult = {
   reviewFlags: ReviewFlag[];
   averageConfidence: number;
   renderedFieldCount: number;
+  intelligence?: import("../intelligence/renderIntelligence").PdfRendererIntelligenceReport;
   qaReport?: {
     document: TenderFormId;
     templateVersion: string | null;

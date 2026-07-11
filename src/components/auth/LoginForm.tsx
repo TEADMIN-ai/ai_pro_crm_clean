@@ -23,6 +23,7 @@ export default function LoginForm() {
     try {
       const credential = await signInWithEmailAndPassword(auth, email, password);
       const idToken = await credential.user.getIdToken(true);
+      window.sessionStorage.setItem("authToken", idToken);
 
       console.info("[LoginForm] Firebase sign-in succeeded", {
         uid: credential.user.uid,

@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import ContractorOpportunityWorkspace from "@/components/contractor-opportunities/ContractorOpportunityWorkspace";
 import ContractorBusinessIdCard from "@/components/contractors/ContractorBusinessIdCard";
 import UploadDocumentModal from "@/components/modals/UploadDocumentModal";
 import { useAuth } from "@/context/AuthContext";
@@ -14,6 +15,7 @@ import {
   SUPPORTED_DOCUMENT_TYPES,
   type SupportedDocumentType,
 } from "@/lib/compliance/contractorCompliance";
+import { buildContractorOpportunityWorkspaces } from "@/lib/contractor-opportunities/workspaceService";
 import type { ContractorTenderSummary } from "@/types/deal";
 import type { ContractorDocument } from "@/types/document";
 import type { ContractorTimelineItem } from "@/types/intelligenceCenter";
@@ -31,6 +33,7 @@ type ContractorRecord = {
   mNumber?: string | null;
   status?: string | null;
   overallStatus?: string | null;
+  complianceScore?: number | null;
   readinessScore?: number | null;
   docsMissing?: number | null;
   complianceApproved?: boolean | null;
@@ -39,6 +42,8 @@ type ContractorRecord = {
   reviewRequiredCount?: number | null;
   taxPinStatus?: string | null;
   csdStatus?: string | null;
+  riskGrade?: string | null;
+  reviewRecommendations?: string[] | null;
   createdAt?: string | number | null;
   updatedAt?: string | number | null;
   logoUrl?: string | null;
@@ -501,6 +506,14 @@ export default function ContractorOnboardingView({ contractorId }: Props) {
   const lastDocumentUpdateAt = getLastDocumentUpdate(payload.documents);
   const uploadContractor = { id: contractorId, name: companyName, companyName };
   const canUpload = role === "contractor" || payload.viewer.isPrivileged;
+  const opportunityWorkspaces = buildContractorOpportunityWorkspaces({
+    contractorId,
+    deals: payload.linkedDeals,
+    documents: payload.documents,
+    staffNotes: payload.commandNotes,
+    contractorNotes: payload.notes,
+    timeline: payload.timeline,
+  });
   const readinessSummary = buildReadinessSummary(payload.documents, payload.contractor);
   const canApproveOnboarding = payload.viewer.isPrivileged && payload.contractor.complianceApproved !== true;
 
@@ -541,6 +554,16 @@ export default function ContractorOnboardingView({ contractorId }: Props) {
         />
 
         {payload.lastAction ? <LastActionBanner action={payload.lastAction} /> : null}
+
+
+        <ExecutiveContractorProfile
+          contractor={payload.contractor}
+          documents={payload.documents}
+          deals={payload.linkedDeals}
+          timeline={payload.timeline}
+          readinessSummary={readinessSummary}
+        />
+
 
         <section className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
           <div className="space-y-6">
@@ -669,7 +692,7 @@ export default function ContractorOnboardingView({ contractorId }: Props) {
               ) : null}
             </div>
 
-            <LinkedDealsPanel deals={payload.linkedDeals} />
+            <ContractorOpportunityWorkspace opportunities={opportunityWorkspaces} />
             <ContractorTimelinePanel timeline={payload.timeline} />
           </div>
 
@@ -780,6 +803,44 @@ export default function ContractorOnboardingView({ contractorId }: Props) {
         selectedLabel={selectedDocLabel}
       />
     </>
+  );
+}
+
+
+function ExecutiveContractorProfile({
+  contractor, documents, deals, timeline, readinessSummary,
+}: {
+  contractor: ContractorRecord; documents: ContractorDocument[]; deals: LinkedDeal[]; timeline: ContractorTimelineItem[]; readinessSummary: ReturnType<typeof buildReadinessSummary>;
+}) {
+  const complianceScore = typeof contractor.complianceScore === "number" ? contractor.complianceScore : readinessSummary.readinessScore;
+  const verifiedCount = documents.filter((document) => document.verified || document.validationStatus === "PASS" || document.verificationStatus === "VERIFIED_MANUAL").length;
+  const uploadedCount = documents.filter((document) => Boolean(document.fileUrl)).length;
+  const expiringCount = documents.filter((document) => document.expiryAlert === "expiringSoon").length;
+  const expiredCount = documents.filter((document) => document.expiryAlert === "expired" || document.isExpired).length;
+  const tenderWins = deals.filter((deal) => { const status = (deal.stage + " " + (deal.status ?? "") + " " + (deal.tenderLockStatus ?? "")).toLowerCase(); return status.includes("won") || status.includes("award"); });
+  const riskRating = clean(contractor.riskGrade) || clean(deals.find((deal) => clean(deal.riskLevel))?.riskLevel) || "Pending review";
+  const submissionHistory = [...deals].sort((first, second) => new Date(second.updatedAt ?? 0).getTime() - new Date(first.updatedAt ?? 0).getTime()).slice(0, 4);
+  const documentExpiryTimeline = [...documents].filter((document) => Boolean(document.expiresAt ?? document.expiryDate ?? document.aiData?.expiryDate)).sort((first, second) => new Date(first.expiresAt ?? first.expiryDate ?? first.aiData?.expiryDate ?? 0).getTime() - new Date(second.expiresAt ?? second.expiryDate ?? second.aiData?.expiryDate ?? 0).getTime()).slice(0, 5);
+  return (
+    <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+        <div><p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Executive Contractor Profile</p><h2 className="mt-1 text-xl font-semibold text-slate-950">Performance and Readiness Overview</h2></div>
+        <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-700">Presentation only</span>
+      </div>
+      <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        <SummaryItem label="Compliance Score" value={Math.round(complianceScore) + "%"} />
+        <SummaryItem label="Readiness Score" value={Math.round(readinessSummary.readinessScore) + "%"} />
+        <SummaryItem label="Document Health" value={verifiedCount + "/" + readinessSummary.requiredDocsTotalCount + " verified; " + uploadedCount + " uploaded; " + expiringCount + " expiring; " + expiredCount + " expired"} />
+        <SummaryItem label="Submission History" value={submissionHistory.length ? submissionHistory.length + " active records" : "No submissions recorded"} />
+        <SummaryItem label="Tender Wins" value={tenderWins.length ? tenderWins.length + " recorded" : "No wins recorded"} />
+        <SummaryItem label="Risk Rating" value={riskRating} />
+      </div>
+      <div className="mt-5 grid grid-cols-1 gap-4 lg:grid-cols-3">
+        <div className="rounded-xl border border-slate-200 bg-slate-50 p-4"><p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">AI Recommendations</p><p className="mt-2 text-sm text-slate-700">AI recommendations placeholder. No automated recommendation logic is active in this view.</p></div>
+        <div className="rounded-xl border border-slate-200 bg-slate-50 p-4"><p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Timeline</p><div className="mt-3 space-y-2">{timeline.slice(0, 3).map((item) => (<p key={item.id} className="text-sm text-slate-700"><span className="font-semibold text-slate-900">{item.label}</span> - {formatDate(item.timestamp)}</p>))}{timeline.length === 0 ? <p className="text-sm text-slate-500">No timeline events recorded.</p> : null}</div></div>
+        <div className="rounded-xl border border-slate-200 bg-slate-50 p-4"><p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Document Expiry Timeline</p><div className="mt-3 space-y-2">{documentExpiryTimeline.map((document) => (<p key={document.id} className="text-sm text-slate-700"><span className="font-semibold text-slate-900">{documentLabel(document)}</span> - {formatDate(document.expiresAt ?? document.expiryDate ?? document.aiData?.expiryDate)}</p>))}{documentExpiryTimeline.length === 0 ? <p className="text-sm text-slate-500">No document expiry dates recorded.</p> : null}</div></div>
+      </div>
+    </section>
   );
 }
 

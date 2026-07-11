@@ -1,4 +1,4 @@
-import type { VehicleFinanceBankName } from "@/lib/vehicle-finance/classification/bankStatementClassifier";
+﻿import type { VehicleFinanceBankName } from "@/lib/vehicle-finance/classification/bankStatementClassifier";
 
 export const VEHICLE_FINANCE_DOCUMENT_TYPES = [
   "saIdDocument",
@@ -54,6 +54,39 @@ export type VehicleFinanceApplication = {
   createdVia?: "web" | "email" | "api" | "system";
   createdAt: string;
   updatedAt: string;
+  workflowSnapshot?: any;
+  workflowStageId?: string;
+  workflowStageLabel?: string;
+  workflowProgressPercentage?: number;
+  workflowNextRequiredAction?: string;
+  workflowTaskCount?: number;
+  workflowOverdueTaskCount?: number;
+  workflowTimelineEventCount?: number;
+  aiRiskScore?: number;
+  aiAffordabilityAssessment?: string;
+  aiDocumentCompleteness?: number;
+  aiMissingInformation?: string[];
+  aiRecommendedNextAction?: string;
+  aiSuggestedBanks?: string[];
+  assignedConsultantUid?: string | null;
+  assignedConsultantName?: string | null;
+  assignedSalesManagerUid?: string | null;
+  assignedSalesManagerName?: string | null;
+  assignedFinanceManagerUid?: string | null;
+  assignedFinanceManagerName?: string | null;
+  assignmentTimestamp?: string | null;
+  assignmentHistory?: Array<{
+    timestamp: string;
+    actorId: string | null;
+    actorName: string | null;
+    reason: string;
+    previousValue: Record<string, string | null>;
+    nextValue: Record<string, string | null>;
+  }>;
+  documentChecklistCompletionPercentage?: number;
+  documentChecklistOutstandingCount?: number;
+  notificationCount?: number;
+  unreadNotificationCount?: number;
 };
 
 export type VehicleFinanceDocumentAnalysis = {
@@ -448,6 +481,23 @@ export type VehicleFinanceIdentityIntelligenceJob = {
   status: VehicleFinanceIdentityIntelligenceJobStatus;
   createdAt: string;
   updatedAt: string;
+  workflowSnapshot?: any;
+  workflowStageId?: string;
+  workflowStageLabel?: string;
+  workflowProgressPercentage?: number;
+  workflowNextRequiredAction?: string;
+  workflowTaskCount?: number;
+  workflowOverdueTaskCount?: number;
+  workflowTimelineEventCount?: number;
+  aiRiskScore?: number;
+  aiAffordabilityAssessment?: string;
+  aiDocumentCompleteness?: number;
+  aiMissingInformation?: string[];
+  aiRecommendedNextAction?: string;
+  aiSuggestedBanks?: string[];
+
+
+
   startedAt?: string | null;
   completedAt?: string | null;
   errorMessage?: string | null;
@@ -466,6 +516,23 @@ export type VehicleFinancePayslipIntelligenceJob = {
   status: VehicleFinancePayslipIntelligenceJobStatus;
   createdAt: string;
   updatedAt: string;
+  workflowSnapshot?: any;
+  workflowStageId?: string;
+  workflowStageLabel?: string;
+  workflowProgressPercentage?: number;
+  workflowNextRequiredAction?: string;
+  workflowTaskCount?: number;
+  workflowOverdueTaskCount?: number;
+  workflowTimelineEventCount?: number;
+  aiRiskScore?: number;
+  aiAffordabilityAssessment?: string;
+  aiDocumentCompleteness?: number;
+  aiMissingInformation?: string[];
+  aiRecommendedNextAction?: string;
+  aiSuggestedBanks?: string[];
+
+
+
   startedAt?: string | null;
   completedAt?: string | null;
   errorMessage?: string | null;
@@ -484,6 +551,23 @@ export type VehicleFinanceBankStatementIntelligenceJob = {
   status: VehicleFinanceBankStatementIntelligenceJobStatus;
   createdAt: string;
   updatedAt: string;
+  workflowSnapshot?: any;
+  workflowStageId?: string;
+  workflowStageLabel?: string;
+  workflowProgressPercentage?: number;
+  workflowNextRequiredAction?: string;
+  workflowTaskCount?: number;
+  workflowOverdueTaskCount?: number;
+  workflowTimelineEventCount?: number;
+  aiRiskScore?: number;
+  aiAffordabilityAssessment?: string;
+  aiDocumentCompleteness?: number;
+  aiMissingInformation?: string[];
+  aiRecommendedNextAction?: string;
+  aiSuggestedBanks?: string[];
+
+
+
   startedAt?: string | null;
   completedAt?: string | null;
   errorMessage?: string | null;
@@ -502,6 +586,23 @@ export type VehicleFinanceDriverLicenceIntelligenceJob = {
   status: VehicleFinanceDriverLicenceIntelligenceJobStatus;
   createdAt: string;
   updatedAt: string;
+  workflowSnapshot?: any;
+  workflowStageId?: string;
+  workflowStageLabel?: string;
+  workflowProgressPercentage?: number;
+  workflowNextRequiredAction?: string;
+  workflowTaskCount?: number;
+  workflowOverdueTaskCount?: number;
+  workflowTimelineEventCount?: number;
+  aiRiskScore?: number;
+  aiAffordabilityAssessment?: string;
+  aiDocumentCompleteness?: number;
+  aiMissingInformation?: string[];
+  aiRecommendedNextAction?: string;
+  aiSuggestedBanks?: string[];
+
+
+
   startedAt?: string | null;
   completedAt?: string | null;
   errorMessage?: string | null;
@@ -519,6 +620,23 @@ export type VehicleFinanceAssessment = {
   verificationStatus: "PENDING" | "REVIEW" | "VERIFIED" | "FLAGGED";
   riskReasons: string[];
   updatedAt: string;
+  workflowSnapshot?: any;
+  workflowStageId?: string;
+  workflowStageLabel?: string;
+  workflowProgressPercentage?: number;
+  workflowNextRequiredAction?: string;
+  workflowTaskCount?: number;
+  workflowOverdueTaskCount?: number;
+  workflowTimelineEventCount?: number;
+  aiRiskScore?: number;
+  aiAffordabilityAssessment?: string;
+  aiDocumentCompleteness?: number;
+  aiMissingInformation?: string[];
+  aiRecommendedNextAction?: string;
+  aiSuggestedBanks?: string[];
+
+
+
 };
 
 export type VehicleFinanceCertificate = {

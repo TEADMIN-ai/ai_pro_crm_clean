@@ -1,6 +1,8 @@
-const requireAuthorizedUser = jest.fn();
+﻿const requireAuthorizedUser = jest.fn();
 const createVehicleFinanceApplication = jest.fn();
+const sendVehicleFinanceApplicationNotification = jest.fn();
 const getAvailableInventoryVehicle = jest.fn();
+const getFirebaseAdmin = jest.fn();
 
 jest.mock("@/lib/server/authz", () => {
   const actual = jest.requireActual("@/lib/server/authz");
@@ -10,9 +12,17 @@ jest.mock("@/lib/server/authz", () => {
   };
 });
 
+jest.mock("@/lib/firebase/admin", () => ({
+  getFirebaseAdmin: (...args: unknown[]) => getFirebaseAdmin(...args),
+}));
+
 jest.mock("@/lib/vehicleFinance/vehicleFinanceService", () => ({
   createVehicleFinanceApplication: (...args: unknown[]) => createVehicleFinanceApplication(...args),
   listVehicleFinanceApplications: jest.fn(),
+}));
+
+jest.mock("@/lib/vehicle-finance/notifications/vehicleFinanceApplicationNotification", () => ({
+  sendVehicleFinanceApplicationNotification: (...args: unknown[]) => sendVehicleFinanceApplicationNotification(...args),
 }));
 
 jest.mock("@/lib/vehicle-finance/inventory/durableInventorySync", () => ({
@@ -21,11 +31,42 @@ jest.mock("@/lib/vehicle-finance/inventory/durableInventorySync", () => ({
 
 import { POST } from "@/app/api/vehicle-finance/applications/route";
 
+function createDb(existing = false) {
+  return {
+    collection: jest.fn((name: string) => {
+      if (name === "vehicleFinanceApplications") {
+        return {
+          where: jest.fn(() => ({
+            limit: jest.fn(() => ({
+              get: jest.fn(async () => existing ? { empty: false, docs: [{ id: "application-existing", data: () => ({ clientSubmissionId: "submission-1" }) }] } : { empty: true, docs: [] }),
+            })),
+          })),
+        };
+      }
+      return {};
+    }),
+  };
+}
+
 describe("vehicle finance application inventory linkage", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     requireAuthorizedUser.mockResolvedValue({ uid: "staff-1", role: "staff", email: "staff@example.com" });
     createVehicleFinanceApplication.mockResolvedValue({ applicationId: "application-1" });
+    sendVehicleFinanceApplicationNotification.mockResolvedValue({
+      sent: true,
+      skipped: false,
+      skipReason: null,
+      attempts: 1,
+      resendResponseId: "email-1",
+      recipients: ["lawrence@roarcarssa.com", "zetania@roarcarssa.com"],
+      replyTo: "staff@example.com",
+      subject: "New Vehicle Finance Application",
+      dashboardLink: "https://example.com/dashboard/vehicle-finance/applications/application-1",
+      error: null,
+      queuedForRetry: false,
+    });
+    getFirebaseAdmin.mockReturnValue(createDb(false));
   });
 
   test("uses the synchronized inventory record instead of trusting client vehicle fields", async () => {
@@ -71,10 +112,13 @@ describe("vehicle finance application inventory linkage", () => {
       }),
       expect.objectContaining({ actorId: "staff-1" }),
     );
+    expect(sendVehicleFinanceApplicationNotification).toHaveBeenCalledWith(
+      expect.objectContaining({ application: { applicationId: "application-1" } }),
+    );
   });
 
-  test("rejects an inventory vehicle that is missing or unavailable", async () => {
-    getAvailableInventoryVehicle.mockResolvedValue(null);
+  test("skips notification when the client submission already exists", async () => {
+    getFirebaseAdmin.mockReturnValue(createDb(true));
 
     const response = await POST(
       new Request("http://localhost/api/vehicle-finance/applications", {
@@ -82,14 +126,16 @@ describe("vehicle finance application inventory linkage", () => {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           customerId: "customer-1",
-          vehicleInventoryId: "sold-stock",
+          vehicleId: "untrusted-id",
+          clientSubmissionId: "submission-1",
           dealerName: "Roar Cars",
-          dealValue: 400000,
+          dealValue: 500000,
         }),
       }) as never,
     );
 
-    expect(response.status).toBe(409);
-    expect(createVehicleFinanceApplication).not.toHaveBeenCalled();
+    expect(response.status).toBe(201);
+    expect(createVehicleFinanceApplication).toHaveBeenCalled();
+    expect(sendVehicleFinanceApplicationNotification).not.toHaveBeenCalled();
   });
 });

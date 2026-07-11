@@ -7,11 +7,15 @@ import { AuthorizationError, requireAuthorizedUser } from "@/lib/server/authz";
 export const dynamic = "force-dynamic";
 
 type JobAction =
+  | "accept-job"
+  | "start-travel"
   | "vehicle-inspection"
   | "start-job"
   | "start-collection"
   | "arrival"
   | "confirm-arrival"
+  | "begin-collection"
+  | "waste-collection"
   | "before-photo"
   | "checklist"
   | "record-bin-count"
@@ -19,6 +23,11 @@ type JobAction =
   | "liner-installed"
   | "bin-sanitised"
   | "after-photo"
+  | "capture-evidence"
+  | "capture-signature"
+  | "bin-serviced"
+  | "load-waste"
+  | "confirm-disposal"
   | "quantity"
   | "manifest"
   | "generate-manifest"
@@ -32,6 +41,8 @@ type JobPayload = {
   notes?: string;
   latitude?: number;
   longitude?: number;
+  gpsAccuracy?: number;
+  deviceInfo?: Record<string, unknown>;
   quantity?: number;
   manifestId?: string;
   checklist?: Record<string, boolean>;
@@ -119,7 +130,7 @@ export async function POST(request: NextRequest) {
     const action = requireString(body.action, "action") as JobAction;
     const collectionId = requireString(body.collectionId, "collectionId");
 
-    if (!["vehicle-inspection", "start-job", "start-collection", "arrival", "confirm-arrival", "before-photo", "checklist", "record-bin-count", "bag-removed", "liner-installed", "bin-sanitised", "after-photo", "quantity", "manifest", "generate-manifest", "signature", "awaiting-disposal", "complete-job"].includes(action)) {
+    if (!["accept-job", "start-travel", "vehicle-inspection", "start-job", "start-collection", "arrival", "confirm-arrival", "begin-collection", "waste-collection", "before-photo", "checklist", "record-bin-count", "bag-removed", "liner-installed", "bin-sanitised", "after-photo", "capture-evidence", "capture-signature", "bin-serviced", "load-waste", "confirm-disposal", "quantity", "manifest", "generate-manifest", "signature", "awaiting-disposal", "complete-job"].includes(action)) {
       return NextResponse.json({ error: "Unsupported mobile job action." }, { status: 400 });
     }
 
@@ -152,6 +163,17 @@ export async function POST(request: NextRequest) {
         representativePosition,
         signatureDataUrl: undefined,
         signatureFileUrl,
+        metadata: {
+          latitude: typeof body.latitude === "number" ? body.latitude : null,
+          longitude: typeof body.longitude === "number" ? body.longitude : null,
+          gpsAccuracy: typeof body.gpsAccuracy === "number" ? body.gpsAccuracy : null,
+          gps: {
+            latitude: typeof body.latitude === "number" ? body.latitude : null,
+            longitude: typeof body.longitude === "number" ? body.longitude : null,
+            accuracy: typeof body.gpsAccuracy === "number" ? body.gpsAccuracy : null,
+          },
+          deviceInfo: body.deviceInfo && typeof body.deviceInfo === "object" ? body.deviceInfo : {},
+        },
       });
 
       return NextResponse.json({ success: true, signature });
@@ -163,8 +185,17 @@ export async function POST(request: NextRequest) {
     }
 
     const normalizedAction =
-      action === "start-job" ? "start-collection"
+      action === "start-job" ? "accept-job"
       : action === "arrival" ? "confirm-arrival"
+      : action === "start-travel" ? "start-travel"
+      : action === "accept-job" ? "accept-job"
+      : action === "begin-collection" ? "waste-collection"
+      : action === "waste-collection" ? "waste-collection"
+      : action === "capture-evidence" ? "capture-evidence"
+      : action === "capture-signature" ? "capture-signature"
+      : action === "bin-serviced" ? "bin-serviced"
+      : action === "load-waste" ? "load-waste"
+      : action === "confirm-disposal" ? "confirm-disposal"
       : action === "checklist" ? "bag-removed"
       : action === "quantity" ? "record-bin-count"
       : action;
@@ -176,6 +207,13 @@ export async function POST(request: NextRequest) {
       metadata: {
         latitude: typeof body.latitude === "number" ? body.latitude : null,
         longitude: typeof body.longitude === "number" ? body.longitude : null,
+        gpsAccuracy: typeof body.gpsAccuracy === "number" ? body.gpsAccuracy : null,
+        gps: {
+          latitude: typeof body.latitude === "number" ? body.latitude : null,
+          longitude: typeof body.longitude === "number" ? body.longitude : null,
+          accuracy: typeof body.gpsAccuracy === "number" ? body.gpsAccuracy : null,
+        },
+        deviceInfo: body.deviceInfo && typeof body.deviceInfo === "object" ? body.deviceInfo : {},
         binCount: typeof body.quantity === "number" ? body.quantity : null,
         quantity: typeof body.quantity === "number" ? body.quantity : null,
         manifestId: typeof body.manifestId === "string" ? body.manifestId : null,

@@ -7,6 +7,7 @@ import {
   type HygieneDriverLog,
   type HygieneEvidencePhoto,
   type HygieneJobEvent,
+  type HygieneGpsLocation,
   type HygieneSignature,
   type HygieneManifest,
   type HygienePhotoCategory,
@@ -123,6 +124,42 @@ function validateWorkflowSteps(record: Record<string, unknown>): HygieneCollecti
   });
 }
 
+function validateGpsLocation(record: Record<string, unknown>): HygieneGpsLocation | null | undefined {
+  const value = record.lastGpsLocation;
+  if (value === null) return null;
+  if (value === undefined) return undefined;
+  if (typeof value !== "object" || Array.isArray(value)) {
+    throw new Error("Invalid hygiene payload: lastGpsLocation must be an object.");
+  }
+  const gps = value as Record<string, unknown>;
+  return {
+    latitude: typeof gps.latitude === "number" ? gps.latitude : null,
+    longitude: typeof gps.longitude === "number" ? gps.longitude : null,
+    accuracy: typeof gps.accuracy === "number" ? gps.accuracy : null,
+    capturedAt: typeof gps.capturedAt === "string" ? gps.capturedAt : new Date().toISOString(),
+  };
+}
+
+function validateWorkflowStepMap(record: Record<string, unknown>): Record<string, string | null> | undefined {
+  const value = record.stepTimestamps;
+  if (value === null || value === undefined) {
+    return undefined;
+  }
+
+  if (typeof value !== "object" || Array.isArray(value)) {
+    throw new Error("Invalid hygiene payload: stepTimestamps must be an object.");
+  }
+
+  const entries = Object.entries(value as Record<string, unknown>).map(([key, entry]) => {
+    if (entry !== null && entry !== undefined && typeof entry !== "string") {
+      throw new Error(`Invalid hygiene payload: stepTimestamps.${key} must be a string or null.`);
+    }
+    return [key, entry ?? null] as const;
+  });
+
+  return Object.fromEntries(entries) as Record<string, string | null>;
+}
+
 export function validateHygieneClient(input: unknown): HygieneClient {
   const record = asRecord(input);
   return {
@@ -207,6 +244,13 @@ export function validateHygieneCollection(input: unknown): HygieneCollection {
     clientSignatureStatus: requireString(record, "clientSignatureStatus"),
     notes: requireString(record, "notes"),
     workflowSteps: validateWorkflowSteps(record),
+    completedSteps: Array.isArray(record.completedSteps) ? requireStringArray(record, "completedSteps") : undefined,
+    currentStep: optionalString(record, "currentStep") ?? undefined,
+    progressPercentage: optionalNumber(record, "progressPercentage") ?? undefined,
+    stepTimestamps: validateWorkflowStepMap(record),
+    updatedAt: optionalString(record, "updatedAt") ?? undefined,
+    updatedBy: optionalString(record, "updatedBy") ?? undefined,
+    lastGpsLocation: validateGpsLocation(record),
     backupVehicleUsed: optionalBoolean(record, "backupVehicleUsed"),
     backupDriverUsed: optionalBoolean(record, "backupDriverUsed"),
     backupVehicleRegistration: optionalString(record, "backupVehicleRegistration"),

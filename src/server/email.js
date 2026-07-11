@@ -1,6 +1,8 @@
-﻿export function buildInvoiceEmail(sale) {
+import { getCorporateEmail } from "@/lib/corporate/companyProfile";
+
+export function buildInvoiceEmail(sale) {
   return {
-    to: sale.buyerEmail || "client@email.com",
+    to: sale.buyerEmail || getCorporateEmail("info"),
     subject: `Invoice for ${sale.vehicle}`,
     body: `
 Hello ${sale.buyer},
@@ -11,14 +13,14 @@ Vehicle: ${sale.vehicle}
 Price: $${sale.price}
 
 Regards,
-Torque Empire
+Torque Empire TEOS
 `
   };
 }
 
 export function buildTenderEmail(tender) {
   return {
-    to: tender.clientEmail || "client@email.com",
+    to: tender.clientEmail || getCorporateEmail("info"),
     subject: `Tender: ${tender.title}`,
     body: `
 Hello,
@@ -29,7 +31,7 @@ Tender: ${tender.title}
 Value: $${tender.value}
 
 Regards,
-Torque Empire
+Torque Empire TEOS
 `
   };
 }

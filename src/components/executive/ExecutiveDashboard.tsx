@@ -15,7 +15,18 @@ import {
 } from "recharts";
 import MeasuredResponsiveContainer from "@/components/charts/MeasuredResponsiveContainer";
 import Badge from "@/components/ui/Badge";
-import Card, { IdentityCardHeader } from "@/components/ui/Card";
+import {
+  ActivityTimeline,
+  AIInsightsPanel,
+  ExecutiveKPIGrid,
+  ExecutiveSummaryStrip,
+  NotificationCentre,
+  OperationalHealthPanel,
+  TodaysPrioritiesPanel,
+  WorkspaceStatusBar,
+} from "@/components/executive/OperationsCentre";
+import { OpportunityIntelligencePanel } from "@/components/executive/OpportunityIntelligenceWidgets";
+import Card from "@/components/ui/Card";
 import { authFetch } from "@/lib/client/authFetch";
 import { API_ROUTES } from "@/lib/routes";
 import { empireColors } from "@/theme/empireTheme";
@@ -67,29 +78,6 @@ function getHeatColor(count: number): string {
   if (count >= 2) return "#FACC15";
   if (count >= 1) return "#22C55E";
   return "#0F172A";
-}
-
-function MetricCard({
-  label,
-  value,
-  tone = "info",
-  helper,
-}: {
-  label: string;
-  value: string;
-  tone?: "info" | "success" | "warning" | "danger";
-  helper?: string;
-}) {
-  return (
-    <Card>
-      <p className="enterprise-metric-label">{label}</p>
-      <h2 className="enterprise-metric-value">{value}</h2>
-      {helper ? <p style={{ margin: "8px 0 0", color: empireColors.textSecondary }}>{helper}</p> : null}
-      <div style={{ marginTop: 10 }}>
-        <Badge tone={tone}>{label}</Badge>
-      </div>
-    </Card>
-  );
 }
 
 function ComplianceStatusChart({
@@ -339,20 +327,22 @@ export default function ExecutiveDashboard() {
 
   return (
     <div className="enterprise-page enterprise-grid">
-      <Card>
-        <IdentityCardHeader
-          title="Executive Command Dashboard"
-          subtitle="Audit, risk, compliance, and verification oversight"
-        >
+      <ExecutiveSummaryStrip
+        title="Enterprise Operations Centre"
+        summary={!loading && !error && analytics ? analytics.executiveSummary : undefined}
+        items={analytics ? [
+          { label: "High Priority Risks", value: analytics.riskSummary.highPriorityRisks, tone: analytics.riskSummary.highPriorityRisks > 0 ? "warning" : "success", detail: "Executive exceptions" },
+          { label: "Operating View", value: "Live", tone: "info", detail: "Audit, risk, compliance, verification" },
+          { label: "Decision Order", value: "3 layers", tone: "neutral", detail: "Metrics, actions, detail" },
+        ] : undefined}
+      >
+        <div className="flex flex-wrap gap-2">
           <Badge tone="info">Executive View</Badge>
           <Badge tone={(analytics?.riskSummary.highPriorityRisks ?? 0) > 0 ? "warning" : "success"}>
             High Priority Risks {analytics?.riskSummary.highPriorityRisks ?? 0}
           </Badge>
-        </IdentityCardHeader>
-        {!loading && !error && analytics ? (
-          <p style={{ margin: "12px 0 0", color: empireColors.textSecondary }}>{analytics.executiveSummary}</p>
-        ) : null}
-      </Card>
+        </div>
+      </ExecutiveSummaryStrip>
 
       {loading ? (
         <Card>
@@ -364,30 +354,78 @@ export default function ExecutiveDashboard() {
         </Card>
       ) : (
         <>
-          <div className="enterprise-grid-metrics">
-            <MetricCard
-              label="Active Audits"
-              value={String(metrics.cards.activeAudits)}
-              tone={metrics.cards.activeAudits > 0 ? "info" : "warning"}
+          <WorkspaceStatusBar
+            items={[
+              { label: "Admin", value: metrics.cards.activeAudits > 0 ? "Active" : "Quiet", tone: "info" },
+              { label: "Procurement", value: metrics.cards.unresolvedRisks > 0 ? "Review" : "Clear", tone: metrics.cards.unresolvedRisks > 0 ? "warning" : "success" },
+              { label: "Hygiene", value: metrics.cards.complianceAlerts > 0 ? "Alerts" : "Stable", tone: metrics.cards.complianceAlerts > 0 ? "warning" : "success" },
+              { label: "Vehicle Finance", value: "Online", tone: "success" },
+              { label: "QS Engine", value: metrics.riskHeatmap.length > 0 ? "Signals" : "Clear", tone: metrics.riskHeatmap.length > 0 ? "info" : "success" },
+              { label: "Contractors", value: metrics.complianceSummary.averageComplianceScore >= 80 ? "Ready" : "Review", tone: metrics.complianceSummary.averageComplianceScore >= 80 ? "success" : "warning" },
+              { label: "Driver App", value: "Synced", tone: "success" },
+              { label: "Roar Cars", value: "Visible", tone: "info" },
+            ]}
+          />
+
+          <ExecutiveKPIGrid
+            items={[
+              { label: "Active Audits", value: metrics.cards.activeAudits, tone: metrics.cards.activeAudits > 0 ? "info" : "warning", detail: "Audit work currently in motion" },
+              { label: "Unresolved Risks", value: metrics.cards.unresolvedRisks, tone: metrics.cards.unresolvedRisks > 0 ? "warning" : "success", detail: analytics.riskSummary.highPriorityRisks + " high-priority risk(s)" },
+              { label: "Compliance Score", value: metrics.complianceSummary.averageComplianceScore + "%", tone: metrics.complianceSummary.averageComplianceScore >= 80 ? "success" : "warning", detail: metrics.complianceSummary.averageOperationalConfidence + "% operational confidence" },
+              { label: "Verified Documents", value: metrics.cards.verifiedDocuments, tone: "success", detail: metrics.verificationStats.totalDocuments + " verification records" },
+            ]}
+          />
+
+          <OpportunityIntelligencePanel />
+
+          <div className="grid gap-5 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
+            <OperationalHealthPanel
+              items={[
+                { label: "Compliance posture", value: metrics.complianceSummary.averageComplianceScore + "%", detail: metrics.cards.complianceAlerts + " active expiry alert(s)", tone: metrics.complianceSummary.averageComplianceScore >= 80 ? "success" : "warning", progress: metrics.complianceSummary.averageComplianceScore },
+                { label: "Verification quality", value: clampPercent(metrics.verificationStats.averageConfidenceScore * 100) + "%", detail: metrics.verificationStats.verified + " verified document(s)", tone: metrics.verificationStats.invalid > 0 ? "warning" : "success", progress: clampPercent(metrics.verificationStats.averageConfidenceScore * 100) },
+                { label: "Audit execution", value: metrics.cards.activeAudits, detail: "Open audit programme count", tone: metrics.cards.activeAudits > 0 ? "info" : "neutral" },
+              ]}
             />
-            <MetricCard
-              label="Unresolved Risks"
-              value={String(metrics.cards.unresolvedRisks)}
-              tone={metrics.cards.unresolvedRisks > 0 ? "warning" : "success"}
-            />
-            <MetricCard
-              label="Compliance Score"
-              value={`${metrics.complianceSummary.averageComplianceScore}%`}
-              tone={metrics.complianceSummary.averageComplianceScore >= 80 ? "success" : "warning"}
-              helper={`${metrics.complianceSummary.averageOperationalConfidence}% operational confidence • ${metrics.cards.complianceAlerts} active expiry alert(s)`}
-            />
-            <MetricCard
-              label="Verified Documents"
-              value={String(metrics.cards.verifiedDocuments)}
-              tone="success"
-              helper={`${metrics.verificationStats.totalDocuments} verification records`}
+
+            <TodaysPrioritiesPanel
+              priorities={[
+                { title: metrics.cards.unresolvedRisks > 0 ? "Review unresolved risk exposure" : "Maintain risk watch", detail: metrics.cards.unresolvedRisks + " unresolved risk item(s) across the portfolio.", owner: "Executive owner", due: "Today", tone: metrics.cards.unresolvedRisks > 0 ? "warning" : "success" },
+                { title: metrics.cards.complianceAlerts > 0 ? "Clear compliance expiry alerts" : "Confirm compliance stability", detail: metrics.cards.complianceAlerts + " active compliance alert(s) require attention.", owner: "Compliance lead", due: "Next operating cycle", tone: metrics.cards.complianceAlerts > 0 ? "warning" : "success" },
+                { title: "Check verification exceptions", detail: metrics.verificationStats.invalid + " invalid and " + metrics.verificationStats.expiringSoon + " expiring-soon verification record(s).", owner: "Document control", due: "Before handover", tone: metrics.verificationStats.invalid > 0 ? "danger" : "info" },
+              ]}
             />
           </div>
+
+          <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+            <AIInsightsPanel
+              insights={[
+                { title: "Executive operating readout", body: analytics.executiveSummary, confidence: "Live", tone: "info" },
+                {
+                  title: metrics.cards.unresolvedRisks > 0 ? "Risk concentration needs review" : "Risk posture is controlled",
+                  body: metrics.cards.unresolvedRisks > 0 ? "Prioritise high-impact risk owners before expanding operational detail." : "No immediate risk escalation is visible from the current analytics snapshot.",
+                  confidence: "Derived",
+                  tone: metrics.cards.unresolvedRisks > 0 ? "warning" : "success",
+                },
+              ]}
+            />
+
+            <NotificationCentre
+              notifications={[
+                { title: "Compliance alerts", detail: metrics.cards.complianceAlerts + " expiry or document posture alert(s) are active.", meta: "Compliance", tone: metrics.cards.complianceAlerts > 0 ? "warning" : "success" },
+                { title: "Verification queue", detail: metrics.verificationStats.expiringSoon + " expiring soon and " + metrics.verificationStats.uploaded + " uploaded verification record(s).", meta: "Documents", tone: metrics.verificationStats.expiringSoon > 0 ? "info" : "success" },
+                { title: "Risk summary", detail: analytics.riskSummary.highPriorityRisks + " high-priority risk signal(s).", meta: "Risk", tone: analytics.riskSummary.highPriorityRisks > 0 ? "danger" : "success" },
+              ]}
+            />
+          </div>
+
+          <ActivityTimeline
+            items={(metrics.auditProgress.length ? metrics.auditProgress : [{ projectId: "audit", title: "No active audit progress records", progress: 0, openTasks: 0, findings: 0 }]).slice(0, 4).map((audit) => ({
+              title: audit.title,
+              detail: audit.progress + "% progress | " + audit.openTasks + " open task(s) | " + audit.findings + " finding(s)",
+              time: audit.projectId,
+              tone: audit.findings > 0 ? "warning" : "info",
+            }))}
+          />
 
           <div className="enterprise-grid-metrics" style={{ alignItems: "flex-start" }}>
             <RiskHeatmap data={metrics.riskHeatmap} />

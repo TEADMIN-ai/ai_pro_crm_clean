@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { EnterpriseCard, EnterpriseIdentityHeader } from "@/components/ui/EnterpriseUI";
 
 type CardProps = {
   children: ReactNode;
@@ -6,28 +7,9 @@ type CardProps = {
 };
 
 export default function Card({ children, className }: CardProps) {
-  return <section className={`enterprise-card ${className ?? ""}`.trim()}>{children}</section>;
+  return <EnterpriseCard className={className}>{children}</EnterpriseCard>;
 }
 
-type IdentityCardHeaderProps = {
-  title: string;
-  subtitle?: string;
-  children?: ReactNode;
-};
-
-export function IdentityCardHeader({
-  title,
-  subtitle,
-  children,
-}: IdentityCardHeaderProps) {
-  return (
-    <header className="identity-card-header">
-      <div>
-        <h1 className="identity-title">{title}</h1>
-        {subtitle ? <p className="identity-subtitle">{subtitle}</p> : null}
-      </div>
-      {children ? <div className="identity-actions">{children}</div> : null}
-    </header>
-  );
+export function IdentityCardHeader({ title, subtitle, children }: { title: string; subtitle?: string; children?: ReactNode }) {
+  return <EnterpriseIdentityHeader title={title} subtitle={subtitle}>{children}</EnterpriseIdentityHeader>;
 }
-

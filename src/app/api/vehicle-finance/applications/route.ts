@@ -1,11 +1,12 @@
-export const runtime = "nodejs";
+﻿export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
+import { getFirebaseAdmin } from "@/lib/firebase/admin";
 import { assertVehicleFinanceRole, AuthorizationError, requireAuthorizedUser } from "@/lib/server/authz";
 import { createVehicleFinanceApplication, listVehicleFinanceApplications } from "@/lib/vehicleFinance/vehicleFinanceService";
 import { getAvailableInventoryVehicle } from "@/lib/vehicle-finance/inventory/durableInventorySync";
-
+import { sendVehicleFinanceApplicationNotification } from "@/lib/vehicle-finance/notifications/vehicleFinanceApplicationNotification";
 function getString(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
 }
@@ -78,6 +79,11 @@ export async function POST(request: NextRequest) {
       inventorySource = inventoryVehicle.source;
     }
 
+    const existingSubmission = clientSubmissionId
+      ? await getFirebaseAdmin().collection("vehicleFinanceApplications").where("clientSubmissionId", "==", clientSubmissionId).limit(1).get()
+      : null;
+    const shouldSendNotification = !existingSubmission || existingSubmission.empty;
+
     const application = await createVehicleFinanceApplication(
       {
         customerId,
@@ -97,7 +103,61 @@ export async function POST(request: NextRequest) {
       { actorId: user.uid, actorRole: user.role, actorName: user.email ?? user.uid },
     );
 
-    return NextResponse.json({ application }, { status: 201 });
+    const notification = shouldSendNotification
+      ? await sendVehicleFinanceApplicationNotification({
+          application,
+          actor: { actorId: user.uid, actorRole: user.role, actorName: user.email ?? user.uid },
+        })
+      : {
+          sent: false,
+          skipped: true,
+          skipReason: "duplicate_submission",
+          attempts: 0,
+          resendResponseId: null,
+          recipients: [],
+          replyTo: null,
+          subject: "New Vehicle Finance Application",
+          dashboardLink: "",
+          error: null,
+          queuedForRetry: false,
+        };
+
+    try {
+      await getFirebaseAdmin().collection("vehicleFinanceNotifications").doc().set({
+        applicationId: application.applicationId,
+        title: notification.sent ? "New Vehicle Finance Application" : "Application Notification Deferred",
+        message: notification.sent
+          ? `Application ${application.applicationId} stored and notification dispatched to finance personnel.`
+          : `Application ${application.applicationId} stored. Notification delivery deferred or skipped.`,
+        channel: "dashboard",
+        audience: ["finance", "management", "consultant"],
+        unread: true,
+        priority: notification.sent ? "HIGH" : "NORMAL",
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        readAt: null,
+        actorId: user.uid,
+        actorName: user.email ?? user.uid,
+        actorRole: user.role,
+        metadata: {
+          recipients: notification.recipients,
+          replyTo: notification.replyTo,
+          subject: notification.subject,
+          dashboardLink: notification.dashboardLink,
+          sent: notification.sent,
+          skipped: notification.skipped,
+          skipReason: notification.skipReason,
+          queuedForRetry: notification.queuedForRetry,
+        },
+      });
+    } catch (notificationWriteError) {
+      console.warn("[vehicle-finance] notification center write failed", {
+        applicationId: application.applicationId,
+        error: notificationWriteError instanceof Error ? notificationWriteError.message : String(notificationWriteError),
+      });
+    }
+
+    return NextResponse.json({ application, notification }, { status: 201 });
   } catch (error) {
     if (error instanceof AuthorizationError) {
       return NextResponse.json({ error: error.message }, { status: error.status });
@@ -106,4 +166,3 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Vehicle finance application creation failed" }, { status: 500 });
   }
 }
-

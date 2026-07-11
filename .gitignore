@@ -26,8 +26,14 @@ pnpm-debug.log*
 .artifacts-*
 .playwright-cli/
 tmp/
+temp/
+cache/
+.cache/
+generated/
 output/playwright/
 output/pilot/
+output/audits/
+output/maintenance/
 evidence/
 *.stackdump
 *.dmp
@@ -35,3 +41,20 @@ evidence/
 # TypeScript cache
 tsconfig.tsbuildinfo
 .vercel
+# Generated publication / migration artifacts
+output/doc/
+documents/
+reports/
+Canva-Production-Pack/
+Canva-Production-Pack-v3/
+RoarCars-FINAL-PRODUCTION/
+RoarCars-Migration/
+TEIE-Core/
+TEIE-PUBLISHING-SYSTEM/
+TEOS-001/
+dist/
+assets/
+styles/
+exports/
+export/
+temporary-exports/

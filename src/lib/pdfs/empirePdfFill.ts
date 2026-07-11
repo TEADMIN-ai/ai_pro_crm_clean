@@ -27,6 +27,17 @@ export type TenderFillSuccess = {
   engine?: {
     averageConfidence: number;
     renderedFieldCount: number;
+    readinessScore?: number;
+    confidenceScore?: number;
+    missingFields?: string[];
+    validationWarnings?: string[];
+    renderQuality?: {
+      placementAccuracy: number;
+      calibrationConfidence: number;
+      overflowEvents: number;
+      clippingEvents: number;
+      fallbackRenderCount: number;
+    };
   };
 };
 
@@ -285,12 +296,30 @@ export async function fillTenderPack(params: FillTenderPackParams): Promise<Tend
           engine = {
             averageConfidence: intelligentResult.result.averageConfidence,
             renderedFieldCount: intelligentResult.result.renderedFieldCount,
+            readinessScore: intelligentResult.result.intelligence?.readinessScore,
+            confidenceScore: intelligentResult.result.intelligence?.confidenceScore,
+            missingFields: intelligentResult.result.intelligence?.missingFields.map((issue) => issue.fieldName ?? issue.message),
+            validationWarnings: intelligentResult.result.intelligence?.validationWarnings.map((issue) => issue.message),
+            renderQuality: intelligentResult.result.intelligence
+              ? {
+                  placementAccuracy: intelligentResult.result.intelligence.renderQuality.placementAccuracy,
+                  calibrationConfidence: intelligentResult.result.intelligence.renderQuality.calibrationConfidence,
+                  overflowEvents: intelligentResult.result.intelligence.renderQuality.overflowEvents,
+                  clippingEvents: intelligentResult.result.intelligence.renderQuality.clippingEvents,
+                  fallbackRenderCount: intelligentResult.result.intelligence.renderQuality.fallbackRenderCount,
+                }
+              : undefined,
           };
 
           console.info("EmpirePDF intelligent fill summary", {
             templateKey,
             averageConfidence: intelligentResult.result.averageConfidence,
             renderedFieldCount: intelligentResult.result.renderedFieldCount,
+            readinessScore: intelligentResult.result.intelligence?.readinessScore,
+            confidenceScore: intelligentResult.result.intelligence?.confidenceScore,
+            missingFieldCount: intelligentResult.result.intelligence?.missingFields.length,
+            validationWarningCount: intelligentResult.result.intelligence?.validationWarnings.length,
+            renderQuality: intelligentResult.result.intelligence?.renderQuality,
             debugFields: intelligentResult.result.debugFields,
           });
 

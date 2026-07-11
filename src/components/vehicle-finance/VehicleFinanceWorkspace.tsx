@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
@@ -7,6 +7,8 @@ import Badge from "@/components/ui/Badge";
 import Card, { IdentityCardHeader } from "@/components/ui/Card";
 import Table from "@/components/ui/Table";
 import TimelineStatusPanel from "@/components/vehicle-finance/TimelineStatusPanel";
+import WorkflowProgressSummary from "@/components/vehicle-finance/WorkflowProgressSummary";
+import VehicleFinanceApplicationOperationsPanel from "@/components/vehicle-finance/VehicleFinanceApplicationOperationsPanel";
 import { authFetch } from "@/lib/client/authFetch";
 import { API_ROUTES } from "@/lib/routes";
 import { buildVehicleFinanceDecisionFromIntelligence } from "@/lib/vehicle-finance/underwriting/decisionEngine";
@@ -625,7 +627,7 @@ export default function VehicleFinanceWorkspace({ initialSection, initialApplica
   return (
     <div data-module="vehicle-finance" className="tex-shell space-y-6">
       <div className="space-y-2">
-        <p className="text-[11px] font-bold uppercase tracking-[0.3em] text-sky-200/70">Roar Cars SA · Born To Roar</p>
+        <p className="text-[11px] font-bold uppercase tracking-[0.3em] text-sky-200/70">Roar Cars SA Â· Born To Roar</p>
         <h1 className="text-2xl font-semibold tracking-tight text-slate-50 sm:text-3xl">{SECTION_TITLES[section]}</h1>
         <p className="max-w-3xl text-sm text-slate-400">
           Premium dealership operations for enquiries, applications, verification, underwriting, inventory matching, and reporting.
@@ -879,7 +881,7 @@ export default function VehicleFinanceWorkspace({ initialSection, initialApplica
                   <p className="text-xs font-semibold uppercase tracking-[0.18em] text-sky-100/75">Selected Vehicle</p>
                   <p className="mt-2 text-sm font-semibold text-white">{selectedInventoryVehicle.title}</p>
                   <p className="mt-1 text-xs text-slate-300">
-                    {selectedInventoryVehicle.year ?? "n/a"} · {selectedInventoryVehicle.transmission ?? "n/a"} · {selectedInventoryVehicle.mileageNumber ?? selectedInventoryVehicle.mileage ?? "n/a"} km
+                    {selectedInventoryVehicle.year ?? "n/a"} Â· {selectedInventoryVehicle.transmission ?? "n/a"} Â· {selectedInventoryVehicle.mileageNumber ?? selectedInventoryVehicle.mileage ?? "n/a"} km
                   </p>
                 </div>
               ) : null}
@@ -920,12 +922,18 @@ export default function VehicleFinanceWorkspace({ initialSection, initialApplica
             </IdentityCardHeader>
 
             {selectedApplicationId ? (
-              <div className="mt-4">
+              <div className="mt-4 space-y-4">
                 <TimelineStatusPanel
                   loading={timelineLoading}
                   syncPending={timelineSyncPending}
                   hasActivity={Boolean((timeline?.auditLogs.length ?? 0) + (timeline?.decisionLogs.length ?? 0))}
                   onRetry={() => void loadTimeline(selectedApplicationId)}
+                />
+                <WorkflowProgressSummary application={selectedApplication ?? undefined} />
+                <VehicleFinanceApplicationOperationsPanel
+                  application={selectedApplication}
+                  documents={selectedDocuments}
+                  timelineEventCount={(timeline?.auditLogs.length ?? 0) + (timeline?.decisionLogs.length ?? 0)}
                 />
               </div>
             ) : null}
@@ -934,23 +942,43 @@ export default function VehicleFinanceWorkspace({ initialSection, initialApplica
               <thead>
                 <tr>
                   <th className="w-[19%]">Application</th>
-                  <th className="w-[21%]">Customer</th>
-                  <th className="w-[20%]">Dealer</th>
-                  <th className="w-[15%]">Status</th>
-                  <th className="w-[13%]">Fraud Score</th>
+                  <th className="w-[21%]">Customer & Dealer</th>
+                  <th className="w-[20%]">Workflow Step</th>
+                  <th className="w-[15%]">Progress</th>
+                  <th className="w-[13%]">Updated</th>
                   <th className="w-[12%] text-right">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {applications.map((application) => {
                   const customer = customers.find((item) => item.customerId === application.customerId);
+                  const workflowSnapshot = application.workflowSnapshot ?? null;
+                  const currentStep = application.workflowStageLabel ?? workflowSnapshot?.stageLabel ?? "New Application";
+                  const workflowProgress = application.workflowProgressPercentage ?? workflowSnapshot?.progressPercentage ?? 0;
+                  const completedSteps = workflowSnapshot?.completedStageIds?.length ?? 0;
+                  const lastUpdated = workflowSnapshot?.updatedAt ?? application.updatedAt;
                   return (
                     <tr key={application.applicationId}>
                       <td className="break-words font-medium text-slate-100">{application.applicationId}</td>
-                      <td className="break-words">{customer ? `${customer.firstName} ${customer.lastName}` : application.customerId}</td>
-                      <td className="break-words">{application.dealerName}</td>
-                      <td><Badge tone={application.applicationStatus === "VERIFIED" ? "success" : "warning"}>{application.applicationStatus}</Badge></td>
-                      <td>{application.fraudScore}</td>
+                      <td className="break-words">
+                        <div className="space-y-1">
+                          <p className="font-medium text-slate-100">{customer ? `${customer.firstName} ${customer.lastName}` : application.customerId}</p>
+                          <p className="text-xs text-slate-400">{application.dealerName}</p>
+                        </div>
+                      </td>
+                      <td className="break-words">
+                        <div className="space-y-1">
+                          <Badge tone={workflowProgress >= 100 ? "success" : workflowProgress > 0 ? "info" : "notStarted"}>{currentStep}</Badge>
+                          <p className="text-xs text-slate-400">Next: {application.workflowNextRequiredAction ?? workflowSnapshot?.nextRequiredAction ?? "Awaiting workflow sync"}</p>
+                        </div>
+                      </td>
+                      <td>
+                        <div className="space-y-1">
+                          <Badge tone={workflowProgress >= 100 ? "completed" : workflowProgress > 0 ? "inProgress" : "notStarted"}>{workflowProgress}%</Badge>
+                          <p className="text-xs text-slate-500">{completedSteps} steps complete</p>
+                        </div>
+                      </td>
+                      <td className="text-sm text-slate-300">{formatDate(lastUpdated)}</td>
                       <td className="text-right">
                         <Link
                           href={`/dashboard/vehicle-finance/applications/${encodeURIComponent(application.applicationId)}`}
@@ -999,12 +1027,18 @@ export default function VehicleFinanceWorkspace({ initialSection, initialApplica
             </div>
 
             {selectedApplicationId ? (
-              <div className="mt-4">
+              <div className="mt-4 space-y-4">
                 <TimelineStatusPanel
                   loading={timelineLoading}
                   syncPending={timelineSyncPending}
                   hasActivity={Boolean((timeline?.auditLogs.length ?? 0) + (timeline?.decisionLogs.length ?? 0))}
                   onRetry={() => void loadTimeline(selectedApplicationId)}
+                />
+                <WorkflowProgressSummary application={selectedApplication ?? undefined} />
+                <VehicleFinanceApplicationOperationsPanel
+                  application={selectedApplication}
+                  documents={selectedDocuments}
+                  timelineEventCount={(timeline?.auditLogs.length ?? 0) + (timeline?.decisionLogs.length ?? 0)}
                 />
               </div>
             ) : null}

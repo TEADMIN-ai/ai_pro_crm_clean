@@ -1,4 +1,4 @@
-function normalizePrivateKey(rawPrivateKey?: string) {
+﻿function normalizePrivateKey(rawPrivateKey?: string) {
   if (!rawPrivateKey) {
     throw new Error("Missing Firebase Admin private key");
   }

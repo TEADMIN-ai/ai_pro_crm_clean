@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { EnterpriseTable } from "@/components/ui/EnterpriseUI";
 
 type TableProps = {
   children: ReactNode;
@@ -6,9 +7,5 @@ type TableProps = {
 };
 
 export default function Table({ children, className }: TableProps) {
-  return (
-    <div className="enterprise-table-wrap">
-      <table className={`enterprise-table ${className ?? ""}`.trim()}>{children}</table>
-    </div>
-  );
+  return <EnterpriseTable className={className}>{children}</EnterpriseTable>;
 }

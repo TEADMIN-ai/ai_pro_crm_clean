@@ -1,4 +1,5 @@
-import { Resend } from "resend";
+﻿import { Resend } from "resend";
+import { getCorporateFromAddress } from "@/lib/corporate/companyProfile";
 
 type SendContractorOnboardingEmailInput = {
   contractorId: string;
@@ -24,7 +25,7 @@ function escapeHtml(value: string): string {
 }
 
 function getResendFromAddress(): string {
-  return process.env.RESEND_FROM_EMAIL || "Torque Empire <admin@torqueempire.net>";
+  return process.env.RESEND_FROM_EMAIL || getCorporateFromAddress("support");
 }
 
 function buildOnboardingHtml(input: SendContractorOnboardingEmailInput): string {
@@ -40,7 +41,7 @@ function buildOnboardingHtml(input: SendContractorOnboardingEmailInput): string 
             <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:640px;background:#ffffff;border:1px solid #dbe3ea;">
               <tr>
                 <td style="background:#0f172a;padding:28px 32px;border-left:8px solid #d89a18;">
-                  <div style="font-size:13px;font-weight:700;letter-spacing:1.6px;color:#f5b335;text-transform:uppercase;">Torque Empire</div>
+                  <div style="font-size:13px;font-weight:700;letter-spacing:1.6px;color:#f5b335;text-transform:uppercase;">Torque Empire TEOS</div>
                   <h1 style="margin:10px 0 0;font-size:26px;line-height:1.25;color:#ffffff;">Contractor Onboarding</h1>
                 </td>
               </tr>
@@ -48,7 +49,7 @@ function buildOnboardingHtml(input: SendContractorOnboardingEmailInput): string 
                 <td style="padding:30px 32px;">
                   <p style="margin:0 0 16px;font-size:16px;line-height:1.6;">Dear ${contactPerson},</p>
                   <p style="margin:0 0 16px;font-size:16px;line-height:1.6;">
-                    Welcome to Torque Empire. Your contractor profile for <strong>${companyName}</strong> has been created.
+                    Welcome to Torque Empire TEOS. Your contractor profile for <strong>${companyName}</strong> has been created.
                   </p>
                   <p style="margin:0 0 22px;font-size:16px;line-height:1.6;">
                     Use the secure onboarding link below to create your password and access the contractor portal.
@@ -76,7 +77,7 @@ function buildOnboardingHtml(input: SendContractorOnboardingEmailInput): string 
               </tr>
               <tr>
                 <td style="padding:20px 32px;background:#0f172a;color:#cbd5e1;font-size:12px;line-height:1.6;">
-                  <strong style="color:#ffffff;">Torque Empire PTY LTD</strong><br />
+                  <strong style="color:#ffffff;">Torque Empire TEOS PTY LTD</strong><br />
                   Four Divisions. One Vision. Total Excellence.
                 </td>
               </tr>
@@ -118,7 +119,7 @@ export async function sendContractorOnboardingEmail(
     const response = await resend.emails.send({
       from: getResendFromAddress(),
       to: [input.email],
-      subject: `Welcome to Torque Empire, ${input.companyName}`,
+      subject: `Welcome to Torque Empire TEOS, ${input.companyName}`,
       html: buildOnboardingHtml(input),
     });
 

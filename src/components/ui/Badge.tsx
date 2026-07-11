@@ -1,11 +1,18 @@
 import type { ReactNode } from "react";
+import { EnterpriseStatusBadge, type EnterpriseTone } from "@/components/ui/EnterpriseUI";
 
 export type BadgeTone =
   | "neutral"
   | "success"
   | "warning"
   | "danger"
-  | "info";
+  | "info"
+  | "completed"
+  | "inProgress"
+  | "pending"
+  | "review"
+  | "critical"
+  | "notStarted";
 
 type BadgeProps = {
   children: ReactNode;
@@ -13,14 +20,20 @@ type BadgeProps = {
   className?: string;
 };
 
-export default function Badge({
-  children,
-  tone = "neutral",
-  className,
-}: BadgeProps) {
-  return (
-    <span className={`enterprise-badge tone-${tone} ${className ?? ""}`.trim()}>
-      {children}
-    </span>
-  );
+const toneAlias: Record<BadgeTone, EnterpriseTone> = {
+  neutral: "neutral",
+  success: "success",
+  warning: "warning",
+  danger: "danger",
+  info: "info",
+  completed: "completed",
+  inProgress: "inProgress",
+  pending: "pending",
+  review: "review",
+  critical: "critical",
+  notStarted: "notStarted",
+};
+
+export default function Badge({ children, tone = "neutral", className }: BadgeProps) {
+  return <EnterpriseStatusBadge value={children} tone={toneAlias[tone]} className={className} />;
 }

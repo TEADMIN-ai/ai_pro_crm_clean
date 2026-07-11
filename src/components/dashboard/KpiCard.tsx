@@ -1,6 +1,6 @@
 "use client";
 
-import { MetricCard } from "@/components/tex/ExecutivePrimitives";
+import { EnterpriseKpiCard } from "@/components/ui/EnterpriseUI";
 
 type Props = {
   title: string;
@@ -9,17 +9,12 @@ type Props = {
   trend?: string;
 };
 
-export default function KpiCard({
-  title,
-  value,
-  description,
-  trend,
-}: Props) {
+export default function KpiCard({ title, value, description, trend }: Props) {
   return (
-    <MetricCard
+    <EnterpriseKpiCard
       label={title}
       value={value}
-      description={description ?? "Updated from the latest portfolio summary."}
+      helper={description ?? "Updated from the latest portfolio summary."}
       trend={trend ?? "Stable monitoring"}
       className="tex-card--interactive"
     />

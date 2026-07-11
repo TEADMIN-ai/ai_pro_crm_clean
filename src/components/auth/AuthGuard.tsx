@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -21,9 +21,9 @@ function AuthGuardStatus({
   message: string;
 }) {
   return (
-    <div className="rounded-xl border border-[#2f3b54] bg-[#121826] p-6 text-white">
+    <div className="enterprise-card p-6 text-[color:var(--tex-text)]">
       <h2 className="text-lg font-semibold">{title}</h2>
-      <p className="mt-2 text-sm text-slate-300">{message}</p>
+      <p className="mt-2 text-sm text-[color:var(--tex-text-subtle)]">{message}</p>
     </div>
   );
 }

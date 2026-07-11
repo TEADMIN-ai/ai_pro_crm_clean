@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { ReactNode, useEffect } from "react";
 import { useRouter } from "next/navigation";
@@ -43,9 +43,9 @@ export default function RequireRole({
 
   if (loading) {
     return (
-      <div className="rounded-xl border border-[#2f3b54] bg-[#121826] p-6 text-white">
+      <div className="enterprise-card p-6 text-[color:var(--tex-text)]">
         <h2 className="text-lg font-semibold">Checking access</h2>
-        <p className="mt-2 text-sm text-slate-300">
+        <p className="mt-2 text-sm text-[color:var(--tex-text-subtle)]">
           Your permissions are still initializing.
         </p>
       </div>
@@ -54,18 +54,18 @@ export default function RequireRole({
 
   if (authError) {
     return (
-      <div className="rounded-xl border border-[#2f3b54] bg-[#121826] p-6 text-white">
+      <div className="enterprise-card p-6 text-[color:var(--tex-text)]">
         <h2 className="text-lg font-semibold">Authentication needs attention</h2>
-        <p className="mt-2 text-sm text-slate-300">{authError}</p>
+        <p className="mt-2 text-sm text-[color:var(--tex-text-subtle)]">{authError}</p>
       </div>
     );
   }
 
   if (!user) {
     return (
-      <div className="rounded-xl border border-[#2f3b54] bg-[#121826] p-6 text-white">
+      <div className="enterprise-card p-6 text-[color:var(--tex-text)]">
         <h2 className="text-lg font-semibold">Redirecting to login</h2>
-        <p className="mt-2 text-sm text-slate-300">
+        <p className="mt-2 text-sm text-[color:var(--tex-text-subtle)]">
           You need to sign in to view this page.
         </p>
       </div>
@@ -74,9 +74,9 @@ export default function RequireRole({
 
   if (!hasAccess) {
     return (
-      <div className="rounded-xl border border-[#2f3b54] bg-[#121826] p-6 text-white">
+      <div className="enterprise-card p-6 text-[color:var(--tex-text)]">
         <h2 className="text-lg font-semibold">Redirecting to dashboard</h2>
-        <p className="mt-2 text-sm text-slate-300">
+        <p className="mt-2 text-sm text-[color:var(--tex-text-subtle)]">
           Your role does not have access to this page.
         </p>
       </div>
@@ -85,4 +85,3 @@ export default function RequireRole({
 
   return <>{children}</>;
 }
-

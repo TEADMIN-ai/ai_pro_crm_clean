@@ -96,6 +96,13 @@ export interface HygieneBinAsset {
   notes: string;
 }
 
+export interface HygieneGpsLocation {
+  latitude: number | null;
+  longitude: number | null;
+  accuracy: number | null;
+  capturedAt: string;
+}
+
 export interface HygieneCollection {
   collectionId: string;
   clientId: string;
@@ -115,6 +122,13 @@ export interface HygieneCollection {
   clientSignatureStatus: string;
   notes: string;
   workflowSteps: HygieneWorkflowStep[];
+  completedSteps?: string[];
+  currentStep?: string;
+  progressPercentage?: number;
+  stepTimestamps?: Record<string, string | null>;
+  updatedAt?: string;
+  updatedBy?: string;
+  lastGpsLocation?: HygieneGpsLocation | null;
   backupVehicleUsed?: boolean;
   backupDriverUsed?: boolean;
   backupVehicleRegistration?: string | null;
@@ -127,14 +141,22 @@ export interface HygieneCollection {
 }
 
 export type HygieneJobEventType =
+  | "job_accepted"
   | "job_started"
+  | "travelling_to_site"
   | "vehicle_inspection_completed"
   | "backup_vehicle_assigned"
   | "arrived_on_site"
+  | "waste_collection_started"
+  | "bin_serviced"
   | "evidence_uploaded"
+  | "evidence_photos_captured"
   | "checklist_step_completed"
+  | "customer_signature_captured"
   | "manifest_generated"
   | "signature_captured"
+  | "waste_loaded"
+  | "disposal_facility_confirmed"
   | "awaiting_disposal"
   | "disposal_certificate_uploaded"
   | "job_completed"

@@ -1,4 +1,4 @@
-import crypto from "node:crypto";
+﻿import crypto from "node:crypto";
 import { jsPDF } from "jspdf";
 
 import { extractTextFromPdfDetailed } from "@/lib/pdf/extractTextFromPdf";
@@ -8,6 +8,8 @@ import { queueVehicleFinanceDriverLicenceIntelligence } from "@/lib/vehicle-fina
 import { queueVehicleFinanceIdentityIntelligence } from "@/lib/vehicle-finance/intelligence/identityIntelligenceJobs";
 import { queueVehicleFinancePayslipIntelligence } from "@/lib/vehicle-finance/intelligence/payslipIntelligenceJobs";
 import { queueVehicleFinanceBankStatementIntelligence } from "@/lib/vehicle-finance/intelligence/bankStatementIntelligenceJobs";
+import { buildVehicleFinanceWorkflowEvent, buildVehicleFinanceWorkflowSnapshot, buildVehicleFinanceWorkflowTask, type VehicleFinanceWorkflowSnapshot } from "@/lib/vehicle-finance/workflow";
+
 import type {
   VehicleFinanceApplication,
   VehicleFinanceAssessment,
@@ -28,6 +30,10 @@ const DOCUMENT_COLLECTION = "vehicleFinanceDocuments";
 const ASSESSMENT_COLLECTION = "vehicleFinanceAssessments";
 const CERTIFICATE_COLLECTION = "vehicleFinanceCertificates";
 const APPLICATION_EVENT_COLLECTION = "vehicleFinanceApplicationEvents";
+const WORKFLOW_TASK_COLLECTION = "vehicleFinanceWorkflowTasks";
+const WORKFLOW_TIMELINE_COLLECTION = "vehicleFinanceWorkflowTimeline";
+
+
 
 type ActorContext = {
   actorId?: string;
@@ -150,6 +156,7 @@ function normalizeApplicationData(id: string, data: Record<string, unknown>): Ve
     createdVia: (asString(data.createdVia) || "web") as VehicleFinanceApplication["createdVia"],
     createdAt: toIso(data.createdAt),
     updatedAt: toIso(data.updatedAt ?? data.createdAt),
+    workflowSnapshot: (data.workflowSnapshot as VehicleFinanceWorkflowSnapshot | null) ?? null,
   };
 }
 
@@ -880,6 +887,7 @@ export async function createVehicleFinanceApplication(input: {
     updatedAt: now,
   };
 
+  record.workflowSnapshot = buildVehicleFinanceWorkflowSnapshot({ application: record, customer: null, documents: [], assessment: null, certificate: null, actor, now: new Date() });
   try {
     await writeWithRetry(
       () => getFirebaseAdmin().collection(APPLICATION_COLLECTION).doc(applicationId).set(record),
@@ -932,9 +940,24 @@ export async function createVehicleFinanceApplication(input: {
     metadata: { module: "vehicle-finance" },
   });
 
+  const workflowContext = {
+    application: record,
+    customer: null,
+    documents: [],
+    assessment: null,
+    certificate: null,
+    actor,
+    now: new Date(),
+  };
+  const workflowSnapshot = buildVehicleFinanceWorkflowSnapshot(workflowContext);
+  const workflowTask = buildVehicleFinanceWorkflowTask(workflowSnapshot, workflowContext);
+  const workflowEvent = buildVehicleFinanceWorkflowEvent(workflowSnapshot, workflowContext, 'Workflow created', 'Initial workflow created from website submission', 'workflow.created', []);
+  record.workflowSnapshot = workflowSnapshot;
+
+  await getFirebaseAdmin().collection(WORKFLOW_TASK_COLLECTION).add(workflowTask);
+  await getFirebaseAdmin().collection(WORKFLOW_TIMELINE_COLLECTION).add(workflowEvent);
   return record;
 }
-
 export async function listVehicleFinanceApplications(): Promise<VehicleFinanceApplication[]> {
   const snapshot = await getFirebaseAdmin().collection(APPLICATION_COLLECTION).limit(200).get();
   return snapshot.docs

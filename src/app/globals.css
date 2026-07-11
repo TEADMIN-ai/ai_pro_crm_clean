@@ -1148,3 +1148,57 @@ body {
     grid-template-columns: minmax(0, 1fr);
   }
 }
+.tex-status-badge[data-tone="completed"], .enterprise-badge.tone-completed { background: rgba(21,128,61,0.12); border-color: rgba(21,128,61,0.24); color: var(--tex-success); }
+.tex-status-badge[data-tone="critical"], .tex-status-badge[data-tone="danger"], .enterprise-badge.tone-critical, .enterprise-badge.tone-danger { background: rgba(185,28,28,0.12); border-color: rgba(185,28,28,0.24); color: var(--tex-danger); }
+.tex-status-badge[data-tone="review"], .enterprise-badge.tone-review { background: rgba(194,65,12,0.12); border-color: rgba(194,65,12,0.24); color: var(--tex-review); }
+.tex-status-badge[data-tone="pending"], .tex-status-badge[data-tone="warning"], .enterprise-badge.tone-pending, .enterprise-badge.tone-warning { background: rgba(245,158,11,0.14); border-color: rgba(245,158,11,0.24); color: var(--tex-warning); }
+.tex-status-badge[data-tone="inProgress"], .tex-status-badge[data-tone="info"], .enterprise-badge.tone-inProgress, .enterprise-badge.tone-info { background: rgba(29,78,216,0.12); border-color: rgba(29,78,216,0.24); color: var(--tex-info); }
+.dashboard-app-shell .text-slate-400, .tex-shell .text-slate-400, .enterprise-page .text-slate-400, .dashboard-app-shell .text-gray-400, .tex-shell .text-gray-400, .enterprise-page .text-gray-400 { color: var(--tex-text-muted); }
+.dashboard-app-shell .bg-slate-100, .tex-shell .bg-slate-100, .enterprise-page .bg-slate-100, .dashboard-app-shell .bg-white\/\[0\.04\], .tex-shell .bg-white\/\[0\.04\], .enterprise-page .bg-white\/\[0\.04\] { background-color: var(--tex-surface-muted); }
+.dashboard-app-shell .border-slate-200, .tex-shell .border-slate-200, .enterprise-page .border-slate-200, .dashboard-app-shell .border-white\/10, .tex-shell .border-white\/10, .enterprise-page .border-white\/10 { border-color: var(--tex-border); }
+.dashboard-app-shell .bg-slate-50, .tex-shell .bg-slate-50, .enterprise-page .bg-slate-50, .dashboard-app-shell .bg-white\/\[0\.03\], .tex-shell .bg-white\/\[0\.03\], .enterprise-page .bg-white\/\[0\.03\] { background-color: var(--tex-surface); }
+.dashboard-app-shell .text-slate-500, .tex-shell .text-slate-500, .enterprise-page .text-slate-500, .dashboard-app-shell .text-gray-500, .tex-shell .text-gray-500, .enterprise-page .text-gray-500 { color: var(--tex-text-subtle); }
+.dashboard-app-shell .text-white, .tex-shell .text-white, .enterprise-page .text-white { color: var(--tex-text); }
+.dashboard-app-shell .bg-white\/\[0\.06\], .tex-shell .bg-white\/\[0\.06\], .enterprise-page .bg-white\/\[0\.06\], .dashboard-app-shell .bg-white\/\[0\.09\], .tex-shell .bg-white\/\[0\.09\], .enterprise-page .bg-white\/\[0\.09\] { background-color: var(--tex-surface); }
+.dashboard-app-shell .border-white\/12, .tex-shell .border-white\/12, .enterprise-page .border-white\/12 { border-color: var(--tex-border); }
+.dashboard-app-shell .bg-cyan-400\/20, .tex-shell .bg-cyan-400\/20, .enterprise-page .bg-cyan-400\/20 { background-color: var(--tex-primary-soft); }
+.dashboard-app-shell .text-cyan-100, .dashboard-app-shell .text-cyan-200\/80, .tex-shell .text-cyan-100, .tex-shell .text-cyan-200\/80, .enterprise-page .text-cyan-100, .enterprise-page .text-cyan-200\/80 { color: var(--tex-primary); }
+.dashboard-app-shell .bg-rose-500\/10, .tex-shell .bg-rose-500\/10, .enterprise-page .bg-rose-500\/10 { background-color: var(--tex-danger-soft); }
+.dashboard-app-shell .text-rose-100, .tex-shell .text-rose-100, .enterprise-page .text-rose-100 { color: var(--tex-danger); }
+.dashboard-app-shell .bg-white\/\[0\.03\], .tex-shell .bg-white\/\[0\.03\], .enterprise-page .bg-white\/\[0\.03\], .dashboard-app-shell .bg-white\/\[0\.04\], .tex-shell .bg-white\/\[0\.04\], .enterprise-page .bg-white\/\[0\.04\] { background-color: var(--tex-surface); }
+.dashboard-app-shell .text-slate-100, .tex-shell .text-slate-100, .enterprise-page .text-slate-100 { color: var(--tex-text); }
+.dashboard-app-shell .text-slate-200, .tex-shell .text-slate-200, .enterprise-page .text-slate-200 { color: var(--tex-text); }
+.enterprise-page input, .enterprise-page select, .enterprise-page textarea, .dashboard-app-shell input, .dashboard-app-shell select, .dashboard-app-shell textarea { color: var(--tex-text); background-color: var(--tex-surface); border-color: var(--tex-border); }
+.enterprise-page button, .dashboard-app-shell button { font-weight: 600; }
+
+[data-module="hygiene"] {
+  --hygiene-surface: rgba(2, 6, 23, 0.55);
+  --hygiene-text: #f8fafc;
+  --hygiene-text-muted: #cbd5e1;
+  --hygiene-border: rgba(226, 232, 240, 0.15);
+  --hygiene-primary: #5eead4;
+  --hygiene-danger: #fda4af;
+  --hygiene-warning: #fcd34d;
+  --hygiene-success: #6ee7b7;
+  --hygiene-disabled-bg: #334155;
+}
+
+.tex-action-button--success {
+  background: var(--tex-success);
+  border-color: color-mix(in srgb, var(--tex-success) 72%, transparent);
+  color: #ffffff;
+}
+
+.tex-action-button--success:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+
+.tex-action-button--warning {
+  background: var(--tex-warning);
+  border-color: color-mix(in srgb, var(--tex-warning) 72%, transparent);
+  color: #111827;
+}
+
+.tex-action-button--warning:hover:not(:disabled) {
+  filter: brightness(1.04);
+}

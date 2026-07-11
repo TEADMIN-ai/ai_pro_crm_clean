@@ -1,4 +1,5 @@
 ﻿import { Text, View, Image, StyleSheet } from "@react-pdf/renderer";
+import { getCorporateEmail, TORQUE_EMPIRE_COMPANY_PROFILE } from "@/lib/corporate/companyProfile";
 
 const styles = StyleSheet.create({
   header: {
@@ -14,9 +15,9 @@ export default function Brand() {
   return (
     <View style={styles.header}>
       {/* Replace with hosted logo later */}
-      <Text style={styles.company}>Torque Empire</Text>
-      <Text style={styles.info}>AI Pro CRM</Text>
-      <Text style={styles.info}>info@torqueempire.com</Text>
+      <Text style={styles.company}>{TORQUE_EMPIRE_COMPANY_PROFILE.tradingName}</Text>
+      <Text style={styles.info}>{TORQUE_EMPIRE_COMPANY_PROFILE.tagline}</Text>
+      <Text style={styles.info}>{getCorporateEmail("info")}</Text>
     </View>
   );
 }

@@ -3,7 +3,7 @@
 import { useAuth } from "@/context/AuthContext";
 import { isRoarCarsStaffRole } from "@/lib/auth/roleUtils";
 import RoarCarsStaffDashboard from "@/components/vehicle-finance/RoarCarsStaffDashboard";
-import VehicleFinanceExecutiveDashboard from "@/components/vehicle-finance/VehicleFinanceExecutiveDashboard";
+import VehicleFinanceOperationsDashboard from "@/components/vehicle-finance/VehicleFinanceOperationsDashboard";
 
 export default function VehicleFinanceDashboardRouter() {
   const { role, loading } = useAuth();
@@ -16,5 +16,5 @@ export default function VehicleFinanceDashboardRouter() {
     );
   }
 
-  return isRoarCarsStaffRole(role) ? <RoarCarsStaffDashboard /> : <VehicleFinanceExecutiveDashboard />;
+  return isRoarCarsStaffRole(role) ? <RoarCarsStaffDashboard /> : <VehicleFinanceOperationsDashboard />;
 }

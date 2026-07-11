@@ -1,9 +1,10 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
 import Badge from "@/components/ui/Badge";
+import WorkflowProgressSummary from "@/components/vehicle-finance/WorkflowProgressSummary";
 import Card, { IdentityCardHeader } from "@/components/ui/Card";
 import { authFetch } from "@/lib/client/authFetch";
 import { API_ROUTES } from "@/lib/routes";
@@ -269,8 +270,8 @@ export default function VehicleFinanceExecutiveDashboard() {
   const applicationSummaryMetrics = [
     ["Inventory Value", formatCurrency(inventory?.metrics.inventoryValue)],
     ["Average Vehicle Price", formatCurrency(inventory?.metrics.averageVehiclePrice)],
-    ["Inventory Age", inventory?.metrics.averageModelAge === null || inventory?.metrics.averageModelAge === undefined ? "—" : `${inventory.metrics.averageModelAge} yrs`],
-    ["Vehicles Added This Month", inventory?.metrics.vehiclesAddedThisMonth ?? "—"],
+    ["Inventory Age", inventory?.metrics.averageModelAge === null || inventory?.metrics.averageModelAge === undefined ? "â€”" : `${inventory.metrics.averageModelAge} yrs`],
+    ["Vehicles Added This Month", inventory?.metrics.vehiclesAddedThisMonth ?? "â€”"],
     ["Applications Submitted", dashboard.metrics.totalApplications],
     ["Finance Approval Rate", `${dashboard.metrics.approvalRatio}%`],
   ] as const;
@@ -330,7 +331,7 @@ export default function VehicleFinanceExecutiveDashboard() {
             </Link>
             <Link href="/dashboard/vehicle-finance/applications" className={`${EXECUTIVE_METRIC_CARD_CLASS} block text-left no-underline transition hover:border-sky-200/30 hover:bg-sky-300/15`}>
               <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-sky-100/75">Finance Applications</p>
-              <p className="mt-4 text-3xl font-semibold text-white">{loading ? "—" : totalApplications}</p>
+              <p className="mt-4 text-3xl font-semibold text-white">{loading ? "â€”" : totalApplications}</p>
             </Link>
           </div>
         </div>
@@ -409,7 +410,7 @@ export default function VehicleFinanceExecutiveDashboard() {
                       </p>
                       <h3 className="mt-2 text-lg font-semibold text-white">{vehicle.title}</h3>
                       <p className="mt-2 text-sm leading-6 text-slate-300">
-                        {formatCurrency(vehicle.priceNumber ?? vehicle.price)} · {vehicle.year ?? "n/a"}
+                        {formatCurrency(vehicle.priceNumber ?? vehicle.price)} Â· {vehicle.year ?? "n/a"}
                       </p>
                     </div>
                   </article>
@@ -673,6 +674,7 @@ export default function VehicleFinanceExecutiveDashboard() {
               <p className="mt-2 text-lg font-semibold text-white">{financeDecision.recommendedDecision}</p>
             </div>
           </div>
+          <WorkflowProgressSummary className="mt-4" application={selectedApplication} />
         </Card>
       </section>
 

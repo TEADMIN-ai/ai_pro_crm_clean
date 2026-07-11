@@ -1,5 +1,12 @@
 import Link from "next/link";
 import type { ButtonHTMLAttributes, ReactNode } from "react";
+import {
+  EnterpriseCard,
+  EnterpriseKpiCard,
+  EnterpriseStatusBadge,
+  type EnterpriseActionVariant,
+  type EnterpriseTone,
+} from "@/components/ui/EnterpriseUI";
 
 type ModuleAccent =
   | "dashboard"
@@ -11,7 +18,7 @@ type ModuleAccent =
   | "ai"
   | "admin";
 
-type Tone = "neutral" | "success" | "warning" | "danger" | "info";
+type Tone = EnterpriseTone;
 
 function cx(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ");
@@ -74,7 +81,7 @@ export function DashboardCard({
   className?: string;
   interactive?: boolean;
 }) {
-  return <section className={cx("tex-card", interactive && "tex-card--interactive", className)}>{children}</section>;
+  return <EnterpriseCard className={className} interactive={interactive}>{children}</EnterpriseCard>;
 }
 
 export function MetricCard({
@@ -90,16 +97,8 @@ export function MetricCard({
   trend?: ReactNode;
   className?: string;
 }) {
-  return (
-    <section className={cx("tex-metric-card", className)}>
-      <p className="tex-metric-label">{label}</p>
-      <p className="tex-metric-value mt-3">{value}</p>
-      {description ? <p className="tex-copy mt-3 text-sm">{description}</p> : null}
-      {trend ? <p className="mt-4 text-xs font-semibold uppercase tracking-[0.14em] text-[color:var(--tex-accent)]">{trend}</p> : null}
-    </section>
-  );
+  return <EnterpriseKpiCard label={label} value={value} helper={description} trend={trend} className={className} />;
 }
-
 export function StatusBadge({
   tone = "neutral",
   children,
@@ -109,13 +108,8 @@ export function StatusBadge({
   children: ReactNode;
   className?: string;
 }) {
-  return (
-    <span className={cx("tex-status-badge", className)} data-tone={tone}>
-      {children}
-    </span>
-  );
+  return <EnterpriseStatusBadge value={children} tone={tone} className={className} />;
 }
-
 export function InsightPanel({
   title,
   children,
@@ -135,7 +129,7 @@ export function InsightPanel({
 
 type ActionButtonProps = {
   href?: string;
-  variant?: "primary" | "secondary";
+  variant?: EnterpriseActionVariant;
   children: ReactNode;
   className?: string;
 } & ButtonHTMLAttributes<HTMLButtonElement>;

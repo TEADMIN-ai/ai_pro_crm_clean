@@ -1,4 +1,4 @@
-import { verifyStoredContractorDocument } from "@/server/services/documentVerificationService";
+﻿import { verifyStoredContractorDocument } from "@/server/services/documentVerificationService";
 
 jest.mock("@/lib/pdf/extractTextFromPdf", () => ({
   extractTextFromPdf: jest.fn(),
@@ -20,6 +20,15 @@ const { extractTextFromPdfDetailed } = jest.requireMock("@/lib/pdf/extractTextFr
 describe("documentVerificationService", () => {
   beforeEach(() => {
     extractTextFromPdfDetailed.mockReset();
+  });
+
+  beforeAll(() => {
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date('2026-06-01T12:00:00.000Z'));
+  });
+
+  afterAll(() => {
+    jest.useRealTimers();
   });
 
   test("returns REVIEW when no usable text was extracted", async () => {

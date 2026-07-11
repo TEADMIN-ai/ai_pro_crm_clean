@@ -1,10 +1,19 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ChangeEvent, type FormEvent, type ReactNode } from "react";
+import {
+  EnterpriseActionButton as SmallAction,
+  EnterpriseEmptyState as EmptyState,
+  EnterpriseKpiCard as KpiCard,
+  EnterprisePanel as Panel,
+  EnterpriseStatusBadge as StatusBadge,
+  enterpriseActionLinkClass,
+} from "@/components/ui/EnterpriseUI";
 import { API_ROUTES } from "@/lib/apiRoutes";
 import { authFetch } from "@/lib/client/authFetch";
 import { useAuth } from "@/context/AuthContext";
+import { teosDesignTokens } from "@/lib/design/teosDesignTokens";
 import {
   HYGIENE_PHOTO_CATEGORIES,
   type HygieneCollection,
@@ -69,6 +78,25 @@ const COMPLIANCE_DOC_TYPES = [
 
 const BACKUP_NOTE =
   "Backup transport used for this CBAVO collection due to primary vehicle unavailability. Collection authorised by Torque Empire management.";
+const tokens = teosDesignTokens;
+const hygieneThemeStyle = {
+  "--hygiene-primary": tokens.color.secondary[600],
+  "--hygiene-primary-strong": tokens.color.secondary[700],
+  "--hygiene-info": tokens.color.info[600],
+  "--hygiene-success": tokens.color.success[600],
+  "--hygiene-warning": tokens.color.warning[600],
+  "--hygiene-danger": tokens.color.danger[600],
+  "--hygiene-neutral": tokens.color.neutral[500],
+  "--hygiene-surface": "rgba(2, 6, 23, 0.64)",
+  "--hygiene-surface-muted": "rgba(15, 23, 42, 0.72)",
+  "--hygiene-border": "rgba(226, 232, 240, 0.22)",
+  "--hygiene-text-muted": tokens.color.neutral[200],
+  "--hygiene-text-subtle": tokens.color.neutral[100],
+} as CSSProperties;
+
+const primaryButtonClass = "tex-action-button";
+const secondaryButtonClass = "tex-action-button tex-action-button--secondary";
+const smallLinkClass = enterpriseActionLinkClass;
 
 function currency(value: number): string {
   return new Intl.NumberFormat("en-ZA", {
@@ -83,64 +111,6 @@ function formatDate(value: string | null | undefined): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
   return new Intl.DateTimeFormat("en-ZA", { dateStyle: "medium" }).format(date);
-}
-
-function statusTone(value: string): string {
-  if (["Active", "Completed", "Passed", "Paid", "Compliance Green", "Certificate Received"].includes(value)) {
-    return "border-emerald-400/25 bg-emerald-500/10 text-emerald-100";
-  }
-
-  if (["Pending", "Scheduled", "Disposal Pending", "Compliance Warning", "In Progress"].includes(value)) {
-    return "border-amber-400/25 bg-amber-500/10 text-amber-100";
-  }
-
-  if (["Overdue", "Compliance Expired", "Failed"].includes(value)) {
-    return "border-rose-400/25 bg-rose-500/10 text-rose-100";
-  }
-
-  return "border-slate-400/25 bg-slate-500/10 text-slate-100";
-}
-
-function StatusBadge({ value }: { value: string }) {
-  return (
-    <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-semibold ${statusTone(value)}`}>
-      {value}
-    </span>
-  );
-}
-
-function Panel({
-  title,
-  eyebrow,
-  action,
-  children,
-}: {
-  title: string;
-  eyebrow?: string;
-  action?: ReactNode;
-  children: ReactNode;
-}) {
-  return (
-    <section className="overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04] shadow-sm">
-      <div className="flex flex-col gap-3 border-b border-white/10 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          {eyebrow ? <p className="text-xs font-semibold uppercase tracking-[0.22em] text-cyan-200/80">{eyebrow}</p> : null}
-          <h2 className="mt-1 text-lg font-semibold text-white">{title}</h2>
-        </div>
-        {action}
-      </div>
-      <div className="p-5">{children}</div>
-    </section>
-  );
-}
-
-function EmptyState({ title, detail }: { title: string; detail: string }) {
-  return (
-    <div className="rounded-2xl border border-dashed border-slate-600 bg-slate-950/40 p-6">
-      <p className="font-semibold text-white">{title}</p>
-      <p className="mt-2 text-sm leading-6 text-slate-400">{detail}</p>
-    </div>
-  );
 }
 
 function LoadingState() {
@@ -168,19 +138,19 @@ function DataTable({
 
   return (
     <div className="-m-5 overflow-x-auto">
-      <table className="min-w-full divide-y divide-white/10 text-sm">
-        <thead className="bg-slate-950/50 text-left text-xs uppercase tracking-[0.16em] text-slate-400">
+      <table className="min-w-full divide-y divide-white/15 text-[13px]">
+        <thead className="bg-slate-950/80 text-left text-[11px] uppercase tracking-[0.08em] text-slate-200">
           <tr>
             {headers.map((header) => (
-              <th key={header} className="px-5 py-3 font-semibold">{header}</th>
+              <th key={header} className="px-4 py-3 font-bold">{header}</th>
             ))}
           </tr>
         </thead>
-        <tbody className="divide-y divide-white/10">
+        <tbody className="divide-y divide-white/15">
           {rows.map((row, rowIndex) => (
-            <tr key={rowIndex} className="align-top">
+            <tr key={rowIndex} className="align-top transition hover:bg-white/[0.04]">
               {row.map((cell, cellIndex) => (
-                <td key={cellIndex} className="px-5 py-4 text-slate-300">{cell}</td>
+                <td key={cellIndex} className="px-4 py-3.5 leading-5 text-slate-100">{cell}</td>
               ))}
             </tr>
           ))}
@@ -192,19 +162,85 @@ function DataTable({
 
 function PrimaryCell({ title, subtitle }: { title: string; subtitle?: string }) {
   return (
-    <div>
-      <p className="font-medium text-white">{title}</p>
-      {subtitle ? <p className="mt-1 text-xs text-slate-500">{subtitle}</p> : null}
+    <div className="min-w-0">
+      <p className="truncate text-sm font-semibold text-white">{title}</p>
+      {subtitle ? <p className="mt-1 truncate text-[11px] leading-4 text-slate-300">{subtitle}</p> : null}
     </div>
   );
 }
 
-function KpiCard({ label, value, helper }: { label: string; value: ReactNode; helper: string }) {
+function MiniBarChart({
+  title,
+  items,
+}: {
+  title: string;
+  items: Array<{ label: string; value: number; tone?: "success" | "warning" | "danger" | "info" | "neutral" }>;
+}) {
+  const max = Math.max(1, ...items.map((item) => item.value));
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/[0.05] p-5">
-      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">{label}</p>
-      <div className="mt-3 text-3xl font-semibold text-white">{value}</div>
-      <p className="mt-2 text-sm text-slate-400">{helper}</p>
+    <Panel title={title} eyebrow="Executive dashboard">
+      <div className="grid gap-3">
+        {items.map((item) => (
+          <div key={item.label} className="grid gap-2">
+            <div className="flex items-center justify-between gap-3 text-xs">
+              <span className="font-semibold text-slate-200">{item.label}</span>
+              <StatusBadge value={item.value} tone={item.tone ?? "neutral"} />
+            </div>
+            <div className="h-2 overflow-hidden rounded-full bg-slate-950/55">
+              <div className="h-full rounded-full bg-[color:var(--hygiene-primary)]" style={{ width: `${Math.max(8, Math.round((item.value / max) * 100))}%` }} />
+            </div>
+          </div>
+        ))}
+      </div>
+    </Panel>
+  );
+}
+
+function BoardCard({
+  title,
+  subtitle,
+  status,
+  meta,
+  actions,
+  children,
+}: {
+  title: string;
+  subtitle?: ReactNode;
+  status?: ReactNode;
+  meta?: Array<{ label: string; value: ReactNode }>;
+  actions?: ReactNode;
+  children?: ReactNode;
+}) {
+  return (
+    <article className="rounded-xl border border-[color:var(--hygiene-border)] bg-slate-950/35 p-4 shadow-sm transition hover:bg-slate-950/45">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h3 className="truncate text-sm font-bold text-white">{title}</h3>
+          {subtitle ? <div className="mt-1 text-xs leading-5 text-slate-300">{subtitle}</div> : null}
+        </div>
+        {status ? <div className="shrink-0">{status}</div> : null}
+      </div>
+      {meta?.length ? (
+        <dl className="mt-4 grid gap-2 sm:grid-cols-2">
+          {meta.map((item) => (
+            <div key={item.label} className="rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2">
+              <dt className="text-[10px] font-bold uppercase tracking-[0.08em] text-slate-400">{item.label}</dt>
+              <dd className="mt-1 min-w-0 text-sm font-semibold text-slate-100">{item.value}</dd>
+            </div>
+          ))}
+        </dl>
+      ) : null}
+      {children ? <div className="mt-4">{children}</div> : null}
+      {actions ? <div className="mt-4 flex flex-wrap gap-2">{actions}</div> : null}
+    </article>
+  );
+}
+
+function ProgressBar({ value }: { value: number }) {
+  const width = Math.max(0, Math.min(100, value));
+  return (
+    <div className="h-2 overflow-hidden rounded-full bg-slate-950/60" aria-label={`${width}% complete`}>
+      <div className="h-full rounded-full bg-[color:var(--hygiene-primary)]" style={{ width: `${width}%` }} />
     </div>
   );
 }
@@ -230,7 +266,7 @@ function Field({
           name={name}
           type={type}
           defaultValue={typeof defaultValue === "number" ? defaultValue : typeof defaultValue === "string" ? defaultValue : ""}
-          className="rounded-xl border border-white/10 bg-slate-950/70 px-3 py-2 text-white outline-none focus:border-cyan-300/40"
+          className="rounded-xl border border-white/20 bg-slate-950/80 px-3 py-2 text-white outline-none focus:border-teal-200/70 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-200"
         />
       )}
     </label>
@@ -250,37 +286,40 @@ function SelectField({
 }) {
   return (
     <Field name={name} label={label}>
-      <select name={name} defaultValue={typeof defaultValue === "string" ? defaultValue : options[0] ?? ""} className="rounded-xl border border-white/10 bg-slate-950/70 px-3 py-2 text-white outline-none focus:border-cyan-300/40">
+      <select name={name} defaultValue={typeof defaultValue === "string" ? defaultValue : options[0] ?? ""} className="rounded-xl border border-white/20 bg-slate-950/80 px-3 py-2 text-white outline-none focus:border-teal-200/70 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-200">
         {options.map((option) => <option key={option} value={option}>{option}</option>)}
       </select>
     </Field>
   );
 }
 
-function SmallAction({ children, onClick }: { children: ReactNode; onClick: () => void }) {
-  return (
-    <button type="button" onClick={onClick} className="rounded-lg border border-cyan-300/20 bg-cyan-400/12 px-3 py-1.5 text-xs font-semibold text-cyan-100 hover:bg-cyan-400/20">
-      {children}
-    </button>
-  );
-}
-
 function WorkflowCard({ collection }: { collection: HygieneCollection }) {
+  const completedSteps = collection.workflowSteps.filter((step) => step.status === "Completed").length;
+  const progress = Math.round((completedSteps / Math.max(1, collection.workflowSteps.length)) * 100);
+
   return (
-    <div className="rounded-2xl border border-white/10 bg-slate-950/35 p-4">
-      <div className="flex items-start justify-between gap-3">
-        <PrimaryCell title={collection.collectionId} subtitle={`${formatDate(collection.scheduledDate)} | ${collection.scheduledTimeWindow}`} />
-        <StatusBadge value={collection.status} />
-      </div>
-      <div className="mt-4 grid gap-2">
-        {collection.workflowSteps.map((step) => (
-          <div key={step.stepId} className="flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2">
-            <span className="text-sm text-slate-300">{step.label}</span>
+    <BoardCard
+      title={collection.collectionId}
+      subtitle={`${formatDate(collection.scheduledDate)} | ${collection.scheduledTimeWindow}`}
+      status={<StatusBadge value={collection.status} />}
+      meta={[
+        { label: "Driver", value: collection.assignedDriver },
+        { label: "Vehicle", value: collection.vehicleRegistration },
+        { label: "Progress", value: `${completedSteps}/${collection.workflowSteps.length} steps` },
+        { label: "Signature", value: collection.clientSignatureStatus },
+      ]}
+    >
+      <ProgressBar value={progress} />
+      <ol className="mt-4 grid gap-2">
+        {collection.workflowSteps.map((step, index) => (
+          <li key={step.stepId} className="grid grid-cols-[24px_1fr_auto] items-center gap-3 rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2">
+            <span className="flex h-6 w-6 items-center justify-center rounded-full bg-white/[0.08] text-[11px] font-bold text-slate-200">{index + 1}</span>
+            <span className="min-w-0 truncate text-xs font-semibold text-slate-200">{step.label}</span>
             <StatusBadge value={step.status} />
-          </div>
+          </li>
         ))}
-      </div>
-    </div>
+      </ol>
+    </BoardCard>
   );
 }
 
@@ -617,24 +656,24 @@ export default function HygieneDivisionClient({ view }: { view: HygieneView }) {
   }, [authLoading]);
 
   return (
-    <div data-module="hygiene" className="tex-shell space-y-6 text-slate-100">
+    <div data-module="hygiene" className="tex-shell space-y-6 text-white" style={hygieneThemeStyle}>
       <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleEvidenceSelection} />
 
       <section className="rounded-2xl border border-white/10 bg-white/[0.04] p-5 shadow-sm">
         <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-cyan-200/80">Hygiene Division</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-teal-100">Hygiene Division</p>
             <h1 className="mt-2 text-2xl font-semibold text-white">CBAVO Services Operations Dashboard</h1>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-300">
               Internal Torque Empire workspace for hygiene scheduling, driver workflow, digital manifests, evidence, compliance, and monthly reporting.
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <button type="button" onClick={() => void loadData(true)} disabled={refreshing} className="rounded-full border border-white/10 bg-white/[0.05] px-4 py-2 text-sm font-semibold text-white hover:bg-white/[0.08] disabled:opacity-60">
+            <button type="button" onClick={() => void loadData(true)} disabled={refreshing} className={secondaryButtonClass}>
               {refreshing ? "Refreshing..." : "Refresh"}
             </button>
             {canSeed ? (
-              <button type="button" onClick={() => void seedDataset()} disabled={refreshing} className="rounded-full border border-cyan-300/20 bg-cyan-400/15 px-4 py-2 text-sm font-semibold text-cyan-100 hover:bg-cyan-400/20 disabled:opacity-60">
+              <button type="button" onClick={() => void seedDataset()} disabled={refreshing} className={primaryButtonClass}>
                 Seed CBAVO
               </button>
             ) : null}
@@ -643,7 +682,7 @@ export default function HygieneDivisionClient({ view }: { view: HygieneView }) {
 
         <div className="mt-5 flex gap-2 overflow-x-auto pb-1">
           {navItems.map((item) => (
-            <Link key={item.href} href={item.href} className={`whitespace-nowrap rounded-full border px-3 py-2 text-sm font-medium ${item.view === view ? "border-cyan-300/30 bg-cyan-400/15 text-cyan-100" : "border-white/10 bg-white/[0.03] text-slate-300 hover:bg-white/[0.06]"}`}>
+            <Link key={item.href} href={item.href} className={`whitespace-nowrap rounded-lg border px-3 py-2 text-sm font-semibold transition ${item.view === view ? "border-[color:var(--hygiene-primary)] bg-[color:var(--hygiene-primary)] text-white shadow-sm" : "border-[color:var(--hygiene-border)] bg-white/[0.04] text-[color:var(--hygiene-text-muted)] hover:bg-white/[0.10]"}`}>
               {item.label}
             </Link>
           ))}
@@ -651,18 +690,18 @@ export default function HygieneDivisionClient({ view }: { view: HygieneView }) {
       </section>
 
       {mutationStatus ? (
-        <div className="rounded-2xl border border-cyan-300/25 bg-cyan-400/10 p-4 text-sm font-semibold text-cyan-100">{mutationStatus}</div>
+        <div className="rounded-xl border border-[color:var(--hygiene-success)] bg-emerald-50 p-4 text-sm font-bold text-emerald-950">{mutationStatus}</div>
       ) : null}
 
       {modal ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4">
-          <form onSubmit={submitModal} className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-white/10 bg-[#0b1424] p-5 shadow-2xl">
+          <form onSubmit={submitModal} className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-xl border border-[color:var(--hygiene-border)] bg-[color:var(--hygiene-surface)] p-5 shadow-2xl">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.22em] text-cyan-200">Hygiene Action</p>
+                <p className="text-xs font-bold uppercase tracking-[0.18em] text-teal-100">Hygiene Action</p>
                 <h2 className="mt-1 text-xl font-semibold text-white">{modal.title}</h2>
               </div>
-              <button type="button" onClick={() => setModal(null)} className="rounded-full border border-white/10 px-3 py-1 text-sm text-slate-200">Close</button>
+              <button type="button" onClick={() => setModal(null)} className={secondaryButtonClass}>Close</button>
             </div>
 
             <div className="mt-5 grid gap-4 md:grid-cols-2">
@@ -772,8 +811,8 @@ export default function HygieneDivisionClient({ view }: { view: HygieneView }) {
             </div>
 
             <div className="mt-5 flex justify-end gap-2">
-              <button type="button" onClick={() => setModal(null)} className="rounded-full border border-white/10 px-4 py-2 text-sm font-semibold text-slate-200">Cancel</button>
-              <button type="submit" className="rounded-full border border-cyan-300/20 bg-cyan-400/15 px-4 py-2 text-sm font-semibold text-cyan-100">Save action</button>
+              <button type="button" onClick={() => setModal(null)} className={secondaryButtonClass}>Cancel</button>
+              <button type="submit" className={primaryButtonClass}>Save action</button>
             </div>
           </form>
         </div>
@@ -782,7 +821,7 @@ export default function HygieneDivisionClient({ view }: { view: HygieneView }) {
       {loading || authLoading ? <LoadingState /> : null}
 
       {!loading && error ? (
-        <div className="rounded-2xl border border-rose-400/30 bg-rose-500/10 p-4 text-sm text-rose-100">{error}</div>
+        <div className="rounded-xl border border-[color:var(--hygiene-danger)] bg-red-50 p-4 text-sm font-semibold text-red-950">{error}</div>
       ) : null}
 
       {!loading && !error && !data ? (
@@ -793,17 +832,38 @@ export default function HygieneDivisionClient({ view }: { view: HygieneView }) {
         <div className="space-y-6">
           <Panel title="Operational Actions" eyebrow="Office workflow">
             <div className="flex flex-wrap gap-2">
-              {canManage ? <SmallAction onClick={() => openModal("collection", "Create Collection")}>Create Collection</SmallAction> : null}
-              {canManage ? <SmallAction onClick={() => openModal("collection", "Assign Driver", data.collections.find((item) => item.collectionId === "TE-COL-2026-0002") ?? data.collections[0])}>Assign Driver</SmallAction> : null}
-              {canManage ? <SmallAction onClick={() => openModal("backup", "Assign Vehicle / Backup Transport", data.collections.find((item) => item.collectionId === "TE-COL-2026-0002") ?? data.collections[0])}>Assign Vehicle</SmallAction> : null}
-              {canOperate ? <SmallAction onClick={() => void postJson(API_ROUTES.HYGIENE_MANIFESTS, { action: "generate", collectionId: data.collections.find((item) => item.collectionId === "TE-COL-2026-0002")?.collectionId ?? data.collections[0]?.collectionId }, "Manifest generated.")}>Generate Manifest</SmallAction> : null}
-              {canUploadEvidence ? <SmallAction onClick={() => openModal("evidence", "Upload Evidence")}>Upload Evidence</SmallAction> : null}
-              {canManage ? <SmallAction onClick={() => openModal("compliance", "Upload Disposal Certificate", { documentType: "Disposal Certificates", title: "Disposal Certificate", status: "Pending" })}>Upload Disposal Certificate</SmallAction> : null}
+              {canManage ? <SmallAction variant="primary" onClick={() => openModal("collection", "Create Collection")}>Create Collection</SmallAction> : null}
+              {canManage ? <SmallAction variant="warning" onClick={() => openModal("collection", "Assign Driver", data.collections.find((item) => item.collectionId === "TE-COL-2026-0002") ?? data.collections[0])}>Assign Driver</SmallAction> : null}
+              {canManage ? <SmallAction variant="warning" onClick={() => openModal("backup", "Assign Vehicle / Backup Transport", data.collections.find((item) => item.collectionId === "TE-COL-2026-0002") ?? data.collections[0])}>Assign Vehicle</SmallAction> : null}
+              {canOperate ? <SmallAction variant="warning" onClick={() => void postJson(API_ROUTES.HYGIENE_MANIFESTS, { action: "generate", collectionId: data.collections.find((item) => item.collectionId === "TE-COL-2026-0002")?.collectionId ?? data.collections[0]?.collectionId }, "Manifest generated.")}>Generate Manifest</SmallAction> : null}
+              {canUploadEvidence ? <SmallAction variant="primary" onClick={() => openModal("evidence", "Upload Evidence")}>Upload Evidence</SmallAction> : null}
+              {canManage ? <SmallAction variant="primary" onClick={() => openModal("compliance", "Upload Disposal Certificate", { documentType: "Disposal Certificates", title: "Disposal Certificate", status: "Pending" })}>Upload Disposal Certificate</SmallAction> : null}
               <SmallAction onClick={() => void loadData(true)}>Refresh</SmallAction>
             </div>
           </Panel>
 
-          <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5">
+          <section className="grid gap-4 xl:grid-cols-2">
+            <MiniBarChart
+              title="Collections by Status"
+              items={[
+                { label: "Scheduled", value: data.collections.filter((collection) => collection.status === "Scheduled").length, tone: "warning" },
+                { label: "In Progress", value: data.collections.filter((collection) => collection.status === "In Progress").length, tone: "info" },
+                { label: "Completed", value: data.collections.filter((collection) => collection.status === "Completed").length, tone: "success" },
+                { label: "Awaiting Disposal", value: data.collections.filter((collection) => collection.status === "Awaiting Disposal").length, tone: "warning" },
+              ]}
+            />
+            <MiniBarChart
+              title="Evidence and Compliance"
+              items={[
+                { label: "Evidence Files", value: data.evidencePhotos.length, tone: "info" },
+                { label: "Compliance Green", value: data.complianceDocuments.filter((document) => document.status === "Compliance Green").length, tone: "success" },
+                { label: "Open Compliance Items", value: data.complianceDocuments.filter((document) => document.status !== "Compliance Green").length, tone: "warning" },
+                { label: "Pending Certificates", value: data.kpis.disposalCertificatesPending, tone: data.kpis.disposalCertificatesPending > 0 ? "warning" : "success" },
+              ]}
+            />
+          </section>
+
+          <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5">
             <KpiCard label="Active Hygiene Clients" value={data.kpis.activeHygieneClients} helper="Live hygiene accounts" />
             <KpiCard label="Active Sites" value={data.kpis.activeSites} helper="Serviceable client locations" />
             <KpiCard label="Active Bin Assets" value={data.kpis.activeBinAssets} helper="Tracked hygiene bins" />
@@ -884,7 +944,7 @@ export default function HygieneDivisionClient({ view }: { view: HygieneView }) {
 
       {!loading && data && view === "clients" ? (
         <div className="space-y-6">
-          <Panel title="Client Register" eyebrow="Accounts" action={canManage ? <SmallAction onClick={() => openModal("client", "Add Client")}>Add Client</SmallAction> : null}>
+          <Panel title="Client Register" eyebrow="Accounts" action={canManage ? <SmallAction variant="primary" onClick={() => openModal("client", "Add Client")}>Add Client</SmallAction> : null}>
             <DataTable headers={["Client", "Contact", "Contract", "Service", "Payment", "Status", "Actions"]} emptyLabel="clients" rows={data.clients.map((client) => [
               <PrimaryCell key="client" title={client.clientName} subtitle={`${client.clientType} | ${client.companyRegistration}`} />,
               <PrimaryCell key="contact" title={client.primaryContactName} subtitle={`${client.primaryContactPhone} | ${client.primaryContactEmail}`} />,
@@ -901,20 +961,29 @@ export default function HygieneDivisionClient({ view }: { view: HygieneView }) {
               </div>,
             ])} />
           </Panel>
-          {data.clients.map((client) => (
-            <Panel key={client.clientId} title={`${client.clientName} Detail`} eyebrow="Client profile">
-              <div className="grid gap-4 md:grid-cols-3">
-                <KpiCard label="Sites" value={data.sites.filter((site) => site.clientId === client.clientId).length} helper="Linked service points" />
-                <KpiCard label="Bin Assets" value={data.assets.filter((asset) => asset.clientId === client.clientId).length} helper="Tracked bins" />
-                <KpiCard label="Revenue" value={currency(client.monthlyRevenue)} helper="Monthly contract value" />
-              </div>
-            </Panel>
-          ))}
+          <section className="grid gap-4 xl:grid-cols-2">
+            {data.clients.map((client) => (
+              <BoardCard
+                key={client.clientId}
+                title={client.clientName}
+                subtitle={`${client.clientType} | ${client.companyRegistration}`}
+                status={<StatusBadge value={client.status} />}
+                meta={[
+                  { label: "Contact", value: client.primaryContactName },
+                  { label: "Payment", value: <StatusBadge value={client.paymentStatus} /> },
+                  { label: "Sites", value: data.sites.filter((site) => site.clientId === client.clientId).length },
+                  { label: "Bins", value: data.assets.filter((asset) => asset.clientId === client.clientId).length },
+                  { label: "Revenue", value: currency(client.monthlyRevenue) },
+                  { label: "Service", value: `${client.serviceFrequency} | ${client.collectionDay}` },
+                ]}
+              />
+            ))}
+          </section>
         </div>
       ) : null}
 
       {!loading && data && view === "sites" ? (
-        <Panel title="Site Register" eyebrow="Service locations" action={canManage ? <SmallAction onClick={() => openModal("site", "Add Site")}>Add Site</SmallAction> : null}>
+        <Panel title="Site Register" eyebrow="Service locations" action={canManage ? <SmallAction variant="primary" onClick={() => openModal("site", "Add Site")}>Add Site</SmallAction> : null}>
           <DataTable headers={["Site", "Address", "Contact", "Bins", "Service", "Status", "Actions"]} emptyLabel="sites" rows={data.sites.map((site) => [
             <PrimaryCell key="site" title={site.siteName} subtitle={`${site.siteId} | ${clientById.get(site.clientId) ?? site.clientId}`} />,
             <PrimaryCell key="address" title={site.address} subtitle={`${site.suburb}, ${site.city}`} />,
@@ -934,29 +1003,65 @@ export default function HygieneDivisionClient({ view }: { view: HygieneView }) {
       ) : null}
 
       {!loading && data && view === "assets" ? (
-        <Panel title="Bin Asset Register" eyebrow="Tracked assets" action={canManage ? <SmallAction onClick={() => openModal("asset", "Add Bin Asset")}>Add Bin Asset</SmallAction> : null}>
-          <DataTable headers={["Asset", "Site", "Type", "Service Dates", "Condition", "Status", "Actions"]} emptyLabel="bin assets" rows={data.assets.map((asset) => [
-            <PrimaryCell key="asset" title={asset.assetId} subtitle={asset.locationDescription} />,
-            siteById.get(asset.siteId) ?? asset.siteId,
-            `${asset.binSize} ${asset.binType}`,
-            <PrimaryCell key="dates" title={`Last ${formatDate(asset.lastServiceDate)}`} subtitle={`Next ${formatDate(asset.nextServiceDate)}`} />,
-            <PrimaryCell key="condition" title={asset.condition} subtitle={asset.notes} />,
-            <StatusBadge key="status" value={asset.status} />,
-            <div key="actions" className="flex flex-wrap gap-2">
-              {canManage ? <SmallAction onClick={() => openModal("asset", "Edit Bin Asset", asset)}>Edit</SmallAction> : null}
-              {canManage ? <SmallAction onClick={() => openModal("asset", "Assign Bin to Site", asset)}>Assign Site</SmallAction> : null}
-              {canManage ? <SmallAction onClick={() => void postJson(API_ROUTES.HYGIENE_ASSETS, { ...asset, condition: "Serviced", lastServiceDate: new Date().toISOString().slice(0, 10), status: "Active" }, "Asset marked serviced.")}>Mark Serviced</SmallAction> : null}
-              {canManage ? <SmallAction onClick={() => void postJson(API_ROUTES.HYGIENE_ASSETS, { ...asset, condition: "Damaged", status: "In Maintenance" }, "Asset marked damaged.")}>Mark Damaged</SmallAction> : null}
-              {canManage ? <SmallAction onClick={() => void postJson(API_ROUTES.HYGIENE_ASSETS, { ...asset, condition: "Replaced", status: "Active" }, "Asset marked replaced.")}>Mark Replaced</SmallAction> : null}
-              {canManage ? <SmallAction onClick={() => void postJson(API_ROUTES.HYGIENE_ASSETS, { ...asset, status: "Retired" }, "Asset retired.")}>Retire</SmallAction> : null}
-            </div>,
-          ])} />
+        <Panel title="Bin Asset Register" eyebrow="Vehicle and bin cards" action={canManage ? <SmallAction variant="primary" onClick={() => openModal("asset", "Add Bin Asset")}>Add Bin Asset</SmallAction> : null}>
+          <div className="grid gap-4 xl:grid-cols-2 2xl:grid-cols-3">
+            {data.assets.map((asset) => (
+              <BoardCard
+                key={asset.assetId}
+                title={asset.assetId}
+                subtitle={asset.locationDescription}
+                status={<StatusBadge value={asset.status} />}
+                meta={[
+                  { label: "Site", value: siteById.get(asset.siteId) ?? asset.siteId },
+                  { label: "Type", value: `${asset.binSize} ${asset.binType}` },
+                  { label: "Last Service", value: formatDate(asset.lastServiceDate) },
+                  { label: "Next Service", value: formatDate(asset.nextServiceDate) },
+                  { label: "Condition", value: asset.condition },
+                  { label: "Notes", value: asset.notes },
+                ]}
+                actions={(
+                  <>
+                    {canManage ? <SmallAction onClick={() => openModal("asset", "Edit Bin Asset", asset)}>Edit</SmallAction> : null}
+                    {canManage ? <SmallAction onClick={() => openModal("asset", "Assign Bin to Site", asset)}>Assign Site</SmallAction> : null}
+                    {canManage ? <SmallAction variant="success" onClick={() => void postJson(API_ROUTES.HYGIENE_ASSETS, { ...asset, condition: "Serviced", lastServiceDate: new Date().toISOString().slice(0, 10), status: "Active" }, "Asset marked serviced.")}>Mark Serviced</SmallAction> : null}
+                    {canManage ? <SmallAction variant="danger" onClick={() => void postJson(API_ROUTES.HYGIENE_ASSETS, { ...asset, condition: "Damaged", status: "In Maintenance" }, "Asset marked damaged.")}>Mark Damaged</SmallAction> : null}
+                    {canManage ? <SmallAction onClick={() => void postJson(API_ROUTES.HYGIENE_ASSETS, { ...asset, condition: "Replaced", status: "Active" }, "Asset marked replaced.")}>Mark Replaced</SmallAction> : null}
+                    {canManage ? <SmallAction variant="danger" onClick={() => void postJson(API_ROUTES.HYGIENE_ASSETS, { ...asset, status: "Retired" }, "Asset retired.")}>Retire</SmallAction> : null}
+                  </>
+                )}
+              />
+            ))}
+          </div>
         </Panel>
       ) : null}
 
       {!loading && data && view === "collections" ? (
         <div className="space-y-6">
-          <Panel title="Collection Scheduler" eyebrow="Dispatch and route control" action={canManage ? <SmallAction onClick={() => openModal("collection", "Create Collection")}>Create Collection</SmallAction> : null}>
+          <Panel title="Collection Scheduler" eyebrow="Dispatch and route control" action={canManage ? <SmallAction variant="primary" onClick={() => openModal("collection", "Create Collection")}>Create Collection</SmallAction> : null}>
+            <div className="mb-5 grid gap-4 xl:grid-cols-2">
+              {data.collections.map((collection) => (
+                <BoardCard
+                  key={collection.collectionId}
+                  title={collection.collectionId}
+                  subtitle={`${clientById.get(collection.clientId) ?? collection.clientId} | ${siteById.get(collection.siteId) ?? collection.siteId}`}
+                  status={<StatusBadge value={collection.status} />}
+                  meta={[
+                    { label: "Schedule", value: `${formatDate(collection.scheduledDate)} | ${collection.scheduledTimeWindow}` },
+                    { label: "Driver", value: collection.assignedDriver },
+                    { label: "Vehicle", value: `${collection.vehicleName} | ${collection.vehicleRegistration}` },
+                    { label: "Signature", value: collection.clientSignatureStatus },
+                  ]}
+                  actions={(
+                    <>
+                      <Link className={smallLinkClass} href={`/dashboard/hygiene/jobs/${collection.collectionId}`}>Open Job</Link>
+                      {canManage ? <SmallAction variant="warning" onClick={() => openModal("collection", "Assign Driver", collection)}>Assign Driver</SmallAction> : null}
+                      {canManage ? <SmallAction variant="warning" onClick={() => openModal("backup", "Assign Vehicle / Backup Transport", collection)}>Assign Vehicle</SmallAction> : null}
+                      {canUploadEvidence ? <SmallAction onClick={() => openModal("evidence", "Upload Evidence", collection)}>Upload Evidence</SmallAction> : null}
+                    </>
+                  )}
+                />
+              ))}
+            </div>
             <DataTable headers={["Collection", "Client / Site", "Schedule", "Driver / Vehicle", "Signature", "Status", "Actions"]} emptyLabel="collections" rows={data.collections.map((collection) => [
               <PrimaryCell key="collection" title={collection.collectionId} subtitle={`Manifest ${collection.manifestId}`} />,
               <PrimaryCell key="client" title={clientById.get(collection.clientId) ?? collection.clientId} subtitle={siteById.get(collection.siteId) ?? collection.siteId} />,
@@ -965,17 +1070,17 @@ export default function HygieneDivisionClient({ view }: { view: HygieneView }) {
               collection.clientSignatureStatus,
               <StatusBadge key="status" value={collection.status} />,
               <div key="actions" className="flex max-w-md flex-wrap gap-2">
-                <Link className="rounded-lg border border-white/10 px-3 py-1.5 text-xs font-semibold text-slate-200" href={`/dashboard/hygiene/jobs/${collection.collectionId}`}>Open Job</Link>
-                {canManage ? <SmallAction onClick={() => openModal("collection", "Assign Driver", collection)}>Assign Driver</SmallAction> : null}
-                {canManage ? <SmallAction onClick={() => openModal("backup", "Assign Vehicle / Backup Transport", collection)}>Assign Vehicle</SmallAction> : null}
+                <Link className={smallLinkClass} href={`/dashboard/hygiene/jobs/${collection.collectionId}`}>Open Job</Link>
+                {canManage ? <SmallAction variant="warning" onClick={() => openModal("collection", "Assign Driver", collection)}>Assign Driver</SmallAction> : null}
+                {canManage ? <SmallAction variant="warning" onClick={() => openModal("backup", "Assign Vehicle / Backup Transport", collection)}>Assign Vehicle</SmallAction> : null}
                 {canOperate ? <SmallAction onClick={() => void postJobAction(collection.collectionId, "start-collection", "Collection started.")}>Start Collection</SmallAction> : null}
                 {canOperate ? <SmallAction onClick={() => void postJobAction(collection.collectionId, "confirm-arrival", "Arrival confirmed.")}>Confirm Arrival</SmallAction> : null}
                 {canUploadEvidence ? <SmallAction onClick={() => openModal("evidence", "Upload Evidence", collection)}>Upload Evidence</SmallAction> : null}
-                <Link className="rounded-lg border border-white/10 px-3 py-1.5 text-xs font-semibold text-slate-200" href="/dashboard/hygiene/signatures">Capture Signature</Link>
-                {canOperate ? <SmallAction onClick={() => void postJson(API_ROUTES.HYGIENE_MANIFESTS, { action: "generate", collectionId: collection.collectionId }, "Manifest generated.")}>Generate Manifest</SmallAction> : null}
-                {canOperate ? <SmallAction onClick={() => void postJobAction(collection.collectionId, "awaiting-disposal", "Collection moved to awaiting disposal.")}>Mark Awaiting Disposal</SmallAction> : null}
-                {canManage ? <SmallAction onClick={() => openModal("collection", "Cancel / Reschedule", collection)}>Cancel/Reschedule</SmallAction> : null}
-                {canOperate ? <SmallAction onClick={() => void postJobAction(collection.collectionId, "complete-job", "Collection completed.", { adminOverrideReason: "Office override from dashboard action when required." })}>Complete Collection</SmallAction> : null}
+                <Link className={smallLinkClass} href="/dashboard/hygiene/signatures">Capture Signature</Link>
+                {canOperate ? <SmallAction variant="warning" onClick={() => void postJson(API_ROUTES.HYGIENE_MANIFESTS, { action: "generate", collectionId: collection.collectionId }, "Manifest generated.")}>Generate Manifest</SmallAction> : null}
+                {canOperate ? <SmallAction variant="warning" onClick={() => void postJobAction(collection.collectionId, "awaiting-disposal", "Collection moved to awaiting disposal.")}>Mark Awaiting Disposal</SmallAction> : null}
+                {canManage ? <SmallAction variant="danger" onClick={() => openModal("collection", "Cancel / Reschedule", collection)}>Cancel/Reschedule</SmallAction> : null}
+                {canOperate ? <SmallAction variant="success" onClick={() => void postJobAction(collection.collectionId, "complete-job", "Collection completed.", { adminOverrideReason: "Office override from dashboard action when required." })}>Complete Collection</SmallAction> : null}
               </div>,
             ])} />
           </Panel>
@@ -988,7 +1093,32 @@ export default function HygieneDivisionClient({ view }: { view: HygieneView }) {
       ) : null}
 
       {!loading && data && view === "manifests" ? (
-        <Panel title="Waste Manifest Register" eyebrow="Chain of custody" action={canOperate ? <SmallAction onClick={() => void postJson(API_ROUTES.HYGIENE_MANIFESTS, { action: "generate", collectionId: data.collections[0]?.collectionId }, "Manifest generated.")}>Generate Manifest</SmallAction> : null}>
+        <Panel title="Waste Manifest Register" eyebrow="Chain of custody" action={canOperate ? <SmallAction variant="warning" onClick={() => void postJson(API_ROUTES.HYGIENE_MANIFESTS, { action: "generate", collectionId: data.collections[0]?.collectionId }, "Manifest generated.")}>Generate Manifest</SmallAction> : null}>
+          <div className="mb-5 grid gap-4 xl:grid-cols-2">
+            {data.manifests.map((manifest) => (
+              <BoardCard
+                key={manifest.manifestId}
+                title={manifest.manifestId}
+                subtitle={`Collection ${manifest.collectionId}`}
+                status={<StatusBadge value={manifest.status} />}
+                meta={[
+                  { label: "Site", value: siteById.get(manifest.siteId) ?? manifest.siteId },
+                  { label: "Waste", value: `${manifest.wasteType} | ${manifest.wasteClassification}` },
+                  { label: "Quantity", value: `${manifest.quantity} ${manifest.unit}` },
+                  { label: "Transport", value: `${manifest.collectedBy} | ${manifest.vehicleRegistration}` },
+                ]}
+                actions={(
+                  <>
+                    {canOperate ? <SmallAction onClick={() => openModal("manifest", "Edit Manifest", manifest)}>Edit Manifest</SmallAction> : null}
+                    {canOperate ? <SmallAction onClick={() => openModal("manifest", "Add Disposal Facility", manifest)}>Disposal Facility</SmallAction> : null}
+                    {canManage ? <SmallAction variant="primary" onClick={() => openModal("compliance", "Upload Disposal Certificate", { documentType: "Disposal Certificates", title: `Disposal Certificate ${manifest.manifestId}`, registrationNumber: manifest.disposalCertificateNo, owner: clientById.get(manifest.clientId) ?? manifest.clientId })}>Upload Certificate</SmallAction> : null}
+                  </>
+                )}
+              >
+                <DisposalWarningCell manifest={manifest} />
+              </BoardCard>
+            ))}
+          </div>
           <DataTable headers={["Manifest", "Site", "Waste", "Quantity", "Transport", "Disposal", "Status", "Actions"]} emptyLabel="manifests" rows={data.manifests.map((manifest) => [
             <PrimaryCell key="manifest" title={manifest.manifestId} subtitle={`Collection ${manifest.collectionId}`} />,
             siteById.get(manifest.siteId) ?? manifest.siteId,
@@ -1002,7 +1132,7 @@ export default function HygieneDivisionClient({ view }: { view: HygieneView }) {
               {canOperate ? <SmallAction onClick={() => openModal("manifest", "Link Manifest to Collection", manifest)}>Link Collection</SmallAction> : null}
               {canOperate ? <SmallAction onClick={() => openModal("manifest", "Add Transport Details", manifest)}>Transport Details</SmallAction> : null}
               {canOperate ? <SmallAction onClick={() => openModal("manifest", "Add Disposal Facility", manifest)}>Disposal Facility</SmallAction> : null}
-              {canManage ? <SmallAction onClick={() => openModal("compliance", "Upload Disposal Certificate", { documentType: "Disposal Certificates", title: `Disposal Certificate ${manifest.manifestId}`, registrationNumber: manifest.disposalCertificateNo, owner: clientById.get(manifest.clientId) ?? manifest.clientId })}>Upload Certificate</SmallAction> : null}
+              {canManage ? <SmallAction variant="primary" onClick={() => openModal("compliance", "Upload Disposal Certificate", { documentType: "Disposal Certificates", title: `Disposal Certificate ${manifest.manifestId}`, registrationNumber: manifest.disposalCertificateNo, owner: clientById.get(manifest.clientId) ?? manifest.clientId })}>Upload Certificate</SmallAction> : null}
               {canOperate ? <SmallAction onClick={() => void postJson(API_ROUTES.HYGIENE_MANIFESTS, { ...manifest, status: "Disposed" }, "Manifest marked disposed.")}>Mark Disposed</SmallAction> : null}
               {canManage ? <SmallAction onClick={() => void postJson(API_ROUTES.HYGIENE_MANIFESTS, { ...manifest, status: "Certified", disposalCertificateNo: manifest.disposalCertificateNo === "Disposal certificate pending" ? "Certificate uploaded" : manifest.disposalCertificateNo }, "Manifest certified.")}>Mark Certified</SmallAction> : null}
             </div>,
@@ -1020,10 +1150,10 @@ export default function HygieneDivisionClient({ view }: { view: HygieneView }) {
               <Field name="notes" label="Notes" defaultValue="Uploaded from hygiene evidence workflow." />
               <Field name="file" label="Photo / certificate"><input name="file" type="file" accept="image/*,.pdf" className="rounded-xl border border-white/10 bg-slate-950/70 px-3 py-2 text-white" /></Field>
               <div className="flex items-end">
-                <button type="submit" disabled={!canUploadEvidence} className="rounded-full border border-cyan-300/20 bg-cyan-400/15 px-4 py-2 text-sm font-semibold text-cyan-100 hover:bg-cyan-400/20 disabled:opacity-50">Upload Evidence</button>
+                <button type="submit" disabled={!canUploadEvidence} className={primaryButtonClass}>Upload Evidence</button>
               </div>
             </form>
-            {uploadStatus ? <p className="mt-4 rounded-xl border border-cyan-300/20 bg-cyan-400/10 p-3 text-sm text-cyan-100">{uploadStatus}</p> : null}
+            {uploadStatus ? <p className="mt-4 rounded-xl border border-[color:var(--hygiene-success)] bg-emerald-50 p-3 text-sm font-semibold text-emerald-950">{uploadStatus}</p> : null}
           </Panel>
           <Panel title="Evidence Gallery" eyebrow="Linked media">
             <div className="mb-4 rounded-xl border border-white/10 bg-slate-950/35 p-4 text-sm text-slate-300">
@@ -1034,17 +1164,26 @@ export default function HygieneDivisionClient({ view }: { view: HygieneView }) {
             ) : (
               <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
                 {data.evidencePhotos.map((photo) => (
-                  <a key={photo.photoId} href={photo.fileUrl} target="_blank" rel="noreferrer" className="rounded-2xl border border-white/10 bg-slate-950/35 p-4 transition hover:bg-white/[0.06]">
+                  <a key={photo.photoId} href={photo.fileUrl} target="_blank" rel="noreferrer" className="rounded-xl border border-[color:var(--hygiene-border)] bg-slate-950/35 p-4 shadow-sm transition hover:bg-slate-950/45">
                     {/\.(png|jpg|jpeg|webp|gif)(\?|$)/i.test(photo.fileUrl) || photo.category !== "Disposal Certificate" ? (
                       // eslint-disable-next-line @next/next/no-img-element
-                      <img src={photo.fileUrl} alt={`${photo.category} evidence`} className="mb-4 h-40 w-full rounded-xl object-cover" />
+                      <img src={photo.fileUrl} alt={`${photo.category} evidence`} className="mb-4 h-36 w-full rounded-lg object-cover" />
                     ) : null}
                     <div className="flex items-start justify-between gap-3">
                       <PrimaryCell title={photo.category} subtitle={photo.photoId} />
                       <StatusBadge value="Completed" />
                     </div>
-                    <p className="mt-4 text-sm text-slate-400">{siteById.get(photo.siteId) ?? photo.siteId} | {photo.collectionId}</p>
-                    <p className="mt-2 text-sm text-slate-500">{photo.notes}</p>
+                    <dl className="mt-4 grid grid-cols-2 gap-2 text-xs">
+                      <div className="rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2">
+                        <dt className="font-bold uppercase tracking-[0.08em] text-slate-400">Site</dt>
+                        <dd className="mt-1 font-semibold text-slate-100">{siteById.get(photo.siteId) ?? photo.siteId}</dd>
+                      </div>
+                      <div className="rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2">
+                        <dt className="font-bold uppercase tracking-[0.08em] text-slate-400">Collection</dt>
+                        <dd className="mt-1 font-semibold text-slate-100">{photo.collectionId}</dd>
+                      </div>
+                    </dl>
+                    <p className="mt-3 line-clamp-2 text-xs font-medium leading-5 text-slate-300">{photo.notes}</p>
                   </a>
                 ))}
               </div>
@@ -1057,7 +1196,7 @@ export default function HygieneDivisionClient({ view }: { view: HygieneView }) {
         <div className="space-y-6">
           <Panel title="Compliance Centre" eyebrow="Document control">
             <div className="mb-4 flex flex-wrap gap-2">
-              {canManage ? <SmallAction onClick={() => openModal("compliance", "Upload Compliance Document")}>Upload Compliance Document</SmallAction> : null}
+              {canManage ? <SmallAction variant="primary" onClick={() => openModal("compliance", "Upload Compliance Document")}>Upload Compliance Document</SmallAction> : null}
               {COMPLIANCE_DOC_TYPES.map((docType) => (
                 <SmallAction key={docType} onClick={() => openModal("compliance", `Upload ${docType}`, { documentType: docType, title: docType })}>{docType}</SmallAction>
               ))}
@@ -1067,38 +1206,54 @@ export default function HygieneDivisionClient({ view }: { view: HygieneView }) {
               document.registrationNumber,
               document.owner,
               formatDate(document.expiryDate),
-              document.fileUrl ? <a key="file" className="text-cyan-200 hover:text-cyan-100" href={document.fileUrl}>Open file</a> : "Not uploaded",
+              document.fileUrl ? <a key="file" className="text-teal-100 hover:text-white" href={document.fileUrl}>Open file</a> : "Not uploaded",
               <StatusBadge key="status" value={document.status} />,
               <div key="actions" className="flex flex-wrap gap-2">
                 {canManage ? <SmallAction onClick={() => openModal("compliance", "Edit Document", document)}>Edit</SmallAction> : null}
                 {canManage ? <SmallAction onClick={() => openModal("compliance", "Update Expiry / Registration", document)}>Expiry / Reg</SmallAction> : null}
-                {canManage ? <SmallAction onClick={() => void postJson(API_ROUTES.HYGIENE_COMPLIANCE, { ...document, status: "Compliance Green" }, "Document verified.")}>Mark Verified</SmallAction> : null}
-                {canManage ? <SmallAction onClick={() => void postJson(API_ROUTES.HYGIENE_COMPLIANCE, { ...document, status: "Pending" }, "Document marked pending.")}>Mark Pending</SmallAction> : null}
-                {canManage ? <SmallAction onClick={() => void postJson(API_ROUTES.HYGIENE_COMPLIANCE, { ...document, status: "Compliance Expired" }, "Document marked expired.")}>Mark Expired</SmallAction> : null}
-                {document.fileUrl ? <a className="rounded-lg border border-white/10 px-3 py-1.5 text-xs font-semibold text-slate-200" href={document.fileUrl}>Download File</a> : null}
+                {canManage ? <SmallAction variant="success" onClick={() => void postJson(API_ROUTES.HYGIENE_COMPLIANCE, { ...document, status: "Compliance Green" }, "Document verified.")}>Mark Verified</SmallAction> : null}
+                {canManage ? <SmallAction variant="warning" onClick={() => void postJson(API_ROUTES.HYGIENE_COMPLIANCE, { ...document, status: "Pending" }, "Document marked pending.")}>Mark Pending</SmallAction> : null}
+                {canManage ? <SmallAction variant="danger" onClick={() => void postJson(API_ROUTES.HYGIENE_COMPLIANCE, { ...document, status: "Compliance Expired" }, "Document marked expired.")}>Mark Expired</SmallAction> : null}
+                {document.fileUrl ? <a className={smallLinkClass} href={document.fileUrl}>Download File</a> : null}
               </div>,
             ])} />
           </Panel>
           <section className="grid gap-4 xl:grid-cols-2">
             <Panel title="Vehicle Inspection" eyebrow="Fleet control">
-              <DataTable headers={["Inspection", "Vehicle", "Driver", "Fuel", "Controls", "Status"]} emptyLabel="vehicle inspections" rows={data.vehicleInspections.map((inspection) => [
-                <PrimaryCell key="inspection" title={inspection.inspectionId} subtitle={formatDate(inspection.date)} />,
-                <PrimaryCell key="vehicle" title={inspection.vehicleName} subtitle={inspection.vehicleRegistration} />,
-                inspection.driver,
-                inspection.fuelStatus,
-                `PPE ${inspection.ppeAvailable ? "Yes" : "No"} | Spill kit ${inspection.spillKitAvailable ? "Yes" : "No"} | Secured ${inspection.wasteContainerSecured ? "Yes" : "No"}`,
-                <StatusBadge key="status" value={inspection.status} />,
-              ])} />
+              <div className="grid gap-3">
+                {data.vehicleInspections.map((inspection) => (
+                  <BoardCard
+                    key={inspection.inspectionId}
+                    title={inspection.vehicleName}
+                    subtitle={`${inspection.inspectionId} | ${formatDate(inspection.date)}`}
+                    status={<StatusBadge value={inspection.status} />}
+                    meta={[
+                      { label: "Registration", value: inspection.vehicleRegistration },
+                      { label: "Driver", value: inspection.driver },
+                      { label: "Fuel", value: inspection.fuelStatus },
+                      { label: "Controls", value: `PPE ${inspection.ppeAvailable ? "Yes" : "No"} | Spill kit ${inspection.spillKitAvailable ? "Yes" : "No"} | Secured ${inspection.wasteContainerSecured ? "Yes" : "No"}` },
+                    ]}
+                  />
+                ))}
+              </div>
             </Panel>
             <Panel title="Driver Accountability" eyebrow="Driver logs">
-              <DataTable headers={["Log", "Driver", "Vehicle", "Fuel", "Collections", "Signature"]} emptyLabel="driver logs" rows={data.driverLogs.map((log) => [
-                <PrimaryCell key="log" title={log.driverLogId} subtitle={formatDate(log.date)} />,
-                log.driverName,
-                log.vehicleRegistration,
-                log.fuel,
-                log.linkedCollectionIds.join(", "),
-                log.signatureStatus,
-              ])} />
+              <div className="grid gap-3">
+                {data.driverLogs.map((log) => (
+                  <BoardCard
+                    key={log.driverLogId}
+                    title={log.driverName}
+                    subtitle={`${log.driverLogId} | ${formatDate(log.date)}`}
+                    status={<StatusBadge value={log.signatureStatus || "Pending"} />}
+                    meta={[
+                      { label: "Vehicle", value: log.vehicleRegistration },
+                      { label: "Fuel", value: log.fuel },
+                      { label: "Collections", value: log.linkedCollectionIds.join(", ") },
+                      { label: "Signature", value: log.signatureStatus },
+                    ]}
+                  />
+                ))}
+              </div>
             </Panel>
           </section>
         </div>

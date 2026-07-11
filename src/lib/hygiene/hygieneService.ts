@@ -1,7 +1,13 @@
 import { FieldValue } from "firebase-admin/firestore";
 import { AuthorizationError, type AuthorizedUser } from "@/lib/server/authz";
+import { getCorporateEmail } from "@/lib/corporate/companyProfile";
 import { getFirebaseAdmin } from "@/lib/firebase/admin";
 import { sanitizeFirestoreData } from "@/lib/firebase/sanitizeFirestoreData";
+import {
+  DRIVER_COLLECTION_WORKFLOW_STEPS,
+  deriveDriverWorkflowSnapshot,
+  type DriverWorkflowStepId,
+} from "@/lib/hygiene/hygieneWorkflow";
 import {
   cbavoBinAssets,
   cbavoClient,
@@ -219,17 +225,100 @@ function nextId(prefix: string): string {
   return `${prefix}-${Date.now()}`;
 }
 
-function updateWorkflowStep(steps: HygieneWorkflowStep[], label: string): HygieneWorkflowStep[] {
-  const normalized = label.toLowerCase();
-  return steps.map((step) =>
-    step.label.toLowerCase().includes(normalized) || normalized.includes(step.label.toLowerCase())
-      ? { ...step, status: "Completed" }
-      : step
-  );
-}
-
 function withUpdatedAt<T extends { updatedAt?: string }>(record: T): T {
   return { ...record, updatedAt: nowIso() };
+}
+
+function toLegacyWorkflowSteps(snapshot: ReturnType<typeof deriveDriverWorkflowSnapshot>): HygieneWorkflowStep[] {
+  return DRIVER_COLLECTION_WORKFLOW_STEPS.map((step) => ({
+    stepId: step.stepId,
+    label: step.title,
+    status: snapshot.completedSteps.includes(step.stepId) ? "Completed" : "Pending",
+  }));
+}
+
+function normalizeLegacyAction(action: string): string {
+  const normalized = action.trim().toLowerCase();
+  const aliases: Record<string, string> = {
+    "start-job": "accept-job",
+    "start-collection": "accept-job",
+    "travel-to-site": "start-travel",
+    arrival: "confirm-arrival",
+    "confirm-arrival": "confirm-arrival",
+    "before-photo": "capture-evidence",
+    "after-photo": "capture-evidence",
+    checklist: "bin-serviced",
+    "record-bin-count": "bin-serviced",
+    "bag-removed": "bin-serviced",
+    "liner-installed": "bin-serviced",
+    "bin-sanitised": "bin-serviced",
+    signature: "capture-signature",
+    "capture-signature": "capture-signature",
+    "awaiting-disposal": "confirm-disposal",
+  };
+
+  return aliases[normalized] ?? normalized;
+}
+
+function getDriverWorkflowActionStepId(action: string) {
+  const normalized = normalizeLegacyAction(action);
+  switch (normalized) {
+    case "accept-job":
+      return "job-accepted" as const;
+    case "start-travel":
+      return "travelling-to-site" as const;
+    case "confirm-arrival":
+      return "arrived-on-site" as const;
+    case "waste-collection":
+      return "waste-collection" as const;
+    case "bin-serviced":
+      return "bin-serviced" as const;
+    case "capture-evidence":
+      return "evidence-photos-captured" as const;
+    case "capture-signature":
+      return "customer-signature" as const;
+    case "load-waste":
+      return "waste-loaded" as const;
+    case "confirm-disposal":
+      return "disposal-facility-confirmation" as const;
+    case "complete-job":
+      return "job-completed" as const;
+    default:
+      return null;
+  }
+}
+
+function getWorkflowStatusForStep(stepId: DriverWorkflowStepId, completedCount: number): HygieneCollection["status"] {
+  if (stepId === "job-completed" || completedCount >= DRIVER_COLLECTION_WORKFLOW_STEPS.length) return "Completed";
+  if (stepId === "disposal-facility-confirmation") return "Awaiting Disposal";
+  return "In Progress";
+}
+
+function getEventTypeForStep(stepId: ReturnType<typeof getDriverWorkflowActionStepId>): HygieneJobEvent["eventType"] | null {
+  switch (stepId) {
+    case "job-accepted":
+      return "job_accepted";
+    case "travelling-to-site":
+      return "travelling_to_site";
+    case "arrived-on-site":
+      return "arrived_on_site";
+    case "waste-collection":
+      return "waste_collection_started";
+    case "bin-serviced":
+      return "bin_serviced";
+    case "evidence-photos-captured":
+      return "evidence_photos_captured";
+    case "customer-signature":
+      return "customer_signature_captured";
+    case "waste-loaded":
+      return "waste_loaded";
+    case "disposal-facility-confirmation":
+      return "disposal_facility_confirmed";
+    case "job-completed":
+      return "job_completed";
+    default:
+      return null;
+  }
 }
 
 async function updateCollectionPatch(collectionId: string, patch: Partial<HygieneCollection> & Record<string, unknown>): Promise<void> {
@@ -339,10 +428,11 @@ export async function seedCbavoHygieneDataset(user: AuthorizedUser): Promise<{ s
 
 export async function createHygieneEvidencePhoto(
   user: AuthorizedUser,
-  input: HygieneEvidencePhoto
+  input: HygieneEvidencePhoto & { metadata?: Record<string, unknown> }
 ): Promise<HygieneEvidencePhoto> {
   assertHygieneStaffMutationAccess(user);
 
+  const metadata = input.metadata ?? {};
   const record = validateHygieneEvidencePhoto(input);
   await assertRecordGraph({
     clientId: record.clientId,
@@ -373,6 +463,7 @@ export async function createHygieneEvidencePhoto(
       photoId: record.photoId,
       category: record.category,
       fileUrl: record.fileUrl,
+      ...metadata,
     },
   });
 
@@ -433,17 +524,113 @@ export async function recordHygieneJobEvent(
 
   await setValidatedRecord(HYGIENE_COLLECTIONS.jobEvents, event.eventId, event);
 
-  const collectionPatch: Partial<HygieneCollection> & Record<string, unknown> = {
-    updatedAtServer: FieldValue.serverTimestamp(),
+  const stepIdByEventType: Partial<Record<HygieneJobEvent["eventType"], ReturnType<typeof getDriverWorkflowActionStepId>>> = {
+    job_accepted: "job-accepted",
+    job_started: "job-accepted",
+    travelling_to_site: "travelling-to-site",
+    arrived_on_site: "arrived-on-site",
+    waste_collection_started: "waste-collection",
+    bin_serviced: "bin-serviced",
+    evidence_uploaded: "evidence-photos-captured",
+    evidence_photos_captured: "evidence-photos-captured",
+    checklist_step_completed: "bin-serviced",
+    customer_signature_captured: "customer-signature",
+    signature_captured: "customer-signature",
+    waste_loaded: "waste-loaded",
+    disposal_facility_confirmed: "disposal-facility-confirmation",
+    awaiting_disposal: "disposal-facility-confirmation",
+    job_completed: "job-completed",
   };
 
-  if (event.eventType === "job_started") {
+  const eventStepId = stepIdByEventType[event.eventType] ?? null;
+  const currentSnapshot = deriveDriverWorkflowSnapshot(collection);
+  const nextExpectedStep = DRIVER_COLLECTION_WORKFLOW_STEPS[currentSnapshot.completedSteps.length]?.stepId ?? "job-completed";
+  const isWorkflowAdvance = Boolean(eventStepId && eventStepId === nextExpectedStep);
+  const advancedStepId = isWorkflowAdvance && eventStepId ? eventStepId : null;
+  const completedSteps = advancedStepId
+    ? [...currentSnapshot.completedSteps, advancedStepId]
+    : currentSnapshot.completedSteps;
+  const stepTimestamps = {
+    ...currentSnapshot.stepTimestamps,
+    ...(advancedStepId ? { [advancedStepId]: event.timestamp } : {}),
+  } as Record<string, string | null>;
+  const nextSnapshot = deriveDriverWorkflowSnapshot({
+    ...collection,
+    completedSteps,
+    currentStep: completedSteps.length >= DRIVER_COLLECTION_WORKFLOW_STEPS.length
+      ? "job-completed"
+      : DRIVER_COLLECTION_WORKFLOW_STEPS[completedSteps.length]?.stepId ?? "job-completed",
+    progressPercentage: Math.min(100, Math.round((completedSteps.length / DRIVER_COLLECTION_WORKFLOW_STEPS.length) * 100)),
+    stepTimestamps,
+    status: completedSteps.length >= DRIVER_COLLECTION_WORKFLOW_STEPS.length ? "Completed" : collection.status,
+  });
+
+  const latitude = typeof event.metadata.latitude === "number" ? event.metadata.latitude : null;
+  const longitude = typeof event.metadata.longitude === "number" ? event.metadata.longitude : null;
+  const gpsAccuracy = typeof event.metadata.gpsAccuracy === "number" ? event.metadata.gpsAccuracy : null;
+
+  const collectionPatch: Partial<HygieneCollection> & Record<string, unknown> = {
+    updatedAtServer: FieldValue.serverTimestamp(),
+    updatedAt: event.timestamp,
+    updatedBy: user.email ?? user.uid,
+    status: completedSteps.length >= DRIVER_COLLECTION_WORKFLOW_STEPS.length ? "Completed" : eventStepId === "disposal-facility-confirmation" ? "Awaiting Disposal" : collection.status === "Scheduled" && completedSteps.length > 0 ? "In Progress" : collection.status,
+    completedSteps: nextSnapshot.completedSteps,
+    currentStep: nextSnapshot.currentStep,
+    progressPercentage: nextSnapshot.progressPercentage,
+    stepTimestamps,
+    workflowSteps: toLegacyWorkflowSteps(nextSnapshot),
+    ...(latitude !== null && longitude !== null
+      ? {
+          lastGpsLocation: {
+            latitude,
+            longitude,
+            accuracy: gpsAccuracy,
+            capturedAt: event.timestamp,
+          },
+        }
+      : {}),
+  };
+
+  if (event.eventType === "job_accepted" || event.eventType === "job_started") {
     collectionPatch.status = "In Progress";
-    collectionPatch.workflowSteps = updateWorkflowStep(collection.workflowSteps, "Start collection");
   }
 
-  if (event.eventType === "vehicle_inspection_completed") {
-    collectionPatch.workflowSteps = updateWorkflowStep(collection.workflowSteps, "vehicle");
+  if (event.eventType === "travelling_to_site" && !collection.arrivalTime) {
+    collectionPatch.status = "In Progress";
+  }
+
+  if (event.eventType === "arrived_on_site") {
+    collectionPatch.arrivalTime = event.timestamp;
+  }
+
+  if (event.eventType === "checklist_step_completed") {
+    const step = typeof event.metadata.step === "string" ? event.metadata.step : "bin-serviced";
+    collectionPatch.workflowSteps = toLegacyWorkflowSteps({
+      ...nextSnapshot,
+      completedSteps: Array.from(new Set([...nextSnapshot.completedSteps, "bin-serviced"] as DriverWorkflowStepId[])) as DriverWorkflowStepId[],
+      currentStep: nextSnapshot.currentStep,
+      currentStepIndex: nextSnapshot.currentStepIndex,
+      progressPercentage: nextSnapshot.progressPercentage,
+      remainingSteps: nextSnapshot.remainingSteps,
+      stepTimestamps,
+      statusLabel: nextSnapshot.statusLabel,
+      statusTone: nextSnapshot.statusTone,
+    });
+    if (typeof event.metadata.binCount === "number") {
+      collectionPatch.binCountConfirmed = event.metadata.binCount;
+    }
+    if (step === "record-bin-count" && typeof event.metadata.binCount === "number") {
+      collectionPatch.binCountConfirmed = event.metadata.binCount;
+    }
+  }
+
+  if (event.eventType === "signature_captured" || event.eventType === "customer_signature_captured") {
+    collectionPatch.clientSignatureStatus = "Signature captured";
+  }
+
+  if (event.eventType === "job_completed") {
+    collectionPatch.completedAt = event.timestamp;
+    collectionPatch.departureTime = event.timestamp;
   }
 
   if (event.eventType === "backup_vehicle_assigned") {
@@ -454,46 +641,6 @@ export async function recordHygieneJobEvent(
     collectionPatch.substitutionReason = typeof event.metadata.reason === "string" ? event.metadata.reason : null;
     collectionPatch.substitutionApprovedBy = typeof event.metadata.approvedBy === "string" ? event.metadata.approvedBy : null;
     collectionPatch.substitutionTimestamp = event.timestamp;
-  }
-
-  if (event.eventType === "arrived_on_site") {
-    collectionPatch.arrivalTime = event.timestamp;
-    collectionPatch.workflowSteps = updateWorkflowStep(collection.workflowSteps, "arrival");
-  }
-
-  if (event.eventType === "evidence_uploaded") {
-    const category = typeof event.metadata.category === "string" ? event.metadata.category : "";
-    if (category.includes("Before")) collectionPatch.workflowSteps = updateWorkflowStep(collection.workflowSteps, "before");
-    if (category.includes("Completion") || category.includes("After")) collectionPatch.workflowSteps = updateWorkflowStep(collection.workflowSteps, "completion");
-  }
-
-  if (event.eventType === "checklist_step_completed") {
-    const step = typeof event.metadata.step === "string" ? event.metadata.step : "checklist";
-    collectionPatch.workflowSteps = updateWorkflowStep(collection.workflowSteps, step);
-    if (typeof event.metadata.binCount === "number") {
-      collectionPatch.binCountConfirmed = event.metadata.binCount;
-      collectionPatch.workflowSteps = updateWorkflowStep(collection.workflowSteps, "bin count");
-    }
-  }
-
-  if (event.eventType === "manifest_generated") {
-    collectionPatch.workflowSteps = updateWorkflowStep(collection.workflowSteps, "manifest");
-  }
-
-  if (event.eventType === "signature_captured") {
-    collectionPatch.clientSignatureStatus = "Signature captured";
-    collectionPatch.workflowSteps = updateWorkflowStep(collection.workflowSteps, "signature");
-  }
-
-  if (event.eventType === "awaiting_disposal") {
-    collectionPatch.status = "Awaiting Disposal";
-    collectionPatch.workflowSteps = updateWorkflowStep(collection.workflowSteps, "Complete collection");
-  }
-
-  if (event.eventType === "job_completed") {
-    collectionPatch.status = "Completed";
-    collectionPatch.completedAt = event.timestamp;
-    collectionPatch.departureTime = event.timestamp;
   }
 
   await getFirebaseAdmin()
@@ -515,12 +662,27 @@ export async function recordHygieneJobEvent(
       );
   }
 
+  if (event.eventType === "job_completed") {
+    await getFirebaseAdmin()
+      .collection(HYGIENE_COLLECTIONS.collections)
+      .doc(event.collectionId)
+      .set(
+        sanitizeFirestoreData({
+          status: "Completed",
+          completedAt: event.timestamp,
+          departureTime: event.timestamp,
+          updatedAtServer: FieldValue.serverTimestamp(),
+        }),
+        { merge: true }
+      );
+  }
+
   return event;
 }
 
 export async function createHygieneSignature(
   user: AuthorizedUser,
-  input: Omit<HygieneSignature, "signatureId" | "capturedBy" | "capturedAt"> & { signatureId?: string; capturedAt?: string }
+  input: Omit<HygieneSignature, "signatureId" | "capturedBy" | "capturedAt"> & { signatureId?: string; capturedAt?: string; metadata?: Record<string, unknown> }
 ): Promise<HygieneSignature> {
   const collection = await getCollectionForWorkflow(input.collectionId, user);
   const signature = validateHygieneSignature({
@@ -553,6 +715,19 @@ export async function createHygieneSignature(
       representativeName: signature.representativeName,
       representativePosition: signature.representativePosition,
       signatureId: signature.signatureId,
+      ...(input.metadata ?? {}),
+      audit: {
+        previousStatus: collection.status,
+        newStatus: getWorkflowStatusForStep("customer-signature", deriveDriverWorkflowSnapshot(collection).completedSteps.length + 1),
+        timestamp: new Date().toISOString(),
+        driver: user.email ?? user.uid,
+        gps: input.metadata?.gps ?? {
+          latitude: input.metadata?.latitude ?? null,
+          longitude: input.metadata?.longitude ?? null,
+          accuracy: input.metadata?.gpsAccuracy ?? null,
+        },
+        deviceInfo: input.metadata?.deviceInfo ?? {},
+      },
     },
   });
 
@@ -569,7 +744,7 @@ export async function upsertHygieneClient(user: AuthorizedUser, input: Partial<H
     companyRegistration: input.companyRegistration || "Pending",
     primaryContactName: input.primaryContactName || "Pending",
     primaryContactPhone: input.primaryContactPhone || "Pending",
-    primaryContactEmail: input.primaryContactEmail || "pending@example.com",
+    primaryContactEmail: input.primaryContactEmail || getCorporateEmail("support"),
     billingContact: input.billingContact || input.primaryContactName || "Pending",
     contractStartDate: input.contractStartDate || timestamp.slice(0, 10),
     contractEndDate: input.contractEndDate || timestamp.slice(0, 10),
@@ -831,28 +1006,29 @@ export async function completeHygieneDriverAction(user: AuthorizedUser, input: {
     collectionEvents.some((event) => event.eventType === eventType && (!predicate || predicate(event)));
   const metadata = input.metadata ?? {};
 
-  const eventTypeByAction: Record<string, HygieneJobEvent["eventType"]> = {
-    "start-collection": "job_started",
-    "vehicle-inspection": "vehicle_inspection_completed",
-    "confirm-arrival": "arrived_on_site",
-    "before-photo": "evidence_uploaded",
-    "record-bin-count": "checklist_step_completed",
-    "bag-removed": "checklist_step_completed",
-    "liner-installed": "checklist_step_completed",
-    "bin-sanitised": "checklist_step_completed",
-    "after-photo": "evidence_uploaded",
-    "capture-signature": "signature_captured",
-    "generate-manifest": "manifest_generated",
-    "awaiting-disposal": "awaiting_disposal",
-    "complete-job": "job_completed",
-  };
-  const eventType = eventTypeByAction[input.action];
-  if (!eventType) throw new Error("Unsupported hygiene driver action.");
-
-  if (input.action === "confirm-arrival" && collection.status !== "In Progress") {
-    throw new Error("Cannot confirm arrival before starting the collection.");
+  const normalizedAction = normalizeLegacyAction(input.action);
+  if (normalizedAction === "vehicle-inspection") {
+    return recordHygieneJobEvent(user, {
+      eventType: "vehicle_inspection_completed",
+      clientId: collection.clientId,
+      siteId: collection.siteId,
+      collectionId: collection.collectionId,
+      manifestId: collection.manifestId === "Pending" ? null : collection.manifestId,
+      notes: input.notes || "Vehicle inspection completed.",
+      metadata,
+    });
   }
-  if (input.action === "complete-job") {
+
+  const workflowStepId = getDriverWorkflowActionStepId(normalizedAction);
+  if (!workflowStepId) throw new Error("Unsupported hygiene driver action.");
+
+  const snapshot = deriveDriverWorkflowSnapshot(collection);
+  const expectedStep = DRIVER_COLLECTION_WORKFLOW_STEPS[snapshot.completedSteps.length]?.stepId ?? "job-completed";
+  if (workflowStepId !== expectedStep) {
+    throw new Error(`Cannot complete ${workflowStepId.replace(/-/g, " ")} before ${expectedStep.replace(/-/g, " ")}.`);
+  }
+
+  if (workflowStepId === "job-completed") {
     const overrideReason = typeof metadata.adminOverrideReason === "string" ? metadata.adminOverrideReason.trim() : "";
     if (!hasEvent("evidence_uploaded", (event) => event.metadata.category === "Bin Before Service") && !overrideReason) {
       throw new Error("Cannot complete job without before photo.");
@@ -871,6 +1047,7 @@ export async function completeHygieneDriverAction(user: AuthorizedUser, input: {
     }
   }
 
+  const eventType = getEventTypeForStep(workflowStepId) ?? "manifest_generated";
   return recordHygieneJobEvent(user, {
     eventType,
     clientId: collection.clientId,
@@ -878,6 +1055,22 @@ export async function completeHygieneDriverAction(user: AuthorizedUser, input: {
     collectionId: collection.collectionId,
     manifestId: collection.manifestId === "Pending" ? null : collection.manifestId,
     notes: input.notes || `Driver workflow action: ${input.action}`,
-    metadata,
+    metadata: {
+      ...metadata,
+      stepId: workflowStepId,
+      action: normalizedAction,
+      audit: {
+        previousStatus: collection.status,
+        newStatus: getWorkflowStatusForStep(workflowStepId, snapshot.completedSteps.length + 1),
+        timestamp: new Date().toISOString(),
+        driver: user.email ?? user.uid,
+        gps: metadata.gps ?? {
+          latitude: metadata.latitude ?? null,
+          longitude: metadata.longitude ?? null,
+          accuracy: metadata.gpsAccuracy ?? null,
+        },
+        deviceInfo: metadata.deviceInfo ?? {},
+      },
+    },
   });
 }

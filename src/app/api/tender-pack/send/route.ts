@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Resend } from "resend";
+import { getCorporateFromAddress } from "@/lib/corporate/companyProfile";
 import { AuthorizationError, requireAuthorizedUser } from "@/lib/server/authz";
 
 const resendKey = process.env.RESEND_API_KEY;
@@ -37,7 +38,7 @@ export async function POST(req: NextRequest) {
     }
 
     const response = await resend.emails.send({
-      from: "Torque Empire <admin@torqueempire.net>",
+      from: getCorporateFromAddress("support"),
       to: [email],
       subject: "Your Tender Pack – Torque Empire",
       html: `<p>Your tender pack is attached.</p>`,

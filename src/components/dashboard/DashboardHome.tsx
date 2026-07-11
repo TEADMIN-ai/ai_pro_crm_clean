@@ -51,21 +51,6 @@ function formatUpdatedAt(value?: string | null): string {
   });
 }
 
-function getStatusBadgeClasses(status?: string): string {
-  if (status === "READY") {
-    return "tex-status-badge";
-  }
-
-  if (status === "RISK") {
-    return "tex-status-badge";
-  }
-
-  if (status === "BLOCKED") {
-    return "tex-status-badge";
-  }
-
-  return "tex-status-badge";
-}
 
 function getStatusTone(status?: string): "neutral" | "success" | "warning" | "danger" {
   if (status === "READY") return "success";
@@ -337,9 +322,9 @@ export default function DashboardHome() {
                     </div>
                   </td>
                   <td className="py-4 pr-4">
-                    <span className={getStatusBadgeClasses(deal.status)} data-tone={getStatusTone(deal.status)}>
+                    <StatusBadge tone={getStatusTone(deal.status)}>
                       {deal.status ?? "LIVE"}
-                    </span>
+                    </StatusBadge>
                   </td>
                   <td className="py-4 pr-4 text-[color:var(--tex-text)]">{deal.text}</td>
                   <td className="py-4 text-[color:var(--tex-text-muted)]">{formatUpdatedAt(deal.updatedAt)}</td>

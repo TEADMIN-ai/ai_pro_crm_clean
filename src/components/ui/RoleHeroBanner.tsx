@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useAuth } from "@/context/AuthContext";
 
@@ -8,23 +8,10 @@ export default function RoleHeroBanner() {
   if (!user) return null;
 
   return (
-    <div
-      style={{
-        padding: 24,
-        borderRadius: 16,
-        background:
-          "linear-gradient(135deg, rgba(37,99,235,0.35), rgba(15,23,42,0.85))",
-        boxShadow: "0 20px 60px rgba(0,0,0,0.5)",
-        marginBottom: 24,
-      }}
-    >
-      <h2 style={{ marginBottom: 6 }}>
-        Welcome back
-      </h2>
-      <p style={{ opacity: 0.8 }}>
-        Intelligence That Drives Revenue
-      </p>
+    <div className="enterprise-card mb-6 border-l-4 border-[color:var(--tex-accent)]">
+      <p className="dashboard-eyebrow">Welcome back</p>
+      <h2 className="mt-2 text-2xl font-semibold tracking-tight text-[color:var(--tex-text-strong)]">Intelligence That Drives Revenue</h2>
+      <p className="mt-1 text-sm text-[color:var(--tex-text-muted)]">Your workspace is synchronised and ready.</p>
     </div>
   );
 }
-

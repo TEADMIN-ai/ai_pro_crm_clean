@@ -127,7 +127,7 @@ const ROAR_CARS_NAV_ITEMS: DashboardNavItem[] = [
 ];
 
 function DashboardNavIcon({ itemKey, active }: { itemKey: DashboardNavItem["key"]; active: boolean }) {
-  const iconClassName = active ? "text-[color:var(--tex-nav-text)]" : "text-[color:var(--tex-nav-muted)]";
+  const iconClassName = active ? "text-[color:var(--tex-text-strong)]" : "text-[color:var(--tex-text-muted)] group-hover:text-[color:var(--tex-text-strong)]";
 
   switch (itemKey) {
     case "deals":
@@ -264,10 +264,10 @@ export default function DashboardWorkspaceNav({
               key={item.href}
               href={item.href}
               aria-current={active ? "page" : undefined}
-              className="tex-workspace-nav-item group flex items-center justify-between gap-3 rounded-2xl border px-4 py-3 text-sm font-semibold transition"
+              className="tex-workspace-nav-item group flex items-center justify-between gap-3 rounded-2xl border px-4 py-3 text-sm font-semibold text-[color:var(--tex-text-muted)] transition-all duration-200 hover:translate-x-0.5 hover:border-[color:var(--tex-nav-active-border)] hover:bg-[color:var(--tex-nav-hover-bg)] hover:text-[color:var(--tex-text-strong)] aria-[current=page]:border-[color:var(--tex-nav-active-border)] aria-[current=page]:bg-[color:var(--tex-nav-active-bg)] aria-[current=page]:text-[color:var(--tex-text-strong)] aria-[current=page]:shadow-[0_14px_34px_rgba(37,99,235,0.13)]"
             >
               <span className="flex items-center gap-3">
-                <span className="tex-workspace-nav-icon inline-flex h-8 w-8 items-center justify-center rounded-xl border transition">
+                <span className="tex-workspace-nav-icon inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border bg-white/60 transition-all duration-200 group-hover:border-[color:var(--tex-nav-active-border)] group-hover:bg-[color:var(--tex-nav-active-bg)] group-aria-[current=page]:border-[color:var(--tex-nav-active-border)] group-aria-[current=page]:bg-[color:var(--tex-nav-active-bg)] [&_svg]:block [&_svg]:shrink-0">
                   <DashboardNavIcon itemKey={item.key} active={active} />
                 </span>
                 <span className="tracking-[0.01em]">{item.label}</span>
@@ -288,7 +288,7 @@ export default function DashboardWorkspaceNav({
               key={item.href}
               href={item.href}
               aria-current={active ? "page" : undefined}
-              className="tex-workspace-nav-item inline-flex items-center gap-2 whitespace-nowrap rounded-full border px-3 py-2 text-sm font-semibold"
+              className="tex-workspace-nav-item group inline-flex items-center gap-2 whitespace-nowrap rounded-full border px-3 py-2 text-sm font-semibold text-[color:var(--tex-text-muted)] transition-all duration-200 hover:border-[color:var(--tex-nav-active-border)] hover:bg-[color:var(--tex-nav-hover-bg)] hover:text-[color:var(--tex-text-strong)] aria-[current=page]:border-[color:var(--tex-nav-active-border)] aria-[current=page]:bg-[color:var(--tex-nav-active-bg)] aria-[current=page]:text-[color:var(--tex-text-strong)]"
             >
               <DashboardNavIcon itemKey={item.key} active={active} />
               <span>{item.label}</span>
