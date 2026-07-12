@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 
 import { HomePage } from "@/components/corporate/CorporateSite";
+import StandaloneRootRedirect from "@/components/pwa/StandaloneRootRedirect";
 
 export const metadata: Metadata = {
   title: "Torque Empire",
@@ -9,5 +10,10 @@ export const metadata: Metadata = {
 };
 
 export default function Page() {
-  return <HomePage />;
+  return (
+    <>
+      <StandaloneRootRedirect />
+      <HomePage />
+    </>
+  );
 }
