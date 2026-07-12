@@ -1,6 +1,6 @@
-﻿const CACHE_NAME = "torque-empire-pwa-v3-brand";
+﻿const CACHE_NAME = "torque-empire-pwa-v4-desktop";
 const APP_SHELL = [
-  "/",
+  "/dashboard",
   "/login",
   "/dashboard/hygiene/jobs",
   "/manifest.webmanifest",
@@ -41,10 +41,12 @@ self.addEventListener("fetch", (event) => {
   event.respondWith(
     fetch(request)
       .then((response) => {
-        const responseClone = response.clone();
-        caches.open(CACHE_NAME).then((cache) => cache.put(request, responseClone)).catch(() => undefined);
+        if (response.ok || response.type === "opaque") {
+          const responseClone = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(request, responseClone)).catch(() => undefined);
+        }
         return response;
       })
-      .catch(() => caches.match(request).then((cached) => cached || caches.match("/login")))
+      .catch(() => caches.match(request).then((cached) => cached || caches.match("/dashboard").then((dashboard) => dashboard || caches.match("/login"))))
   );
 });

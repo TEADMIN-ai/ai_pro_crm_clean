@@ -27,17 +27,22 @@ type IntakeDraft = {
 
 type DocumentState = Record<DocumentKey, string[]>;
 
+function documentLabel(documentKey: DocumentKey) {
+  const match = DOCUMENTS.find((document) => document.key === documentKey);
+  return match?.label ?? documentKey;
+}
+
 const STEPS: Array<{ key: StepKey; label: string; detail: string }> = [
-  { key: "details", label: "Opportunity Details", detail: "Core record metadata" },
-  { key: "documents", label: "Upload Documents", detail: "Attach supporting packs" },
-  { key: "summary", label: "Summary", detail: "Review the intake snapshot" },
+  { key: "details", label: "Opportunity Details", detail: "Capture the opportunity record" },
+  { key: "documents", label: "Upload", detail: "Attach the source documents" },
+  { key: "summary", label: "Summary", detail: "Review everything before creation" },
 ];
 
 const DOCUMENTS: Array<{ key: DocumentKey; label: string; helper: string; multiple?: boolean }> = [
-  { key: "rfq", label: "RFQ", helper: "Tender or quotation notice", multiple: false },
-  { key: "boq", label: "BOQ", helper: "Bill of quantities or pricing schedule", multiple: false },
+  { key: "rfq", label: "RFQ", helper: "Request for quotation or proposal notice", multiple: false },
+  { key: "boq", label: "BOQ", helper: "Bill of quantities or pricing schedule pack", multiple: false },
   { key: "annexures", label: "Annexures", helper: "Appendices, schedules, and annexures", multiple: true },
-  { key: "sbd", label: "SBD Documents", helper: "Standard bidding documents", multiple: true },
+  { key: "sbd", label: "Pricing Schedule", helper: "Commercial schedule and pricing sheets", multiple: true },
   { key: "supporting", label: "Supporting Documents", helper: "Reference material and uploads", multiple: true },
 ];
 
@@ -190,8 +195,8 @@ export default function OpportunityIntakeWizard({
 
   const summaryRows = useMemo(
     () => [
-      ["RFQ Number", draft.rfqNumber || "Not entered"],
-      ["Title", draft.title || "Not entered"],
+      ["RFQ / RFP Number", draft.rfqNumber || "Not entered"],
+      ["Opportunity Title", draft.title || "Not entered"],
       ["Client", draft.client || "Not entered"],
       ["Municipality", draft.municipality || "Not entered"],
       ["Department", draft.department || "Not entered"],
@@ -199,6 +204,16 @@ export default function OpportunityIntakeWizard({
       ["Estimated Value", formatCurrency(draft.estimatedValue)],
     ],
     [draft]
+  );
+
+  const documentRows = useMemo(
+    () =>
+      DOCUMENTS.map((document) => ({
+        label: document.label,
+        helper: document.helper,
+        files: documents[document.key],
+      })),
+    [documents]
   );
 
   const hasPrevious = activeStep > 0;
@@ -379,6 +394,38 @@ export default function OpportunityIntakeWizard({
                   </tbody>
                 </EnterpriseTable>
 
+                <EnterpriseTable wrapperClassName="shadow-none">
+                  <thead>
+                    <tr>
+                      <th>Document</th>
+                      <th>Files</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {documentRows.map((document) => (
+                      <tr key={document.label}>
+                        <td>
+                          <p className="font-semibold text-[color:var(--tex-text-strong)]">{document.label}</p>
+                          <p className="text-xs text-[color:var(--tex-text-muted)]">{document.helper}</p>
+                        </td>
+                        <td>
+                          {document.files.length > 0 ? (
+                            <div className="grid gap-2">
+                              {document.files.map((file) => (
+                                <div key={file} className="rounded-xl border border-[color:var(--tex-border)] bg-[color:var(--tex-surface)] px-3 py-2 text-sm text-[color:var(--tex-text-strong)]">
+                                  {file}
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <EnterpriseStatusBadge value="Pending" tone="warning" />
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </EnterpriseTable>
+
                 <EnterpriseEmptyState
                   title="Summary is presentation only."
                   detail="This intake wizard stages the opportunity data and documents locally. No OCR, AI, or backend mutation runs here."
@@ -413,7 +460,7 @@ export default function OpportunityIntakeWizard({
                       </EnterpriseActionButton>
                     ) : (
                       <EnterpriseActionButton type="button" disabled>
-                        Intake Ready
+                        Create Opportunity
                       </EnterpriseActionButton>
                     )}
                   </div>
@@ -434,13 +481,13 @@ export default function OpportunityIntakeWizard({
                   {nextStepLabel(activeStep)}
                 </EnterpriseActionButton>
               ) : (
-                <EnterpriseActionButton href="/dashboard/opportunity-register" variant="secondary">
-                  Return to Register
+                <EnterpriseActionButton type="button" disabled>
+                  Create Opportunity
                 </EnterpriseActionButton>
               )}
             </div>
             <EnterpriseStatusBadge
-              value={activeStep === 2 ? "Review complete" : "Draft only"}
+              value={activeStep === 2 ? "Ready for creation" : "Draft only"}
               tone={activeStep === 2 ? "success" : "neutral"}
             />
           </div>

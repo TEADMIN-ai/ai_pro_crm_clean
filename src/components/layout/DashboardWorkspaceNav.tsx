@@ -12,7 +12,7 @@ type GovernanceNavBadge = {
 };
 
 type DashboardNavItem = {
-  key: "overview" | "opportunityRegister" | "submissionProfiles" | "deals" | "contractors" | "qs" | "hygiene" | "vehicleFinance" | "inventory" | "listings" | "applications" | "customers" | "reports" | "tenderRequests" | "intelligence" | "governance" | "settings";
+  key: "overview" | "opportunityRegister" | "submissionProfiles" | "submissionReview" | "deals" | "contractors" | "qs" | "hygiene" | "vehicleFinance" | "inventory" | "listings" | "applications" | "customers" | "reports" | "tenderRequests" | "intelligence" | "governance" | "settings";
   href: string;
   label: string;
   match: (pathname: string) => boolean;
@@ -30,6 +30,12 @@ const DASHBOARD_NAV_ITEMS: DashboardNavItem[] = [
     href: "/dashboard/submission-profiles",
     label: "Submission Profiles",
     match: (pathname) => pathname.startsWith("/dashboard/submission-profiles"),
+  },
+  {
+    key: "submissionReview",
+    href: "/dashboard/submission-review",
+    label: "Submission Review",
+    match: (pathname) => pathname.startsWith("/dashboard/submission-review"),
   },
   {
     key: "overview",
@@ -150,6 +156,7 @@ function DashboardNavIcon({ itemKey, active }: { itemKey: DashboardNavItem["key"
         </svg>
       );
     case "submissionProfiles":
+    case "submissionReview":
       return (
         <svg viewBox="0 0 20 20" fill="none" className={"h-4 w-4 " + iconClassName} aria-hidden="true">
           <path d="M5 4.5h6.5L15 8v7.5H5z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />

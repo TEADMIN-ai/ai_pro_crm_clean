@@ -86,20 +86,16 @@ function resolveStatus(status?: string | null): ContractorOpportunityStatus {
   return "unknown";
 }
 
-function documentLabel(document: SourceDocument): string {
-  return (
-    document.documentName?.trim() ||
-    document.fileName?.trim() ||
-    document.documentType?.trim() ||
-    document.docType?.trim() ||
-    "Document"
-  );
-}
 
 function mapDocuments(documents: SourceDocument[] = []): ContractorOpportunityFile[] {
   return documents.map((document) => ({
     id: document.id,
-    name: documentLabel(document),
+    name:
+      document.documentName?.trim() ||
+      document.fileName?.trim() ||
+      document.documentType?.trim() ||
+      document.docType?.trim() ||
+      "Document",
     status: document.verificationStatus ?? document.validationStatus ?? document.status ?? null,
     uploadedAt: document.uploadedAt ?? document.updatedAt ?? null,
     uploadedBy: document.uploadedBy ?? null,

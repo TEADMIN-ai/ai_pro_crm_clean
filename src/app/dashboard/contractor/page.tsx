@@ -3,6 +3,7 @@
 import DashboardHeader from "@/components/layout/DashboardHeader";
 import RequireRole from "@/components/auth/RequireRole";
 import ContractorOnboardingView from "@/components/contractors/ContractorOnboardingView";
+import ContractorDeliveryWorkspace from "@/components/contractors/ContractorDeliveryWorkspace";
 import TenderPackRequestPanel from "@/components/tender/TenderPackRequestPanel";
 import { useAuth } from "@/context/AuthContext";
 
@@ -22,6 +23,7 @@ export default function ContractorDashboardPage() {
         ) : contractorId ? (
           <>
             <ContractorOnboardingView contractorId={contractorId} />
+            <ContractorDeliveryWorkspace contractorId={contractorId} />
             <TenderPackRequestPanel contractorId={contractorId} mode="contractor" />
           </>
         ) : (

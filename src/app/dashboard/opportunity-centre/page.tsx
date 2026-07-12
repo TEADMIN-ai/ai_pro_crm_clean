@@ -1,5 +1,5 @@
-import OpportunityRegisterWorkspace from "@/components/opportunity-register/OpportunityRegisterWorkspace";
+import OpportunityProjectWorkspace from "@/components/opportunity-centre/OpportunityProjectWorkspace";
 
 export default function OpportunityCentrePage() {
-  return <OpportunityRegisterWorkspace />;
+  return <OpportunityProjectWorkspace />;
 }

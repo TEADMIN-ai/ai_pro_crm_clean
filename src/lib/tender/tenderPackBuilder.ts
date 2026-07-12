@@ -69,3 +69,23 @@ export const tenderPackBuilderState: TenderPackBuilderState = {
 export function getTenderPackProgress(state: TenderPackBuilderState): number {
   return state.progress;
 }
+
+export type TenderPackPipelineStatus = "complete" | "inProgress" | "waiting" | "error";
+
+export type TenderPackPipelineStage = {
+  key: string;
+  label: string;
+  detail: string;
+  status: TenderPackPipelineStatus;
+  note?: string;
+};
+
+export const tenderPackPipelineStages: TenderPackPipelineStage[] = [
+  { key: "opportunity", label: "Opportunity", detail: "Opportunity scope is loaded and ready for pack assembly.", status: "complete" },
+  { key: "required-documents", label: "Required Documents", detail: "Mandatory documents are being collected and checked for completeness.", status: "inProgress", note: "1 document still missing signature confirmation." },
+  { key: "pdf-generation", label: "PDF Generation", detail: "Document bundles are staged for PDF assembly and release packaging.", status: "waiting" },
+  { key: "validation", label: "Validation", detail: "Pack validation will confirm form order, signatures and naming rules.", status: "error", note: "SBD4 signature check failed in the current mock state." },
+  { key: "submission-profile", label: "Submission Profile", detail: "Government profile is selected and ready to govern pack structure.", status: "complete" },
+  { key: "tender-pack", label: "Tender Pack", detail: "The assembled pack will be released as the final tender bundle.", status: "waiting" },
+  { key: "ready", label: "Ready", detail: "Release readiness is the final handoff state before submission.", status: "waiting" },
+];

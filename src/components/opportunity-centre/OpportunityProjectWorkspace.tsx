@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Badge, { type BadgeTone } from "@/components/ui/Badge";
+import ContractorMatchingPanel from "@/components/opportunities/ContractorMatchingPanel";
 import OpportunityIntelligencePipeline from "@/components/opportunities/OpportunityIntelligencePipeline";
 import {
   EnterpriseCard,
@@ -18,6 +19,7 @@ import {
   type OpportunityProjectTabKey,
   type OpportunityProjectWorkspace,
 } from "@/lib/opportunities/projectWorkspace";
+import type { ContractorMatchRecommendation } from "@/lib/opportunities/contractorMatchingPresentation";
 import { mockOpportunityIntelligencePipeline } from "@/lib/opportunities/intelligencePipelinePresentation";
 
 const TAB_ITEMS: Array<{ key: OpportunityProjectTabKey; label: string }> = [
@@ -47,19 +49,59 @@ function toneFromProjectStatus(status: OpportunityProjectWorkspace["status"]): B
   return "warning";
 }
 
-function contractorTone(contractor: OpportunityProjectContractor): BadgeTone {
-  if (contractor.status === "assigned") return "success";
-  if (contractor.status === "removed") return "danger";
-  if (contractor.compliance === "red") return "danger";
-  if (contractor.compliance === "amber") return "warning";
-  return "info";
-}
 
 function sectionTone(value: string): BadgeTone {
   if (value === "complete" || value === "verified") return "success";
   if (value === "submitted" || value === "in_progress") return "info";
   if (value === "missing" || value === "blocked") return "danger";
   return "warning";
+}
+
+function matchComplianceFromContractor(contractor: OpportunityProjectContractor) {
+  if (contractor.compliance === "green") return "Ready" as const;
+  if (contractor.compliance === "amber") return "Review Required" as const;
+  return "Blocked" as const;
+}
+
+function matchBucketFromContractor(contractor: OpportunityProjectContractor) {
+  if (contractor.status === "assigned") return "assigned" as const;
+  if (contractor.status === "removed") return "rejected" as const;
+  if (contractor.status === "watchlist") return "pending-review" as const;
+  return "recommended" as const;
+}
+
+function workloadFromContractor(contractor: OpportunityProjectContractor) {
+  if (contractor.status === "assigned") return "76% allocated";
+  if (contractor.status === "removed") return "Not active";
+  if (contractor.status === "watchlist") return "42% allocated";
+  return "58% allocated";
+}
+
+function winRateFromContractor(contractor: OpportunityProjectContractor) {
+  const projected = Math.round((contractor.aiMatch * 0.6) + (contractor.readiness * 0.4));
+  return Math.max(35, Math.min(99, projected));
+}
+
+function buildOpportunityContractorMatches(project: OpportunityProjectWorkspace): ContractorMatchRecommendation[] {
+  return project.contractors.map((contractor, index) => ({
+    contractorId: contractor.id,
+    contractorName: contractor.name,
+    bucket: matchBucketFromContractor(contractor),
+    readinessScore: contractor.readiness,
+    compliance: matchComplianceFromContractor(contractor),
+    experience: contractor.note,
+    requiredCertifications: index % 2 === 0 ? ["CIDB Verified", "Tax Clear"] : ["CIDB Verified", "Municipal Vendor"],
+    previousAwards: index % 2 === 0 ? ["2025 Waste Framework", "2024 Municipal Support"] : ["2025 Facilities Support"],
+    currentWorkload: workloadFromContractor(contractor),
+    winRate: winRateFromContractor(contractor),
+    aiMatchScore: contractor.aiMatch,
+    notes:
+      contractor.status === "assigned"
+        ? "Already attached to this opportunity in the presentation workspace."
+        : contractor.status === "removed"
+          ? "Rejected in the current presentation flow."
+          : "Mock recommendation only.",
+  }));
 }
 
 function StatRow({ label, value, tone }: { label: string; value: string; tone?: BadgeTone }) {
@@ -76,70 +118,10 @@ function StatRow({ label, value, tone }: { label: string; value: string; tone?: 
 
 function ContractorsTab({ project }: { project: OpportunityProjectWorkspace }) {
   return (
-    <div className="grid gap-5 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
-      <EnterprisePanel title="Recommended Contractors" eyebrow="Selection and control" className="h-full">
-        <div className="space-y-3">
-          {project.contractors.map((contractor) => (
-            <div key={contractor.id} className="rounded-2xl border border-[color:var(--tex-border)] bg-[color:var(--tex-surface)] p-4">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                <div>
-                  <p className="font-semibold text-[color:var(--tex-text-strong)]">{contractor.name}</p>
-                  <p className="tex-copy mt-1 text-sm">{contractor.note}</p>
-                </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <EnterpriseStatusBadge tone={contractorTone(contractor)} value={contractor.status} />
-                  <EnterpriseStatusBadge tone={contractor.compliance === "green" ? "success" : contractor.compliance === "amber" ? "warning" : "danger"} value={`Compliance ${contractor.compliance}`} />
-                </div>
-              </div>
-              <div className="mt-4 grid gap-3 md:grid-cols-3">
-                <EnterpriseKpiCard label="Readiness" value={`${contractor.readiness}%`} helper="Presentation metric only." />
-                <EnterpriseKpiCard label="AI Match" value={`${contractor.aiMatch}%`} helper="AI match score for mock ranking." />
-                <EnterpriseKpiCard label="Compliance" value={contractor.compliance.toUpperCase()} helper="No backend validation mutation." />
-              </div>
-              <div className="mt-4 flex flex-wrap gap-2">
-                <button type="button" className="tex-action-button tex-action-button--secondary px-3 py-1.5 text-xs">
-                  Assign
-                </button>
-                <button type="button" className="tex-action-button tex-action-button--danger px-3 py-1.5 text-xs">
-                  Remove
-                </button>
-                <EnterpriseStatusBadge tone="neutral" value="Mock action only" />
-              </div>
-            </div>
-          ))}
-        </div>
-      </EnterprisePanel>
-
-      <EnterprisePanel title="Contractor Controls" eyebrow="Readiness and matching" className="h-full">
-        <div className="grid gap-3">
-          <StatRow label="Recommended" value={`${project.contractors.filter((contractor) => contractor.status === "recommended").length}`} tone="info" />
-          <StatRow label="Assigned" value={`${project.contractors.filter((contractor) => contractor.status === "assigned").length}`} tone="success" />
-          <StatRow label="Compliance" value={`${project.contractors.filter((contractor) => contractor.compliance === "green").length} green`} tone="success" />
-        </div>
-        <EnterpriseTable wrapperClassName="mt-5 shadow-none">
-          <thead>
-            <tr>
-              <th>Contractor</th>
-              <th>Readiness</th>
-              <th>AI Match</th>
-              <th>Compliance</th>
-            </tr>
-          </thead>
-          <tbody>
-            {project.contractors.map((contractor) => (
-              <tr key={contractor.id}>
-                <td className="font-semibold text-[color:var(--tex-text-strong)]">{contractor.name}</td>
-                <td>{contractor.readiness}%</td>
-                <td>{contractor.aiMatch}%</td>
-                <td>
-                  <EnterpriseStatusBadge tone={contractor.compliance === "green" ? "success" : contractor.compliance === "amber" ? "warning" : "danger"} value={contractor.compliance.toUpperCase()} />
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </EnterpriseTable>
-      </EnterprisePanel>
-    </div>
+    <ContractorMatchingPanel
+      opportunityTitle={project.title}
+      matches={buildOpportunityContractorMatches(project)}
+    />
   );
 }
 
@@ -434,6 +416,13 @@ export default function OpportunityProjectWorkspace() {
             <OpportunityIntelligencePipeline
               opportunityTitle={activeProject.title}
               stages={mockOpportunityIntelligencePipeline}
+            />
+          </div>
+
+          <div className="mt-5">
+            <ContractorMatchingPanel
+              opportunityTitle={activeProject.title}
+              matches={buildOpportunityContractorMatches(activeProject)}
             />
           </div>
 
