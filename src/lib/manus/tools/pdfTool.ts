@@ -1,6 +1,4 @@
-import { extractTextFromPdf } from "@/lib/pdf/extractTextFromPdf";
 import type { SbdFormKey } from "@/lib/pdfs/templates/sbdSchema";
-import { fillTenderPack } from "@/lib/pdfs/empirePdfFill";
 import { buildTenderAnalysisPrompt, TENDER_ANALYSIS_SYSTEM_PROMPT } from "@/lib/manus/prompts/tenderPrompts";
 import type { ManusContext, ToolExecutionResult } from "@/lib/manus/types/manus.types";
 import { BaseTool } from "@/lib/manus/tools/baseTool";
@@ -55,6 +53,7 @@ export class PdfTool extends BaseTool<PdfToolInput, Record<string, unknown>> {
     this.permissions(context);
 
     if (input.mode === "extractText") {
+      const { extractTextFromPdf } = await import("@/lib/pdf/extractTextFromPdf");
       const text = await extractTextFromPdf(input.buffer);
       return {
         ok: true,
@@ -71,6 +70,7 @@ export class PdfTool extends BaseTool<PdfToolInput, Record<string, unknown>> {
     }
 
     if (input.mode === "empirePdfPreview") {
+      const { fillTenderPack } = await import("@/lib/pdfs/empirePdfFill");
       const result = await fillTenderPack({
         templateKey: input.templateKey,
         profile: input.profile as never,

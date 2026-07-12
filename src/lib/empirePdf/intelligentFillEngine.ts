@@ -8,7 +8,6 @@ import { EMPIRE_PDF_TEMPLATE_REGISTRY } from "./templates";
 import { getBoundingBoxField } from "./boundingBoxes";
 import { getPdfBinaryType, normalizePdfBinary } from "./utils/normalizePdfBinary";
 import { auditRenderedFieldWarnings, buildCalibrationQaReport, validateRenderedField } from "./validation";
-import { buildRendererIntelligenceReport } from "./intelligence/renderIntelligence";
 import type { CompanyProfile } from "@/lib/autofill/buildCompanyProfile";
 import type {
   EngineDebugField,
@@ -301,6 +300,7 @@ export async function fillTemplateWithIntelligence(params: {
     templateVersion: template.templateVersion ?? null,
     debugFields,
   });
+  const { buildRendererIntelligenceReport } = await import("./intelligence/renderIntelligence");
   const intelligence = buildRendererIntelligenceReport({
     templateKey: params.templateKey,
     debugFields,

@@ -3,7 +3,7 @@ import path from "path";
 import type { PdfReferenceFolder, PdfReferenceLibrarySpec } from "./types";
 
 export const DEFAULT_PDF_REFERENCE_LIBRARY: PdfReferenceLibrarySpec = {
-  rootRelativePath: path.join("documents", "PDF Reference Standards"),
+  rootRelativePath: "documents/PDF Reference Standards",
   folders: [
     { role: "blank_forms", label: "Blank Forms", relativePath: "Blank Forms", required: true },
     { role: "approved_completed", label: "Approved Completed", relativePath: "Approved Completed", required: true },
@@ -22,10 +22,14 @@ export const DEFAULT_PDF_REFERENCE_LIBRARY: PdfReferenceLibrarySpec = {
 export function resolveReferenceFolder(
   spec: PdfReferenceLibrarySpec,
   role: PdfReferenceFolder["role"],
-  cwd = process.cwd()
+  cwd = /* turbopackIgnore: true */ process.cwd()
 ): string | null {
   const folder = spec.folders.find((item) => item.role === role);
-  return folder ? path.join(cwd, spec.rootRelativePath, folder.relativePath) : null;
+  if (!folder) {
+    return null;
+  }
+
+  return path.join(/* turbopackIgnore: true */ cwd, "documents", "PDF Reference Standards", folder.relativePath);
 }
 
 export function extendReferenceLibrarySpec(

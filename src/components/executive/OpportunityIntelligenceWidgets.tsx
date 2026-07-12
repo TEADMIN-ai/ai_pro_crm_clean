@@ -7,16 +7,24 @@ import {
 } from "@/components/ui/EnterpriseUI";
 
 export type OpportunityIntelligenceMetricKey =
-  | "pipelineValue"
-  | "expectedRevenue"
-  | "grossMargin"
-  | "submissionReadiness"
-  | "activeOpportunities"
-  | "awardRate"
-  | "contractorReadiness"
-  | "complianceHealth"
-  | "upcomingClosures"
-  | "aiRiskAlerts";
+  | "revenueForecast"
+  | "pipelineForecast"
+  | "monthlyWins"
+  | "submissionSuccess"
+  | "contractorPerformance"
+  | "municipalityPerformance"
+  | "departmentPerformance"
+  | "complianceTrend"
+  | "tenderVelocity"
+  | "averageSubmissionTime";
+
+export type OpportunityAnalyticsChartKey =
+  | "revenueForecast"
+  | "pipelineForecast"
+  | "performanceBreakdown"
+  | "complianceTrend"
+  | "tenderVelocity"
+  | "opportunityConversionFunnel";
 
 export type OpportunityIntelligenceWidgetDefinition = {
   key: OpportunityIntelligenceMetricKey;
@@ -35,57 +43,49 @@ export type OpportunityIntelligenceSnapshot = Partial<
   Record<OpportunityIntelligenceMetricKey, OpportunityIntelligenceWidgetValue>
 >;
 
+export type OpportunityAnalyticsPoint = {
+  label: string;
+  value: number;
+  secondaryValue?: number;
+};
+
+export type OpportunityAnalyticsChartDefinition = {
+  key: OpportunityAnalyticsChartKey;
+  title: string;
+  sourceRequirement: string;
+  variant: "bar" | "line" | "funnel";
+};
+
+export type OpportunityAnalyticsChartSeries = {
+  points: OpportunityAnalyticsPoint[];
+  status?: "connected" | "unavailable" | "requires-source";
+};
+
+export type OpportunityAnalyticsSnapshot = {
+  metrics?: OpportunityIntelligenceSnapshot;
+  charts?: Partial<Record<OpportunityAnalyticsChartKey, OpportunityAnalyticsChartSeries>>;
+};
+
 export const opportunityIntelligenceWidgetDefinitions: OpportunityIntelligenceWidgetDefinition[] = [
-  {
-    key: "pipelineValue",
-    label: "Pipeline Value",
-    sourceRequirement: "Open opportunity values",
-  },
-  {
-    key: "expectedRevenue",
-    label: "Expected Revenue",
-    sourceRequirement: "Probability-weighted opportunity values",
-  },
-  {
-    key: "grossMargin",
-    label: "Gross Margin",
-    sourceRequirement: "Revenue and cost basis",
-  },
-  {
-    key: "submissionReadiness",
-    label: "Submission Readiness",
-    sourceRequirement: "Tender readiness score",
-  },
-  {
-    key: "activeOpportunities",
-    label: "Active Opportunities",
-    sourceRequirement: "Open opportunity count",
-  },
-  {
-    key: "awardRate",
-    label: "Award Rate",
-    sourceRequirement: "Submitted and awarded outcomes",
-  },
-  {
-    key: "contractorReadiness",
-    label: "Contractor Readiness",
-    sourceRequirement: "Contractor compliance and tender lock state",
-  },
-  {
-    key: "complianceHealth",
-    label: "Compliance Health",
-    sourceRequirement: "Document verification and expiry posture",
-  },
-  {
-    key: "upcomingClosures",
-    label: "Upcoming Closures",
-    sourceRequirement: "Opportunity closing dates",
-  },
-  {
-    key: "aiRiskAlerts",
-    label: "AI Risk Alerts",
-    sourceRequirement: "Persisted risk intelligence signals",
-  },
+  { key: "revenueForecast", label: "Revenue Forecast", sourceRequirement: "Weighted revenue forecast" },
+  { key: "pipelineForecast", label: "Pipeline Forecast", sourceRequirement: "Open pipeline forecast" },
+  { key: "monthlyWins", label: "Monthly Wins", sourceRequirement: "Awarded opportunities by month" },
+  { key: "submissionSuccess", label: "Submission Success", sourceRequirement: "Submitted and successful tender outcomes" },
+  { key: "contractorPerformance", label: "Contractor Performance", sourceRequirement: "Contractor opportunity outcomes" },
+  { key: "municipalityPerformance", label: "Municipality Performance", sourceRequirement: "Municipality opportunity outcomes" },
+  { key: "departmentPerformance", label: "Department Performance", sourceRequirement: "Department opportunity outcomes" },
+  { key: "complianceTrend", label: "Compliance Trend", sourceRequirement: "Compliance score over time" },
+  { key: "tenderVelocity", label: "Tender Velocity", sourceRequirement: "Tender movement cycle time" },
+  { key: "averageSubmissionTime", label: "Average Submission Time", sourceRequirement: "Submission duration history" },
+];
+
+export const opportunityAnalyticsChartDefinitions: OpportunityAnalyticsChartDefinition[] = [
+  { key: "revenueForecast", title: "Revenue Forecast", sourceRequirement: "Weighted revenue forecast time series", variant: "line" },
+  { key: "pipelineForecast", title: "Pipeline Forecast", sourceRequirement: "Open pipeline value time series", variant: "bar" },
+  { key: "performanceBreakdown", title: "Contractor, Municipality and Department Performance", sourceRequirement: "Outcome performance by operating dimension", variant: "bar" },
+  { key: "complianceTrend", title: "Compliance Trend", sourceRequirement: "Compliance score trend history", variant: "line" },
+  { key: "tenderVelocity", title: "Tender Velocity and Submission Time", sourceRequirement: "Tender movement and submission duration trend", variant: "line" },
+  { key: "opportunityConversionFunnel", title: "Opportunity Conversion Funnel", sourceRequirement: "Lead, review, submitted, awarded and won counts", variant: "funnel" },
 ];
 
 function resolveStatusLabel(status: OpportunityIntelligenceWidgetValue["status"] | undefined) {
@@ -127,17 +127,31 @@ export function OpportunityIntelligenceWidget({
   );
 }
 
+function OpportunityAnalyticsChart({ definition, series }: { definition: OpportunityAnalyticsChartDefinition; series?: OpportunityAnalyticsChartSeries }) {
+  return (
+    <section className="tex-card p-5">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="tex-eyebrow">{definition.variant === "funnel" ? "Conversion" : "Trend"}</p>
+          <h3 className="mt-1 font-semibold text-[color:var(--tex-text-strong)]">{definition.title}</h3>
+        </div>
+        <EnterpriseStatusBadge tone={resolveStatusTone(series?.status, undefined)} value={resolveStatusLabel(series?.status)} />
+      </div>
+      <EnterpriseEmptyState className="mt-4" title={`${definition.title} source required`} detail={definition.sourceRequirement} />
+    </section>
+  );
+}
 export function OpportunityIntelligencePanel({
   snapshot,
   className,
 }: {
-  snapshot?: OpportunityIntelligenceSnapshot;
+  snapshot?: OpportunityAnalyticsSnapshot;
   className?: string;
 }) {
   return (
     <EnterprisePanel
-      title="Opportunity Intelligence"
-      eyebrow="Executive pipeline architecture"
+      title="Executive Opportunity Analytics"
+      eyebrow="Presentation layer"
       className={className}
     >
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
@@ -145,17 +159,32 @@ export function OpportunityIntelligencePanel({
           <OpportunityIntelligenceWidget
             key={definition.key}
             definition={definition}
-            metric={snapshot?.[definition.key]}
+            metric={snapshot?.metrics?.[definition.key]}
           />
+        ))}
+      </div>
+      <div className="mt-5 grid gap-5 xl:grid-cols-2">
+        {opportunityAnalyticsChartDefinitions.map((definition) => (
+          <OpportunityAnalyticsChart key={definition.key} definition={definition} series={snapshot?.charts?.[definition.key]} />
         ))}
       </div>
       {!snapshot ? (
         <EnterpriseEmptyState
           className="mt-5"
-          title="Opportunity intelligence data source not connected"
-          detail="Widgets are registered for the executive surface, but no placeholder opportunity values are rendered."
+          title="Opportunity analytics data source not connected"
+          detail="Executive KPIs and chart containers are registered, but no placeholder opportunity values are rendered."
         />
       ) : null}
     </EnterprisePanel>
   );
 }
+
+
+
+
+
+
+
+
+
+

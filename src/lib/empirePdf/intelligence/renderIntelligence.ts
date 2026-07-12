@@ -146,7 +146,7 @@ function findReferenceFile(files: string[], formId: TenderFormId): string | null
 }
 
 export function loadPdfReferenceLibrary(formId: TenderFormId, requestedVersion?: string): PdfReferenceLibraryLoadResult {
-  const rootPath = path.join(process.cwd(), DEFAULT_PDF_REFERENCE_LIBRARY.rootRelativePath);
+  const rootPath = path.join(/* turbopackIgnore: true */ process.cwd(), "documents", "PDF Reference Standards");
   const referenceVersion = "reference-standards-v1"
   const folders = DEFAULT_PDF_REFERENCE_LIBRARY.folders.map((folder) => {
     const folderPath = resolveReferenceFolder(DEFAULT_PDF_REFERENCE_LIBRARY, folder.role);
@@ -241,7 +241,7 @@ export function loadPdfReferenceLibrary(formId: TenderFormId, requestedVersion?:
 }
 
 function loadJsonFieldMaps(): JsonFieldMapDocument[] {
-  const fieldMapFolder = path.join(process.cwd(), "src", "lib", "empirePdf", "intelligence", "fieldMaps");
+  const fieldMapFolder = path.join(/* turbopackIgnore: true */ process.cwd(), "src", "lib", "empirePdf", "intelligence", "fieldMaps");
   if (!fs.existsSync(fieldMapFolder)) {
     return [];
   }

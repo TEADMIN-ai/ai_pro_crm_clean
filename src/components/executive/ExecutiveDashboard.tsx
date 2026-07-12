@@ -26,6 +26,7 @@ import {
   WorkspaceStatusBar,
 } from "@/components/executive/OperationsCentre";
 import { OpportunityIntelligencePanel } from "@/components/executive/OpportunityIntelligenceWidgets";
+import { ExecutiveMonitoringPanel } from "@/components/executive/ExecutiveMonitoringWidgets";
 import Card from "@/components/ui/Card";
 import { authFetch } from "@/lib/client/authFetch";
 import { API_ROUTES } from "@/lib/routes";
@@ -377,6 +378,8 @@ export default function ExecutiveDashboard() {
           />
 
           <OpportunityIntelligencePanel />
+
+          <ExecutiveMonitoringPanel />
 
           <div className="grid gap-5 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
             <OperationalHealthPanel

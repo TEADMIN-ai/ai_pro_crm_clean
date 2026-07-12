@@ -2,10 +2,7 @@ import fs from "fs";
 import path from "path";
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 
-import { getFirebaseAdmin } from "@/lib/firebase/admin";
 import type { CompanyProfile } from "@/lib/autofill/buildCompanyProfile";
-import { buildContractorProfileIntelligence } from "@/lib/contractors/contractorProfileIntelligence";
-import { fillTemplateWithIntelligence } from "@/lib/empirePdf/intelligentFillEngine";
 import { SBD_SCHEMA, type SbdFieldKey, type SbdFormKey } from "@/lib/pdfs/templates/sbdSchema";
 import {
   TEMPLATE_REGISTRY,
@@ -82,6 +79,7 @@ async function writeAuditTrail(data: {
   warnings: string[];
   fieldMapUsed: Record<string, string>;
 }) {
+  const { getFirebaseAdmin } = await import("@/lib/firebase/admin");
   const db = getFirebaseAdmin();
   await db.collection("tenderPackAudit").add({
     ...data,
@@ -282,6 +280,7 @@ export async function fillTenderPack(params: FillTenderPackParams): Promise<Tend
 
       if (registryEntry.intelligentTemplate) {
         try {
+          const { fillTemplateWithIntelligence } = await import("@/lib/empirePdf/intelligentFillEngine");
           const intelligentResult = await fillTemplateWithIntelligence({
             templateKey,
             templateBytes,
@@ -323,6 +322,7 @@ export async function fillTenderPack(params: FillTenderPackParams): Promise<Tend
             debugFields: intelligentResult.result.debugFields,
           });
 
+          const { buildContractorProfileIntelligence } = await import("@/lib/contractors/contractorProfileIntelligence");
           const profileIntelligence = buildContractorProfileIntelligence({
             contractorId: profile.contractorId,
             profile,

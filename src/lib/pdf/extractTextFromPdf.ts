@@ -1,7 +1,6 @@
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
-import { runOCR } from "@/server/services/ocrService";
 import {
   recordDocumentExtractionDiagnostic,
   type DocumentExtractionDiagnosticUpdate,
@@ -612,6 +611,7 @@ export async function extractTextFromPdfDetailed(
   let ocrText = "";
 
   try {
+    const { runOCR } = await import("@/server/services/ocrService");
     ocrText = normalizeExtractedText(await withTimeout(
       runOCR(buffer, {
         filename,

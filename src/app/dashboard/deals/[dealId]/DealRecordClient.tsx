@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { authFetch } from "@/lib/client/authFetch";
 import { API_ROUTES } from "@/lib/routes";
 import DealNotes from "@/components/DealNotes";
+import OpportunityCollaborationWorkspace from "@/components/opportunities/OpportunityCollaborationWorkspace";
 
 type DealDetail = {
   id: string;
@@ -237,6 +238,16 @@ export default function DealRecordClient({ dealId }: { dealId: string }) {
           </div>
         </div>
       </section>
+
+      <OpportunityCollaborationWorkspace
+        opportunityId={deal.id}
+        title={deal.title}
+        contractorName={contractor}
+        status={deal.status}
+        readinessScore={deal.readinessScore}
+        riskLevel={deal.riskLevel}
+        missingRequirements={missingRequirements}
+      />
 
       <DealNotes dealId={deal.id} />
     </div>
