@@ -21,9 +21,10 @@
     "qa:seed": "tsx scripts/qaAcceptanceSeed.ts seed",
     "qa:cleanup": "tsx scripts/qaAcceptanceSeed.ts cleanup",
     "prepare": "husky",
-    "build:strict": "npm run clean && npm run typecheck && npm run lint && npm run route:integrity && next build",
+    "build:strict": "npm run clean && npm run typecheck && npm run lint && npm run route:integrity && npm run production:integrity && next build",
     "deploy:guard": "npm run build:strict",
-    "set:admin": "ts-node scripts/bootstrapAdminRole.ts"
+    "set:admin": "ts-node scripts/bootstrapAdminRole.ts",
+    "production:integrity": "tsx scripts/productionIntegrityGuard.ts"
   },
   "dependencies": {
     "@napi-rs/canvas": "^0.1.99",

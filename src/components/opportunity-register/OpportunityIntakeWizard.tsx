@@ -233,7 +233,7 @@ export default function OpportunityIntakeWizard({
               <p className="tex-copy mt-3 max-w-3xl text-sm">{headerDescription}</p>
             </div>
             <div className="flex flex-wrap gap-2">
-              <EnterpriseStatusBadge value="Presentation only" tone="neutral" />
+              <EnterpriseStatusBadge value="Local intake" tone="neutral" />
               <EnterpriseStatusBadge value="No OCR" tone="warning" />
               <EnterpriseStatusBadge value="No AI" tone="warning" />
               <EnterpriseStatusBadge value="No backend mutations" tone="success" />
@@ -427,7 +427,7 @@ export default function OpportunityIntakeWizard({
                 </EnterpriseTable>
 
                 <EnterpriseEmptyState
-                  title="Summary is presentation only."
+                  title="Summary review"
                   detail="This intake wizard stages the opportunity data and documents locally. No OCR, AI, or backend mutation runs here."
                 />
               </div>

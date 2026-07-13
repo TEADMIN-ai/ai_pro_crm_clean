@@ -4,9 +4,7 @@ export const revalidate = 30;
 
 import { NextRequest, NextResponse } from "next/server";
 import { AuthorizationError, requireAuthorizedUser } from "@/lib/server/authz";
-import { getFirebaseAdmin } from "@/lib/firebase/admin";
-import { listDealsForUser } from "@/server/services/dealService";
-import type { Deal } from "@/types/deal";
+import { getEnterpriseKpiSnapshot } from "@/lib/kpis/enterpriseSnapshot";
 
 type DashboardRecentItem = {
   id: string;
@@ -14,57 +12,6 @@ type DashboardRecentItem = {
   status?: string;
   updatedAt?: string | null;
 };
-
-function formatRecentText(status: string): string {
-  if (status === "READY") {
-    return "Deal is ready for submission";
-  }
-
-  if (status === "RISK") {
-    return "Deal needs attention before submission";
-  }
-
-  if (status === "BLOCKED") {
-    return "Deal is blocked pending requirements";
-  }
-
-  return "Deal activity recorded";
-}
-
-function normalizeUpdatedAt(value: unknown): string | null {
-  if (typeof value === "string" && value.trim().length > 0) {
-    const parsed = new Date(value);
-    return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
-  }
-
-  if (typeof value === "number" && Number.isFinite(value)) {
-    return new Date(value).toISOString();
-  }
-
-  return null;
-}
-
-function normalizeDealSummary(deal: Deal) {
-  const readinessScore =
-    typeof deal.readinessScore === "number" && Number.isFinite(deal.readinessScore)
-      ? Math.max(0, Math.min(100, deal.readinessScore))
-      : 0;
-  const status =
-    deal.tenderLockStatus === "READY" || deal.tenderLockStatus === "RISK" || deal.tenderLockStatus === "BLOCKED"
-      ? deal.tenderLockStatus
-      : "BLOCKED";
-  const submitted =
-    deal.status === "submitted" ||
-    deal.stage === "submitted";
-
-  return {
-    id: deal.id,
-    readinessScore,
-    status,
-    submitted,
-    updatedAt: normalizeUpdatedAt(deal.updatedAt),
-  };
-}
 
 function emptySummary(error?: string, status = 500) {
   return NextResponse.json(
@@ -85,60 +32,24 @@ function emptySummary(error?: string, status = 500) {
 export async function GET(request: NextRequest) {
   try {
     const user = await requireAuthorizedUser(request);
-    const db = getFirebaseAdmin();
-    let usedFallback = false;
-
-    if (user.role !== "contractor") {
-      try {
-        await db.collection("deals").orderBy("updatedAt", "desc").limit(1).get();
-      } catch (error) {
-        usedFallback = true;
-        console.warn("[dashboard/summary] updatedAt ordering unavailable", error);
-      }
-    }
-
-    const deals = (await listDealsForUser(user)).map(normalizeDealSummary);
-    const sortedDeals = [...deals].sort((left, right) => {
-      if (!left.updatedAt && !right.updatedAt) return 0;
-      if (!left.updatedAt) return 1;
-      if (!right.updatedAt) return -1;
-
-      return new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime();
-    });
-
-    const totalDeals = sortedDeals.length;
-    const readyDeals = sortedDeals.filter((deal) => deal.status === "READY").length;
-    const submitted = sortedDeals.filter((deal) => deal.submitted).length;
-    const blockedDeals = sortedDeals.filter((deal) => deal.status === "BLOCKED").length;
-    const riskDeals = sortedDeals.filter((deal) => deal.status === "RISK").length;
-    const avgReadiness =
-      totalDeals > 0
-        ? Math.max(
-            0,
-            Math.min(
-              100,
-              Math.round(sortedDeals.reduce((sum, deal) => sum + deal.readinessScore, 0) / totalDeals),
-            ),
-          )
-        : 0;
-    const recent: DashboardRecentItem[] = sortedDeals.slice(0, 5).map((deal) => ({
-      id: deal.id,
-      text: formatRecentText(deal.status),
-      status: deal.status,
-      updatedAt: deal.updatedAt,
-    }));
+    const snapshot = await getEnterpriseKpiSnapshot();
 
     return NextResponse.json({
-      totalDeals,
-      readyDeals,
-      submitted,
-      blockedDeals,
-      riskDeals,
-      avgReadiness,
-      recent,
+      totalDeals: snapshot.dashboardSummary.totalOpportunities,
+      readyDeals: snapshot.dashboardSummary.readyForSubmission,
+      submitted: snapshot.dashboardSummary.submitted,
+      blockedDeals: snapshot.dashboardSummary.blocked,
+      riskDeals: snapshot.dashboardSummary.risk,
+      avgReadiness: snapshot.dashboardSummary.avgReadiness,
+      recent: snapshot.dashboardSummary.recent.map((item): DashboardRecentItem => ({
+        id: item.id,
+        text: item.text,
+        status: item.status,
+        updatedAt: item.updatedAt,
+      })),
       debug: {
-        fallbackUsed: usedFallback,
         mode: "LIVE",
+        source: "enterpriseKpis",
         role: user.role,
       },
     });

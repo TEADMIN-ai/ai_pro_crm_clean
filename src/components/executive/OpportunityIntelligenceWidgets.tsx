@@ -172,7 +172,7 @@ export function OpportunityIntelligencePanel({
         <EnterpriseEmptyState
           className="mt-5"
           title="Opportunity analytics data source not connected"
-          detail="Executive KPIs and chart containers are registered, but no placeholder opportunity values are rendered."
+          detail="Executive KPIs and chart containers are registered, but no live opportunity values are connected."
         />
       ) : null}
     </EnterprisePanel>

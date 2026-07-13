@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import HeroBanner from "@/components/hero/HeroBanner";
 import { getHeroImage } from "@/config/heroRules";
@@ -10,6 +10,7 @@ import Badge from "@/components/ui/Badge";
 import Table from "@/components/ui/Table";
 import RequireRole from "@/components/auth/RequireRole";
 import { getDealsForUser } from "@/lib/deals/getDealsForUser";
+import { useEnterpriseKpis } from "@/hooks/useEnterpriseKpis";
 
 function getDealRiskTone(value: number): "success" | "warning" | "danger" {
   if (value >= 500000) return "danger";
@@ -21,6 +22,7 @@ export default function StaffDashboardPage() {
   const { user, role, loading: authLoading } = useAuth();
   const [deals, setDeals] = useState<Deal[]>([]);
   const [loading, setLoading] = useState(true);
+  const { data, loading: kpiLoading, error: kpiError } = useEnterpriseKpis();
 
   useEffect(() => {
     async function fetchDeals() {
@@ -43,7 +45,6 @@ export default function StaffDashboardPage() {
 
   const heroRole = role === "admin" ? "manager" : role === "staff" ? "staff" : "manager";
   const heroImage = getHeroImage({ role: heroRole });
-  const totalValue = useMemo(() => deals.reduce((sum, deal) => sum + (deal.value ?? 0), 0), [deals]);
 
   return (
     <RequireRole allow={["admin", "manager", "staff"]}>
@@ -55,20 +56,26 @@ export default function StaffDashboardPage() {
         <Card>
           <IdentityCardHeader title="Identity" subtitle={user?.email ?? "Signed in staff user"}>
             <Badge tone="info">Role {heroRole}</Badge>
-            <Badge tone={deals.length > 0 ? "success" : "warning"}>Visible {deals.length}</Badge>
+            <Badge tone={(data?.opportunities.total ?? 0) > 0 ? "success" : "warning"}>Opportunities {data?.opportunities.total ?? 0}</Badge>
           </IdentityCardHeader>
         </Card>
+
+        {(kpiLoading || kpiError) && (
+          <Card>
+            <p className="text-sm text-slate-600">{kpiLoading ? "Loading live enterprise KPIs..." : kpiError}</p>
+          </Card>
+        )}
 
         <Card>
           <h2>Compliance Score Summary</h2>
           <div className="compliance-summary">
             <div className="compliance-summary-item">
-              <p className="enterprise-metric-label">Visible Deals</p>
-              <p className="enterprise-metric-value">{deals.length}</p>
+              <p className="enterprise-metric-label">Opportunities</p>
+              <p className="enterprise-metric-value">{data?.opportunities.total ?? 0}</p>
             </div>
             <div className="compliance-summary-item">
               <p className="enterprise-metric-label">Pipeline Value</p>
-              <p className="enterprise-metric-value">ZAR {totalValue.toLocaleString("en-ZA")}</p>
+              <p className="enterprise-metric-value">ZAR {(data?.revenue.pipelineValue ?? 0).toLocaleString("en-ZA")}</p>
             </div>
           </div>
         </Card>

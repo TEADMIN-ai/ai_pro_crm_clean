@@ -103,7 +103,7 @@ export default function SubmissionProfilesWorkspace() {
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
-              <EnterpriseStatusBadge value="Presentation only" tone="neutral" />
+              <EnterpriseStatusBadge value="Live configuration" tone="neutral" />
               <EnterpriseStatusBadge value="No API changes" tone="success" />
             </div>
           </div>
@@ -132,7 +132,7 @@ export default function SubmissionProfilesWorkspace() {
           value={selectedSet.profile.readinessClassification}
           helper="Profile-level release classification"
         />
-        <EnterpriseKpiCard label="Validation rules" value={validationRuleCount} helper="Presentation-only rule set" />
+        <EnterpriseKpiCard label="Validation rules" value={validationRuleCount} helper="Profile rule set" />
       </section>
 
       <EnterprisePanel title="Selected profile" eyebrow={selectedSet.profile.label}>

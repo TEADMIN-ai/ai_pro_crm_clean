@@ -5,7 +5,6 @@ import type {
   PriceProviderContext,
   PriceProviderQuote,
 } from "@/lib/pricing/providers/priceProvider.interface";
-import { MockPriceProvider } from "@/lib/pricing/providers/mockPriceProvider";
 import {
   calculateRecommendedPrice,
   type PricingStrategy,
@@ -132,7 +131,7 @@ export class PriceService {
   private readonly strategy: PricingStrategy;
 
   constructor(options: PriceServiceOptions = {}) {
-    this.providers = options.providers ?? [new MockPriceProvider()];
+    this.providers = options.providers ?? [];
     this.cache = options.cache;
     this.cacheTtlSeconds = options.cacheTtlSeconds ?? 300;
     this.strategy = options.strategy ?? "competitive";
@@ -156,9 +155,12 @@ export class PriceService {
       }
     }
 
-    const quotes = await Promise.all(
-      this.selectProviders(context).map((provider) => provider.getQuote(context))
-    );
+    const providers = this.selectProviders(context);
+    if (providers.length === 0) {
+      return context.tenderData.pricing ?? null;
+    }
+
+    const quotes = await Promise.all(providers.map((provider) => provider.getQuote(context)));
     const resolvedPricing = aggregateQuotes(
       context.tenderData.pricing,
       quotes.filter((quote): quote is PriceProviderQuote => quote !== null),

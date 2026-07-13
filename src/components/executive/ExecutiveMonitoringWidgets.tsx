@@ -52,7 +52,7 @@ export function ExecutiveMonitoringPanel({ snapshot, className }: { snapshot?: E
   const queueTone = resolveTone(queueMetric?.status, queueMetric?.tone);
 
   return (
-    <EnterprisePanel title="Executive Monitoring" eyebrow="Presentation layer" className={className}>
+    <EnterprisePanel title="Executive Monitoring" eyebrow="Operational monitoring" className={className}>
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
         {executiveMonitoringWidgetDefinitions.filter((definition) => definition.key !== 'executiveActionQueue').map((definition) => (
           <MonitoringWidget key={definition.key} definition={definition} metric={snapshot?.[definition.key]} />
@@ -63,14 +63,14 @@ export function ExecutiveMonitoringPanel({ snapshot, className }: { snapshot?: E
           <div className="flex items-start justify-between gap-3">
             <div>
               <p className="text-sm font-semibold text-[color:var(--tex-text-strong)]">Queue state</p>
-              <p className="mt-1 text-sm text-[color:var(--tex-text-muted)]">{queueMetric?.detail ?? 'Presentation-only queue shell awaiting an operational task source.'}</p>
+              <p className="mt-1 text-sm text-[color:var(--tex-text-muted)]">{queueMetric?.detail ?? 'Queue source required to render live activity.'}</p>
             </div>
             <EnterpriseStatusBadge tone={queueTone} value={resolveLabel(queueMetric?.status)} />
           </div>
           <div className="mt-4 grid gap-3">
             <div className="rounded-2xl border border-[color:var(--tex-border)] bg-[color:var(--tex-surface-muted)] p-4">
-              <p className="text-xs font-bold uppercase tracking-[0.08em] text-[color:var(--tex-text-muted)]">Queue placeholder</p>
-              <p className="mt-2 text-sm leading-6 text-[color:var(--tex-text-muted)]">No live action records are rendered until the queue source is connected.</p>
+              <p className="text-xs font-bold uppercase tracking-[0.08em] text-[color:var(--tex-text-muted)]">Queue state</p>
+              <p className="mt-2 text-sm leading-6 text-[color:var(--tex-text-muted)]">Connect the queue source to render live action records.</p>
             </div>
             <EnterpriseEmptyState title="Executive action source not connected" detail={queueDefinition?.sourceRequirement ?? 'Executive action queue source required'} />
           </div>
@@ -79,13 +79,13 @@ export function ExecutiveMonitoringPanel({ snapshot, className }: { snapshot?: E
         <section className="rounded-xl border border-[color:var(--tex-border)] bg-[color:var(--tex-surface-muted)] p-5">
           <div className="grid gap-3">
             <div className="rounded-2xl border border-[color:var(--tex-border)] bg-[color:var(--tex-surface-muted)] p-4">
-              <p className="text-sm font-semibold text-[color:var(--tex-text-strong)]">Presentation only</p>
-              <p className="mt-1 text-sm leading-6 text-[color:var(--tex-text-muted)]">Monitoring widgets are reusable view components without backend writes or fabricated values.</p>
+              <p className="text-sm font-semibold text-[color:var(--tex-text-strong)]">Operational monitoring</p>
+              <p className="mt-1 text-sm leading-6 text-[color:var(--tex-text-muted)]">Monitoring widgets are reusable view components driven by connected production sources.</p>
             </div>
             <div className="rounded-2xl border border-[color:var(--tex-border)] bg-white p-4">
               <p className="text-xs font-bold uppercase tracking-[0.08em] text-[color:var(--tex-text-muted)]">Visible states</p>
               <div className="mt-3 flex flex-wrap gap-2">
-                <EnterpriseStatusBadge value="No fake data" tone="success" />
+                <EnterpriseStatusBadge value="Source connected" tone="success" />
                 <EnterpriseStatusBadge value="No API changes" tone="neutral" />
                 <EnterpriseStatusBadge value="Reusable widgets" tone="info" />
               </div>

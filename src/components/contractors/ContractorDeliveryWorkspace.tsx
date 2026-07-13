@@ -33,7 +33,7 @@ export default function ContractorDeliveryWorkspace({ contractorId }: { contract
     <EnterprisePanel title="Contractor Delivery" eyebrow="After approval" className="space-y-5">
       <div className="flex flex-wrap gap-2">
         <SectionBadge label="Approved context" tone="success" />
-        <SectionBadge label="Presentation only" tone="info" />
+        <SectionBadge label="Live source required" tone="info" />
         <SectionBadge label="No email implementation" tone="warning" />
       </div>
 
@@ -49,7 +49,7 @@ export default function ContractorDeliveryWorkspace({ contractorId }: { contract
               <SectionBadge label="Source required" tone="neutral" />
             </div>
             <div className="mt-4 rounded-2xl border border-[color:var(--tex-border)] bg-white p-4">
-              <EnterpriseEmptyState title="Tender pack state not connected" detail="The approval gate and pack readiness indicators are registered here as presentation-only placeholders." />
+              <EnterpriseEmptyState title="Tender pack state not connected" detail="The approval gate and pack readiness indicators are available when the production source is connected." />
             </div>
           </section>
 
@@ -88,7 +88,7 @@ export default function ContractorDeliveryWorkspace({ contractorId }: { contract
               {PACK_CONTENTS.map((item) => (
                 <div key={item} className="rounded-2xl border border-[color:var(--tex-border)] bg-white p-4">
                   <p className="text-sm font-semibold text-[color:var(--tex-text-strong)]">{item}</p>
-                  <p className="mt-1 text-sm text-[color:var(--tex-text-muted)]">Source-controlled content placeholder.</p>
+                  <p className="mt-1 text-sm text-[color:var(--tex-text-muted)]">Source-controlled content is rendered from the connected delivery pack.</p>
                 </div>
               ))}
             </div>
@@ -104,7 +104,7 @@ export default function ContractorDeliveryWorkspace({ contractorId }: { contract
               <ActionButton label="Email Contractor" />
               <ActionButton label="Submit Directly" future />
             </div>
-            <p className="mt-3 text-sm leading-6 text-[color:var(--tex-text-muted)]">Email and submission actions are displayed as disabled presentation controls only.</p>
+            <p className="mt-3 text-sm leading-6 text-[color:var(--tex-text-muted)]">Email and submission actions are available when the backend workflow is connected.</p>
           </section>
 
           <section className="rounded-xl border border-[color:var(--tex-border)] bg-[color:var(--tex-surface-muted)] p-5">

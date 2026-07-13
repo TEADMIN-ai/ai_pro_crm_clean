@@ -825,7 +825,7 @@ function ExecutiveContractorProfile({
     <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
         <div><p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Executive Contractor Profile</p><h2 className="mt-1 text-xl font-semibold text-slate-950">Performance and Readiness Overview</h2></div>
-        <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-700">Presentation only</span>
+        <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-700">Operational view</span>
       </div>
       <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
         <SummaryItem label="Compliance Score" value={Math.round(complianceScore) + "%"} />
@@ -836,7 +836,7 @@ function ExecutiveContractorProfile({
         <SummaryItem label="Risk Rating" value={riskRating} />
       </div>
       <div className="mt-5 grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <div className="rounded-xl border border-slate-200 bg-slate-50 p-4"><p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">AI Recommendations</p><p className="mt-2 text-sm text-slate-700">AI recommendations placeholder. No automated recommendation logic is active in this view.</p></div>
+        <div className="rounded-xl border border-slate-200 bg-slate-50 p-4"><p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">AI Recommendations</p><p className="mt-2 text-sm text-slate-700">AI recommendations are not connected in this view.</p></div>
         <div className="rounded-xl border border-slate-200 bg-slate-50 p-4"><p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Timeline</p><div className="mt-3 space-y-2">{timeline.slice(0, 3).map((item) => (<p key={item.id} className="text-sm text-slate-700"><span className="font-semibold text-slate-900">{item.label}</span> - {formatDate(item.timestamp)}</p>))}{timeline.length === 0 ? <p className="text-sm text-slate-500">No timeline events recorded.</p> : null}</div></div>
         <div className="rounded-xl border border-slate-200 bg-slate-50 p-4"><p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Document Expiry Timeline</p><div className="mt-3 space-y-2">{documentExpiryTimeline.map((document) => (<p key={document.id} className="text-sm text-slate-700"><span className="font-semibold text-slate-900">{documentLabel(document)}</span> - {formatDate(document.expiresAt ?? document.expiryDate ?? document.aiData?.expiryDate)}</p>))}{documentExpiryTimeline.length === 0 ? <p className="text-sm text-slate-500">No document expiry dates recorded.</p> : null}</div></div>
       </div>

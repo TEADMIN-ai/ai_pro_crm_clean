@@ -39,12 +39,7 @@ function asNumber(value: unknown): number | undefined {
 }
 
 function normalizeTier(value: unknown): ContractorTier {
-  return value === "bronze" ||
-    value === "silver" ||
-    value === "gold" ||
-    value === "platinum"
-    ? value
-    : "basic";
+  return value === "bronze" || value === "silver" || value === "gold" || value === "platinum" ? value : "basic";
 }
 
 function defaultSubmissionLimitForTier(tier: ContractorTier): number {
@@ -65,45 +60,39 @@ function defaultSubmissionLimitForTier(tier: ContractorTier): number {
 
 export async function listContractors() {
   const snapshot = await getFirebaseAdmin().collection("contractors").get();
-  const includeDemoContractors =
-    process.env.NODE_ENV !== "production" && process.env.NEXT_PUBLIC_ENABLE_DEMO_CONTRACTORS === "true";
   const contractors = await Promise.all(
     snapshot.docs
       .map((doc) => ({
         id: doc.id,
         ...(doc.data() as Record<string, unknown>),
       }))
-      .filter((contractor) => includeDemoContractors || !isDemoContractorRecord(contractor))
+      .filter((contractor) => !isDemoContractorRecord(contractor))
       .map(async (contractor) => enrichContractorListItem(contractor)),
   );
 
   return contractors.sort((a, b) => {
-      const aCreatedAt = typeof a["createdAt"] === "number" ? a["createdAt"] : 0;
-      const bCreatedAt = typeof b["createdAt"] === "number" ? b["createdAt"] : 0;
-      return bCreatedAt - aCreatedAt;
-    });
+    const aCreatedAt = typeof a["createdAt"] === "number" ? a["createdAt"] : 0;
+    const bCreatedAt = typeof b["createdAt"] === "number" ? b["createdAt"] : 0;
+    return bCreatedAt - aCreatedAt;
+  });
 }
 
 function isDemoContractorRecord(contractor: Record<string, unknown>): boolean {
-  return (
-    contractor.demoContractor === true ||
+  return contractor.demoContractor === true ||
     contractor.benchmarkContractor === true ||
     contractor.regressionValidationContractor === true ||
     contractor.operationalReplayContractor === true ||
-    contractor.canonicalProfile === true
-  );
+    contractor.canonicalProfile === true;
 }
 
 function isReviewRequiredDocument(document: ContractorDocument): boolean {
-  return (
-    Boolean(document.fileUrl) &&
+  return Boolean(document.fileUrl) &&
     document.verified !== true &&
     (document.validationStatus === "REVIEW" ||
       document.manualDecisionAvailable === true ||
       document.aiStatus === "failed" ||
       document.extractionSource === "EMPTY" ||
-      document.status === "uploaded")
-  );
+      document.status === "uploaded");
 }
 
 function latestDocumentUpdate(documents: ContractorDocument[]): number | null {
@@ -190,8 +179,7 @@ export async function createContractor(
   const createdAt = typeof payload.createdAt === "number" ? payload.createdAt : Date.now();
   const updatedAt = new Date(createdAt).toISOString();
   const companyName = asString(payload.companyName) ?? asString(payload.name) ?? "Unnamed Contractor";
-  const companyRegistrationNumber =
-    asString(payload.companyRegistrationNumber) ?? asString(payload.registrationNumber);
+  const companyRegistrationNumber = asString(payload.companyRegistrationNumber) ?? asString(payload.registrationNumber);
   const email = asString(payload.email) ?? asString(payload.contactEmail);
   const phone = asString(payload.phone) ?? asString(payload.contactPhone);
   const status = asString(payload.status) ?? "pending";

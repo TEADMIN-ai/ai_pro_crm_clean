@@ -102,7 +102,7 @@ function ContractorMatchCard({ match, onAction }: { match: ContractorMatchRecomm
         </div>
         <div>
           <p className="tex-metric-label">Match Notes</p>
-          <p className="tex-copy mt-2 text-sm">{match.notes ?? "Presentation-only contractor recommendation."}</p>
+          <p className="tex-copy mt-2 text-sm">{match.notes ?? "Contractor recommendation notes are unavailable."}</p>
         </div>
       </div>
 
@@ -142,7 +142,7 @@ export default function ContractorMatchingPanel({ opportunityTitle, matches, onA
           <h2 className="mt-2 text-2xl font-semibold text-[color:var(--tex-text-strong)]">Recommended contractors</h2>
           <p className="tex-copy mt-2 text-sm">{opportunityTitle}</p>
         </div>
-        <EnterpriseStatusBadge value="Presentation only" tone="neutral" />
+        <EnterpriseStatusBadge value="No live source" tone="neutral" />
       </div>
       <div className="mt-6 grid gap-5">
         {BUCKETS.map((bucket) => {
@@ -156,7 +156,7 @@ export default function ContractorMatchingPanel({ opportunityTitle, matches, onA
                   ))}
                 </div>
               ) : (
-                <EnterpriseEmptyState title={"No " + bucket.title.toLowerCase()} detail="This opportunity does not currently have mock contractor records in this category." />
+                <EnterpriseEmptyState title={"No " + bucket.title.toLowerCase()} detail="This opportunity does not currently have live contractor records in this category." />
               )}
             </EnterprisePanel>
           );

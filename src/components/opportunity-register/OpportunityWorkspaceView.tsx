@@ -107,7 +107,7 @@ export default function OpportunityWorkspaceView({ opportunity }: { opportunity:
 
             <EnterpriseEmptyState
               title="No mutations are attached to this workspace."
-              detail="This view is presentation-only and exists to give the register a stable operational handoff surface."
+              detail="This view renders a live opportunity record when one is connected."
             />
           </div>
         </EnterprisePanel>

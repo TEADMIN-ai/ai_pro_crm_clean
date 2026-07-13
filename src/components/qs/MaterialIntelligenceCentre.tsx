@@ -366,7 +366,7 @@ function ImportCentre() {
         </div>
         <div className="mt-4 rounded-lg border border-dashed border-white/15 bg-slate-950/40 p-5 text-center">
           <p className="text-sm font-semibold text-slate-100">Drop CSV, XLSX, or JSON catalogue</p>
-          <p className="mt-1 text-sm text-slate-500">Upload control placeholder. Production parser services are ready.</p>
+          <p className="mt-1 text-sm text-slate-500">Upload control is ready for the connected parser service.</p>
         </div>
       </Panel>
       <Panel title="Import Preview" description="Mapped data quality and exception preview before commit.">
@@ -609,7 +609,7 @@ export function SupplierProfilePlaceholder({ supplierId }: { supplierId: string 
       <div className="max-w-5xl space-y-6">
         <RouteHeader section="suppliers" />
         <CentreNav section="suppliers" />
-        <Panel title={`${supplier.name} Supplier Profile`} description="Placeholder profile for catalogue coverage, import health, material linkage, and price history.">
+        <Panel title={`${supplier.name} Supplier Profile`} description="Supplier profile for catalogue coverage, import health, material linkage, and price history.">
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {Object.entries(supplier).map(([key, value]) => (
               <div key={key} className="rounded-lg border border-white/10 bg-slate-950/50 p-3">

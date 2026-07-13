@@ -44,6 +44,7 @@ export const API_ROUTES = {
   DEALS_INTELLIGENCE: "/api/deals/intelligence",
   DASHBOARD_ANALYTICS: "/api/deals/analytics",
   DASHBOARD_SUMMARY: "/api/dashboard/summary",
+  ENTERPRISE_KPIS: "/api/kpis/enterprise",
   HYGIENE: "/api/hygiene",
   HYGIENE_EVIDENCE: "/api/hygiene/evidence",
   HYGIENE_JOBS: "/api/hygiene/jobs",
@@ -133,3 +134,6 @@ export const API_ROUTES = {
 } as const;
 
 export type ApiRouteKey = keyof typeof API_ROUTES;
+
+
+
