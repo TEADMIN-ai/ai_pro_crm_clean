@@ -14,6 +14,8 @@ export type AuditLogAction =
   | "TENDER_PACK_REQUEST_STATUS_CHANGED"
   | "TENDER_PACK_REQUEST_GENERATED"
   | "DEAL_NOTE_CREATED"
+  | "CONTRACTOR_ARCHIVED"
+  | "CONTRACTOR_RESTORED"
   | "risk_created"
   | "risk_updated"
   | "risk_deleted"
