@@ -69,16 +69,30 @@ export class EmpirePdfFieldRegistry implements FieldRegistry {
   }
 }
 
+function normalizeTemplateFallback(field: TemplateFieldDefinition) {
+  const fallback = field.fallback;
+  const textBounds = field.textBounds;
+
+  return {
+    x: fallback?.x ?? 0,
+    y: fallback?.y ?? 0,
+    width: fallback?.width ?? textBounds?.width ?? 160,
+    height: fallback?.height ?? textBounds?.height ?? 14,
+  };
+}
+
 export function templateFieldToMetadata(field: TemplateFieldDefinition): PdfFieldMetadata {
+  const fallback = normalizeTemplateFallback(field);
+
   return {
     fieldName: field.fieldId,
     fieldType: field.fieldType,
     page: field.pageIndex,
     boundingRectangle: {
-      x: field.fallback.x,
-      y: field.fallback.y,
-      width: field.fallback.width,
-      height: field.fallback.height ?? field.textBounds.height ?? 14,
+      x: fallback.x,
+      y: fallback.y,
+      width: fallback.width,
+      height: fallback.height,
     },
     alignment: field.alignment,
     verticalAlignment: "baseline",

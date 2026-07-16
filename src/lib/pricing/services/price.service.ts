@@ -157,7 +157,7 @@ export class PriceService {
 
     const providers = this.selectProviders(context);
     if (providers.length === 0) {
-      return context.tenderData.pricing ?? null;
+      return aggregateQuotes(context.tenderData.pricing, [], this.strategy);
     }
 
     const quotes = await Promise.all(providers.map((provider) => provider.getQuote(context)));
