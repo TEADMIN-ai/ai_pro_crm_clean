@@ -1,7 +1,7 @@
 import { randomUUID } from "crypto";
 import { NextResponse, type NextRequest } from "next/server";
 import { getFirebaseStorageBucket } from "@/lib/firebase/admin";
-import { completeHygieneDriverAction, createHygieneSignature, generateHygieneManifest, getHygieneMobileJobs } from "@/lib/hygiene/hygieneService";
+import { completeHygieneDriverAction, createHygieneSignature, generateHygieneManifest, getHygieneMobileJobs, HygieneWorkflowError } from "@/lib/hygiene/hygieneService";
 import { AuthorizationError, requireAuthorizedUser } from "@/lib/server/authz";
 
 export const dynamic = "force-dynamic";
@@ -53,19 +53,62 @@ type JobPayload = {
   signatureDataUrl?: string;
 };
 
-function errorResponse(error: unknown) {
+type HygieneJobsRequestContext = {
+  method: "GET" | "POST";
+  userId?: string;
+  role?: string;
+  workspaceId?: string;
+  action?: string;
+  collectionId?: string;
+  stage: string;
+};
+
+function logHygieneJobsFailure(error: unknown, context: HygieneJobsRequestContext) {
+  const errorInfo = {
+    method: context.method,
+    userId: context.userId ?? "unauthenticated",
+    role: context.role ?? "unknown",
+    workspaceId: context.workspaceId ?? "default",
+    action: context.action ?? null,
+    collectionId: context.collectionId ?? null,
+    stage: context.stage,
+    errorType: error instanceof Error ? error.name : typeof error,
+    errorCode: error instanceof HygieneWorkflowError ? error.code : error instanceof AuthorizationError ? `auth_${error.status}` : "unexpected",
+    message: error instanceof Error ? error.message : "Hygiene mobile job request failed",
+  };
+
+  if (error instanceof HygieneWorkflowError || error instanceof AuthorizationError) {
+    console.warn("[HYGIENE_JOBS_CONTROLLED_ERROR]", errorInfo);
+    return;
+  }
+
+  console.error("[HYGIENE_JOBS_UNEXPECTED_ERROR]", errorInfo, error);
+}
+
+function errorResponse(error: unknown, context: HygieneJobsRequestContext) {
   if (error instanceof AuthorizationError) {
+    logHygieneJobsFailure(error, context);
     return NextResponse.json({ error: error.message }, { status: error.status });
   }
 
+  if (error instanceof HygieneWorkflowError) {
+    logHygieneJobsFailure(error, context);
+    return NextResponse.json({ error: error.message, code: error.code }, { status: error.status });
+  }
+
+  if (error instanceof SyntaxError) {
+    logHygieneJobsFailure(error, context);
+    return NextResponse.json({ error: "Invalid JSON payload." }, { status: 400 });
+  }
+
   const message = error instanceof Error ? error.message : "Hygiene mobile job request failed";
-  console.error("[HYGIENE_MOBILE_JOB_ERROR]", error);
+  logHygieneJobsFailure(error, context);
   return NextResponse.json({ error: message }, { status: 500 });
 }
 
 function requireString(value: unknown, label: string): string {
   if (typeof value !== "string" || value.trim().length === 0) {
-    throw new Error(`${label} is required.`);
+    throw new HygieneWorkflowError(`${label} is required.`, 400, "hygiene_request_invalid");
   }
 
   return value.trim();
@@ -114,27 +157,39 @@ async function uploadSignature(input: {
 }
 
 export async function GET(request: NextRequest) {
+  const context: HygieneJobsRequestContext = { method: "GET", stage: "auth" };
   try {
     const user = await requireAuthorizedUser(request);
+    context.userId = user.uid;
+    context.role = user.role;
+    context.stage = "list_jobs";
     const data = await getHygieneMobileJobs(user);
     return NextResponse.json({ success: true, data });
   } catch (error) {
-    return errorResponse(error);
+    return errorResponse(error, context);
   }
 }
 
 export async function POST(request: NextRequest) {
+  const context: HygieneJobsRequestContext = { method: "POST", stage: "auth" };
   try {
     const user = await requireAuthorizedUser(request);
+    context.userId = user.uid;
+    context.role = user.role;
+    context.stage = "parse_payload";
     const body = (await request.json().catch(() => ({}))) as JobPayload;
     const action = requireString(body.action, "action") as JobAction;
     const collectionId = requireString(body.collectionId, "collectionId");
+    context.action = action;
+    context.collectionId = collectionId;
+    context.stage = "validate_action";
 
     if (!["accept-job", "start-travel", "vehicle-inspection", "start-job", "start-collection", "arrival", "confirm-arrival", "begin-collection", "waste-collection", "before-photo", "checklist", "record-bin-count", "bag-removed", "liner-installed", "bin-sanitised", "after-photo", "capture-evidence", "capture-signature", "bin-serviced", "load-waste", "confirm-disposal", "quantity", "manifest", "generate-manifest", "signature", "awaiting-disposal", "complete-job"].includes(action)) {
       return NextResponse.json({ error: "Unsupported mobile job action." }, { status: 400 });
     }
 
     if (action === "signature") {
+      context.stage = "capture_signature";
       const signatureId = `TE-SIG-${Date.now()}-${randomUUID().slice(0, 8)}`;
       const representativeName = requireString(body.representativeName, "representativeName");
       const representativePosition = requireString(body.representativePosition, "representativePosition");
@@ -180,6 +235,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (action === "manifest" || action === "generate-manifest") {
+      context.stage = "generate_manifest";
       const manifest = await generateHygieneManifest(user, collectionId);
       return NextResponse.json({ success: true, manifest });
     }
@@ -200,6 +256,7 @@ export async function POST(request: NextRequest) {
       : action === "quantity" ? "record-bin-count"
       : action;
 
+    context.stage = "complete_driver_action";
     const event = await completeHygieneDriverAction(user, {
       collectionId,
       action: normalizedAction,
@@ -226,6 +283,6 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true, event });
   } catch (error) {
-    return errorResponse(error);
+    return errorResponse(error, context);
   }
 }

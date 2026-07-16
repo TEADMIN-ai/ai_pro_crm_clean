@@ -71,6 +71,18 @@ export const HYGIENE_COLLECTIONS = {
 type CollectionName = (typeof HYGIENE_COLLECTIONS)[keyof typeof HYGIENE_COLLECTIONS];
 type HygieneDashboardDataOptions = { showTestData?: boolean };
 
+export class HygieneWorkflowError extends Error {
+  status: number;
+  code: string;
+
+  constructor(message: string, status = 409, code = "hygiene_workflow_conflict") {
+    super(message);
+    this.name = "HygieneWorkflowError";
+    this.status = status;
+    this.code = code;
+  }
+}
+
 export function assertHygieneInternalAccess(user: AuthorizedUser): void {
   if (user.role !== "admin" && user.role !== "manager" && user.role !== "staff" && user.role !== "driver") {
     throw new AuthorizationError("Hygiene dashboard is restricted to internal Torque Empire users.", 403);
@@ -520,7 +532,7 @@ export async function getHygieneMobileJobs(user: AuthorizedUser): Promise<Hygien
 async function getCollectionForWorkflow(collectionId: string, user: AuthorizedUser): Promise<HygieneCollection> {
   const snapshot = await getFirebaseAdmin().collection(HYGIENE_COLLECTIONS.collections).doc(collectionId).get();
   if (!snapshot.exists) {
-    throw new Error(`Hygiene collection does not exist: ${collectionId}`);
+    throw new HygieneWorkflowError(`Hygiene collection does not exist: ${collectionId}`, 404, "hygiene_collection_not_found");
   }
 
   const collection = validateHygieneCollection(snapshot.data());
@@ -1044,27 +1056,27 @@ export async function completeHygieneDriverAction(user: AuthorizedUser, input: {
   }
 
   const workflowStepId = getDriverWorkflowActionStepId(normalizedAction);
-  if (!workflowStepId) throw new Error("Unsupported hygiene driver action.");
+  if (!workflowStepId) throw new HygieneWorkflowError("Unsupported hygiene driver action.", 400, "hygiene_action_invalid");
 
   const snapshot = deriveDriverWorkflowSnapshot(collection);
   const expectedStep = DRIVER_COLLECTION_WORKFLOW_STEPS[snapshot.completedSteps.length]?.stepId ?? "job-completed";
   if (workflowStepId !== expectedStep) {
-    throw new Error(`Cannot complete ${workflowStepId.replace(/-/g, " ")} before ${expectedStep.replace(/-/g, " ")}.`);
+    throw new HygieneWorkflowError(`Cannot complete ${workflowStepId.replace(/-/g, " ")} before ${expectedStep.replace(/-/g, " ")}.`, 409, "hygiene_workflow_step_conflict");
   }
 
   if (workflowStepId === "job-completed") {
     const overrideReason = typeof metadata.adminOverrideReason === "string" ? metadata.adminOverrideReason.trim() : "";
     if (!hasEvent("evidence_uploaded", (event) => event.metadata.category === "Bin Before Service") && !overrideReason) {
-      throw new Error("Cannot complete job without before photo.");
+      throw new HygieneWorkflowError("Cannot complete job without before photo.", 409, "hygiene_workflow_missing_before_photo");
     }
     if (!hasEvent("evidence_uploaded", (event) => event.metadata.category === "Completion Photo") && !overrideReason) {
-      throw new Error("Cannot complete job without after photo.");
+      throw new HygieneWorkflowError("Cannot complete job without after photo.", 409, "hygiene_workflow_missing_after_photo");
     }
     if (typeof collection.binCountConfirmed !== "number" && typeof metadata.binCount !== "number" && !overrideReason) {
-      throw new Error("Cannot complete job without bin count.");
+      throw new HygieneWorkflowError("Cannot complete job without bin count.", 409, "hygiene_workflow_missing_bin_count");
     }
     if (collection.clientSignatureStatus !== "Signature captured" && !overrideReason) {
-      throw new Error("Cannot complete job without signature unless admin override reason is provided.");
+      throw new HygieneWorkflowError("Cannot complete job without signature unless admin override reason is provided.", 409, "hygiene_workflow_missing_signature");
     }
     if (overrideReason) {
       await updateCollectionPatch(collection.collectionId, { adminOverrideReason: overrideReason });
