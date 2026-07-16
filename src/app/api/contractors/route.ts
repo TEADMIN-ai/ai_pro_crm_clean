@@ -87,7 +87,8 @@ export async function GET(request: NextRequest) {
     const user = await requireAuthorizedUser(request);
     assertPrivilegedRole(user);
 
-    const contractors = await listContractors();
+    const includeArchived = request.nextUrl.searchParams.get("includeArchived") === "true" && user.role === "admin";
+    const contractors = await listContractors({ includeArchived });
     return NextResponse.json(contractors);
   } catch (error: any) {
     if (error instanceof AuthorizationError) {

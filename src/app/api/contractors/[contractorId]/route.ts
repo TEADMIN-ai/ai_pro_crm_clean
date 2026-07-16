@@ -1,16 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAuth } from "firebase-admin/auth";
 import { logActivity } from "@/lib/activity/logActivity";
-import { getFirebaseAdmin } from "@/lib/firebase/admin";
 import { AuthorizationError, assertCanAccessContractor, assertPrivilegedRole, requireAuthorizedUser } from "@/lib/server/authz";
-import { getContractorById, listContractorDocuments, updateContractorById } from "@/server/services/contractorService";
+import { listContractorDocuments, resolveContractorForAccess, updateContractorById } from "@/server/services/contractorService";
 
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ contractorId: string }> }
 ) {
   try {
-    const db = getFirebaseAdmin();
     const user = await requireAuthorizedUser(req);
     const { contractorId } = await params;
 
@@ -18,17 +15,28 @@ export async function GET(
       return NextResponse.json({ success: false, error: "Missing contractorId" }, { status: 400 });
     }
 
-    assertCanAccessContractor(user, contractorId);
+    const resolved = await resolveContractorForAccess({
+      contractorReference: contractorId,
+      actor: user,
+      logContext: "api.contractors.detail",
+    });
 
-    const contractor = await getContractorById(contractorId);
-    if (!contractor) {
-      return NextResponse.json({ success: false, error: "Contractor not found" }, { status: 404 });
+    if (resolved.ok === false) {
+      const status = resolved.failureReason === "unauthorized_contractor" || resolved.failureReason === "cross_workspace" ? 403 : 404;
+      return NextResponse.json({ success: false, error: "Contractor not found", reason: resolved.failureReason }, { status });
     }
-    const documentRecords = await listContractorDocuments(contractorId);
+
+    assertCanAccessContractor(user, resolved.contractorId);
+
+    const documentRecords = await listContractorDocuments(resolved.contractorId);
 
     return NextResponse.json({
       success: true,
-      ...contractor,
+      ...resolved.contractor,
+      id: resolved.contractorId,
+      contractorId: resolved.contractorId,
+      storedContractorReference: resolved.storedReference,
+      contractorReferenceType: resolved.referenceType,
       documentRecords,
     });
   } catch (error) {
@@ -74,51 +82,6 @@ export async function PATCH(
   }
 }
 
-export async function DELETE(
-  req: NextRequest,
-  { params }: { params: Promise<{ contractorId: string }> }
-) {
-  try {
-    const db = getFirebaseAdmin();
-    const user = await requireAuthorizedUser(req);
-    const { contractorId } = await params;
-
-    if (!contractorId) {
-      return NextResponse.json({ success: false, error: "Missing contractorId" }, { status: 400 });
-    }
-
-    assertPrivilegedRole(user);
-
-    const contractorRef = db.collection("contractors").doc(contractorId);
-    const contractorSnap = await contractorRef.get();
-
-    if (!contractorSnap.exists) {
-      return NextResponse.json({ error: "Contractor not found" }, { status: 404 });
-    }
-
-    const contractor = contractorSnap.data() as Record<string, unknown> | undefined;
-    const authUid =
-      typeof contractor?.authUid === "string" && contractor.authUid.trim().length > 0
-        ? contractor.authUid.trim()
-        : "";
-
-    if (!authUid) {
-      return NextResponse.json(
-        { error: "Missing authUid. Cannot delete securely." },
-        { status: 400 }
-      );
-    }
-
-    await getAuth().deleteUser(authUid);
-    await contractorRef.delete();
-
-    return NextResponse.json({ success: true });
-  } catch (error) {
-    if (error instanceof AuthorizationError) {
-      return NextResponse.json({ success: false, error: error.message }, { status: error.status });
-    }
-
-    console.error("DELETE Contractor Error:", error);
-    return NextResponse.json({ success: false, error: "Delete failed" }, { status: 500 });
-  }
+export async function DELETE() {
+  return NextResponse.json({ success: false, error: "Hard deletion is disabled. Use contractor archive instead." }, { status: 405 });
 }

@@ -10,6 +10,7 @@ import {
   type SupportedDocumentType,
 } from "@/lib/compliance/contractorCompliance";
 import { matchRequirements } from "@/lib/tender/matchRequirements";
+import { getDealContractorDisplayName, isDealContractorResolved } from "@/lib/deals/contractorReferenceDisplay";
 
 export const dynamic = "force-dynamic";
 export const fetchCache = "force-no-store";
@@ -22,6 +23,14 @@ type Deal = {
   readinessScore?: number;
   riskLevel?: string;
   contractorId?: string;
+  contractorName?: string;
+  storedContractorReference?: string | null;
+  contractorReferenceResolution?: {
+    status: "resolved" | "unresolved";
+    referenceType?: string;
+    contractorId?: string;
+    failureReason?: string;
+  } | null;
   missingDocs?: string[];
   suggestions?: string[];
 };
@@ -64,6 +73,7 @@ const DEFAULT_STATUS: StatusState = {
 function getDealTitle(deal: Deal): string {
   return deal.title?.trim() || deal.name?.trim() || `Deal ${deal.id}`;
 }
+
 
 function getErrorMessage(error: unknown): string {
   if (error instanceof Error && error.message.trim().length > 0) {
@@ -304,7 +314,7 @@ export default function DealsPage() {
       selectedContractor.isTenderLocked !== true
     );
   const canGeneratePack = Boolean(
-    selectedDeal?.contractorId &&
+    isDealContractorResolved(selectedDeal) &&
       contractorReady &&
       (readinessMatch?.ready ?? true)
   );
@@ -400,7 +410,7 @@ export default function DealsPage() {
       }
 
       try {
-        await loadSelectedContractor(selectedDeal.contractorId);
+        await loadSelectedContractor((selectedDeal.contractorId as string));
       } catch (error) {
         console.error("Failed to load contractor readiness data:", error);
         setSelectedContractor(null);
@@ -455,18 +465,18 @@ export default function DealsPage() {
       let endpoint: string = API_ROUTES.DOCUMENT_UPLOAD_ANALYZE;
 
       if (kind === "compliance") {
-        if (!selectedDeal.contractorId?.trim()) {
+        if (!(selectedDeal.contractorId as string)?.trim()) {
           throw new Error("A valid contractor must be linked before uploading compliance documents.");
         }
 
-        formData.append("contractorId", selectedDeal.contractorId);
+        formData.append("contractorId", (selectedDeal.contractorId as string));
         formData.append("documentType", complianceDocumentType);
         endpoint = API_ROUTES.DOCUMENT_UPLOAD;
       } else {
         formData.append("dealId", selectedDeal.id);
 
-        if (selectedDeal.contractorId?.trim()) {
-          formData.append("contractorId", selectedDeal.contractorId);
+        if ((selectedDeal.contractorId as string)?.trim()) {
+          formData.append("contractorId", (selectedDeal.contractorId as string));
         }
       }
 
@@ -488,8 +498,8 @@ export default function DealsPage() {
 
       await response.json();
       await loadData(true);
-      if (selectedDeal.contractorId) {
-        await loadSelectedContractor(selectedDeal.contractorId);
+      if ((selectedDeal.contractorId as string)) {
+        await loadSelectedContractor((selectedDeal.contractorId as string));
       }
 
       setStatus({
@@ -535,7 +545,7 @@ export default function DealsPage() {
       return;
     }
 
-    if (!selectedDeal.contractorId) {
+    if (!(selectedDeal.contractorId as string)) {
       const message = "Generate Pack is disabled until a contractor is linked to the selected deal.";
       setPackStatus({
         label: "Error occurred",
@@ -559,7 +569,7 @@ export default function DealsPage() {
         method: "POST",
         body: JSON.stringify({
           dealId: selectedDeal.id,
-          contractorId: selectedDeal.contractorId,
+          contractorId: (selectedDeal.contractorId as string),
         }),
       });
 
@@ -682,9 +692,7 @@ export default function DealsPage() {
                 {selectedDeal ? getDealTitle(selectedDeal) : "No deal selected"}
               </p>
               <p className="mt-2 text-sm text-slate-500">
-                {selectedDeal?.contractorId?.trim()
-                  ? `Linked contractor: ${selectedDeal.contractorId}`
-                  : "No contractor linked yet"}
+                {getDealContractorDisplayName(selectedDeal)}
               </p>
             </div>
 
@@ -833,7 +841,7 @@ export default function DealsPage() {
                       </div>
 
                       <div className="rounded-2xl bg-sky-50 px-4 py-3 text-sm text-sky-800 ring-1 ring-inset ring-sky-200">
-                        Contractor Link: {selectedDeal?.contractorId?.trim() || "Required for pack generation"}
+                        Contractor Link: {getDealContractorDisplayName(selectedDeal)}
                       </div>
                     </div>
 
@@ -938,15 +946,22 @@ export default function DealsPage() {
 
                     {!canGeneratePack && selectedDeal ? (
                       <div className="mt-6 rounded-3xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-900">
-                        {selectedDeal.contractorId?.trim()
-                          ? selectedContractor?.complianceApproved
-                            ? "Generate Pack is disabled until contractor requirements are valid for this tender."
-                            : "Generate Pack is disabled until contractor compliance is approved."
-                          : "Generate Pack is disabled because this deal has no linked contractor."}
+                        {selectedDeal.contractorReferenceResolution?.status === "unresolved"
+                          ? "Linked contractor record could not be resolved."
+                          : isDealContractorResolved(selectedDeal)
+                            ? selectedContractor?.complianceApproved
+                              ? "Generate Pack is disabled until contractor requirements are valid for this tender."
+                              : "Generate Pack is disabled until contractor compliance is approved."
+                            : "Generate Pack is disabled because this deal has no linked contractor."}
                       </div>
                     ) : null}
 
-                    {!selectedDeal?.contractorId && selectedDeal ? (
+                    {selectedDeal && selectedDeal.contractorReferenceResolution?.status === "unresolved" ? (
+                      <div className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">
+                        <p className="font-semibold">Linked contractor record could not be resolved.</p>
+                        <p className="mt-1">Administrator repair is required before contractor actions can continue.</p>
+                      </div>
+                    ) : !isDealContractorResolved(selectedDeal) && selectedDeal ? (
                       <div className="mt-4 text-sm text-red-600">
                         This deal is not linked to a contractor. Actions are restricted.
                       </div>
@@ -1070,10 +1085,22 @@ export default function DealsPage() {
                                   </td>
                                   <td className="px-6 py-4 text-sm text-slate-600">
                                     <div className="space-y-1">
-                                      <p className="text-sm font-medium text-slate-900">{deal.contractorId?.trim() ? "Linked contractor" : "Not linked"}</p>
-                                      {deal.contractorId?.trim() ? (
-                                        <p className="font-mono text-xs text-slate-500">ID {deal.contractorId.trim()}</p>
-                                      ) : null}
+                                      {deal.contractorReferenceResolution?.status === "unresolved" ? (
+                                        <>
+                                          <p className="text-sm font-medium text-rose-700">Linked contractor record could not be resolved.</p>
+                                          <p className="text-xs text-slate-500">Administrator repair required</p>
+                                        </>
+                                      ) : deal.contractorId?.trim() ? (
+                                        <Link
+                                          href={`/dashboard/contractors/${encodeURIComponent(deal.contractorId.trim())}`}
+                                          className="text-sm font-medium text-sky-700 hover:text-sky-900"
+                                          onClick={(event) => event.stopPropagation()}
+                                        >
+                                          {getDealContractorDisplayName(deal)}
+                                        </Link>
+                                      ) : (
+                                        <p className="text-sm font-medium text-slate-900">Not linked</p>
+                                      )}
                                     </div>
                                   </td>
                                 </tr>

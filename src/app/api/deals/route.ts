@@ -17,6 +17,7 @@ import { generateAIInsights } from "@/lib/ai/generateInsights";
 import { calculateReadiness } from "@/lib/engine/readinessEngine";
 import { generateFixSuggestions } from "@/lib/engine/fixSuggestions";
 import { analyzeTenderText } from "@/lib/tenderAnalysisService";
+import { getContractorBusinessName, resolveContractorReference } from "@/lib/contractors/contractorReferenceResolver";
 
 const db = getFirebaseAdmin();
 
@@ -187,6 +188,21 @@ export const GET = withGovernanceObservation(
             ? data.aiInsights
             : null;
 
+        const contractorResolution = contractorId
+          ? await resolveContractorReference({
+              reference: contractorId,
+              actor: user,
+              expectedWorkspaceId: typeof data.workspaceId === "string" ? data.workspaceId : null,
+              dealId: doc.id,
+              logContext: "api.deals.list",
+            })
+          : null;
+        const resolvedContractor = contractorResolution?.ok === true ? contractorResolution.contractor : null;
+        const canonicalContractorId = contractorResolution?.ok === true ? contractorResolution.contractorId : contractorId;
+        const resolvedContractorName = resolvedContractor
+          ? getContractorBusinessName(resolvedContractor)
+          : getString(data.contractorName) || getString(data.companyName) || null;
+
         const shouldGenerateAI = !aiInsights || isStale || readinessChanged;
 
         if (shouldGenerateAI) {
@@ -320,6 +336,21 @@ export const GET = withGovernanceObservation(
         return {
           id: doc.id,
           ...data,
+          contractorId: canonicalContractorId ?? undefined,
+          contractorName: resolvedContractorName ?? undefined,
+          storedContractorReference: contractorId,
+          contractorReferenceResolution: contractorResolution
+            ? contractorResolution.ok === true
+              ? {
+                  status: "resolved",
+                  referenceType: contractorResolution.referenceType,
+                  contractorId: contractorResolution.contractorId,
+                }
+              : {
+                  status: "unresolved",
+                  failureReason: contractorResolution.failureReason,
+                }
+            : null,
           ...readiness,
           suggestions,
           aiInsights: aiInsights || null,
@@ -370,24 +401,28 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const contractorSnapshot = await db.collection("contractors").doc(contractorId).get();
+    const contractorResolution = await resolveContractorReference({
+      reference: contractorId,
+      actor: user,
+      logContext: "api.deals.create",
+    });
 
-    if (!contractorSnapshot.exists) {
+    if (contractorResolution.ok === false) {
       return NextResponse.json(
-        { error: "Invalid contractorId" },
+        { error: "Invalid contractorId", reason: contractorResolution.failureReason },
         { status: 400 }
       );
     }
 
-    const contractor = (contractorSnapshot.data() ?? {}) as Record<string, unknown>;
+    const contractor = contractorResolution.contractor;
+    const canonicalContractorId = contractorResolution.contractorId;
     const createdAt = new Date().toISOString();
     const newDeal = {
-      contractorId,
+      contractorId: canonicalContractorId,
+      storedContractorReference: contractorId,
       contractorName:
-        getString(contractor.companyName) ||
-        getString(contractor.company) ||
-        getString(contractor.name) ||
-        contractorId,
+        getContractorBusinessName(contractor) ||
+        canonicalContractorId,
       title,
       name: title,
       status: "NEW",

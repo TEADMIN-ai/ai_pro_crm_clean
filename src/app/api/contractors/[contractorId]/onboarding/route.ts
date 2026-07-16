@@ -11,7 +11,7 @@ import {
   getLatestContractorAcknowledgement,
   getLatestValidContractorSignature,
 } from "@/server/services/contractorAcknowledgementService";
-import { getContractorById, listContractorDocuments } from "@/server/services/contractorService";
+import { listContractorDocuments, resolveContractorForAccess } from "@/server/services/contractorService";
 import {
   buildContractorOperationalTimeline,
   buildLastAction,
@@ -93,27 +93,36 @@ export async function GET(
       return jsonError("Missing contractorId", 400);
     }
 
-    assertCanAccessContractor(user, contractorId);
+    const resolved = await resolveContractorForAccess({
+      contractorReference: contractorId,
+      actor: user,
+      logContext: "api.contractors.onboarding",
+    });
 
-    const contractor = await getContractorById(contractorId);
-    if (!contractor) {
-      return jsonError("Contractor not found", 404);
+    if (resolved.ok === false) {
+      const status = resolved.failureReason === "unauthorized_contractor" || resolved.failureReason === "cross_workspace" ? 403 : 404;
+      return jsonError("Contractor not found", status);
     }
+
+    assertCanAccessContractor(user, resolved.contractorId);
+
+    const canonicalContractorId = resolved.contractorId;
+    const contractor = resolved.contractor;
 
     const contractorRole = user.role === "contractor";
     const [documents, deals, notes, commandNotes, timeline, acknowledgement, signaturePayload] = await Promise.all([
-      listContractorDocuments(contractorId),
+      listContractorDocuments(canonicalContractorId),
       listDealsForUser(user),
-      listContractorNotes(contractorId, contractorRole),
-      contractorRole ? Promise.resolve([]) : listContractorCommandNotes(contractorId),
-      contractorRole ? Promise.resolve([]) : buildContractorOperationalTimeline(contractorId),
-      getLatestContractorAcknowledgement(contractorId),
-      getLatestValidContractorSignature(contractorId),
+      listContractorNotes(canonicalContractorId, contractorRole),
+      contractorRole ? Promise.resolve([]) : listContractorCommandNotes(canonicalContractorId),
+      contractorRole ? Promise.resolve([]) : buildContractorOperationalTimeline(canonicalContractorId),
+      getLatestContractorAcknowledgement(canonicalContractorId),
+      getLatestValidContractorSignature(canonicalContractorId),
     ]);
     const lastAction = contractorRole ? null : buildLastAction(timeline);
 
     const linkedDeals = deals
-      .filter((deal) => deal.contractorId === contractorId)
+      .filter((deal) => deal.contractorId === canonicalContractorId)
       .map((deal) => ({
         id: deal.id,
         title: deal.title,
@@ -132,7 +141,13 @@ export async function GET(
 
     return NextResponse.json(
       {
-        contractor,
+        contractor: {
+          ...contractor,
+          id: canonicalContractorId,
+          contractorId: canonicalContractorId,
+          storedContractorReference: resolved.storedReference,
+          contractorReferenceType: resolved.referenceType,
+        },
         documents,
         notes,
         commandNotes,

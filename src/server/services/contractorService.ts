@@ -1,11 +1,17 @@
 import { getFirebaseAdmin } from "@/lib/firebase/admin";
 import {
+  getContractorBusinessName,
+  resolveContractorReference,
+  type ContractorReferenceResolution,
+} from "@/lib/contractors/contractorReferenceResolver";
+import {
   calculateContractorCompliance,
   normalizeContractorUploadDocumentType,
   normalizeSupportedDocumentType,
   SUPPORTED_DOCUMENT_TYPES,
 } from "@/lib/compliance/contractorCompliance";
-import type { AuthorizedUser } from "@/lib/server/authz";
+import { recordAuditLog } from "@/server/services/auditLogService";
+import { AuthorizationError, type AuthorizedUser } from "@/lib/server/authz";
 import type { ContractorTier } from "@/types/contractor";
 import type { ContractorDocument } from "@/types/document";
 
@@ -58,23 +64,37 @@ function defaultSubmissionLimitForTier(tier: ContractorTier): number {
   }
 }
 
-export async function listContractors() {
-  const snapshot = await getFirebaseAdmin().collection("contractors").get();
+export async function listContractors(options: { includeArchived?: boolean } = {}) {
+  const queryPath = "contractors";
+  const snapshot = await getFirebaseAdmin().collection(queryPath).get();
+  const rawContractors: Array<Record<string, unknown> & { id: string }> = snapshot.docs.map((doc) => ({
+    id: doc.id,
+    ...(doc.data() as Record<string, unknown>),
+  }));
+  const filteredDemoRecords = rawContractors.filter(isDemoContractorRecord).length;
   const contractors = await Promise.all(
-    snapshot.docs
-      .map((doc) => ({
-        id: doc.id,
-        ...(doc.data() as Record<string, unknown>),
-      }))
+    rawContractors
       .filter((contractor) => !isDemoContractorRecord(contractor))
+      .filter((contractor) => options.includeArchived === true || contractor.archived !== true)
       .map(async (contractor) => enrichContractorListItem(contractor)),
   );
-
-  return contractors.sort((a, b) => {
+  const legacyRecords = contractors.filter((contractor) => !asString((contractor as Record<string, unknown>).workspaceId)).length;
+  const sortedContractors = contractors.sort((a, b) => {
     const aCreatedAt = typeof a["createdAt"] === "number" ? a["createdAt"] : 0;
     const bCreatedAt = typeof b["createdAt"] === "number" ? b["createdAt"] : 0;
     return bCreatedAt - aCreatedAt;
   });
+
+  console.info("[contractor-repository] list", {
+    queryPath,
+    filters: { excludedDemoRecords: true, workspaceId: null },
+    recordsReturned: sortedContractors.length,
+    legacyRecordsDetected: legacyRecords,
+    rejectedCrossWorkspaceRecords: 0,
+    filteredDemoRecords,
+  });
+
+  return sortedContractors;
 }
 
 function isDemoContractorRecord(contractor: Record<string, unknown>): boolean {
@@ -253,6 +273,26 @@ export async function getContractorById(contractorId: string) {
   };
 }
 
+export async function resolveContractorForAccess(input: {
+  contractorReference: string;
+  actor?: Pick<AuthorizedUser, "role" | "contractorId"> | null;
+  expectedWorkspaceId?: string | null;
+  dealId?: string | null;
+  logContext?: string;
+}): Promise<ContractorReferenceResolution> {
+  return resolveContractorReference({
+    reference: input.contractorReference,
+    actor: input.actor,
+    expectedWorkspaceId: input.expectedWorkspaceId,
+    dealId: input.dealId,
+    logContext: input.logContext,
+  });
+}
+
+export function getContractorDisplayName(contractor: Record<string, unknown>): string {
+  return getContractorBusinessName(contractor);
+}
+
 export async function updateContractorById(contractorId: string, updates: Record<string, unknown>) {
   await getFirebaseAdmin().collection("contractors").doc(contractorId).update({
     ...updates,
@@ -260,8 +300,8 @@ export async function updateContractorById(contractorId: string, updates: Record
   });
 }
 
-export async function deleteContractorById(contractorId: string) {
-  await getFirebaseAdmin().collection("contractors").doc(contractorId).delete();
+export async function deleteContractorById(_contractorId: string) {
+  throw new Error("Hard deletion of contractor records is disabled. Use archiveContractorById instead.");
 }
 
 export async function listContractorDocuments(contractorId: string) {
@@ -400,4 +440,98 @@ export async function getContractorDocument(contractorId: string, documentType: 
     .get();
 
   return snapshot;
+}
+
+
+export type ContractorArchiveActor = Pick<AuthorizedUser, "uid" | "email" | "role"> & {
+  workspaceId?: string | null;
+};
+
+function assertAdminArchiveActor(actor: ContractorArchiveActor): void {
+  if (actor.role !== "admin") {
+    throw new AuthorizationError("Contractor archive requires admin authorisation", 403);
+  }
+}
+
+function contractorWorkspaceId(contractor: Record<string, unknown>): string | null {
+  const workspace = contractor.workspace && typeof contractor.workspace === "object"
+    ? (contractor.workspace as Record<string, unknown>)
+    : null;
+  return asString(contractor.workspaceId) ?? asString(workspace?.id) ?? null;
+}
+
+function assertArchiveWorkspace(actor: ContractorArchiveActor, contractor: Record<string, unknown>): void {
+  const actorWorkspaceId = asString(actor.workspaceId);
+  const recordWorkspaceId = contractorWorkspaceId(contractor);
+  if (actorWorkspaceId && recordWorkspaceId && actorWorkspaceId !== recordWorkspaceId) {
+    throw new AuthorizationError("Cross-workspace contractor archive rejected", 403);
+  }
+}
+
+export async function archiveContractorById(input: {
+  contractorId: string;
+  reason: string;
+  actor: ContractorArchiveActor;
+}): Promise<Record<string, unknown> & { id: string }> {
+  assertAdminArchiveActor(input.actor);
+  const contractor = await getContractorById(input.contractorId);
+  if (!contractor) {
+    throw new Error("Contractor not found");
+  }
+  assertArchiveWorkspace(input.actor, contractor);
+
+  const archivedAt = new Date().toISOString();
+  const originalStatus = asString((contractor as Record<string, unknown>).status) ?? null;
+  const archiveReason = input.reason.trim() || "Manual contractor repository archive";
+  await updateContractorById(input.contractorId, {
+    archived: true,
+    archivedAt,
+    archivedBy: input.actor.uid,
+    archivedByEmail: input.actor.email ?? null,
+    archiveReason,
+    originalStatus,
+  });
+
+  await recordAuditLog({
+    userId: input.actor.uid,
+    action: "CONTRACTOR_ARCHIVED",
+    entityType: "contractor",
+    entityId: input.contractorId,
+    metadata: { reason: archiveReason, originalStatus, archivedAt },
+  });
+
+  return (await getContractorById(input.contractorId)) as Record<string, unknown> & { id: string };
+}
+
+export async function restoreContractorById(input: {
+  contractorId: string;
+  actor: ContractorArchiveActor;
+  reason?: string;
+}): Promise<Record<string, unknown> & { id: string }> {
+  assertAdminArchiveActor(input.actor);
+  const contractor = await getContractorById(input.contractorId);
+  if (!contractor) {
+    throw new Error("Contractor not found");
+  }
+  assertArchiveWorkspace(input.actor, contractor);
+
+  const restoredAt = new Date().toISOString();
+  const restoreReason = input.reason?.trim() || "Manual contractor repository restore";
+  await updateContractorById(input.contractorId, {
+    archived: false,
+    restoredAt,
+    restoredBy: input.actor.uid,
+    restoredByEmail: input.actor.email ?? null,
+    restoreReason,
+  });
+
+  await recordAuditLog({
+    userId: input.actor.uid,
+    action: "CONTRACTOR_RESTORED",
+    entityType: "contractor",
+    entityId: input.contractorId,
+    metadata: { reason: restoreReason, restoredAt },
+  });
+
+  return (await getContractorById(input.contractorId)) as Record<string, unknown> & { id: string };
 }
