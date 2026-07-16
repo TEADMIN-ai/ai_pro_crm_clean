@@ -32,8 +32,6 @@ function containsWord(haystack: string, words: string[]) {
 }
 
 export function inferHygieneRecordClassification(record: Record<string, unknown>): HygieneRecordClassification {
-  const explicit = normalizeToken(record.recordClassification) ?? normalizeToken(record.classification) ?? normalizeToken(record.dataClassification) ?? normalizeToken(record.dataClass) ?? normalizeToken(record.environment) ?? normalizeToken(record.recordType)
-  if (explicit) return explicit
   if (record.archived === true) return "ARCHIVED"
   if (normalizeToken(record.recordStatus) === "ARCHIVED") return "ARCHIVED"
 
@@ -47,6 +45,9 @@ export function inferHygieneRecordClassification(record: Record<string, unknown>
   if (containsWord(haystack, TEST_WORDS)) return "TEST"
   if (haystack.toLowerCase().includes("example.com")) return "DEMO"
   if (containsWord(haystack, DEMO_WORDS)) return "DEMO"
+
+  const explicit = normalizeToken(record.recordClassification) ?? normalizeToken(record.classification) ?? normalizeToken(record.dataClassification) ?? normalizeToken(record.dataClass) ?? normalizeToken(record.environment) ?? normalizeToken(record.recordType)
+  if (explicit) return explicit
   return "PRODUCTION"
 }
 
