@@ -58,6 +58,7 @@ export const cbavoClient: HygieneClient = {
   paymentStatus: "Paid",
   status: "Active",
   monthlyRevenue: CBAVO_MONTHLY_REVENUE,
+  recordClassification: "PRODUCTION",
   createdAt: now,
   updatedAt: now,
 };

@@ -1,6 +1,7 @@
 export type HygieneInternalRole = "admin" | "manager" | "staff" | "driver";
 export type HygieneClientPortalRole = "hygieneClient" | "hygieneContractor";
 export type HygieneAccessMode = "internal" | "clientPortal";
+export type HygieneRecordClassification = "PRODUCTION" | "TEST" | "DEMO" | "ARCHIVED";
 
 export type HygieneClientStatus = "Active" | "Pending" | "Inactive" | "Suspended";
 export type HygienePaymentStatus = "Paid" | "Pending" | "Overdue";
@@ -59,6 +60,7 @@ export interface HygieneClient {
   paymentStatus: HygienePaymentStatus;
   status: HygieneClientStatus;
   monthlyRevenue: number;
+  recordClassification: HygieneRecordClassification;
   createdAt: string;
   updatedAt: string;
 }

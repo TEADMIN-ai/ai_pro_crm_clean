@@ -19,6 +19,8 @@ import {
   cbavoSites,
   cbavoVehicleInspections,
 } from "@/lib/hygiene/hygieneSeed";
+import { inferHygieneRecordClassification, isOperationalHygieneRecord, normalizeHygieneRecordClassification } from "@/lib/hygiene/recordClassification";
+import { filterHygieneDashboardDataForVisibility } from "@/lib/hygiene/hygieneVisibility";
 import {
   validateHygieneBinAsset,
   validateHygieneClient,
@@ -67,6 +69,7 @@ export const HYGIENE_COLLECTIONS = {
 } as const;
 
 type CollectionName = (typeof HYGIENE_COLLECTIONS)[keyof typeof HYGIENE_COLLECTIONS];
+type HygieneDashboardDataOptions = { showTestData?: boolean };
 
 export function assertHygieneInternalAccess(user: AuthorizedUser): void {
   if (user.role !== "admin" && user.role !== "manager" && user.role !== "staff" && user.role !== "driver") {
@@ -146,13 +149,28 @@ async function assertDocumentExists(collectionName: CollectionName, documentId: 
   }
 }
 
+async function assertOperationalHygieneClient(clientId: string) {
+  const snapshot = await getFirebaseAdmin().collection(HYGIENE_COLLECTIONS.clients).doc(clientId).get()
+  const client = snapshot.data()
+  if (!snapshot.exists) {
+    throw new Error("Hygiene client does not exist: " + clientId)
+  }
+  if (!client) {
+    throw new Error("Hygiene client does not exist: " + clientId)
+  }
+  if (!isOperationalHygieneRecord(client)) {
+    const classification = inferHygieneRecordClassification(client)
+    throw new Error("Hygiene client " + clientId + " is classified as " + classification + " and cannot participate in operational workflows.")
+  }
+}
+
 async function assertRecordGraph(input: {
   clientId: string;
   siteId?: string;
   collectionId?: string;
   manifestId?: string;
 }): Promise<void> {
-  await assertDocumentExists(HYGIENE_COLLECTIONS.clients, input.clientId, "Hygiene client");
+  await assertOperationalHygieneClient(input.clientId);
 
   if (input.siteId) {
     const siteSnapshot = await getFirebaseAdmin().collection(HYGIENE_COLLECTIONS.sites).doc(input.siteId).get();
@@ -334,7 +352,7 @@ async function getCollectionUnsafe(collectionId: string): Promise<HygieneCollect
   return validateHygieneCollection(snapshot.data());
 }
 
-export async function getHygieneDashboardData(user: AuthorizedUser): Promise<HygieneDashboardData> {
+export async function getHygieneDashboardData(user: AuthorizedUser, options: HygieneDashboardDataOptions = {}): Promise<HygieneDashboardData> {
   assertHygieneInternalAccess(user);
 
   const [
@@ -380,9 +398,13 @@ export async function getHygieneDashboardData(user: AuthorizedUser): Promise<Hyg
     signatures,
   };
 
+  const visibleData = filterHygieneDashboardDataForVisibility(baseData, {
+    includeTestData: user.role === "admin" ? options.showTestData === true : false,
+  })
+
   return {
-    kpis: computeKpis(baseData),
-    ...baseData,
+    kpis: computeKpis(visibleData),
+    ...visibleData,
   };
 }
 
@@ -502,6 +524,7 @@ async function getCollectionForWorkflow(collectionId: string, user: AuthorizedUs
   }
 
   const collection = validateHygieneCollection(snapshot.data());
+  await assertOperationalHygieneClient(collection.clientId);
   assertCanAccessCollectionWorkflow(collection, user);
   return collection;
 }
@@ -754,6 +777,7 @@ export async function upsertHygieneClient(user: AuthorizedUser, input: Partial<H
     paymentStatus: input.paymentStatus || "Pending",
     status: input.status || "Active",
     monthlyRevenue: typeof input.monthlyRevenue === "number" ? input.monthlyRevenue : 2100,
+    recordClassification: normalizeHygieneRecordClassification(input.recordClassification, input as Record<string, unknown>),
     createdAt: input.createdAt || timestamp,
     updatedAt: timestamp,
   });

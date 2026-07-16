@@ -20,6 +20,7 @@ import {
   type HygieneDashboardData,
   type HygieneManifest,
   type HygienePhotoCategory,
+  type HygieneRecordClassification,
 } from "@/types/hygiene";
 
 type HygieneView =
@@ -344,7 +345,8 @@ export default function HygieneDivisionClient({ view }: { view: HygieneView }) {
   const [error, setError] = useState<string | null>(null);
   const [uploadStatus, setUploadStatus] = useState<string>("");
   const [mutationStatus, setMutationStatus] = useState<string>("");
-  const [modal, setModal] = useState<ActionModalState>(null);
+  const [modal, setModal] = useState<ActionModalState>(null)
+  const [showTestData, setShowTestData] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const canSeed = role === "admin" || role === "manager";
@@ -374,7 +376,8 @@ export default function HygieneDivisionClient({ view }: { view: HygieneView }) {
     setError(null);
 
     try {
-      const response = await authFetch(API_ROUTES.HYGIENE);
+      const hygieneUrl = role === "admin" ? (showTestData ? API_ROUTES.HYGIENE + "?showTestData=1" : API_ROUTES.HYGIENE) : API_ROUTES.HYGIENE
+      const response = await authFetch(hygieneUrl);
       const payload = (await response.json()) as { data?: HygieneDashboardData; error?: string };
       if (!response.ok || !payload.data) {
         throw new Error(payload.error ?? "Unable to load hygiene dashboard data.");
@@ -466,6 +469,7 @@ export default function HygieneDivisionClient({ view }: { view: HygieneView }) {
         paymentStatus: valueFromForm(formData, "paymentStatus"),
         monthlyRevenue: numberFromForm(formData, "monthlyRevenue"),
         status: valueFromForm(formData, "status"),
+        recordClassification: valueFromForm(formData, "recordClassification") as HygieneRecordClassification,
       }, "Client saved.");
       return;
     }
@@ -653,7 +657,7 @@ export default function HygieneDivisionClient({ view }: { view: HygieneView }) {
     if (!authLoading) {
       void loadData();
     }
-  }, [authLoading]);
+  }, [authLoading, showTestData]);
 
   return (
     <div data-module="hygiene" className="tex-shell space-y-6 text-white" style={hygieneThemeStyle}>
@@ -672,6 +676,12 @@ export default function HygieneDivisionClient({ view }: { view: HygieneView }) {
             <button type="button" onClick={() => void loadData(true)} disabled={refreshing} className={secondaryButtonClass}>
               {refreshing ? "Refreshing..." : "Refresh"}
             </button>
+            {role === "admin" ? (
+              <label className="flex min-h-10 items-center gap-2 rounded-xl border border-white/15 bg-white/[0.06] px-3 py-2 text-xs font-bold text-slate-100">
+                <input type="checkbox" checked={showTestData} onChange={(event) => setShowTestData(event.target.checked)} />
+                Show Test Data
+              </label>
+            ) : null}
             {canSeed ? (
               <button type="button" onClick={() => void seedDataset()} disabled={refreshing} className={primaryButtonClass}>
                 Seed CBAVO
@@ -712,6 +722,7 @@ export default function HygieneDivisionClient({ view }: { view: HygieneView }) {
                   <Field name="primaryContactPhone" label="Phone" defaultValue={modal.defaults?.primaryContactPhone ?? "CBAVO Services"} />
                   <Field name="primaryContactEmail" label="Email" defaultValue={modal.defaults?.primaryContactEmail ?? "operations@cbavo.local"} />
                   <SelectField name="paymentStatus" label="Payment status" defaultValue={String(modal.defaults?.paymentStatus ?? "Paid")} options={["Paid", "Pending", "Overdue"]} />
+                  <SelectField name="recordClassification" label="Record classification" defaultValue={String(modal.defaults?.recordClassification ?? "PRODUCTION")} options={["PRODUCTION", "TEST", "DEMO", "ARCHIVED"]} />
                   <Field name="monthlyRevenue" label="Monthly contract revenue" type="number" defaultValue={modal.defaults?.monthlyRevenue ?? 2100} />
                   <SelectField name="status" label="Status" defaultValue={String(modal.defaults?.status ?? "Active")} options={["Active", "Pending", "Inactive", "Suspended"]} />
                 </>
@@ -945,12 +956,13 @@ export default function HygieneDivisionClient({ view }: { view: HygieneView }) {
       {!loading && data && view === "clients" ? (
         <div className="space-y-6">
           <Panel title="Client Register" eyebrow="Accounts" action={canManage ? <SmallAction variant="primary" onClick={() => openModal("client", "Add Client")}>Add Client</SmallAction> : null}>
-            <DataTable headers={["Client", "Contact", "Contract", "Service", "Payment", "Status", "Actions"]} emptyLabel="clients" rows={data.clients.map((client) => [
+            <DataTable headers={["Client", "Contact", "Contract", "Service", "Payment", "Class", "Status", "Actions"]} emptyLabel="clients" rows={data.clients.map((client) => [
               <PrimaryCell key="client" title={client.clientName} subtitle={`${client.clientType} | ${client.companyRegistration}`} />,
               <PrimaryCell key="contact" title={client.primaryContactName} subtitle={`${client.primaryContactPhone} | ${client.primaryContactEmail}`} />,
               `${formatDate(client.contractStartDate)} to ${formatDate(client.contractEndDate)}`,
               `${client.serviceFrequency}, ${client.collectionDay} ${client.collectionWindow}`,
               <StatusBadge key="payment" value={client.paymentStatus} />,
+              <StatusBadge key="class" value={client.recordClassification} tone={client.recordClassification === "PRODUCTION" ? "success" : "warning"} />,
               <StatusBadge key="status" value={client.status} />,
               <div key="actions" className="flex flex-wrap gap-2">
                 <SmallAction onClick={() => openModal("client", "View Client", client)}>View Client</SmallAction>
@@ -974,6 +986,7 @@ export default function HygieneDivisionClient({ view }: { view: HygieneView }) {
                   { label: "Sites", value: data.sites.filter((site) => site.clientId === client.clientId).length },
                   { label: "Bins", value: data.assets.filter((asset) => asset.clientId === client.clientId).length },
                   { label: "Revenue", value: currency(client.monthlyRevenue) },
+                  { label: "Class", value: <StatusBadge value={client.recordClassification} tone={client.recordClassification === "PRODUCTION" ? "success" : "warning"} /> },
                   { label: "Service", value: `${client.serviceFrequency} | ${client.collectionDay}` },
                 ]}
               />

@@ -26,7 +26,8 @@ function errorResponse(error: unknown) {
 export async function GET(request: NextRequest) {
   try {
     const user = await requireAuthorizedUser(request);
-    const data = await getHygieneDashboardData(user);
+    const showTestData = request.nextUrl.searchParams.get("showTestData") === "1" ? true : request.nextUrl.searchParams.get("showTestData") === "true"
+    const data = await getHygieneDashboardData(user, { showTestData });
     return NextResponse.json({ success: true, data });
   } catch (error) {
     return errorResponse(error);

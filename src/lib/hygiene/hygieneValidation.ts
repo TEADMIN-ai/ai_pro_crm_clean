@@ -15,6 +15,7 @@ import {
   type HygieneSite,
   type HygieneVehicleInspection,
 } from "@/types/hygiene";
+import { normalizeHygieneRecordClassification } from "@/lib/hygiene/recordClassification";
 
 function asRecord(input: unknown): Record<string, unknown> {
   if (!input || typeof input !== "object" || Array.isArray(input)) {
@@ -179,6 +180,7 @@ export function validateHygieneClient(input: unknown): HygieneClient {
     paymentStatus: requireString(record, "paymentStatus") as HygieneClient["paymentStatus"],
     status: requireString(record, "status") as HygieneClient["status"],
     monthlyRevenue: requireNumber(record, "monthlyRevenue"),
+    recordClassification: normalizeHygieneRecordClassification(record.recordClassification, record),
     createdAt: requireString(record, "createdAt"),
     updatedAt: requireString(record, "updatedAt"),
   };
