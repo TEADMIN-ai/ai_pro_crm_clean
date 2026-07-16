@@ -9,6 +9,14 @@ describe("API_ROUTES integrity", () => {
     expect(API_ROUTES.DEALS).toBe("/api/deals");
   });
 
+  test("OPPORTUNITY_REGISTER route is correct", () => {
+    expect(API_ROUTES.OPPORTUNITY_REGISTER).toBe("/api/opportunity-register");
+  });
+
+  test("OPPORTUNITY_REGISTER_ANALYZE route is correct", () => {
+    expect(API_ROUTES.OPPORTUNITY_REGISTER_ANALYZE).toBe("/api/opportunity-register/analyze");
+  });
+
   test("USERS_CREATE route is correct", () => {
     expect(API_ROUTES.USERS_CREATE).toBe("/api/users/create");
   });

@@ -1,4 +1,5 @@
 import type { EnterpriseTone } from "@/components/ui/EnterpriseUI";
+import type { Deal } from "@/types/deal";
 
 export type OpportunityRegisterStatus = "ready" | "closingSoon" | "submitted" | "atRisk" | "awarded";
 
@@ -50,6 +51,51 @@ export const opportunityRegisterStatuses: OpportunityRegisterStatus[] = ["ready"
 
 export function getOpportunityRegisterRecordById(id: string) {
   return opportunityRegisterRecords.find((record) => record.id === id);
+}
+
+
+function formatDateOnly(value: unknown): string {
+  if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}/.test(value)) return value.slice(0, 10);
+  if (value instanceof Date) return value.toISOString().slice(0, 10);
+  return new Date().toISOString().slice(0, 10);
+}
+
+export function mapDealToOpportunityRegisterRecord(deal: Deal): OpportunityRegisterRecord {
+  const source = deal as Deal & Record<string, unknown>;
+  const tenderAnalysis = deal.tenderAnalysis;
+  const client = typeof source.clientName === "string" && source.clientName.trim() ? source.clientName.trim() : tenderAnalysis?.issuingAuthority ?? deal.contractorName ?? "Unknown client";
+  const municipality = typeof source.municipalityName === "string" && source.municipalityName.trim() ? source.municipalityName.trim() : tenderAnalysis?.location ?? "Unknown municipality";
+  const department = typeof source.department === "string" && source.department.trim() ? source.department.trim() : "Unassigned department";
+  const rfqNumber = typeof source.rfqNumber === "string" && source.rfqNumber.trim() ? source.rfqNumber.trim() : tenderAnalysis?.tenderNumber ?? deal.id;
+  const closingDate = formatDateOnly(source.closingDate ?? source.deadline ?? tenderAnalysis?.deadline);
+  const estimatedValue = deal.value ?? deal.estimatedDealValue ?? tenderAnalysis?.estimatedValue ?? 0;
+  const readiness = typeof deal.readinessScore === "number" ? deal.readinessScore : 0;
+  const status: OpportunityRegisterStatus = deal.status === "submitted" ? "submitted" : deal.status === "awarded" || deal.stage === "awarded" || deal.stage === "won" ? "awarded" : readiness < 50 ? "atRisk" : "ready";
+  return {
+    id: deal.id,
+    rfqNumber,
+    client,
+    municipality,
+    department,
+    closingDate,
+    assignedContractors: deal.contractorId ? 1 : 0,
+    submissionReadiness: readiness,
+    submissionProgress: deal.stage === "submitted" ? 100 : deal.stage === "draft" || deal.stage === "lead" ? 20 : 50,
+    estimatedValue,
+    status,
+    summary: typeof source.description === "string" && source.description.trim() ? source.description.trim() : deal.title,
+    coordinator: typeof source.createdByEmail === "string" ? source.createdByEmail : "Torque Empire operations",
+    riskNote: deal.riskLevel ? "Risk level: " + deal.riskLevel : "Initial opportunity intake created.",
+    contractors: deal.contractorName ? [deal.contractorName] : [],
+    timeline: [{ label: "Opportunity created", detail: "Record created in the canonical deals collection.", date: formatDateOnly(deal.createdAt), tone: "success" }],
+    municipalityBreakdown: [{ label: municipality, value: "Primary", tone: "info" }],
+    departmentBreakdown: [{ label: department, value: "Primary", tone: "info" }],
+    readinessChecklist: [
+      { label: "Primary RFQ/RFP document", detail: "Source document retained on the opportunity record.", status: "complete" },
+      { label: "Metadata review", detail: "Staff reviewed or corrected extracted fields before creation.", status: "complete" },
+      { label: "Contractor allocation", detail: deal.contractorId ? "Contractor assigned." : "Contractor can be assigned after intake.", status: deal.contractorId ? "complete" : "pending" },
+    ],
+  };
 }
 
 export function formatOpportunityStatus(status: OpportunityRegisterStatus): string {

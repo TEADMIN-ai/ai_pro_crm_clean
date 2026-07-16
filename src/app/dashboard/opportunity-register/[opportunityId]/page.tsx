@@ -5,7 +5,8 @@ import {
   EnterpriseStatusBadge,
 } from "@/components/ui/EnterpriseUI";
 import OpportunityWorkspaceView from "@/components/opportunity-register/OpportunityWorkspaceView";
-import { getOpportunityRegisterRecordById } from "@/components/opportunity-register/opportunityRegisterData";
+import { getDealById } from "@/server/services/dealService";
+import { getOpportunityRegisterRecordById, mapDealToOpportunityRegisterRecord } from "@/components/opportunity-register/opportunityRegisterData";
 
 export default async function OpportunityRegisterDetailPage({
   params,
@@ -13,10 +14,15 @@ export default async function OpportunityRegisterDetailPage({
   params: Promise<{ opportunityId: string }>;
 }) {
   const { opportunityId } = await params;
-  const opportunity = getOpportunityRegisterRecordById(opportunityId);
+  const staticOpportunity = getOpportunityRegisterRecordById(opportunityId);
 
-  if (opportunity) {
-    return <OpportunityWorkspaceView opportunity={opportunity} />;
+  if (staticOpportunity) {
+    return <OpportunityWorkspaceView opportunity={staticOpportunity} />;
+  }
+
+  const deal = await getDealById(opportunityId);
+  if (deal) {
+    return <OpportunityWorkspaceView opportunity={mapDealToOpportunityRegisterRecord(deal)} />;
   }
 
   return (
@@ -41,7 +47,7 @@ export default async function OpportunityRegisterDetailPage({
 
       <EnterpriseEmptyState
         title="No opportunity record found."
-        detail="The route is available for refresh and deep links. Connect or create the production opportunity record to render workspace details."
+        detail="The route is available for refresh and deep links. Create the production opportunity record to render workspace details."
       />
 
       <div>

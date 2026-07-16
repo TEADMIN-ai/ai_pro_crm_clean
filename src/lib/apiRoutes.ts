@@ -42,6 +42,8 @@ export const API_ROUTES = {
     `/api/deals/${encodeURIComponent(dealId)}/pricing/approve`,
   DEAL_SUBMIT: "/api/deals/submit",
   DEALS_INTELLIGENCE: "/api/deals/intelligence",
+  OPPORTUNITY_REGISTER: "/api/opportunity-register",
+  OPPORTUNITY_REGISTER_ANALYZE: "/api/opportunity-register/analyze",
   DASHBOARD_ANALYTICS: "/api/deals/analytics",
   DASHBOARD_SUMMARY: "/api/dashboard/summary",
   ENTERPRISE_KPIS: "/api/kpis/enterprise",
