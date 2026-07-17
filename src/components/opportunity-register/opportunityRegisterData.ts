@@ -70,6 +70,9 @@ export function mapDealToOpportunityRegisterRecord(deal: Deal): OpportunityRegis
   const closingDate = formatDateOnly(source.closingDate ?? source.deadline ?? tenderAnalysis?.deadline);
   const estimatedValue = deal.value ?? deal.estimatedDealValue ?? tenderAnalysis?.estimatedValue ?? 0;
   const readiness = typeof deal.readinessScore === "number" ? deal.readinessScore : 0;
+  const contractorAssignment = source.contractorAssignment && typeof source.contractorAssignment === "object" ? source.contractorAssignment as Record<string, unknown> : {};
+  const assignmentComplete = Boolean(typeof contractorAssignment.contractorId === "string" && contractorAssignment.contractorId.trim() && typeof contractorAssignment.assignedAt === "string" && typeof contractorAssignment.executionWorkspaceId === "string" && contractorAssignment.assignmentStatus === "assigned");
+  const assignedContractorName = assignmentComplete && typeof contractorAssignment.contractorName === "string" ? contractorAssignment.contractorName : null;
   const status: OpportunityRegisterStatus = deal.status === "submitted" ? "submitted" : deal.status === "awarded" || deal.stage === "awarded" || deal.stage === "won" ? "awarded" : readiness < 50 ? "atRisk" : "ready";
   return {
     id: deal.id,
@@ -78,7 +81,7 @@ export function mapDealToOpportunityRegisterRecord(deal: Deal): OpportunityRegis
     municipality,
     department,
     closingDate,
-    assignedContractors: deal.contractorId ? 1 : 0,
+    assignedContractors: assignmentComplete ? 1 : 0,
     submissionReadiness: readiness,
     submissionProgress: deal.stage === "submitted" ? 100 : deal.stage === "draft" || deal.stage === "lead" ? 20 : 50,
     estimatedValue,
@@ -86,14 +89,14 @@ export function mapDealToOpportunityRegisterRecord(deal: Deal): OpportunityRegis
     summary: typeof source.description === "string" && source.description.trim() ? source.description.trim() : deal.title,
     coordinator: typeof source.createdByEmail === "string" ? source.createdByEmail : "Torque Empire operations",
     riskNote: deal.riskLevel ? "Risk level: " + deal.riskLevel : "Initial opportunity intake created.",
-    contractors: deal.contractorName ? [deal.contractorName] : [],
+    contractors: assignedContractorName ? [assignedContractorName] : [],
     timeline: [{ label: "Opportunity created", detail: "Record created in the canonical deals collection.", date: formatDateOnly(deal.createdAt), tone: "success" }],
     municipalityBreakdown: [{ label: municipality, value: "Primary", tone: "info" }],
     departmentBreakdown: [{ label: department, value: "Primary", tone: "info" }],
     readinessChecklist: [
       { label: "Primary RFQ/RFP document", detail: "Source document retained on the opportunity record.", status: "complete" },
       { label: "Metadata review", detail: "Staff reviewed or corrected extracted fields before creation.", status: "complete" },
-      { label: "Contractor allocation", detail: deal.contractorId ? "Contractor assigned." : "Contractor can be assigned after intake.", status: deal.contractorId ? "complete" : "pending" },
+      { label: "Contractor allocation", detail: assignmentComplete ? "Canonical contractor assignment and execution workspace connected." : "No canonical contractor assignment is connected.", status: assignmentComplete ? "complete" : "pending" },
     ],
   };
 }
