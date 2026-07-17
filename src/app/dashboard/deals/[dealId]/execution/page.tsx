@@ -1,5 +1,6 @@
 import Link from "next/link";
 import OpportunityExecutionPanel from "@/components/opportunity-register/OpportunityExecutionPanel";
+import ProcurementExecutionProjectionPanel from "@/components/opportunity-register/ProcurementExecutionProjectionPanel";
 import { EnterpriseCard, EnterpriseEmptyState, EnterpriseKpiCard, EnterprisePanel, EnterpriseStatusBadge } from "@/components/ui/EnterpriseUI";
 import { getOpportunityExecutionView } from "@/server/services/opportunityExecutionService";
 
@@ -56,6 +57,8 @@ export default async function DealExecutionPage({ params }: { params: Promise<{ 
           <EnterpriseKpiCard label="Current phase" value={view.state.currentPhase.replace(/_/g, " ")} helper={view.state.nextAction} />
         </div>
       </EnterpriseCard>
+
+      <ProcurementExecutionProjectionPanel projection={view.projection} />
 
       <OpportunityExecutionPanel dealId={dealId} state={view.state} matches={view.matches} />
 

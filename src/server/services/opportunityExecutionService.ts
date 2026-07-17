@@ -4,6 +4,7 @@ import type { AuthorizedUser } from "@/lib/server/authz";
 import { listContractors } from "@/server/services/contractorService";
 import { getContractorBusinessName, resolveContractorReference } from "@/lib/contractors/contractorReferenceResolver";
 import { buildOpportunityExecutionState, extractOpportunityRequirements, matchContractorsForOpportunity, validateOpportunityTransition, type OpportunityExecutionPhase, type OpportunityRequirementReview } from "@/lib/opportunities/opportunityExecution";
+import { buildProcurementExecutionProjection } from "@/lib/opportunities/procurementExecutionProjection";
 
 type ActionInput = { dealId: string; action: string; actor: AuthorizedUser; contractorId?: string; requirements?: Partial<OpportunityRequirementReview>; submission?: Record<string, unknown> };
 function asString(value: unknown): string | null { return typeof value === "string" && value.trim() ? value.trim() : null; }
@@ -41,10 +42,11 @@ export async function getOpportunityExecutionView(dealId: string, actor?: Author
   const resolved = contractorReference ? await resolveContractorReference({ reference: contractorReference, expectedWorkspaceId: asString(deal.workspaceId), actor, dealId, logContext: "opportunity_execution_view" }) : null;
   const contractor = resolved?.ok && !isArchivedContractor(resolved.contractor) ? resolved.contractor : null;
   const state = buildOpportunityExecutionState({ deal, contractor: contractor as Record<string, unknown> | null });
+  const projection = buildProcurementExecutionProjection({ deal, state, remediationRequests: state.remediationRequests });
   const matches = matchContractorsForOpportunity({ deal, contractors: await listContractors() as Array<Record<string, unknown> & { id: string }> });
   const activitySnapshot = await getFirebaseAdmin().collection("deals").doc(dealId).collection("activity").orderBy("createdAt", "desc").limit(25).get();
   const activity = activitySnapshot.docs.map((doc) => ({ id: doc.id, ...(doc.data() ?? {}) }));
-  return { deal, contractor, state, matches, activity };
+  return { deal, contractor, state, projection, matches, activity };
 }
 
 function targetPhaseForAction(action: string, deal: Record<string, unknown>): OpportunityExecutionPhase | null {

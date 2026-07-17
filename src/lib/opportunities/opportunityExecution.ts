@@ -1,11 +1,22 @@
 import type { Deal } from "@/types/deal";
+import {
+  buildOpportunityRequirementDetails,
+  calculateProfileCompleteness,
+  calculateSubmissionReadiness,
+  createComplianceRemediationRequests,
+  requirementStatusToComplianceStatus,
+  type ComplianceRemediationRequest,
+  type OpportunityRequirementDetail,
+  type OpportunityRequirementInput,
+} from "@/lib/opportunities/opportunityComplianceRemediation";
 
 export type OpportunityExecutionPhase = "INTAKE_COMPLETE" | "REQUIREMENTS_REVIEW" | "MATCHING_REQUIRED" | "CONTRACTOR_ASSIGNED" | "COMPLIANCE_REVIEW" | "BOQ_PRICING" | "DOCUMENT_PREPARATION" | "INTERNAL_REVIEW" | "CONTRACTOR_APPROVAL" | "PACK_GENERATION" | "READY_FOR_SUBMISSION" | "SUBMITTED" | "AWARDED" | "UNSUCCESSFUL" | "CANCELLED";
-export type OpportunityComplianceStatus = "VALID" | "MISSING" | "EXPIRED" | "NOT_APPLICABLE" | "REQUIRES_REVIEW";
+export type OpportunityComplianceStatus = "VALID" | "MISSING" | "EXPIRED" | "UNVERIFIED" | "UNCLASSIFIED" | "INVALID" | "WRONG_CONTRACTOR" | "DUPLICATE" | "NOT_APPLICABLE" | "REQUIRES_REVIEW" | "REQUIRES_MANUAL_REVIEW";
 export type OpportunityTaskStatus = "not_started" | "in_progress" | "complete" | "blocked" | "not_applicable";
 export type OpportunityStageStatus = "NOT_STARTED" | "IN_PROGRESS" | "BLOCKED" | "COMPLETE" | "NOT_APPLICABLE";
-export type OpportunityActionKey = "review_requirements" | "find_matching_contractors" | "assign_contractor" | "open_contractor" | "open_execution_workspace" | "change_assignment" | "remove_assignment" | "start_compliance_review" | "open_missing_documents" | "open_boq_pricing" | "prepare_documents" | "start_internal_review" | "contractor_approval" | "generate_tender_pack" | "mark_ready_for_submission" | "record_submission";
-export type OpportunityStageKey = "requirements" | "assignment" | "compliance" | "boq" | "documents" | "internalReview" | "contractorApproval" | "tenderPack" | "submission";
+export type OpportunityActionKey = "review_requirements" | "find_matching_contractors" | "assign_contractor" | "open_contractor" | "open_execution_workspace" | "change_assignment" | "remove_assignment" | "start_compliance_review" | "open_missing_documents" | "open_supplier_quotes" | "open_tender_intelligence" | "open_boq_pricing" | "open_submission_review" | "prepare_documents" | "start_internal_review" | "contractor_approval" | "generate_tender_pack" | "mark_ready_for_submission" | "record_submission";
+export type OpportunityStageKey = "requirements" | "assignment" | "compliance" | "supplierQuotes" | "tenderIntelligence" | "boq" | "documents" | "internalReview" | "contractorApproval" | "tenderPack" | "submission";
+export type ProcurementNextActionKey = "ASSIGN_CONTRACTOR" | "REMEDIATE_COMPLIANCE" | "UPLOAD_OR_APPROVE_SUPPLIER_QUOTE" | "REVIEW_TENDER_ANALYSIS" | "MAP_QUOTES_TO_TENDER_LINES" | "COMPLETE_PRICING" | "APPROVE_PRICING" | "GENERATE_PRICED_DOCUMENT" | "COMPLETE_DOCUMENTS" | "COMPLETE_SUBMISSION_REVIEW" | "GENERATE_TENDER_PACK" | "READY_FOR_SUBMISSION" | "RECORD_SUBMISSION";
 type AnyRecord = Record<string, unknown>;
 
 export type OpportunityRequirementReview = {
@@ -89,6 +100,10 @@ export type OpportunityExecutionState = {
   dueDate: string | null;
   daysRemaining: number | null;
   readiness: number;
+  profileCompleteness: number;
+  generalCompliance: number;
+  opportunityMatch: number;
+  submissionReadiness: number;
   contractorId: string | null;
   contractorName: string | null;
   dealId: string;
@@ -103,6 +118,8 @@ export type OpportunityExecutionState = {
   assignment: OpportunityAssignmentState;
   submissionReviewConnected: boolean;
   complianceChecks: OpportunityComplianceCheck[];
+  complianceRequirements: OpportunityRequirementDetail[];
+  remediationRequests: ComplianceRemediationRequest[];
   documentChecklist: OpportunityDocumentChecklistItem[];
   stages: OpportunityExecutionStage[];
   actions: OpportunityAction[];
@@ -113,7 +130,16 @@ export type ContractorMatchResult = {
   contractorName: string;
   matchScore: number;
   readiness: number;
+  profileCompleteness: number;
+  generalCompliance: number;
+  opportunityMatch: number;
+  submissionReadiness: number;
   missingDocuments: string[];
+  validRequirementsCount: number;
+  missingCount: number;
+  expiredCount: number;
+  reviewRequiredCount: number;
+  complianceDetails: OpportunityRequirementDetail[];
   disqualifyingRequirements: string[];
   recommendationReason: string;
   complianceStatus: OpportunityComplianceStatus;
@@ -201,6 +227,35 @@ function contractorFieldValid(contractor: AnyRecord, keys: string[]): boolean {
   return keys.some((key) => contractor[key] === true || ["valid", "verified", "active", "compliant", "yes"].includes(normalize(contractor[key])));
 }
 
+function opportunityRequirementInputs(requirements: OpportunityRequirementReview): OpportunityRequirementInput[] {
+  const tenderSpecificRequired = requirements.compulsoryReturnables.some((item) => !/tax|bbbee|b-bbee|coida|csd|cidb|bank/i.test(item));
+  return [
+    { key: "tax", name: "Tax Compliance", required: requirements.taxRequirement, validKeys: ["taxValid", "taxVerified", "taxCompliant", "taxClearanceValid", "taxClearanceStatus"], tokens: ["tax", "tax compliance", "tax clearance", "sars", "tcs"] },
+    { key: "csd", name: "CSD", required: requirements.csdRequirement, validKeys: ["csdValid", "csdVerified", "hasCsd", "csdNumber", "csdStatus"], tokens: ["csd", "central supplier database"] },
+    { key: "bbbee", name: "B-BBEE", required: requirements.bbbeeRequirement, validKeys: ["bbbeeValid", "bbbeeVerified", "hasBbbee", "bbbeeStatus"], tokens: ["bbbee", "b-bbee", "bee"] },
+    { key: "coida", name: "COIDA", required: requirements.coidaRequirement, validKeys: ["coidaValid", "coidaVerified", "hasCoida", "coidaStatus"], tokens: ["coida", "compensation fund"] },
+    { key: "cidb", name: "CIDB", required: Boolean(requirements.cidbRequirement), validKeys: ["cidbValid", "cidbVerified", "hasCidb", "cidbStatus"], tokens: ["cidb"] },
+    { key: "banking", name: "Banking", required: requirements.bankingRequirement, validKeys: ["bankingValid", "bankVerified", "bankConfirmationValid", "bankStatus"], tokens: ["bank", "banking", "bank confirmation"] },
+    { key: "tenderSpecific", name: "Tender-specific documents", required: tenderSpecificRequired, validKeys: requirements.compulsoryReturnables.map((item) => item.replace(/\s+/g, "")), tokens: requirements.compulsoryReturnables.filter((item) => !/tax|bbbee|b-bbee|coida|csd|cidb|bank/i.test(item)) },
+  ];
+}
+
+function buildRequirementDetails(requirements: OpportunityRequirementReview, contractor: AnyRecord | null, dueDate: string | null, workspaceId: string | null): OpportunityRequirementDetail[] {
+  return buildOpportunityRequirementDetails({
+    requirements: opportunityRequirementInputs(requirements),
+    contractor,
+    contractorId: contractor ? str(contractor.contractorId) ?? str(contractor.id) : null,
+    workspaceId,
+    dueDate,
+  });
+}
+
+function complianceStageStatus(status: OpportunityRequirementDetail["status"]): OpportunityStageStatus {
+  if (status === "VALID") return "COMPLETE";
+  if (status === "NOT_APPLICABLE") return "NOT_APPLICABLE";
+  return "BLOCKED";
+}
+
 export function buildComplianceChecks(requirements: OpportunityRequirementReview, contractor: AnyRecord | null): OpportunityComplianceCheck[] {
   const missingDocs = new Set(arr(contractor?.missingCriticalDocuments ?? contractor?.missingDocuments).map((item) => item.toLowerCase()));
   const expiredDocs = new Set(arr(contractor?.expiredDocuments).map((item) => item.toLowerCase()));
@@ -233,14 +288,13 @@ export function buildComplianceChecks(requirements: OpportunityRequirementReview
   return checks;
 }
 
-export function evaluateOpportunityCompliance(requirements: OpportunityRequirementReview, contractor: AnyRecord | null): { status: OpportunityComplianceStatus; missing: string[]; expired: string[] } {
-  const checks = buildComplianceChecks(requirements, contractor);
-  const missing = checks.filter((check) => check.status === "BLOCKED" && !/expired/i.test(check.blocker ?? "")).map((check) => check.blocker ?? check.label);
-  const expired = checks.filter((check) => /expired/i.test(check.blocker ?? "")).map((check) => check.label);
-  if (!contractor) return { status: "MISSING", missing: ["Contractor assignment required"], expired: [] };
-  if (expired.length) return { status: "EXPIRED", missing, expired };
-  if (missing.length) return { status: "MISSING", missing, expired: [] };
-  return { status: "VALID", missing: [], expired: [] };
+export function evaluateOpportunityCompliance(requirements: OpportunityRequirementReview, contractor: AnyRecord | null, workspaceId: string | null = null): { status: OpportunityComplianceStatus; missing: string[]; expired: string[]; details: OpportunityRequirementDetail[] } {
+  const details = buildRequirementDetails(requirements, contractor, requirements.closingDateTime, workspaceId ?? str(contractor?.workspaceId));
+  if (!contractor) return { status: "MISSING", missing: ["Contractor assignment required"], expired: [], details };
+  const unresolved = details.filter((detail) => detail.required && detail.status !== "VALID" && detail.status !== "NOT_APPLICABLE");
+  const missing = unresolved.filter((detail) => detail.status !== "EXPIRED").map((detail) => detail.reason);
+  const expired = unresolved.filter((detail) => detail.status === "EXPIRED").map((detail) => detail.requirementName);
+  return { status: requirementStatusToComplianceStatus(details), missing, expired, details };
 }
 
 function executionFlags(deal: Deal | AnyRecord) {
@@ -274,7 +328,7 @@ export function deriveOpportunityPhase(input: { deal: Deal | AnyRecord; contract
   if (normalize(source.stage) === "closed") return "CANCELLED";
   const f = executionFlags(input.deal);
   const req = extractOpportunityRequirements(input.deal);
-  const compliance = evaluateOpportunityCompliance(req, input.contractor ?? null);
+  const compliance = evaluateOpportunityCompliance(req, input.contractor ?? null, str(source.workspaceId));
   const assigned = buildAssignmentState(source, input.contractor ?? null).complete;
   if (f.submitted) return "SUBMITTED";
   if (f.readyForSubmission) return "READY_FOR_SUBMISSION";
@@ -339,7 +393,7 @@ function buildDocumentChecklist(deal: AnyRecord, requirements: OpportunityRequir
     const complete = completeOverride === true || Boolean(found) || f.documentsPrepared;
     return { key, label, required, status: complete ? "COMPLETE" : "BLOCKED", source: found ? docName(found) : null };
   };
-  const complianceComplete = contractor ? evaluateOpportunityCompliance(requirements, contractor).status === "VALID" : false;
+  const complianceComplete = contractor ? evaluateOpportunityCompliance(requirements, contractor, str(deal.workspaceId)).status === "VALID" : false;
   return [
     item("source", "RFQ/RFP source document", true, ["rfq", "rfp", "request for quotation", "tender"]),
     item("pricing", "Pricing schedules", requirements.boqPricingSchedulePresent, ["boq", "pricing schedule", "bill of quantities"], f.pricingComplete),
@@ -396,7 +450,7 @@ function chooseNextAction(stages: OpportunityExecutionStage[], actions: Opportun
   const activeStage = stages.find((stage) => stage.status === "BLOCKED" || stage.status === "IN_PROGRESS" || stage.status === "NOT_STARTED");
   const action = activeStage?.actionKey ? actions.find((candidate) => candidate.key === activeStage.actionKey) : null;
   const blocker = activeStage?.blockers[0] ?? action?.reason ?? null;
-  const label = blocker && /^Upload /.test(blocker) ? blocker : action?.label ?? activeStage?.summary ?? "Track tender outcome";
+  const label = blocker ?? action?.label ?? activeStage?.summary ?? "Track tender outcome";
   return { label, owner: activeStage?.owner ?? "operations", dueBefore: dueDate, blocker, actionKey: action?.key ?? activeStage?.actionKey ?? null };
 }
 
@@ -412,10 +466,17 @@ export function buildOpportunityExecutionState(input: { deal: Deal | AnyRecord; 
   const requirements = extractOpportunityRequirements(input.deal);
   const assignment = buildAssignmentState(source, input.contractor ?? null);
   const contractorId = assignment.contractorId;
-  const compliance = evaluateOpportunityCompliance(requirements, contractorId ? input.contractor ?? null : null);
+  const compliance = evaluateOpportunityCompliance(requirements, contractorId ? input.contractor ?? null : null, str(source.workspaceId));
   const phase = deriveOpportunityPhase({ deal: input.deal, contractor: input.contractor ?? null });
   const f = executionFlags(input.deal);
-  const complianceChecks = buildComplianceChecks(requirements, contractorId ? input.contractor ?? null : null);
+  const complianceRequirements = compliance.details;
+  const complianceChecks = complianceRequirements.map((detail) => ({
+    key: detail.key,
+    label: detail.requirementName,
+    required: detail.required,
+    status: complianceStageStatus(detail.status),
+    blocker: detail.blockerSeverity === "none" ? null : detail.reason,
+  } satisfies OpportunityComplianceCheck));
   const documents = buildDocumentChecklist(source, requirements, contractorId ? input.contractor ?? null : null, f);
   const blockers: string[] = [];
   if (!assignment.complete && assignment.assignmentReason) blockers.push(assignment.assignmentReason);
@@ -426,7 +487,10 @@ export function buildOpportunityExecutionState(input: { deal: Deal | AnyRecord; 
     if (!f.internalReviewApproved) blockers.push("Internal review is not approved");
     if (requirements.signatureRequired && !f.contractorApprovalComplete) blockers.push("Required contractor signatures are incomplete");
   }
-  const uniqueBlockers = Array.from(new Set(blockers));
+  const complianceBlockers = complianceRequirements
+    .filter((detail) => detail.blockerSeverity !== "none")
+    .map((detail) => detail.reason);
+  const uniqueBlockers = Array.from(new Set([...blockers, ...complianceBlockers]));
   const actions: OpportunityAction[] = [];
   const documentsBlocked = documents.some((doc) => doc.status === "BLOCKED");
   addAction(actions, "review_requirements", "Complete Requirements Review", phase === "REQUIREMENTS_REVIEW", "Requirements review is already complete or not the current phase");
@@ -449,6 +513,18 @@ export function buildOpportunityExecutionState(input: { deal: Deal | AnyRecord; 
   const readinessBase = stages.filter((stage) => stage.status === "COMPLETE" || stage.status === "NOT_APPLICABLE").length / stages.length;
   const readiness = phase === "SUBMITTED" || phase === "AWARDED" ? 100 : Math.max(0, Math.min(99, Math.round(readinessBase * 100) - uniqueBlockers.length * 4));
   const dueDate = requirements.closingDateTime;
+  const profileCompleteness = calculateProfileCompleteness(input.contractor ?? null);
+  const generalCompliance = pct(input.contractor?.readinessScore ?? input.contractor?.complianceStatusScore);
+  const submissionReadiness = calculateSubmissionReadiness(complianceRequirements);
+  const opportunityMatch = submissionReadiness;
+  const remediationRequests = createComplianceRemediationRequests({
+    opportunityId: String(source.opportunityId ?? source.id ?? ""),
+    dealId: String(source.id ?? ""),
+    contractorId,
+    requirements: complianceRequirements,
+    existingRequests: Array.isArray(rec(source.opportunityExecution).complianceRequests) ? rec(source.opportunityExecution).complianceRequests as ComplianceRemediationRequest[] : [],
+    assignedStaffMember: str(rec(source.contractorAssignment).assignedBy) ?? str(rec(source.opportunityExecution).assignedStaffMember),
+  });
   const nextActionDetail = chooseNextAction(stages, actions, dueDate);
   return {
     currentPhase: phase,
@@ -459,6 +535,10 @@ export function buildOpportunityExecutionState(input: { deal: Deal | AnyRecord; 
     dueDate,
     daysRemaining: daysRemaining(dueDate),
     readiness,
+    profileCompleteness,
+    generalCompliance,
+    opportunityMatch,
+    submissionReadiness,
     contractorId,
     contractorName: assignment.contractorName,
     dealId: String(source.id ?? ""),
@@ -473,6 +553,8 @@ export function buildOpportunityExecutionState(input: { deal: Deal | AnyRecord; 
     assignment,
     submissionReviewConnected: Boolean(str(rec(source.submissionReview).id) ?? str(rec(source.opportunityExecution).submissionReviewId)),
     complianceChecks,
+    complianceRequirements,
+    remediationRequests,
     documentChecklist: documents,
     stages,
     actions,
@@ -489,15 +571,43 @@ export function matchContractorsForOpportunity(input: { deal: Deal | AnyRecord; 
   return input.contractors.filter((contractor) => !isMockContractor(contractor)).map((contractor) => {
     const capabilities = arr(contractor.capabilities ?? contractor.serviceCategories ?? contractor.services ?? contractor.categories);
     const regions = arr(contractor.provinces ?? contractor.serviceAreas ?? contractor.regions);
-    const compliance = evaluateOpportunityCompliance(requirements, contractor);
+    const compliance = evaluateOpportunityCompliance(requirements, contractor, str(rec(input.deal).workspaceId));
     const readiness = pct(contractor.readinessScore);
-    const missingDocuments = [...compliance.missing, ...compliance.expired.map((item) => item + " expired")];
+    const profileCompleteness = calculateProfileCompleteness(contractor);
+    const generalCompliance = pct(contractor.readinessScore ?? contractor.complianceStatusScore);
+    const submissionReadiness = calculateSubmissionReadiness(compliance.details);
+    const missingDocuments = compliance.details.filter((detail) => detail.blockerSeverity !== "none").map((detail) => detail.reason);
     const capabilityScore = capabilities.length === 0 ? 8 : capabilities.some((item) => textHas(sourceText, item) || textHas(item, requirements.serviceCategory ?? "")) ? 30 : 0;
     const regionScore = !requirements.location || regions.length === 0 ? 10 : regions.some((item) => textHas(requirements.location ?? "", item) || textHas(item, requirements.location ?? "")) ? 20 : 0;
     const cidbScore = !requirements.cidbRequirement ? 10 : arr(contractor.cidbGradings ?? contractor.cidbRequirements).some((item) => textHas(item, requirements.cidbRequirement ?? "")) ? 20 : -10;
-    const complianceScore = compliance.status === "VALID" ? 20 : compliance.status === "REQUIRES_REVIEW" ? 8 : -15;
-    const matchScore = Math.max(0, Math.min(100, capabilityScore + regionScore + cidbScore + complianceScore + Math.round(readiness * 0.2)));
-    return { contractorId: str(contractor.contractorId) ?? contractor.id, contractorName: contractorName(contractor) ?? contractor.id, matchScore, readiness, missingDocuments, disqualifyingRequirements: compliance.status === "VALID" ? [] : missingDocuments, recommendationReason: missingDocuments.length ? "Requires compliance remediation before submission." : "Matched against category, geography, compliance, readiness and required documents.", complianceStatus: compliance.status };
+    const complianceScore = compliance.status === "VALID" ? 20 : ["UNVERIFIED", "UNCLASSIFIED", "DUPLICATE", "REQUIRES_MANUAL_REVIEW"].includes(compliance.status) ? 8 : -15;
+    const matchScore = Math.max(0, Math.min(100, capabilityScore + regionScore + cidbScore + complianceScore + Math.round(generalCompliance * 0.2)));
+    const validRequirementsCount = compliance.details.filter((detail) => detail.status === "VALID").length;
+    const missingCount = compliance.details.filter((detail) => detail.status === "MISSING").length;
+    const expiredCount = compliance.details.filter((detail) => detail.status === "EXPIRED").length;
+    const reviewRequiredCount = compliance.details.filter((detail) => ["UNVERIFIED", "UNCLASSIFIED", "DUPLICATE", "REQUIRES_MANUAL_REVIEW"].includes(detail.status)).length;
+    const recommendationReason = missingDocuments.length
+      ? missingDocuments.join("; ")
+      : "Matched against category, geography, compliance, profile completeness and opportunity requirements.";
+    return {
+      contractorId: str(contractor.contractorId) ?? contractor.id,
+      contractorName: contractorName(contractor) ?? contractor.id,
+      matchScore,
+      readiness,
+      profileCompleteness,
+      generalCompliance,
+      opportunityMatch: matchScore,
+      submissionReadiness,
+      missingDocuments,
+      validRequirementsCount,
+      missingCount,
+      expiredCount,
+      reviewRequiredCount,
+      complianceDetails: compliance.details,
+      disqualifyingRequirements: compliance.status === "VALID" ? [] : missingDocuments,
+      recommendationReason,
+      complianceStatus: compliance.status,
+    };
   }).sort((left, right) => right.matchScore - left.matchScore);
 }
 

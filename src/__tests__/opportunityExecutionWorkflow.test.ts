@@ -99,8 +99,8 @@ describe("opportunity execution workflow", () => {
   test("compliance blockers drive the exact next action", () => {
     const coidaBlockedContractor = { ...validContractor, coidaValid: false, missingCriticalDocuments: ["COIDA"] };
     const state = buildOpportunityExecutionState({ deal: assignedDeal, contractor: coidaBlockedContractor });
-    expect(state.complianceChecks.find((check) => check.key === "coida")).toMatchObject({ status: "BLOCKED", blocker: "Upload contractor COIDA" });
-    expect(state.nextAction).toBe("Upload contractor COIDA");
+    expect(state.complianceChecks.find((check) => check.key === "coida")).toMatchObject({ status: "BLOCKED", blocker: "COIDA document not found" });
+    expect(state.nextAction).toBe("COIDA document not found");
     expect(state.actions.find((action) => action.key === "open_missing_documents")).toMatchObject({ enabled: true });
   });
 

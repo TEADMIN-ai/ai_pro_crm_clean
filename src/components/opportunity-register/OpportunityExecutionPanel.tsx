@@ -99,7 +99,7 @@ export default function OpportunityExecutionPanel({ dealId, state, matches }: Pr
           <div><p className="tex-metric-label">Owner</p><p className="mt-1 font-semibold">{state.nextActionDetail.owner}</p></div>
           <div><p className="tex-metric-label">Due before</p><p className="mt-1 font-semibold">{formatDate(state.nextActionDetail.dueBefore)}</p></div>
           <div><p className="tex-metric-label">Days remaining</p><p className="mt-1 font-semibold">{state.daysRemaining === null ? "Not captured" : state.daysRemaining}</p></div>
-          <div><p className="tex-metric-label">Readiness</p><p className="mt-1 font-semibold">{state.readiness}%</p></div>
+          <div><p className="tex-metric-label">Workflow progress</p><p className="mt-1 font-semibold">{state.readiness}%</p></div>
         </div>
         {state.nextActionDetail.blocker ? <div className="mt-4 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm font-semibold text-amber-950">{state.nextActionDetail.blocker}</div> : null}
         {state.blockers.length ? <div className="mt-4 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-900">{state.blockers.join("; ")}</div> : null}
@@ -151,16 +151,31 @@ export default function OpportunityExecutionPanel({ dealId, state, matches }: Pr
       </EnterprisePanel>
 
       <EnterprisePanel eyebrow="Compliance" title="Compulsory contractor checks">
+        <div className="mb-4 grid gap-3 md:grid-cols-4">
+          <div className="rounded-md border border-[color:var(--tex-border)] p-3"><p className="tex-metric-label">Profile completeness</p><p className="mt-1 font-semibold">{state.profileCompleteness}%</p></div>
+          <div className="rounded-md border border-[color:var(--tex-border)] p-3"><p className="tex-metric-label">General compliance</p><p className="mt-1 font-semibold">{state.generalCompliance}%</p></div>
+          <div className="rounded-md border border-[color:var(--tex-border)] p-3"><p className="tex-metric-label">Opportunity match</p><p className="mt-1 font-semibold">{state.opportunityMatch}%</p></div>
+          <div className="rounded-md border border-[color:var(--tex-border)] p-3"><p className="tex-metric-label">Submission readiness</p><p className="mt-1 font-semibold">{state.submissionReadiness}%</p></div>
+        </div>
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-          {state.complianceChecks.map((check) => (
-            <div key={check.key} className="rounded-md border border-[color:var(--tex-border)] p-3">
-              <div className="flex items-center justify-between gap-2">
-                <p className="font-semibold">{check.label}</p>
-                <EnterpriseStatusBadge value={check.status} tone={statusTone(check.status)} />
+          {state.complianceRequirements.map((check) => (
+            <details key={check.key} className="rounded-md border border-[color:var(--tex-border)] p-3">
+              <summary className="cursor-pointer list-none">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="font-semibold">{check.requirementName}</p>
+                  <EnterpriseStatusBadge value={check.status} tone={check.status === "VALID" ? "success" : check.status === "NOT_APPLICABLE" ? "neutral" : check.blockerSeverity === "review" ? "warning" : "danger"} />
+                </div>
+                <p className="mt-2 text-xs text-[color:var(--tex-text-muted)]">{check.required ? "Required" : "Not required"}</p>
+              </summary>
+              <div className="mt-3 grid gap-2 text-sm">
+                <p>{check.reason}</p>
+                <p><span className="font-semibold">Action:</span> {check.requiredAction}</p>
+                <p><span className="font-semibold">Responsible:</span> {check.responsiblePerson}</p>
+                <p><span className="font-semibold">Due:</span> {formatDate(check.dueDate)}</p>
+                {check.matchedDocument ? <p><span className="font-semibold">Document:</span> {check.matchedDocument.originalFilename ?? check.matchedDocument.documentId ?? "Document recorded"}</p> : null}
+                {check.expiryDate ? <p><span className="font-semibold">Valid until:</span> {check.expiryDate}</p> : null}
               </div>
-              <p className="mt-2 text-xs text-[color:var(--tex-text-muted)]">{check.required ? "Required" : "Not required"}</p>
-              {check.blocker ? <p className="mt-2 text-sm text-red-800">{check.blocker}</p> : null}
-            </div>
+            </details>
           ))}
         </div>
       </EnterprisePanel>
@@ -201,9 +216,32 @@ export default function OpportunityExecutionPanel({ dealId, state, matches }: Pr
 
       <EnterprisePanel eyebrow="Contractor matching" title="Live contractor recommendations">
         {matches.length ? <EnterpriseTable wrapperClassName="shadow-none">
-          <thead><tr><th>Contractor</th><th>Score</th><th>Readiness</th><th>Missing</th><th>Reason</th><th>Action</th></tr></thead>
+          <thead><tr><th>Contractor</th><th>Opportunity match</th><th>Profile</th><th>General compliance</th><th>Submission readiness</th><th>Counts</th><th>Reason</th><th>Action</th></tr></thead>
           <tbody>{matches.map((match) => (
-            <tr key={match.contractorId}><td>{match.contractorName}</td><td>{match.matchScore}%</td><td>{match.readiness}%</td><td>{match.missingDocuments.join(", ") || "None"}</td><td>{match.recommendationReason}</td><td><EnterpriseActionButton disabled={pending || state.currentPhase !== "MATCHING_REQUIRED"} onClick={() => submit("assign_contractor", { contractorId: match.contractorId })} variant="success">Assign</EnterpriseActionButton></td></tr>
+            <tr key={match.contractorId}>
+              <td>
+                <p className="font-semibold">{match.contractorName}</p>
+                <details className="mt-2">
+                  <summary className="cursor-pointer text-xs font-semibold text-[color:var(--tex-text-muted)]">Compliance details</summary>
+                  <div className="mt-2 grid gap-2">
+                    {match.complianceDetails.map((detail) => (
+                      <div key={detail.key} className="rounded-md border border-[color:var(--tex-border)] p-2 text-xs">
+                        <p className="font-semibold">{detail.requirementName}: {detail.status}</p>
+                        <p>{detail.reason}</p>
+                        <p>Action: {detail.requiredAction}</p>
+                      </div>
+                    ))}
+                  </div>
+                </details>
+              </td>
+              <td>{match.opportunityMatch}%</td>
+              <td>{match.profileCompleteness}%</td>
+              <td>{match.generalCompliance}%</td>
+              <td>{match.submissionReadiness}%</td>
+              <td>{match.validRequirementsCount} valid / {match.missingCount} missing / {match.expiredCount} expired / {match.reviewRequiredCount} review</td>
+              <td>{match.recommendationReason}</td>
+              <td><EnterpriseActionButton disabled={pending || state.currentPhase !== "MATCHING_REQUIRED"} onClick={() => submit("assign_contractor", { contractorId: match.contractorId })} variant="success">Assign</EnterpriseActionButton></td>
+            </tr>
           ))}</tbody>
         </EnterpriseTable> : <EnterpriseEmptyState title="No live contractor matches" detail="No canonical contractor records matched this opportunity." />}
       </EnterprisePanel>
