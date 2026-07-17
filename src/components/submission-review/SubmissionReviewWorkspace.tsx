@@ -1,30 +1,31 @@
+
 "use client";
-
-import { EnterpriseEmptyState, EnterprisePanel } from "@/components/ui/EnterpriseUI";
-import { submissionReviewState } from "@/lib/submission-review";
-
-export default function SubmissionReviewWorkspace() {
-  if (submissionReviewState.requiredDocuments.length === 0) {
-    return (
-      <main className="space-y-6 p-4 md:p-6">
-        <EnterprisePanel title="Submission review" eyebrow="Operational data">
-          <EnterpriseEmptyState
-            title="No submission review record is connected."
-            detail="Connect the production submission review source to render readiness, validation, signatures, BOQ, pricing, and approval flow."
-          />
-        </EnterprisePanel>
-      </main>
-    );
-  }
-
-  return (
-    <main className="space-y-6 p-4 md:p-6">
-      <EnterprisePanel title="Submission review" eyebrow="Operational data">
-        <EnterpriseEmptyState
-          title="No submission review record is connected."
-          detail="Connect the production submission review source to render readiness, validation, signatures, BOQ, pricing, and approval flow."
-        />
-      </EnterprisePanel>
-    </main>
-  );
-}
+import { useEffect, useMemo, useState } from "react";
+import { authFetch } from "@/lib/client/authFetch";
+import { EnterpriseActionButton, EnterpriseEmptyState, EnterpriseKpiCard, EnterpriseLoadingState, EnterprisePanel, EnterpriseStatusBadge, EnterpriseTable } from "@/components/ui/EnterpriseUI";
+import type { SubmissionReviewSection, SubmissionReviewView } from "@/lib/submission-review";
+type LoadState="loading"|"ready"|"unauthorised"|"not_found"|"repository_failure"|"incomplete_connection";
+const tabs=["Overview","Compliance","Documents","BOQ & Pricing","Review & Approval","Tender Pack","Submission"];
+function tone(status:string){const s=status.toLowerCase();return s.includes("valid")||s.includes("complete")||s.includes("ready")?"success":s.includes("missing")||s.includes("fail")||s.includes("blocked")||s.includes("archived")?"danger":"warning";}
+function formatDate(value:string|null){return value?new Date(value).toLocaleString("en-ZA"):"Not recorded";}
+function SectionPanel({section}:{section:SubmissionReviewSection}){return <EnterprisePanel title={section.label} eyebrow="Submission review section" action={<EnterpriseStatusBadge value={section.status} tone={tone(section.status)} />}><div className="grid gap-4 md:grid-cols-3"><div><p className="tex-metric-label">Owner</p><p className="mt-1 font-semibold">{section.owner}</p></div><div><p className="tex-metric-label">Next action</p><p className="mt-1 font-semibold">{section.nextAction}</p></div><div><p className="tex-metric-label">Evidence</p><p className="mt-1 font-semibold">{section.evidence.length||"None"}</p></div></div>{section.blockers.length?<div className="mt-4 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-900">{section.blockers.join("; ")}</div>:<p className="mt-4 text-sm text-[color:var(--tex-text-muted)]">No blockers recorded for this section.</p>}<div className="mt-4 text-sm text-[color:var(--tex-text-muted)]">{section.evidence.join(", ")||"No evidence attached yet."}</div></EnterprisePanel>;}
+function MissingState({onRepair,pending,dealId,setDealId}:{onRepair:()=>void;pending:boolean;dealId:string;setDealId:(value:string)=>void}){return <EnterprisePanel title="Submission review" eyebrow="Controlled repair"><EnterpriseEmptyState title="Submission review has not been created for this opportunity." detail="Enter a deal ID to create or repair the canonical submission review connection after contractor assignment." /><div className="mt-4 flex flex-col gap-3 sm:flex-row"><input className="rounded-md border p-2" value={dealId} onChange={(e)=>setDealId(e.target.value)} placeholder="Deal ID" /><EnterpriseActionButton disabled={pending||!dealId.trim()} onClick={onRepair} variant="success">Create or Repair Connection</EnterpriseActionButton></div></EnterprisePanel>;}
+export default function SubmissionReviewWorkspace(){
+const [state,setState]=useState<LoadState>("loading"),[reviews,setReviews]=useState<SubmissionReviewView[]>([]),[selectedId,setSelectedId]=useState<string|null>(null),[active,setActive]=useState(tabs[0]),[dealId,setDealId]=useState(""),[pending,setPending]=useState(false),[error,setError]=useState<string|null>(null);
+async function load(){setState("loading");setError(null);try{const response=await authFetch("/api/submission-review",{cache:"no-store"});const payload=await response.json().catch(()=>({}));if(response.status===401||response.status===403){setState("unauthorised");return;}if(!response.ok){setState("repository_failure");setError(typeof payload.error==="string"?payload.error:"Failed to load submission review records");return;}const list=Array.isArray(payload.reviews)?payload.reviews as SubmissionReviewView[]:payload.review?[payload.review as SubmissionReviewView]:[];setReviews(list);setSelectedId(list[0]?.id??null);setState(list.length?"ready":"not_found");}catch(err){setState("repository_failure");setError(err instanceof Error?err.message:"Repository failure");}}
+useEffect(()=>{void load();},[]);
+async function repair(){setPending(true);setError(null);try{const response=await authFetch("/api/submission-review",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({dealId})});const payload=await response.json().catch(()=>({}));if(!response.ok){setError(typeof payload.error==="string"?payload.error:"Repair failed");return;}await load();}finally{setPending(false);}}
+const review=useMemo(()=>reviews.find((item)=>item.id===selectedId)??reviews[0]??null,[reviews,selectedId]);
+if(state==="loading")return <main className="space-y-6 p-4 md:p-6"><EnterpriseLoadingState label="Loading submission review records..." /></main>;
+if(state==="unauthorised")return <main className="space-y-6 p-4 md:p-6"><EnterpriseEmptyState title="Unauthorised" detail="You do not have permission to view these submission review records." /></main>;
+if(state==="repository_failure")return <main className="space-y-6 p-4 md:p-6"><EnterpriseEmptyState title="Repository failure" detail={error??"Submission review records could not be loaded."} /></main>;
+if(!review)return <main className="space-y-6 p-4 md:p-6"><MissingState onRepair={repair} pending={pending} dealId={dealId} setDealId={setDealId} />{error?<div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-900">{error}</div>:null}</main>;
+const selectedSection=review.sections.find((section)=>section.label===active)??review.sections[0];
+return <main className="tex-shell grid gap-6 p-4 md:p-6"><EnterprisePanel title={review.opportunityTitle} eyebrow="Submission review" action={<EnterpriseStatusBadge value={review.currentWorkflowPhase} tone="info" />}><div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4"><EnterpriseKpiCard label="RFQ/RFP" value={review.rfqNumber} helper={review.clientIssuer}/><EnterpriseKpiCard label="Closing date" value={formatDate(review.closingDate)} helper="Submission deadline"/><EnterpriseKpiCard label="Assigned contractor" value={review.contractorName} helper={review.contractorId??"No contractor ID"}/><EnterpriseKpiCard label="Readiness" value={`${review.readiness}%`} helper={review.nextAction}/></div>{review.connectionStatus==="incomplete"?<div className="mt-4 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">Incomplete connection. Repair the submission review before treating readiness as complete.</div>:null}</EnterprisePanel>
+<div className="grid gap-4 md:grid-cols-4"><EnterpriseKpiCard label="Compliance" value={review.complianceStatus}/><EnterpriseKpiCard label="Pricing" value={review.pricingStatus}/><EnterpriseKpiCard label="BOQ" value={review.boqStatus}/><EnterpriseKpiCard label="Documents" value={review.documentStatus}/><EnterpriseKpiCard label="Signatures" value={review.signatureStatus}/><EnterpriseKpiCard label="Approval" value={review.approvalStatus}/><EnterpriseKpiCard label="Tender Pack" value={review.packStatus}/><EnterpriseKpiCard label="Owner" value={review.assignedOwner}/></div>
+<EnterprisePanel title="Blockers and next action" eyebrow="Readiness controls"><p className="font-semibold">{review.nextAction}</p>{review.blockers.length?<div className="mt-4 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-900">{review.blockers.join("; ")}</div>:<p className="mt-3 text-sm text-[color:var(--tex-text-muted)]">No blockers recorded.</p>}<p className="mt-3 text-xs text-[color:var(--tex-text-muted)]">Last updated: {formatDate(review.updatedAt)}</p></EnterprisePanel>
+<div className="flex flex-wrap gap-2">{tabs.map((tab)=><button key={tab} type="button" className={`rounded-md border px-3 py-2 text-sm font-semibold ${active===tab?"bg-[color:var(--tex-surface-muted)] text-[color:var(--tex-text-strong)]":"text-[color:var(--tex-text-muted)]"}`} onClick={()=>setActive(tab)}>{tab}</button>)}</div>
+{selectedSection?<SectionPanel section={selectedSection}/>:null}
+<EnterprisePanel title="Audit timeline" eyebrow="Activity"><EnterpriseTable wrapperClassName="shadow-none"><thead><tr><th>When</th><th>Actor</th><th>Phase</th><th>Event</th></tr></thead><tbody>{review.auditTimeline.length?review.auditTimeline.map((item)=><tr key={item.id}><td>{formatDate(item.createdAt)}</td><td>{item.actor??"System"}</td><td>{item.phase??"-"}</td><td>{item.message}</td></tr>):<tr><td colSpan={4}>No audit activity is attached to this submission review yet.</td></tr>}</tbody></EnterpriseTable></EnterprisePanel>
+{reviews.length>1?<EnterprisePanel title="Submission review records" eyebrow="Available records"><EnterpriseTable wrapperClassName="shadow-none"><tbody>{reviews.map((item)=><tr key={item.id}><td>{item.rfqNumber}</td><td>{item.contractorName}</td><td>{item.readiness}%</td><td><EnterpriseActionButton onClick={()=>setSelectedId(item.id)}>Open</EnterpriseActionButton></td></tr>)}</tbody></EnterpriseTable></EnterprisePanel>:null}
+</main>;}

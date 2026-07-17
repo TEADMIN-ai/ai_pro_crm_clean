@@ -5,7 +5,7 @@ import SubmissionReviewWorkspace from "@/components/submission-review/Submission
 
 export default function SubmissionReviewPage() {
   return (
-    <RequireRole allow={["admin", "manager", "staff"]}>
+    <RequireRole allow={["admin", "manager", "staff", "contractor"]}>
       <SubmissionReviewWorkspace />
     </RequireRole>
   );
