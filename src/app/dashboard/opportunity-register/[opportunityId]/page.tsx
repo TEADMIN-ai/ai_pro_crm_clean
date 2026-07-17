@@ -5,7 +5,7 @@ import {
   EnterpriseStatusBadge,
 } from "@/components/ui/EnterpriseUI";
 import OpportunityWorkspaceView from "@/components/opportunity-register/OpportunityWorkspaceView";
-import { getDealById } from "@/server/services/dealService";
+import { getOpportunityExecutionView } from "@/server/services/opportunityExecutionService";
 import { getOpportunityRegisterRecordById, mapDealToOpportunityRegisterRecord } from "@/components/opportunity-register/opportunityRegisterData";
 
 export default async function OpportunityRegisterDetailPage({
@@ -15,14 +15,17 @@ export default async function OpportunityRegisterDetailPage({
 }) {
   const { opportunityId } = await params;
   const staticOpportunity = getOpportunityRegisterRecordById(opportunityId);
-
   if (staticOpportunity) {
     return <OpportunityWorkspaceView opportunity={staticOpportunity} />;
   }
-
-  const deal = await getDealById(opportunityId);
-  if (deal) {
-    return <OpportunityWorkspaceView opportunity={mapDealToOpportunityRegisterRecord(deal)} />;
+  let view: Awaited<ReturnType<typeof getOpportunityExecutionView>> | null = null;
+  try {
+    view = await getOpportunityExecutionView(opportunityId);
+  } catch {
+    view = null;
+  }
+  if (view) {
+    return <OpportunityWorkspaceView opportunity={mapDealToOpportunityRegisterRecord(view.deal as never)} executionState={view.state} contractorMatches={view.matches} />;
   }
 
   return (
@@ -33,9 +36,7 @@ export default async function OpportunityRegisterDetailPage({
             <div>
               <p className="tex-eyebrow">Opportunity Register</p>
               <h1 className="tex-title mt-3">Opportunity Workspace</h1>
-              <p className="tex-copy mt-3 max-w-3xl text-sm">
-                No production opportunity record is connected for ID {opportunityId}.
-              </p>
+              <p className="tex-copy mt-3 max-w-3xl text-sm">No production opportunity record is connected for ID {opportunityId}.</p>
             </div>
             <div className="flex flex-wrap gap-2">
               <EnterpriseStatusBadge value="Deep link resolved" tone="success" />
@@ -44,17 +45,8 @@ export default async function OpportunityRegisterDetailPage({
           </div>
         </div>
       </EnterpriseCard>
-
-      <EnterpriseEmptyState
-        title="No opportunity record found."
-        detail="The route is available for refresh and deep links. Create the production opportunity record to render workspace details."
-      />
-
-      <div>
-        <EnterpriseActionButton href="/dashboard/opportunity-register" variant="secondary">
-          Back to Opportunity Register
-        </EnterpriseActionButton>
-      </div>
+      <EnterpriseEmptyState title="No opportunity record found." detail="The route is available for refresh and deep links. Create the production opportunity record to render workspace details." />
+      <div><EnterpriseActionButton href="/dashboard/opportunity-register" variant="secondary">Back to Opportunity Register</EnterpriseActionButton></div>
     </main>
   );
 }

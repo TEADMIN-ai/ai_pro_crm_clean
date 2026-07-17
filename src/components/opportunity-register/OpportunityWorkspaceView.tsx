@@ -1,4 +1,5 @@
 import Link from "next/link";
+import OpportunityExecutionPanel from "@/components/opportunity-register/OpportunityExecutionPanel";
 import {
   EnterpriseActionButton,
   EnterpriseCard,
@@ -15,6 +16,7 @@ import {
   readinessTone,
   type OpportunityRegisterRecord,
 } from "@/components/opportunity-register/opportunityRegisterData";
+import type { ContractorMatchResult, OpportunityExecutionState } from "@/lib/opportunities/opportunityExecution";
 
 function formatCurrency(value: number) {
   if (value >= 1_000_000) {
@@ -47,7 +49,7 @@ function ChecklistTone({
   return <EnterpriseStatusBadge value="Pending" tone="neutral" />;
 }
 
-export default function OpportunityWorkspaceView({ opportunity }: { opportunity: OpportunityRegisterRecord }) {
+export default function OpportunityWorkspaceView({ opportunity, executionState, contractorMatches = [] }: { opportunity: OpportunityRegisterRecord; executionState?: OpportunityExecutionState; contractorMatches?: ContractorMatchResult[] }) {
   return (
     <main data-module="dashboard" className="tex-shell grid gap-6">
       <EnterpriseCard className="overflow-hidden p-0">
@@ -103,13 +105,11 @@ export default function OpportunityWorkspaceView({ opportunity }: { opportunity:
                   <p className="tex-copy mt-1 text-xs">Assigned to this opportunity register entry.</p>
                 </div>
               ))}
-            </div>
-
-            <EnterpriseEmptyState
-              title="No mutations are attached to this workspace."
-              detail="This view renders a live opportunity record when one is connected."
-            />
-          </div>
+            </div>            {executionState ? (
+              <OpportunityExecutionPanel dealId={opportunity.id} state={executionState} matches={contractorMatches} />
+            ) : (
+              <EnterpriseEmptyState title="Execution workflow unavailable." detail="Create or open a canonical opportunity record to render next actions." />
+            )}</div>
         </EnterprisePanel>
 
         <EnterprisePanel eyebrow="Operational timeline" title="Opportunity timeline">
