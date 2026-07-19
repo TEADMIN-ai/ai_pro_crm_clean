@@ -1,4 +1,4 @@
-﻿import { verifyStoredContractorDocument } from "@/server/services/documentVerificationService";
+import { verifyStoredContractorDocument } from "@/server/services/documentVerificationService";
 
 jest.mock("@/lib/pdf/extractTextFromPdf", () => ({
   extractTextFromPdf: jest.fn(),
@@ -16,6 +16,17 @@ const { extractTextFromPdfDetailed } = jest.requireMock("@/lib/pdf/extractTextFr
     }>
   >;
 };
+
+function stringValues(value: unknown): string[] {
+  if (typeof value === "string") return [value];
+  if (Array.isArray(value)) return value.flatMap((item) => stringValues(item));
+  if (value && typeof value === "object") return Object.values(value as Record<string, unknown>).flatMap((item) => stringValues(item));
+  return [];
+}
+
+function expectNoStringValueContains(value: unknown, secret: string) {
+  expect(stringValues(value).filter((item) => item.includes(secret))).toEqual([]);
+}
 
 describe("documentVerificationService", () => {
   beforeEach(() => {
@@ -222,6 +233,7 @@ describe("documentVerificationService", () => {
   });
 
   test("returns PASS for tax clearance certificate with TCS pin, issue date, and company match", async () => {
+    const logSpy = jest.spyOn(console, "log").mockImplementation(() => undefined);
     extractTextFromPdfDetailed.mockResolvedValue({
       text: [
         "SARS Tax Compliance Status",
@@ -240,11 +252,19 @@ describe("documentVerificationService", () => {
     const result = await verifyStoredContractorDocument(Buffer.from("pdf"), "taxClearance", {
       companyName: "Torque Empire PTY Ltd",
     });
+    const serializedLogs = JSON.stringify(logSpy.mock.calls);
+    logSpy.mockRestore();
 
     expect(result.verified).toBe(true);
     expect(result.status).toBe("PASS");
     expect(result.reason).toBe("TCS PIN document detected and validated successfully.");
-    expect(result.extractedFields.taxPin).toBe("A1B2C3D4E5");
+    expect(Object.prototype.hasOwnProperty.call(result.extractedFields, "taxPin")).toBe(false);
+    expect(result.extractedFields.tcsPinDetected).toBe("true");
+    expect(result.extractedFields.tcsPinLastFour).toBe("D4E5");
+    expect(result.extractedFields.tcsPinMasked).toBe("******D4E5");
+    expectNoStringValueContains(result.extractedFields, "A1B2C3D4E5");
+    expect(JSON.stringify(result)).not.toContain("A1B2C3D4E5");
+    expect(serializedLogs).not.toContain("A1B2C3D4E5");
     expect(result.extractedFields.issueDate).toBe("01/04/2026");
     expect(result.extractedFields.expectedCompanyMatch).toBe("true");
     expect(result.taxClassification).toEqual(
@@ -311,7 +331,11 @@ describe("documentVerificationService", () => {
     });
 
     expect(result.status).toBe("REVIEW");
-    expect(result.extractedFields.taxPin).toBeNull();
+    expect(Object.prototype.hasOwnProperty.call(result.extractedFields, "taxPin")).toBe(false);
+    expect(result.extractedFields.tcsPinDetected).toBe("false");
+    expect(result.extractedFields.tcsPinLastFour).toBeNull();
+    expect(result.extractedFields.tcsPinMasked).toBeNull();
+    expectNoStringValueContains(result.extractedFields, "A1B2C3D4E5");
     expect(result.extractedFields.taxpayerReference).toBe("9090826257");
     expect(result.extractedFields.taxpayerName).toBe("MACKAY AND DAUGHTERS ENTERPRISE");
     expect(result.extractedFields.expectedCompanyMatch).toBe("true");

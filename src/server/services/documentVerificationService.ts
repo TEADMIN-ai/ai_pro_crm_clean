@@ -1,5 +1,6 @@
 import { extractTextFromPdfDetailed, type PdfExtractionSource } from "@/lib/pdf/extractTextFromPdf";
 import { extractComplianceData } from "@/lib/intelligence/extractCompliance";
+import { redactTcsSecrets } from "@/lib/sars-tcs";
 
 export type VerificationStatus = "PASS" | "REVIEW" | "FAIL";
 
@@ -189,7 +190,7 @@ export async function verifyStoredContractorDocument(
     ocrTextLength,
     extractedTextLength: trimmedText.length,
     pageCount,
-    preview: trimmedText.slice(0, 500),
+    preview: redactTcsSecrets(trimmedText.slice(0, 500)),
   });
 
   console.log("[AI_VALIDATION_INPUT]", {
@@ -197,7 +198,7 @@ export async function verifyStoredContractorDocument(
     extractionSource,
     directTextLength: trimmedText.length,
     textLength: trimmedText.length,
-    preview: trimmedText.slice(0, 300),
+    preview: redactTcsSecrets(trimmedText.slice(0, 300)),
   });
 
   const compliance = extractComplianceData(trimmedText);
@@ -771,8 +772,9 @@ function extractTaxPin(text: string): string | null {
   const taxPin = rawTaxPin && /\d/.test(rawTaxPin) && !/^issued$/i.test(rawTaxPin) ? rawTaxPin : null;
 
   console.log("[TAX_PIN_DETECTION]", {
-    rawValue: rawTaxPin,
-    normalizedValue: taxPin ? taxPin.toUpperCase() : null,
+    rawValue: rawTaxPin ? redactTcsSecrets(rawTaxPin) : null,
+    normalizedValue: taxPin ? "******" + taxPin.slice(-4).toUpperCase() : null,
+    pinLastFour: taxPin ? taxPin.slice(-4).toUpperCase() : null,
     detected: Boolean(taxPin),
   });
 
@@ -1491,14 +1493,23 @@ function assessTaxClearanceEvidence(
     taxSupportingOnly: classification.supportingOnly ? "true" : "false",
     readinessImpactReason: classification.readinessImpactReason,
     explainableMessage: classification.explainableMessage,
-    taxPin,
+    tcsPinDetected: taxPin ? "true" : "false",
+    tcsPinLastFour: taxPin ? taxPin.slice(-4).toUpperCase() : null,
+    tcsPinMasked: taxPin ? "******" + taxPin.slice(-4).toUpperCase() : null,
+    extractedValuesProvisional: "true",
+    liveSarsVerificationStatus: "NOT_STARTED",
     taxpayerReference,
+    taxReferenceNumber: taxpayerReference,
     taxpayerReferenceMatchedLabel: taxpayerReferenceMatch.rawMatchedLabel,
     taxpayerReferenceRawValue: taxpayerReferenceMatch.rawMatchedValue,
     taxpayerReferenceRejectedReasons: taxpayerReferenceMatch.rejectedCandidateReasons.join(" | ") || null,
     taxpayerName: normalizedTaxpayerName,
+    registeredCompanyName: normalizedTaxpayerName,
+    registrationNumber: extractCIPCNumber(text),
     issueDate: taxDateEvidence.issueDate,
+    pinIssueDate: taxDateEvidence.issueDate,
     expiryDate: taxDateEvidence.expiryRaw,
+    pinExpiryDate: taxDateEvidence.expiryRaw,
     dateConflict: taxDateEvidence.hasConflict ? "true" : "false",
     dateConflictReason: taxDateEvidence.conflictReason,
     detectedDates: taxDateEvidence.detectedDates.join(" | ") || null,

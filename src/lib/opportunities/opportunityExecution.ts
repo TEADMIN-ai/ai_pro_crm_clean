@@ -16,7 +16,7 @@ export type OpportunityTaskStatus = "not_started" | "in_progress" | "complete" |
 export type OpportunityStageStatus = "NOT_STARTED" | "IN_PROGRESS" | "BLOCKED" | "COMPLETE" | "NOT_APPLICABLE";
 export type OpportunityActionKey = "review_requirements" | "find_matching_contractors" | "assign_contractor" | "open_contractor" | "open_execution_workspace" | "change_assignment" | "remove_assignment" | "start_compliance_review" | "open_missing_documents" | "open_supplier_quotes" | "open_tender_intelligence" | "open_boq_pricing" | "open_submission_review" | "prepare_documents" | "start_internal_review" | "contractor_approval" | "generate_tender_pack" | "mark_ready_for_submission" | "record_submission";
 export type OpportunityStageKey = "requirements" | "assignment" | "compliance" | "supplierQuotes" | "tenderIntelligence" | "boq" | "documents" | "internalReview" | "contractorApproval" | "tenderPack" | "submission";
-export type ProcurementNextActionKey = "ASSIGN_CONTRACTOR" | "REMEDIATE_COMPLIANCE" | "UPLOAD_OR_APPROVE_SUPPLIER_QUOTE" | "REVIEW_TENDER_ANALYSIS" | "MAP_QUOTES_TO_TENDER_LINES" | "COMPLETE_PRICING" | "APPROVE_PRICING" | "GENERATE_PRICED_DOCUMENT" | "COMPLETE_DOCUMENTS" | "COMPLETE_SUBMISSION_REVIEW" | "GENERATE_TENDER_PACK" | "READY_FOR_SUBMISSION" | "RECORD_SUBMISSION";
+export type ProcurementNextActionKey = "ASSIGN_CONTRACTOR" | "REMEDIATE_COMPLIANCE" | "UPLOAD_OR_APPROVE_SUPPLIER_QUOTE" | "REVIEW_TENDER_ANALYSIS" | "MAP_QUOTES_TO_TENDER_LINES" | "COMPLETE_PRICING" | "APPROVE_PRICING" | "GENERATE_PRICED_DOCUMENT" | "COMPLETE_DOCUMENTS" | "COMPLETE_SUBMISSION_REVIEW" | "GENERATE_TENDER_PACK" | "READY_FOR_SUBMISSION" | "RECORD_SUBMISSION" | "REQUEST_TCS_PIN" | "VERIFY_TCS_WITH_SARS" | "RESOLVE_TAX_IDENTITY_MISMATCH" | "REQUEST_TAX_REMEDIATION" | "REVERIFY_TCS" | "TAX_VERIFICATION_COMPLETE";
 type AnyRecord = Record<string, unknown>;
 
 export type OpportunityRequirementReview = {
@@ -32,6 +32,7 @@ export type OpportunityRequirementReview = {
   cidbRequirement: string | null;
   csdRequirement: boolean;
   taxRequirement: boolean;
+  sarsVerificationRequired: boolean;
   bbbeeRequirement: boolean;
   coidaRequirement: boolean;
   bankingRequirement: boolean;
@@ -171,6 +172,14 @@ function hasDocument(docs: AnyRecord[], tokens: string[]): AnyRecord | null {
 function phaseIndex(phase: OpportunityExecutionPhase): number { return OPPORTUNITY_PHASES.indexOf(phase); }
 function isAtLeast(phase: OpportunityExecutionPhase, target: OpportunityExecutionPhase): boolean { return phaseIndex(phase) >= phaseIndex(target); }
 
+function requiresLiveSarsVerification(existing: AnyRecord): boolean {
+  if (typeof existing.sarsVerificationRequired === 'boolean') return existing.sarsVerificationRequired;
+  if (typeof existing.requiresCurrentSarsVerification === 'boolean') return existing.requiresCurrentSarsVerification;
+  return Array.isArray(existing.requiredVerificationSources)
+    ? existing.requiredVerificationSources.some((item) => String(item).toUpperCase() === 'SARS_TCS')
+    : false;
+}
+
 export function normalizeOpportunityPhase(value: unknown): OpportunityExecutionPhase | null {
   return OPPORTUNITY_PHASES.includes(value as OpportunityExecutionPhase) ? value as OpportunityExecutionPhase : null;
 }
@@ -209,6 +218,7 @@ export function extractOpportunityRequirements(deal: Deal | AnyRecord): Opportun
     cidbRequirement: str(existing.cidbRequirement) ?? required.find((item) => /cidb/i.test(item)) ?? null,
     csdRequirement: typeof existing.csdRequirement === "boolean" ? existing.csdRequirement : textHas(blob, "csd"),
     taxRequirement: typeof existing.taxRequirement === "boolean" ? existing.taxRequirement : textHas(blob, "tax") || textHas(blob, "sars"),
+    sarsVerificationRequired: requiresLiveSarsVerification(existing),
     bbbeeRequirement: typeof existing.bbbeeRequirement === "boolean" ? existing.bbbeeRequirement : /b[-\s]?bbbee/i.test(blob),
     coidaRequirement: typeof existing.coidaRequirement === "boolean" ? existing.coidaRequirement : textHas(blob, "coida") || textHas(blob, "compensation fund"),
     bankingRequirement: typeof existing.bankingRequirement === "boolean" ? existing.bankingRequirement : textHas(blob, "bank") || textHas(blob, "banking"),

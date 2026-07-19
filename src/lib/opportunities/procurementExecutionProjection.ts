@@ -8,6 +8,7 @@ import {
   type ProcurementNextActionKey,
 } from "@/lib/opportunities/opportunityExecution";
 import type { ComplianceRemediationRequest, OpportunityRequirementDetail } from "@/lib/opportunities/opportunityComplianceRemediation";
+import { buildSarsTcsProjection, type SarsTcsProjection, type SarsTcsVerificationRecord } from "@/lib/sars-tcs";
 
 type AnyRecord = Record<string, unknown>;
 
@@ -55,7 +56,20 @@ export type ProcurementExecutionProjection = {
   complianceStatus: OpportunityComplianceStatus;
   complianceRequirements: OpportunityRequirementDetail[];
   complianceBlockers: ProcurementBlocker[];
+  sarsBlockers: ProcurementBlocker[];
   remediationTaskIds: string[];
+  taxDocumentStatus: string;
+  sarsVerificationStatus: SarsTcsProjection["sarsVerificationStatus"];
+  sarsVerifiedAt: string | null;
+  sarsRecheckDueAt: string | null;
+  sarsIdentityMatch: SarsTcsProjection["sarsIdentityMatch"];
+  sarsVerificationBlockers: string[];
+  sarsVerificationRequired: boolean;
+  sarsVerificationRoute: string | null;
+  sarsNextAction: SarsTcsProjection["sarsNextAction"];
+  sarsVerifiedByName: string | null;
+  sarsVerificationSource: SarsTcsProjection["source"];
+  sarsEvidenceAvailable: boolean;
   supplierQuoteStatus: string;
   supplierQuoteIds: string[];
   approvedSupplierQuoteIds: string[];
@@ -136,10 +150,21 @@ function supplierQuoteIdsFrom(deal: AnyRecord, execution: AnyRecord): string[] {
   return Array.from(new Set([...quotes.map((quote) => str(quote.id)), ...arr<string>(execution.supplierQuoteIds)].filter(Boolean) as string[]));
 }
 
+function sarsActionLabel(key: SarsTcsProjection['sarsNextAction']): string {
+  if (key === 'REQUEST_TCS_PIN') return 'Request SARS TCS PIN';
+  if (key === 'VERIFY_TCS_WITH_SARS') return 'Verify SARS TCS';
+  if (key === 'RESOLVE_TAX_IDENTITY_MISMATCH') return 'Resolve SARS identity mismatch';
+  if (key === 'REQUEST_TAX_REMEDIATION') return 'Resolve SARS non-compliance';
+  if (key === 'REVERIFY_TCS') return 'Reverify SARS TCS';
+  return 'Complete SARS verification';
+}
+
 function buildNextAction(input: {
   state: OpportunityExecutionState;
   assignmentValid: boolean;
   complianceBlockers: ProcurementBlocker[];
+  sarsBlockers: ProcurementBlocker[];
+  sarsNextAction: SarsTcsProjection['sarsNextAction'];
   quoteBlockers: ProcurementBlocker[];
   intelligenceBlockers: ProcurementBlocker[];
   pricingBlockers: ProcurementBlocker[];
@@ -163,6 +188,7 @@ function buildNextAction(input: {
     href,
   });
   if (!input.assignmentValid) return make("ASSIGN_CONTRACTOR", "Assign Torque Empire as bidder", "staff", "A valid bidder assignment is required.", "assign_contractor");
+  if (input.sarsBlockers.length) return make(input.sarsNextAction, sarsActionLabel(input.sarsNextAction), 'compliance', input.sarsBlockers[0].problem, 'open_missing_documents', input.sarsBlockers[0].actionRoute);
   if (input.complianceBlockers.length) return make("REMEDIATE_COMPLIANCE", "Remediate contractor compliance", "compliance", input.complianceBlockers[0].problem, "open_missing_documents", input.complianceBlockers[0].actionRoute);
   if (input.quoteBlockers.length) return make("UPLOAD_OR_APPROVE_SUPPLIER_QUOTE", "Upload or approve supplier quote", "staff", input.quoteBlockers[0].problem, "open_supplier_quotes", input.quoteBlockers[0].actionRoute);
   if (input.intelligenceBlockers.length) return make("REVIEW_TENDER_ANALYSIS", "Review tender analysis", "staff", input.intelligenceBlockers[0].problem, "open_tender_intelligence", input.intelligenceBlockers[0].actionRoute);
@@ -218,6 +244,11 @@ export function buildProcurementExecutionProjection(input: {
   const complianceBlockers = state.complianceRequirements
     .filter((requirement) => requirement.blockerSeverity !== "none")
     .map((requirement) => blocker(requirement.reason, "Compulsory bidder compliance must be valid before submission.", requirement.responsiblePerson, "/dashboard/contractors/" + encodeURIComponent(state.contractorId ?? ""), requirement.dueDate ?? dueDate));
+  const sarsRecord = rec(deal.sarsTcsSummary ?? execution.sarsTcsSummary) as Partial<SarsTcsVerificationRecord>;
+  const sarsProjection = buildSarsTcsProjection({ record: Object.keys(sarsRecord).length ? sarsRecord as SarsTcsVerificationRecord : null, taxDocumentStatus: state.complianceChecks.find((check) => check.key === "tax")?.status ?? "unknown", route: state.contractorId ? "/dashboard/contractors/" + encodeURIComponent(state.contractorId) : null, requiresLiveVerification: state.requirements.sarsVerificationRequired });
+  const sarsBlockerReason = state.requirements.sarsVerificationRequired ? 'Tender requires current live SARS TCS verification.' : 'Existing SARS TCS verification result requires resolution.';
+  const sarsBlockers = sarsProjection.sarsVerificationBlockers.map((item) => blocker(item, sarsBlockerReason, 'compliance', sarsProjection.sarsVerificationRoute ?? '/dashboard/deals/' + encodeURIComponent(dealId) + '/execution', sarsProjection.sarsRecheckDueAt ?? dueDate));
+  const allComplianceBlockers = [...complianceBlockers, ...sarsBlockers];
   const documentsComplete = state.documentChecklist.filter((item) => item.required).every((item) => item.status === "COMPLETE");
   const documentCompleteness = state.documentChecklist.length ? pct((state.documentChecklist.filter((item) => item.status === "COMPLETE" || item.status === "NOT_APPLICABLE").length / state.documentChecklist.length) * 100) : 100;
   const tenderAnalysisCompleteness = requirementsReviewStatus === "APPROVED" ? 100 : tenderAnalysisStatus === "ANALYSIS_COMPLETE" || tenderAnalysisStatus === "REVIEW_REQUIRED" ? 75 : tenderAnalysisStatus === "ANALYSING" ? 40 : 0;
@@ -253,7 +284,9 @@ export function buildProcurementExecutionProjection(input: {
   const nextAction = buildNextAction({
     state,
     assignmentValid: Boolean(state.contractorId),
-    complianceBlockers,
+    complianceBlockers: allComplianceBlockers,
+    sarsBlockers,
+    sarsNextAction: sarsProjection.sarsNextAction,
     quoteBlockers,
     intelligenceBlockers,
     pricingBlockers,
@@ -266,7 +299,7 @@ export function buildProcurementExecutionProjection(input: {
     tenderPackMissing: !packReady,
     ready,
   });
-  const blockers = [...complianceBlockers, ...quoteBlockers, ...intelligenceBlockers, ...pricingBlockers, ...submission.blockers.map((item) => blocker(item, "Submission readiness requires this prerequisite.", nextAction.owner, nextAction.href ?? "/dashboard/deals/" + encodeURIComponent(dealId) + "/execution", dueDate))];
+  const blockers = [...allComplianceBlockers, ...quoteBlockers, ...intelligenceBlockers, ...pricingBlockers, ...submission.blockers.map((item) => blocker(item, "Submission readiness requires this prerequisite.", nextAction.owner, nextAction.href ?? "/dashboard/deals/" + encodeURIComponent(dealId) + "/execution", dueDate))];
   return {
     workspaceId: str(deal.workspaceId),
     opportunityId: String(deal.opportunityId ?? deal.id ?? dealId),
@@ -281,8 +314,21 @@ export function buildProcurementExecutionProjection(input: {
     dueDate,
     complianceStatus: state.complianceStatus,
     complianceRequirements: state.complianceRequirements,
-    complianceBlockers,
+    complianceBlockers: allComplianceBlockers,
+    sarsBlockers,
     remediationTaskIds: input.remediationRequests.map((request) => request.id),
+    taxDocumentStatus: sarsProjection.taxDocumentStatus,
+    sarsVerificationStatus: sarsProjection.sarsVerificationStatus,
+    sarsVerifiedAt: sarsProjection.sarsVerifiedAt,
+    sarsRecheckDueAt: sarsProjection.sarsRecheckDueAt,
+    sarsIdentityMatch: sarsProjection.sarsIdentityMatch,
+    sarsVerificationBlockers: sarsProjection.sarsVerificationBlockers,
+    sarsVerificationRequired: state.requirements.sarsVerificationRequired,
+    sarsVerificationRoute: sarsProjection.sarsVerificationRoute,
+    sarsNextAction: sarsProjection.sarsNextAction,
+    sarsVerifiedByName: sarsProjection.verifiedByName,
+    sarsVerificationSource: sarsProjection.source,
+    sarsEvidenceAvailable: sarsProjection.evidenceAvailable,
     supplierQuoteStatus,
     supplierQuoteIds,
     approvedSupplierQuoteIds,

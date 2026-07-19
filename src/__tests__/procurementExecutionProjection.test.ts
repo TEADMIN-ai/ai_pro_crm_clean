@@ -1,5 +1,46 @@
 import { buildOpportunityExecutionState } from "@/lib/opportunities/opportunityExecution";
 import { buildProcurementExecutionProjection, tenderPackGenerationBlockers } from "@/lib/opportunities/procurementExecutionProjection";
+import type { SarsTcsVerificationRecord } from "@/lib/sars-tcs";
+
+function createCompliantSarsTcsSummary(overrides: Partial<SarsTcsVerificationRecord> = {}): SarsTcsVerificationRecord {
+  return {
+    id: "sars-tcs-current",
+    workspaceId: "workspace-test",
+    contractorId: "torque-empire",
+    opportunityId: "test-procurement-1",
+    taxReferenceNumber: "9876543210",
+    registeredTaxpayerName: "Torque Empire (Pty) Ltd",
+    registrationNumber: "2024/105084/07",
+    pinLastFour: "D4E5",
+    pinStatus: "ACTIVE",
+    pinProvidedAt: "2026-07-01T08:00:00.000Z",
+    pinProvidedBy: "contractor-uid",
+    consentConfirmed: true,
+    consentConfirmedAt: "2026-07-01T08:00:00.000Z",
+    verificationStatus: "VERIFIED_COMPLIANT",
+    source: "SARS_SOQS",
+    verifiedAt: "2026-07-10T08:00:00.000Z",
+    verifiedByUid: "staff-uid",
+    verifiedByName: "Staff User",
+    verificationReference: "SOQS-TEST-1",
+    resultCapturedAt: "2026-07-10T08:05:00.000Z",
+    recheckDueAt: "2026-12-31T00:00:00.000Z",
+    notes: "Verified manually through SARS SOQS",
+    taxpayerNameMatch: "MATCH",
+    taxReferenceMatch: "MATCH",
+    registrationNumberMatch: "MATCH",
+    contractorIdentityMatch: "MATCH",
+    mismatchReasons: [],
+    verificationEvidenceHash: "sha256:test-evidence",
+    createdAt: "2026-07-01T08:00:00.000Z",
+    updatedAt: "2026-07-10T08:05:00.000Z",
+    createdBy: "contractor-uid",
+    supersededBy: null,
+    version: 1,
+    auditTrail: [],
+    ...overrides,
+  };
+}
 
 const contractor = {
   id: "torque-empire",
@@ -84,11 +125,30 @@ const baseDeal = {
   },
   submissionReview: { id: "test-procurement-1", reviewStatus: "APPROVED" },
   tenderPack: { packStatus: "VALIDATED" },
+  sarsTcsSummary: createCompliantSarsTcsSummary(),
 };
 
-function projectionFor(deal: typeof baseDeal) {
+function projectionFor(deal: Record<string, unknown>) {
   const state = buildOpportunityExecutionState({ deal, contractor });
   return buildProcurementExecutionProjection({ deal, state, remediationRequests: state.remediationRequests });
+}
+
+function withSarsVerificationRequired(overrides: Record<string, unknown> = {}) {
+  const overrideExecution = overrides.opportunityExecution as Partial<typeof baseDeal.opportunityExecution> | undefined;
+  const overrideRequirements = overrideExecution?.requirements as Partial<typeof baseDeal.opportunityExecution.requirements> | undefined;
+  return {
+    ...baseDeal,
+    ...overrides,
+    opportunityExecution: {
+      ...baseDeal.opportunityExecution,
+      ...overrideExecution,
+      requirements: {
+        ...baseDeal.opportunityExecution.requirements,
+        ...overrideRequirements,
+        sarsVerificationRequired: true,
+      },
+    },
+  };
 }
 
 describe("canonical procurement execution projection", () => {
@@ -126,5 +186,74 @@ describe("canonical procurement execution projection", () => {
     const retry = projectionFor({ ...baseDeal, supplierQuotes: [...baseDeal.supplierQuotes, { ...baseDeal.supplierQuotes[0] }] });
     expect(retry.supplierQuoteIds).toEqual(first.supplierQuoteIds);
     expect(retry.approvedSupplierQuoteIds).toEqual(first.approvedSupplierQuoteIds);
+  });
+  it("blocks when live SARS verification is required but missing", () => {
+    const projection = projectionFor(withSarsVerificationRequired({ sarsTcsSummary: null }));
+    expect(projection.nextAction.key).toBe('REQUEST_TCS_PIN');
+    expect(projection.sarsVerificationBlockers).toContain("Active SARS TCS PIN is missing");
+  });
+
+  it("does not add SARS blockers when required verification is current and compliant", () => {
+    const projection = projectionFor(withSarsVerificationRequired());
+    expect(projection.sarsVerificationStatus).toBe("VERIFIED_COMPLIANT");
+    expect(projection.sarsVerificationBlockers).toEqual([]);
+  });
+
+  it("blocks when required SARS verification is stale", () => {
+    const projection = projectionFor(withSarsVerificationRequired({ sarsTcsSummary: createCompliantSarsTcsSummary({ recheckDueAt: '2026-07-01T00:00:00.000Z' }) }));
+    expect(projection.nextAction.key).toBe('REVERIFY_TCS');
+    expect(projection.sarsVerificationBlockers).toContain("SARS TCS verification is stale and must be rechecked");
+  });
+
+  it("blocks when required SARS identity details mismatch", () => {
+    const projection = projectionFor(withSarsVerificationRequired({ sarsTcsSummary: createCompliantSarsTcsSummary({ contractorIdentityMatch: 'MISMATCH', taxpayerNameMatch: 'MISMATCH', mismatchReasons: ['Taxpayer name mismatch'] }) }));
+    expect(projection.nextAction.key).toBe('RESOLVE_TAX_IDENTITY_MISMATCH');
+    expect(projection.sarsVerificationBlockers).toContain("SARS taxpayer details do not match contractor identity");
+  });
+
+  it("does not block downstream workflow when SARS verification is not required", () => {
+    const projection = projectionFor({ ...baseDeal, sarsTcsSummary: null, opportunityExecution: { ...baseDeal.opportunityExecution, requirements: { ...baseDeal.opportunityExecution.requirements, taxRequirement: false, compulsoryReturnables: ["B-BBEE", "COIDA", "CSD", "SBD forms"] } } });
+    expect(projection.nextAction.key).toBe("READY_FOR_SUBMISSION");
+    expect(projection.sarsVerificationBlockers).toEqual([]);
+  });
+
+  it("uses the canonical default when taxRequirement is undefined", () => {
+    const projection = projectionFor({ ...baseDeal, sarsTcsSummary: null, opportunityExecution: { ...baseDeal.opportunityExecution, requirements: { reviewed: true, bbbeeRequirement: true, coidaRequirement: true, csdRequirement: true, bankingRequirement: true, boqPricingSchedulePresent: true, signatureRequired: true, compulsoryReturnables: ["B-BBEE", "COIDA", "CSD", "SBD forms"], formsRequiringCompletion: ["SBD 1", "SBD 4"] } } });
+    expect(projection.nextAction.key).toBe("READY_FOR_SUBMISSION");
+    expect(projection.sarsVerificationBlockers).toEqual([]);
+  });
+
+  it("does not make taxRequirement imply live SARS verification", () => {
+    const projection = projectionFor({ ...baseDeal, sarsTcsSummary: null, opportunityExecution: { ...baseDeal.opportunityExecution, requirements: { ...baseDeal.opportunityExecution.requirements, sarsVerificationRequired: false } } });
+    expect(projection.sarsVerificationRequired).toBe(false);
+    expect(projection.nextAction.key).toBe("READY_FOR_SUBMISSION");
+    expect(projection.sarsVerificationBlockers).toEqual([]);
+  });
+
+  it("defaults undefined sarsVerificationRequired to false when taxRequirement is true", () => {
+    const projection = projectionFor({ ...baseDeal, sarsTcsSummary: null });
+    expect(projection.sarsVerificationRequired).toBe(false);
+    expect(projection.nextAction.key).toBe("READY_FOR_SUBMISSION");
+    expect(projection.sarsVerificationBlockers).toEqual([]);
+  });
+
+  it("blocks live SARS verification when required even if ordinary tax compliance is not required", () => {
+    const projection = projectionFor(withSarsVerificationRequired({ sarsTcsSummary: null, opportunityExecution: { ...baseDeal.opportunityExecution, requirements: { ...baseDeal.opportunityExecution.requirements, taxRequirement: false, compulsoryReturnables: ["B-BBEE", "COIDA", "CSD", "SBD forms"] } } }));
+    expect(projection.nextAction.key).toBe("REQUEST_TCS_PIN");
+    expect(projection.sarsVerificationBlockers).toContain("Active SARS TCS PIN is missing");
+  });
+
+  it("preserves hard adverse SARS identity mismatch when live verification is optional", () => {
+    const projection = projectionFor({ ...baseDeal, sarsTcsSummary: createCompliantSarsTcsSummary({ contractorIdentityMatch: "MISMATCH", taxpayerNameMatch: "MISMATCH", mismatchReasons: ["Taxpayer name mismatch"] }) });
+    expect(projection.sarsVerificationRequired).toBe(false);
+    expect(projection.nextAction.key).toBe("RESOLVE_TAX_IDENTITY_MISMATCH");
+    expect(projection.sarsVerificationBlockers).toContain("SARS taxpayer details do not match contractor identity");
+  });
+
+  it("keeps the compliant SARS fixture free of plaintext PINs", () => {
+    const serialized = JSON.stringify(createCompliantSarsTcsSummary());
+    expect(serialized).not.toContain("A1B2C3D4E5");
+    expect(serialized).not.toContain("encryptedTcsPin");
+    expect(serialized).not.toContain("protectedSecretRef");
   });
 });

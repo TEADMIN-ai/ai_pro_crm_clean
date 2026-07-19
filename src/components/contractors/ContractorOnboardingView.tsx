@@ -4,10 +4,16 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import ContractorOpportunityWorkspace from "@/components/contractor-opportunities/ContractorOpportunityWorkspace";
 import ContractorBusinessIdCard from "@/components/contractors/ContractorBusinessIdCard";
+import SarsTcsVerificationCard from "@/components/contractors/SarsTcsVerificationCard";
 import UploadDocumentModal from "@/components/modals/UploadDocumentModal";
 import { useAuth } from "@/context/AuthContext";
 import { API_ROUTES } from "@/lib/apiRoutes";
 import { authFetch } from "@/lib/client/authFetch";
+import {
+  hasContractorDocumentViewLocator,
+  openContractorDocument,
+  resolveContractorDocumentViewType,
+} from "@/lib/contractors/contractorDocumentViewer";
 import {
   getDocumentTypeLabel,
   normalizeSupportedDocumentType,
@@ -526,6 +532,8 @@ export default function ContractorOnboardingView({ contractorId }: Props) {
           </div>
         ) : null}
 
+        <SarsTcsVerificationCard contractorId={contractorId} canManage={payload.viewer.isPrivileged} />
+
         <ContractorBusinessIdCard
           contractorId={contractorId}
           companyName={companyName}
@@ -844,17 +852,6 @@ function ExecutiveContractorProfile({
   );
 }
 
-type ContractorDocumentViewUrlResponse = {
-  success?: boolean;
-  url?: string;
-  error?: string;
-};
-
-function buildDocumentViewRequestUrl(fileUrl: string): string {
-  const separator = fileUrl.includes("?") ? "&" : "?";
-  return `${fileUrl}${separator}format=json`;
-}
-
 function OnboardingApprovalPanel(props: {
   complianceApproved: boolean;
   readinessScore: number;
@@ -1092,40 +1089,17 @@ function DocumentRow({
   const [reprocessStatus, setReprocessStatus] = useState<string | null>(null);
 
   async function openDocument() {
-    if (!document.fileUrl || isOpening) {
+    const documentType = resolveContractorDocumentViewType(document);
+    if (!hasContractorDocumentViewLocator(document) || !documentType || isOpening) {
       return;
     }
 
-    const popup = window.open("about:blank", "_blank");
-    if (popup) {
-      popup.opener = null;
-    }
     setIsOpening(true);
     setOpenError(null);
 
     try {
-      const response = await authFetch(buildDocumentViewRequestUrl(document.fileUrl), {
-        method: "GET",
-        headers: {
-          Accept: "application/json",
-        },
-        cache: "no-store",
-      });
-      const payload = (await response.json().catch(() => null)) as ContractorDocumentViewUrlResponse | null;
-
-      if (!response.ok || payload?.success !== true || !payload.url) {
-        throw new Error(payload?.error ?? `Unable to open document (${response.status})`);
-      }
-
-      if (popup) {
-        popup.location.href = payload.url;
-      } else {
-        window.open(payload.url, "_blank", "noopener,noreferrer");
-      }
+      await openContractorDocument({ contractorId, documentType });
     } catch (error) {
-      if (popup) {
-        popup.close();
-      }
       setOpenError(error instanceof Error ? error.message : "Unable to open document.");
     } finally {
       setIsOpening(false);
@@ -1133,7 +1107,7 @@ function DocumentRow({
   }
 
   async function reprocessDocument() {
-    const documentType = clean(document.documentType) || clean(document.docType) || clean(document.id);
+    const documentType = resolveContractorDocumentViewType(document);
     if (!documentType || isReprocessing) {
       return;
     }
@@ -1248,7 +1222,7 @@ function DocumentRow({
           {reprocessStatus ? <p className="mt-2 text-xs font-medium text-slate-600">{reprocessStatus}</p> : null}
         </div>
         <div className="flex shrink-0 flex-wrap gap-2 xl:max-w-[19rem] xl:justify-end">
-          {document.fileUrl ? (
+          {hasContractorDocumentViewLocator(document) ? (
             <>
               <button
                 type="button"
@@ -1277,7 +1251,7 @@ function DocumentRow({
               Upload Replacement
             </button>
           ) : null}
-          {canReview && document.fileUrl ? (
+          {canReview && hasContractorDocumentViewLocator(document) ? (
             <>
               <button
                 type="button"

@@ -1,6 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+﻿import { NextRequest, NextResponse } from "next/server";
 import { getFirebaseAdmin, getFirebaseStorageBucket } from "@/lib/firebase/admin";
-import { isSupportedDocumentType } from "@/lib/compliance/contractorCompliance";
+import { normalizeContractorUploadDocumentType } from "@/lib/compliance/contractorCompliance";
 import {
   AuthorizationError,
   assertCanAccessContractor,
@@ -37,13 +37,14 @@ export async function GET(
 ) {
   try {
     const user = await requireAuthorizedUser(request);
-    const { contractorId, documentType } = await context.params;
+    const { contractorId, documentType: rawDocumentType } = await context.params;
+    const documentType = normalizeContractorUploadDocumentType(rawDocumentType);
 
-    if (!contractorId || !documentType) {
+    if (!contractorId || !rawDocumentType) {
       return jsonError("Missing contractorId or documentType", 400);
     }
 
-    if (!isSupportedDocumentType(documentType)) {
+    if (!documentType) {
       return jsonError("Unsupported documentType", 400);
     }
 
@@ -67,13 +68,18 @@ export async function GET(
       return jsonError("Document storage path is invalid", 403);
     }
 
+    const storageFile = getFirebaseStorageBucket().file(storagePath);
+    const [storageObjectExists] = await storageFile.exists();
+
+    if (!storageObjectExists) {
+      return jsonError("Document storage object not found", 404);
+    }
+
     const expiresAt = Date.now() + CONTRACTOR_DOCUMENT_URL_TTL_MS;
-    const [signedUrl] = await getFirebaseStorageBucket()
-      .file(storagePath)
-      .getSignedUrl({
-        action: "read",
-        expires: expiresAt,
-      });
+    const [signedUrl] = await storageFile.getSignedUrl({
+      action: "read",
+      expires: expiresAt,
+    });
 
     console.info("[CONTRACTOR_DOCUMENT_VIEW_URL_GENERATED]", {
       contractorId,

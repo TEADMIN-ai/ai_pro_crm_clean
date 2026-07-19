@@ -20,7 +20,8 @@ function buildContractorSummaryUpdates(
       };
     case "taxClearance":
       return {
-        taxPin: fields.taxPin ?? null,
+        tcsPinLastFour: fields.tcsPinLastFour ?? fields.pinLastFour ?? null,
+        taxPinStatus: fields.tcsPinLastFour || fields.pinLastFour ? "PIN extracted - staff review required" : null,
         taxpayerName: fields.taxpayerName ?? null,
         taxClearanceExpiry: expiresAt,
       };

@@ -116,12 +116,13 @@ function buildContractorProfileSyncUpdates(args: {
   }
 
   if (args.documentType === "taxClearance") {
-    const taxPin = pickField(args.fields, ["taxPin", "tcsPin"]);
+    const tcsPinLastFour = pickField(args.fields, ["tcsPinLastFour", "pinLastFour"]);
     const taxNumber = pickField(args.fields, ["taxNumber", "taxpayerReference", "taxReferenceNumber"]);
     const taxpayerName = pickField(args.fields, ["taxpayerName", "companyName"]);
 
-    if (taxPin) {
-      updates.taxPin = taxPin;
+    if (tcsPinLastFour) {
+      updates.tcsPinLastFour = tcsPinLastFour;
+      updates.taxPinStatus = "PIN extracted - staff review required";
     }
     if (taxNumber) {
       updates.taxNumber = taxNumber;

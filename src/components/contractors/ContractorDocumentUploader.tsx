@@ -10,6 +10,10 @@ import {
 } from "@/lib/compliance/contractorCompliance";
 import { API_ROUTES } from "@/lib/apiRoutes";
 import { authFetch } from "@/lib/client/authFetch";
+import {
+  hasContractorDocumentViewLocator,
+  openContractorDocument,
+} from "@/lib/contractors/contractorDocumentViewer";
 import { uploadContractorDocument } from "@/lib/contractors/uploadContractorDocument";
 import type { ContractorDocument } from "@/types/document";
 
@@ -69,46 +73,15 @@ export default function ContractorDocumentUploader({
   }
 
   async function handleView(documentType: SupportedDocumentType, document: ContractorDocument) {
-    if (!document.fileUrl || openingType) {
+    if (!hasContractorDocumentViewLocator(document) || openingType) {
       return;
-    }
-
-    const separator = document.fileUrl.includes("?") ? "&" : "?";
-    const popup = window.open("about:blank", "_blank");
-    if (popup) {
-      popup.opener = null;
     }
 
     try {
       setOpeningType(documentType);
       setError(null);
-
-      const response = await authFetch(`${document.fileUrl}${separator}format=json`, {
-        method: "GET",
-        headers: {
-          Accept: "application/json",
-        },
-        cache: "no-store",
-      });
-      const payload = (await response.json().catch(() => null)) as {
-        success?: boolean;
-        url?: string;
-        error?: string;
-      } | null;
-
-      if (!response.ok || payload?.success !== true || !payload.url) {
-        throw new Error(payload?.error ?? `Unable to open document (${response.status})`);
-      }
-
-      if (popup) {
-        popup.location.href = payload.url;
-      } else {
-        window.open(payload.url, "_blank", "noopener,noreferrer");
-      }
+      await openContractorDocument({ contractorId, documentType });
     } catch (viewError) {
-      if (popup) {
-        popup.close();
-      }
       setError(viewError instanceof Error ? viewError.message : "Failed to open document");
     } finally {
       setOpeningType(null);
@@ -160,6 +133,7 @@ export default function ContractorDocumentUploader({
       <div style={{ display: "grid", gap: 14 }}>
         {SUPPORTED_DOCUMENT_TYPES.map((documentType) => {
           const currentDocument = documentsByType.get(documentType);
+          const canViewDocument = Boolean(currentDocument && hasContractorDocumentViewLocator(currentDocument));
           const isUploading = uploadingType === documentType;
 
           return (
@@ -175,8 +149,8 @@ export default function ContractorDocumentUploader({
             >
               <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
                 <strong>{getDocumentTypeLabel(documentType)}</strong>
-                <Badge tone={currentDocument?.fileUrl ? "success" : "warning"}>
-                  {currentDocument?.fileUrl ? "Uploaded" : "Missing"}
+                <Badge tone={canViewDocument ? "success" : "warning"}>
+                  {canViewDocument ? "Uploaded" : "Missing"}
                 </Badge>
               </div>
 
@@ -198,10 +172,10 @@ export default function ContractorDocumentUploader({
                 />
 
                 <button type="button" disabled={isUploading || !files[documentType]} onClick={() => handleUpload(documentType)}>
-                  {isUploading ? "Uploading..." : currentDocument?.fileUrl ? "Replace document" : "Upload document"}
+                  {isUploading ? "Uploading..." : canViewDocument ? "Replace document" : "Upload document"}
                 </button>
 
-                {currentDocument?.fileUrl && (
+                {currentDocument && canViewDocument && (
                   <>
                     <button
                       type="button"
@@ -222,10 +196,10 @@ export default function ContractorDocumentUploader({
               </div>
 
               <div style={{ fontSize: 13, opacity: 0.8 }}>
-                Status: {currentDocument?.verified ? "AI Processed" : currentDocument?.fileUrl ? "Uploaded" : "Not uploaded"}
+                Status: {currentDocument?.verified ? "AI Processed" : canViewDocument ? "Uploaded" : "Not uploaded"}
                 {reprocessStatus[documentType] ? ` - ${reprocessStatus[documentType]}` : ""}
               </div>
-              {currentDocument?.fileUrl ? (
+              {currentDocument && canViewDocument ? (
                 <div style={{ display: "grid", gap: 4, fontSize: 12, color: "#475569" }}>
                   <span>Extraction Source: {currentDocument.extractionSource ?? "Not recorded"}</span>
                   <span>Text Length: {currentDocument.extractedTextLength ?? 0} chars</span>
