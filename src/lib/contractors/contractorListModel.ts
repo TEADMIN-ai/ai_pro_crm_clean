@@ -13,6 +13,13 @@ export interface ContractorListItem {
   overallStatus?: string | null;
   readinessScore?: number | null;
   docsMissing?: number | null;
+  missingDocumentTypes?: string[] | null;
+  requiredDocsApprovedCount?: number | null;
+  requiredDocsTotalCount?: number | null;
+  reviewRequiredCount?: number | null;
+  assignedOpportunities?: number | null;
+  assignedOpportunityCount?: number | null;
+  opportunityCount?: number | null;
   complianceApproved?: boolean | null;
   workspaceId?: string | null;
   workspaceSlug?: string | null;
@@ -56,6 +63,10 @@ export function getContractorCanonicalId(contractor: ContractorListItem): string
 
 export function getContractorWorkspaceLabel(contractor: ContractorListItem): string {
   return clean(contractor.workspaceSlug) || clean(contractor.workspaceId) || "Legacy / unassigned";
+}
+
+export function getContractorTradingName(contractor: ContractorListItem): string {
+  return clean(contractor.tradingName) || clean(contractor.businessName) || "Not recorded";
 }
 
 export function formatContractorDate(value: unknown): string {
@@ -107,6 +118,19 @@ export function summarizeContractorList(contractors: ContractorListItem[]): Cont
     duplicateBusinessNames,
   };
 }
+export function formatDocumentCoverage(contractor: ContractorListItem): string {
+  const approved = typeof contractor.requiredDocsApprovedCount === "number" && Number.isFinite(contractor.requiredDocsApprovedCount) ? contractor.requiredDocsApprovedCount : null;
+  const total = typeof contractor.requiredDocsTotalCount === "number" && Number.isFinite(contractor.requiredDocsTotalCount) ? contractor.requiredDocsTotalCount : null;
+  if (approved !== null && total !== null) return String(approved) + "/" + String(total);
+  if (typeof contractor.docsMissing === "number" && Number.isFinite(contractor.docsMissing)) return String(contractor.docsMissing) + " outstanding";
+  return "Not recorded";
+}
 
+export function formatReviewCount(contractor: ContractorListItem): string {
+  return typeof contractor.reviewRequiredCount === "number" && Number.isFinite(contractor.reviewRequiredCount) ? String(contractor.reviewRequiredCount) : "Not recorded";
+}
 
-
+export function formatAssignedOpportunities(contractor: ContractorListItem): string {
+  const value = contractor.assignedOpportunities ?? contractor.assignedOpportunityCount ?? contractor.opportunityCount;
+  return typeof value === "number" && Number.isFinite(value) ? String(value) : "Not recorded";
+}

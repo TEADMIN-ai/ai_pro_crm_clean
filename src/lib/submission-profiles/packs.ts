@@ -109,7 +109,7 @@ function buildInternalOperationsPack(profile: SubmissionProfileDefinition): Subm
       {
         title: "Audit Trail",
         detail: "Record of profile selection, validation and output generation.",
-        items: ["Profile version", "Generation timestamp", "Reviewer notes"],
+        items: [`Profile: ${profile.label}`, "Generation timestamp", "Reviewer notes"],
       },
       {
         title: "Workflow History",
@@ -130,15 +130,41 @@ function buildInternalOperationsPack(profile: SubmissionProfileDefinition): Subm
   };
 }
 
-export const submissionPacks: SubmissionPackDefinition[] = submissionProfiles.flatMap((profile) => {
-  if (profile.key === "government" || profile.key === "municipal") {
+function isPublicSectorProfile(profile: SubmissionProfileDefinition): boolean {
+  return profile.key === "government" || profile.key === "municipal";
+}
+
+function buildPacksForProfile(profile: SubmissionProfileDefinition): SubmissionPackDefinition[] {
+  if (isPublicSectorProfile(profile)) {
     return [buildGovernmentSubmissionPack(profile), buildInternalOperationsPack(profile)];
   }
 
   return [buildContractorReviewPack(profile), buildInternalOperationsPack(profile)];
-});
+}
+
+export const submissionPacks: SubmissionPackDefinition[] = [
+  buildGovernmentSubmissionPack(getSubmissionProfile("government")),
+  buildContractorReviewPack(getSubmissionProfile("private")),
+  buildInternalOperationsPack(getSubmissionProfile("government")),
+];
 
 export const submissionPackKeys: SubmissionPackKey[] = submissionPacks.map((pack) => pack.key);
+
+function assertUniquePackKeys(profile: SubmissionProfileDefinition, packs: SubmissionPackDefinition[]): void {
+  const seen = new Set<SubmissionPackKey>();
+  const duplicateKeys = packs.flatMap((pack) => {
+    if (seen.has(pack.key)) {
+      return [pack.key];
+    }
+
+    seen.add(pack.key);
+    return [];
+  });
+
+  if (duplicateKeys.length > 0) {
+    throw new Error(`Duplicate submission pack keys for ${profile.key}: ${duplicateKeys.join(", ")}`);
+  }
+}
 
 export function getSubmissionPack(key: SubmissionPackKey): SubmissionPackDefinition {
   const pack = submissionPacks.find((item) => item.key === key);
@@ -151,7 +177,9 @@ export function getSubmissionPack(key: SubmissionPackKey): SubmissionPackDefinit
 
 export function getSubmissionProfilePackSet(key: SubmissionProfileKey): SubmissionProfilePackSet {
   const profile = getSubmissionProfile(key);
-  const packs = submissionPacks.filter((pack) => (profile.key === "government" || profile.key === "municipal" ? pack.key.includes("government") || pack.key.includes("internal") : pack.key.includes("contractor") || pack.key.includes("internal")));
+  const packs = buildPacksForProfile(profile);
+
+  assertUniquePackKeys(profile, packs);
 
   return {
     profile,
@@ -162,5 +190,4 @@ export function getSubmissionProfilePackSet(key: SubmissionProfileKey): Submissi
 export function buildSubmissionProfilePackSet(key: SubmissionProfileKey): SubmissionProfilePackSet {
   return getSubmissionProfilePackSet(key);
 }
-
 

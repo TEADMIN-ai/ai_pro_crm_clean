@@ -14,9 +14,13 @@ import {
 import { API_ROUTES } from "@/lib/apiRoutes";
 import { authFetch } from "@/lib/client/authFetch";
 import {
+  formatAssignedOpportunities,
   formatContractorDate,
+  formatDocumentCoverage,
+  formatReviewCount,
   getContractorBusinessName,
   getContractorCanonicalId,
+  getContractorTradingName,
   getContractorWorkspaceLabel,
   summarizeContractorList,
   type ContractorListItem,
@@ -65,15 +69,13 @@ export default function ContractorsWorkspace() {
   const [state, setState] = useState<LoadState>("loading");
   const [contractors, setContractors] = useState<ContractorListItem[]>([]);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [includeArchived, setIncludeArchived] = useState(false);
 
   async function loadContractors() {
     setState("loading");
     setErrorMessage(null);
 
     try {
-      const contractorsUrl = includeArchived ? `${API_ROUTES.CONTRACTORS}?includeArchived=true` : API_ROUTES.CONTRACTORS;
-      const response = await authFetch(contractorsUrl, {
+      const response = await authFetch(API_ROUTES.CONTRACTORS, {
         headers: { Accept: "application/json" },
         cache: "no-store",
       });
@@ -112,7 +114,7 @@ export default function ContractorsWorkspace() {
 
   useEffect(() => {
     void loadContractors();
-  }, [includeArchived]);
+  }, []);
 
   const summary = useMemo(() => summarizeContractorList(contractors), [contractors]);
 
@@ -138,7 +140,6 @@ export default function ContractorsWorkspace() {
             </div>
             <div className="flex flex-wrap gap-2">
               <EnterpriseActionButton onClick={() => void loadContractors()}>Refresh</EnterpriseActionButton>
-              <EnterpriseActionButton onClick={() => setIncludeArchived((current) => !current)}>{includeArchived ? "Hide Archived" : "Show Archived"}</EnterpriseActionButton>
               <EnterpriseActionButton href="/dashboard/contractors/new">New Contractor</EnterpriseActionButton>
             </div>
           </div>
@@ -213,8 +214,13 @@ export default function ContractorsWorkspace() {
               <tr>
                 <th>Business</th>
                 <th>Contractor ID</th>
-                <th>Status</th>
+                <th>Trading Name</th>
+                <th>Onboarding Status</th>
+                <th>Approval</th>
                 <th>Readiness</th>
+                <th>Assigned Opportunities</th>
+                <th>Documents</th>
+                <th>Review</th>
                 <th>Workspace</th>
                 <th>Last Updated</th>
               </tr>
@@ -235,10 +241,15 @@ export default function ContractorsWorkspace() {
                       </Link>
                     </td>
                     <td className="font-mono text-xs">{contractorId}</td>
+                    <td>{getContractorTradingName(contractor)}</td>
                     <td>
                       <EnterpriseStatusBadge value={statusLabel(contractor)} />
                     </td>
+                    <td>{contractor.complianceApproved === true ? "Approved" : "Not approved"}</td>
                     <td>{readinessLabel(contractor)}</td>
+                    <td>{formatAssignedOpportunities(contractor)}</td>
+                    <td>{formatDocumentCoverage(contractor)}</td>
+                    <td>{formatReviewCount(contractor)}</td>
                     <td>
                       <div className="flex flex-col gap-1">
                         <span>{getContractorWorkspaceLabel(contractor)}</span>
