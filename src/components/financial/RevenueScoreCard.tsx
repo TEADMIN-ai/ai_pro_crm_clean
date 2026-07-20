@@ -1,137 +1,28 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
 import Card from "@/components/ui/Card";
-import { authFetch } from "@/lib/client/authFetch";
-import { API_ROUTES } from "@/lib/routes";
-
-type Deal = {
-  value?: unknown;
-  status?: unknown;
-  createdAt?: unknown;
-};
+import { useEnterpriseKpis } from "@/hooks/useEnterpriseKpis";
 
 function formatCurrency(value: number): string {
-  return new Intl.NumberFormat("en-ZA", {
-    style: "currency",
-    currency: "ZAR",
-    maximumFractionDigits: 0,
-  }).format(value);
+  return new Intl.NumberFormat("en-ZA", { style: "currency", currency: "ZAR", maximumFractionDigits: 0 }).format(value);
 }
 
 export default function RevenueScoreCard() {
-  const router = useRouter();
-  const [deals, setDeals] = useState<Deal[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    async function loadDeals() {
-      try {
-        const res = await authFetch(API_ROUTES.DEALS);
-        if (!res.ok) {
-          if (res.status === 401 || res.status === 403) {
-            setError("Session expired. Please login again.");
-            router.push("/login");
-            return;
-          }
-          throw new Error(`Failed to fetch deals: ${res.status}`);
-        }
-        const payload = (await res.json()) as unknown;
-        const source = Array.isArray(payload)
-          ? payload
-          : typeof payload === "object" &&
-            payload !== null &&
-            Array.isArray((payload as { deals?: unknown[] }).deals)
-          ? (payload as { deals: unknown[] }).deals
-          : [];
-        setDeals(source as Deal[]);
-      } catch (err) {
-        console.error(err);
-        setError("Unable to load revenue data");
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    loadDeals();
-  }, [router]);
-
-  const metrics = useMemo(() => {
-    const now = Date.now();
-    const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000;
-
-    const totalRevenue = deals.reduce((sum, deal) => {
-      const parsed = Number(deal.value);
-      const value = Number.isFinite(parsed) ? parsed : 0;
-      const status = typeof deal.status === "string" ? deal.status : "";
-      return status !== "draft" ? sum + value : sum;
-    }, 0);
-
-    const monthlyRevenue = deals.reduce((sum, deal) => {
-      const parsed = Number(deal.value);
-      const value = Number.isFinite(parsed) ? parsed : 0;
-      const parsedDate = Number(deal.createdAt);
-      const createdAt = Number.isFinite(parsedDate) ? parsedDate : 0;
-      const isRecent = now - createdAt <= thirtyDaysMs;
-      return isRecent ? sum + value : sum;
-    }, 0);
-
-    const growthRate = totalRevenue > 0 ? (monthlyRevenue / totalRevenue) * 100 : 0;
-
-    return { totalRevenue, monthlyRevenue, growthRate };
-  }, [deals]);
+  const { data, loading, error } = useEnterpriseKpis();
 
   return (
     <Card>
-      <div
-        style={{
-          borderRadius: 12,
-          border: "1px solid rgba(109, 182, 255, 0.26)",
-          background:
-            "linear-gradient(160deg, rgba(11, 26, 46, 0.95), rgba(13, 30, 55, 0.9))",
-          boxShadow:
-            "0 16px 38px rgba(74, 145, 255, 0.2), inset 0 0 22px rgba(92, 175, 255, 0.07)",
-          padding: 14,
-          fontFamily: "\"Segoe UI\", system-ui, sans-serif",
-          color: "#e7f0ff",
-        }}
-      >
-        <p style={{ margin: 0, fontSize: 12, letterSpacing: 0.5, color: "#b7ceef" }}>
-          Revenue Intelligence
-        </p>
+      <div style={{ borderRadius: 12, border: "1px solid rgba(109, 182, 255, 0.26)", background: "linear-gradient(160deg, rgba(11, 26, 46, 0.95), rgba(13, 30, 55, 0.9))", boxShadow: "0 16px 38px rgba(74, 145, 255, 0.2), inset 0 0 22px rgba(92, 175, 255, 0.07)", padding: 14, fontFamily: "\"Segoe UI\", system-ui, sans-serif", color: "#e7f0ff" }}>
+        <p style={{ margin: 0, fontSize: 12, letterSpacing: 0.5, color: "#b7ceef" }}>Opportunity Value Intelligence</p>
         {loading ? (
-          <p style={{ margin: "8px 0 0", color: "#cae0ff" }}>Loading...</p>
+          <p style={{ margin: "8px 0 0", color: "#cae0ff" }}>Loading enterprise KPI snapshot...</p>
         ) : error ? (
           <p style={{ margin: "8px 0 0", color: "#ffb6b6" }}>{error}</p>
         ) : (
-          <div
-            style={{
-              display: "grid",
-              gap: 10,
-              marginTop: 10,
-              gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
-            }}
-          >
-            <div>
-              <p style={{ margin: 0, color: "#b7ceef", fontSize: 12 }}>Total Revenue</p>
-              <p style={{ margin: "6px 0 0", fontSize: 24, fontWeight: 700 }}>
-                {formatCurrency(metrics.totalRevenue)}
-              </p>
-            </div>
-            <div>
-              <p style={{ margin: 0, color: "#b7ceef", fontSize: 12 }}>Monthly Revenue</p>
-              <p style={{ margin: "6px 0 0", fontSize: 24, fontWeight: 700 }}>
-                {formatCurrency(metrics.monthlyRevenue)}
-              </p>
-            </div>
-            <div>
-              <p style={{ margin: 0, color: "#b7ceef", fontSize: 12 }}>Growth %</p>
-              <p style={{ margin: "6px 0 0", fontSize: 24, fontWeight: 700 }}>
-                {metrics.growthRate.toFixed(1)}%
-              </p>
-            </div>
+          <div style={{ display: "grid", gap: 10, marginTop: 10, gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))" }}>
+            <div><p style={{ margin: 0, color: "#b7ceef", fontSize: 12 }}>Total Opportunity Value</p><p style={{ margin: "6px 0 0", fontSize: 24, fontWeight: 700 }}>{formatCurrency(data?.revenue.totalValue ?? 0)}</p></div>
+            <div><p style={{ margin: 0, color: "#b7ceef", fontSize: 12 }}>Pipeline Opportunity Value</p><p style={{ margin: "6px 0 0", fontSize: 24, fontWeight: 700 }}>{formatCurrency(data?.revenue.pipelineValue ?? 0)}</p></div>
+            <div><p style={{ margin: 0, color: "#b7ceef", fontSize: 12 }}>Submission Conversion (submitted / total)</p><p style={{ margin: "6px 0 0", fontSize: 24, fontWeight: 700 }}>{data?.submissions.conversionRate ?? 0}%</p></div>
           </div>
         )}
       </div>

@@ -1,22 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import Link from "next/link";
-import type { Deal } from "@/types/deal";
-import { computeAdminMetrics } from "@/lib/intelligence/admin/computeAdminMetrics";
-import { computeRevenueHealthScore } from "@/lib/kpis/revenueHealthScore";
-import { computeDealRisk } from "@/lib/risk/computeDealRisk";
-import { computeCapitalEfficiency } from "@/lib/executive/computeCapitalEfficiency";
-import { computeExecutionVelocity } from "@/lib/executive/computeExecutionVelocity";
-import { computePipelineQuality } from "@/lib/executive/computePipelineQuality";
-import { computePortfolioExposure } from "@/lib/executive/computePortfolioExposure";
-import { computeRevenueMomentum } from "@/lib/executive/computeRevenueMomentum";
 import Card, { IdentityCardHeader } from "@/components/ui/Card";
 import Badge from "@/components/ui/Badge";
 import Table from "@/components/ui/Table";
 import RequireRole from "@/components/auth/RequireRole";
-import { useAuth } from "@/context/AuthContext";
-import { getDealsForUser } from "@/lib/deals/getDealsForUser";
+import { useEnterpriseKpis } from "@/hooks/useEnterpriseKpis";
 
 function toneForScore(score: number): "success" | "warning" | "danger" {
   if (score >= 80) return "success";
@@ -24,39 +13,32 @@ function toneForScore(score: number): "success" | "warning" | "danger" {
   return "danger";
 }
 
+function formatRand(value?: number): string {
+  return `R ${(value ?? 0).toLocaleString("en-ZA")}`;
+}
+
 export default function AdminDashboardPage() {
-  const { user } = useAuth();
-  const [deals, setDeals] = useState<Deal[]>([]);
-
-  useEffect(() => {
-    async function loadDeals() {
-      setDeals(await getDealsForUser(user));
-    }
-
-    void loadDeals();
-  }, [user]);
-
-  const metrics = computeAdminMetrics(deals);
-  const revenueHealth = computeRevenueHealthScore(deals);
-  const riskScores = deals.map((d) => computeDealRisk(d));
-  const avgRisk = riskScores.length > 0 ? riskScores.reduce((a, b) => a + b.score, 0) / riskScores.length : 0;
-  const conversionRate = metrics?.submissionConversion ?? 0;
-  const capitalEfficiency = computeCapitalEfficiency(deals);
-  const executionVelocity = computeExecutionVelocity(deals);
-  const pipelineQuality = computePipelineQuality(deals);
-  const portfolioExposure = computePortfolioExposure(deals);
-  const revenueMomentum = computeRevenueMomentum(deals);
+  const { data, loading, error } = useEnterpriseKpis();
+  const readinessScore = data?.readiness.averageScore ?? 0;
+  const riskCount = data?.dashboardSummary.risk ?? 0;
+  const blockedCount = data?.submissions.blocked ?? 0;
 
   return (
     <RequireRole allow={["admin"]}>
       <div data-module="admin" className="enterprise-page enterprise-grid">
         <Card>
           <IdentityCardHeader title="Admin Control Tower" subtitle="Enterprise portfolio and compliance signals">
-            <Badge tone={toneForScore(revenueHealth)}>Revenue Health {revenueHealth.toFixed(1)}%</Badge>
-            <Badge tone={toneForScore(100 - avgRisk)}>Risk {avgRisk.toFixed(1)}</Badge>
-            <Badge tone="info">Deals {deals.length}</Badge>
+            <Badge tone={toneForScore(readinessScore)}>Readiness {readinessScore}%</Badge>
+            <Badge tone={riskCount > 0 ? "warning" : "success"}>Risk {riskCount}</Badge>
+            <Badge tone="info">Opportunities {data?.opportunities.total ?? 0}</Badge>
           </IdentityCardHeader>
         </Card>
+
+        {(loading || error) && (
+          <Card>
+            <p className="text-sm text-slate-600">{loading ? "Loading live enterprise KPIs..." : error}</p>
+          </Card>
+        )}
 
         <Card>
           <IdentityCardHeader title="Contractor Onboarding" subtitle="Create contractor users and onboarding invitations">
@@ -79,48 +61,46 @@ export default function AdminDashboardPage() {
           <div className="compliance-summary">
             <div className="compliance-summary-item">
               <p className="enterprise-metric-label">Ready To Submit</p>
-              <p className="enterprise-metric-value">{metrics.readyToSubmitCount || 0}</p>
+              <p className="enterprise-metric-value">{data?.submissions.readyToSubmit ?? 0}</p>
             </div>
             <div className="compliance-summary-item">
-              <p className="enterprise-metric-label">Manager Review Stuck</p>
-              <p className="enterprise-metric-value">{metrics.managerReviewStuckCount || 0}</p>
+              <p className="enterprise-metric-label">Blocked</p>
+              <p className="enterprise-metric-value">{blockedCount}</p>
             </div>
             <div className="compliance-summary-item">
-              <p className="enterprise-metric-label">Submission Conversion</p>
-              <p className="enterprise-metric-value">{conversionRate.toFixed(1)}%</p>
+              <p className="enterprise-metric-label">Submission Conversion (submitted / total)</p>
+              <p className="enterprise-metric-value">{data?.submissions.conversionRate ?? 0}%</p>
             </div>
             <div className="compliance-summary-item">
-              <p className="enterprise-metric-label">Execution Velocity</p>
-              <p className="enterprise-metric-value">{executionVelocity.toFixed(1)}</p>
+              <p className="enterprise-metric-label">Avg Readiness</p>
+              <p className="enterprise-metric-value">{data?.submissions.avgReadiness ?? 0}%</p>
             </div>
           </div>
         </Card>
 
         <div className="enterprise-grid-metrics">
           <Card>
-            <p className="enterprise-metric-label">Revenue Momentum</p>
-            <h2 className="enterprise-metric-value">{revenueMomentum.percentage.toFixed(1)}%</h2>
-            <Badge tone={revenueMomentum.trend === "up" ? "success" : revenueMomentum.trend === "down" ? "danger" : "warning"}>
-              {revenueMomentum.trend}
-            </Badge>
+            <p className="enterprise-metric-label">Pipeline Value</p>
+            <h2 className="enterprise-metric-value">{formatRand(data?.revenue.pipelineValue)}</h2>
+            <Badge tone="info">Pipeline</Badge>
           </Card>
 
           <Card>
-            <p className="enterprise-metric-label">Pipeline Quality</p>
-            <h2 className="enterprise-metric-value">{pipelineQuality.score}/100</h2>
-            <Badge tone={toneForScore(pipelineQuality.score)}>Quality Band</Badge>
+            <p className="enterprise-metric-label">Submitted Opportunity Value</p>
+            <h2 className="enterprise-metric-value">{formatRand(data?.revenue.submittedValue)}</h2>
+            <Badge tone="success">Submitted</Badge>
           </Card>
 
           <Card>
-            <p className="enterprise-metric-label">Capital Efficiency</p>
-            <h2 className="enterprise-metric-value">{capitalEfficiency.toFixed(2)}</h2>
-            <Badge tone={capitalEfficiency >= 0.8 ? "success" : "warning"}>Efficiency</Badge>
+            <p className="enterprise-metric-label">Average Opportunity Value</p>
+            <h2 className="enterprise-metric-value">{formatRand(data?.revenue.averageValue)}</h2>
+            <Badge tone="info">Portfolio</Badge>
           </Card>
 
           <Card>
-            <p className="enterprise-metric-label">Portfolio Exposure</p>
-            <h2 className="enterprise-metric-value">{portfolioExposure}/100</h2>
-            <Badge tone={portfolioExposure <= 40 ? "success" : "danger"}>Risk Exposure</Badge>
+            <p className="enterprise-metric-label">Documents</p>
+            <h2 className="enterprise-metric-value">{data?.documents.total ?? 0}</h2>
+            <Badge tone={(data?.documents.uploadedToday ?? 0) > 0 ? "success" : "neutral"}>Uploaded Today {data?.documents.uploadedToday ?? 0}</Badge>
           </Card>
         </div>
 
@@ -131,29 +111,29 @@ export default function AdminDashboardPage() {
               <tr>
                 <th>Metric</th>
                 <th>Value</th>
-                <th>Risk Indicator</th>
+                <th>Operational Signal</th>
               </tr>
             </thead>
             <tbody>
               <tr>
-                <td>Total Pipeline</td>
-                <td>R {metrics.totalPipelineValue?.toLocaleString() || 0}</td>
-                <td><Badge tone="info">Financial</Badge></td>
+                <td>Total Pipeline Opportunity Value</td>
+                <td>{formatRand(data?.revenue.pipelineValue)}</td>
+                <td><Badge tone="info">Pipeline</Badge></td>
               </tr>
               <tr>
-                <td>Weighted Revenue</td>
-                <td>R {metrics.weightedRevenue?.toLocaleString() || 0}</td>
-                <td><Badge tone="info">Forecast</Badge></td>
+                <td>Awarded or Closed Opportunity Value</td>
+                <td>{formatRand(data?.revenue.awardedValue)}</td>
+                <td><Badge tone="success">Awarded or closed</Badge></td>
               </tr>
               <tr>
-                <td>Critical Risk Deals</td>
-                <td>{metrics.criticalRiskCount || 0}</td>
-                <td><Badge tone="danger">Critical</Badge></td>
+                <td>Blocked Submissions</td>
+                <td>{blockedCount}</td>
+                <td><Badge tone={blockedCount > 0 ? "danger" : "success"}>Blocked</Badge></td>
               </tr>
               <tr>
-                <td>High Risk Deals</td>
-                <td>{metrics.highRiskCount || 0}</td>
-                <td><Badge tone="warning">High</Badge></td>
+                <td>At Risk Readiness</td>
+                <td>{data?.readiness.atRisk ?? 0}</td>
+                <td><Badge tone={(data?.readiness.atRisk ?? 0) > 0 ? "warning" : "success"}>Risk</Badge></td>
               </tr>
             </tbody>
           </Table>
