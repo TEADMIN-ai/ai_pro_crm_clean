@@ -18,7 +18,7 @@ function getCompanyLabel(role?: UserRole): string {
   return "Torque Empire";
 }
 
-function getRoleLabel(role?: UserRole): string {
+export function getDashboardHeaderRoleLabel(role?: UserRole): string {
   switch (role) {
     case "dealerPilot":
       return "Dealer Pilot";
@@ -28,6 +28,8 @@ function getRoleLabel(role?: UserRole): string {
       return "Roar Cars Staff";
     case "staff":
       return "Staff";
+    case "driver":
+      return "Driver";
     case "manager":
       return "Manager";
     case "contractor":
@@ -87,7 +89,7 @@ export default function DashboardHeader() {
     [user?.displayName, user?.email, user?.name],
   );
   const companyLabel = getCompanyLabel(role);
-  const roleLabel = getRoleLabel(role);
+  const roleLabel = getDashboardHeaderRoleLabel(role);
 
   const handleLogout = async () => {
     setMenuOpen(false);

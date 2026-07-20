@@ -11,6 +11,7 @@ const PROFILE_ACCESS: Exclude<UserRole, "guest">[] = [
   "admin",
   "manager",
   "staff",
+  "driver",
   "contractor",
   "auditor",
   "viewer",
@@ -41,6 +42,8 @@ function getRoleLabel(role?: UserRole): string {
       return "Roar Cars Staff";
     case "staff":
       return "Staff";
+    case "driver":
+      return "Driver";
     case "manager":
       return "Manager";
     case "contractor":
