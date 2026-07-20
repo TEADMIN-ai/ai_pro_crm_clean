@@ -2,7 +2,7 @@ export interface DealContractorReferenceDisplay {
   contractorId?: string | null;
   contractorName?: string | null;
   contractorReferenceResolution?: {
-    status: "resolved" | "unresolved";
+    status: "none" | "resolved" | "unresolved";
     failureReason?: string;
   } | null;
 }
@@ -12,13 +12,15 @@ export function getDealContractorDisplayName(deal: DealContractorReferenceDispla
     return "No contractor selected";
   }
 
+  if (deal.contractorReferenceResolution?.status === "unresolved") {
+    return deal.contractorReferenceResolution.failureReason === "cross_workspace"
+      ? "Linked contractor is outside this workspace."
+      : "Linked contractor record could not be resolved.";
+  }
+
   const contractorName = deal.contractorName?.trim();
   if (contractorName) {
     return contractorName;
-  }
-
-  if (deal.contractorReferenceResolution?.status === "unresolved") {
-    return "Linked contractor record could not be resolved.";
   }
 
   return deal.contractorId?.trim() ? "Linked contractor" : "No contractor linked";

@@ -18,6 +18,7 @@ import { calculateReadiness } from "@/lib/engine/readinessEngine";
 import { generateFixSuggestions } from "@/lib/engine/fixSuggestions";
 import { analyzeTenderText } from "@/lib/tenderAnalysisService";
 import { getContractorBusinessName, resolveContractorReference } from "@/lib/contractors/contractorReferenceResolver";
+import { getDealContractorReference } from "@/lib/deals/contractorReference";
 
 const db = getFirebaseAdmin();
 
@@ -178,10 +179,8 @@ export const GET = withGovernanceObservation(
         const isStale =
           typeof data.aiInsightsUpdatedAt !== "number" ||
           Date.now() - data.aiInsightsUpdatedAt > AI_INSIGHTS_TTL_MS;
-        const contractorId =
-          typeof data.contractorId === "string" && data.contractorId.trim().length > 0
-            ? data.contractorId.trim()
-            : null;
+        const contractorReference = getDealContractorReference(data as Record<string, unknown>);
+        const contractorId = contractorReference.status === "reference_present" ? contractorReference.value : null;
 
         let aiInsights =
           typeof data.aiInsights === "string" && data.aiInsights.trim().length > 0
@@ -198,10 +197,8 @@ export const GET = withGovernanceObservation(
             })
           : null;
         const resolvedContractor = contractorResolution?.ok === true ? contractorResolution.contractor : null;
-        const canonicalContractorId = contractorResolution?.ok === true ? contractorResolution.contractorId : contractorId;
-        const resolvedContractorName = resolvedContractor
-          ? getContractorBusinessName(resolvedContractor)
-          : getString(data.contractorName) || getString(data.companyName) || null;
+        const canonicalContractorId = contractorResolution?.ok === true ? contractorResolution.contractorId : null;
+        const resolvedContractorName = resolvedContractor ? getContractorBusinessName(resolvedContractor) : null;
 
         const shouldGenerateAI = !aiInsights || isStale || readinessChanged;
 
@@ -339,18 +336,23 @@ export const GET = withGovernanceObservation(
           contractorId: canonicalContractorId ?? undefined,
           contractorName: resolvedContractorName ?? undefined,
           storedContractorReference: contractorId,
-          contractorReferenceResolution: contractorResolution
-            ? contractorResolution.ok === true
+          contractorReference: contractorReference.status === "reference_present"
+            ? { status: "reference_present", field: contractorReference.field, value: contractorReference.value }
+            : { status: "no_reference" },
+          contractorReferenceResolution: contractorReference.status === "no_reference"
+            ? { status: "none" }
+            : contractorResolution?.ok === true
               ? {
                   status: "resolved",
+                  referenceField: contractorReference.field,
                   referenceType: contractorResolution.referenceType,
                   contractorId: contractorResolution.contractorId,
                 }
               : {
                   status: "unresolved",
-                  failureReason: contractorResolution.failureReason,
-                }
-            : null,
+                  referenceField: contractorReference.field,
+                  failureReason: contractorResolution?.failureReason ?? "not_found",
+                },
           ...readiness,
           suggestions,
           aiInsights: aiInsights || null,

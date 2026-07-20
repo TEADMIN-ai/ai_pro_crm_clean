@@ -5,6 +5,7 @@ import { listContractors } from "@/server/services/contractorService";
 import { getContractorBusinessName, resolveContractorReference } from "@/lib/contractors/contractorReferenceResolver";
 import { buildOpportunityExecutionState, extractOpportunityRequirements, matchContractorsForOpportunity, validateOpportunityTransition, type OpportunityExecutionPhase, type OpportunityRequirementReview } from "@/lib/opportunities/opportunityExecution";
 import { buildProcurementExecutionProjection } from "@/lib/opportunities/procurementExecutionProjection";
+import { getDealContractorReference } from "@/lib/deals/contractorReference";
 
 type ActionInput = { dealId: string; action: string; actor: AuthorizedUser; contractorId?: string; requirements?: Partial<OpportunityRequirementReview>; submission?: Record<string, unknown> };
 function asString(value: unknown): string | null { return typeof value === "string" && value.trim() ? value.trim() : null; }
@@ -22,9 +23,8 @@ async function loadDealRecord(dealId: string) {
   return { id: snapshot.id, ...(snapshot.data() ?? {}) } as Record<string, unknown> & { id: string };
 }
 function contractorReferenceFromDeal(deal: Record<string, unknown>): string | null {
-  const assignment = asRecord(deal.contractorAssignment);
-  const execution = asRecord(deal.opportunityExecution);
-  return asString(assignment.contractorId) ?? asString(execution.contractorId) ?? asString(deal.contractorId) ?? asString(deal.assignedContractorId) ?? asString(deal.linkedContractorId) ?? asString(deal.contractorUid) ?? (asString(deal.companyId) === "unassigned" ? null : asString(deal.companyId));
+  const reference = getDealContractorReference(deal);
+  return reference.status === "reference_present" ? reference.value : null;
 }
 
 function isArchivedContractor(contractor: Record<string, unknown>): boolean {

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import { API_ROUTES } from "@/lib/apiRoutes";
 import { authFetch } from "@/lib/client/authFetch";
+import { useAuth } from "@/context/AuthContext";
 import {
   SUPPORTED_DOCUMENT_TYPES,
   getDocumentTypeLabel,
@@ -11,6 +12,7 @@ import {
 } from "@/lib/compliance/contractorCompliance";
 import { matchRequirements } from "@/lib/tender/matchRequirements";
 import { getDealContractorDisplayName, isDealContractorResolved } from "@/lib/deals/contractorReferenceDisplay";
+import { buildAssignContractorRequest, canManageDealContractorLink, getContractorLinkActionLabel } from "@/lib/deals/dealsHubContractorAssignment";
 
 export const dynamic = "force-dynamic";
 export const fetchCache = "force-no-store";
@@ -26,7 +28,8 @@ type Deal = {
   contractorName?: string;
   storedContractorReference?: string | null;
   contractorReferenceResolution?: {
-    status: "resolved" | "unresolved";
+    status: "none" | "resolved" | "unresolved";
+    referenceField?: string;
     referenceType?: string;
     contractorId?: string;
     failureReason?: string;
@@ -49,6 +52,11 @@ type ContractorRecord = {
   tenderLockStatus?: "READY" | "RISK" | "BLOCKED";
   isTenderLocked?: boolean;
   documents?: Partial<Record<"cipc" | "tax" | "bbbee" | "coida", ContractorDocumentEntry>>;
+};
+
+type ContractorOption = {
+  id: string;
+  companyName: string;
 };
 
 type UploadKind = "compliance" | "supporting";
@@ -158,6 +166,27 @@ function normalizeDeals(payload: unknown): Deal[] {
   }
 
   return [];
+}
+
+function normalizeContractorOptions(payload: unknown): ContractorOption[] {
+  const source = Array.isArray(payload)
+    ? payload
+    : payload && typeof payload === "object" && Array.isArray((payload as { contractors?: unknown[] }).contractors)
+      ? (payload as { contractors: unknown[] }).contractors
+      : [];
+
+  return source
+    .map((item) => {
+      const record = item && typeof item === "object" ? (item as Record<string, unknown>) : {};
+      const id = typeof record.id === "string" ? record.id.trim() : typeof record.contractorId === "string" ? record.contractorId.trim() : "";
+      const companyName =
+        (typeof record.companyName === "string" && record.companyName.trim()) ||
+        (typeof record.businessName === "string" && record.businessName.trim()) ||
+        (typeof record.tradingName === "string" && record.tradingName.trim()) ||
+        id;
+      return { id, companyName };
+    })
+    .filter((item) => item.id.length > 0);
 }
 
 function getStatusClasses(tone: StatusTone): string {
@@ -279,8 +308,14 @@ function getWorkflowBulletClasses(state: "active" | "complete" | "idle"): string
 }
 
 export default function DealsPage() {
+  const { role } = useAuth();
   const [deals, setDeals] = useState<Deal[]>([]);
   const [selectedContractor, setSelectedContractor] = useState<ContractorRecord | null>(null);
+  const [contractors, setContractors] = useState<ContractorOption[]>([]);
+  const [isLoadingContractors, setIsLoadingContractors] = useState(false);
+  const [assignmentContractorId, setAssignmentContractorId] = useState("");
+  const [isAssigningContractor, setIsAssigningContractor] = useState(false);
+  const [assignmentStatus, setAssignmentStatus] = useState<StatusState | null>(null);
   const [selectedDealId, setSelectedDealId] = useState<string>("");
   const [pageLoading, setPageLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -301,6 +336,7 @@ export default function DealsPage() {
   const tenderInputRef = useRef<HTMLInputElement | null>(null);
 
   const selectedDeal = deals.find((deal) => deal.id === selectedDealId) ?? deals[0] ?? null;
+  const canManageContractorLink = canManageDealContractorLink(role);
   const readinessMatch = selectedDeal && selectedContractor
     ? matchRequirements(selectedContractor, selectedDeal)
     : null;
@@ -398,9 +434,119 @@ export default function DealsPage() {
     }
   }
 
+  async function loadContractors() {
+    if (!canManageContractorLink) {
+      setContractors([]);
+      return;
+    }
+
+    setIsLoadingContractors(true);
+
+    try {
+      const response = await authFetch(API_ROUTES.CONTRACTORS);
+      const payload = await response.json();
+
+      if (!response.ok) {
+        throw new Error((payload as { error?: string } | null)?.error ?? "Failed to load contractors.");
+      }
+
+      setContractors(normalizeContractorOptions(payload));
+    } catch (error) {
+      const message = getErrorMessage(error);
+      console.error("Failed to load contractor assignment options:", error);
+      setAssignmentStatus({
+        label: "Error occurred",
+        detail: message,
+        tone: "error",
+      });
+    } finally {
+      setIsLoadingContractors(false);
+    }
+  }
+
+  async function assignSelectedContractor() {
+    if (!selectedDeal) {
+      return;
+    }
+
+    const nextContractorId = assignmentContractorId.trim();
+    if (!nextContractorId) {
+      setAssignmentStatus({
+        label: "Error occurred",
+        detail: "Select a contractor before linking this deal.",
+        tone: "error",
+      });
+      return;
+    }
+
+    const currentContractorId = selectedDeal.contractorId?.trim() ?? "";
+    if (currentContractorId === nextContractorId) {
+      setAssignmentStatus({
+        label: "Linked",
+        detail: "This contractor is already linked to the selected deal.",
+        tone: "success",
+      });
+      return;
+    }
+
+    if (currentContractorId && !window.confirm("Change the linked contractor for this deal?")) {
+      return;
+    }
+
+    setIsAssigningContractor(true);
+    setAssignmentStatus({
+      label: "Linking...",
+      detail: "Updating the opportunity execution workspace.",
+      tone: "loading",
+    });
+
+    try {
+      const response = await authFetch(
+        `${API_ROUTES.OPPORTUNITY_REGISTER}/${encodeURIComponent(selectedDeal.id)}/execution`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(buildAssignContractorRequest(nextContractorId)),
+        },
+      );
+      const payload = (await response.json().catch(() => null)) as { error?: string } | null;
+
+      if (!response.ok) {
+        throw new Error(payload?.error ?? "Failed to link contractor.");
+      }
+
+      await loadData(true);
+      await loadSelectedContractor(nextContractorId);
+      setAssignmentStatus({
+        label: "Linked",
+        detail: "Contractor, compliance coverage, readiness, and workflow state refreshed.",
+        tone: "success",
+      });
+    } catch (error) {
+      const message = getErrorMessage(error);
+      console.error("Contractor assignment failed:", error);
+      setAssignmentStatus({
+        label: "Error occurred",
+        detail: message,
+        tone: "error",
+      });
+    } finally {
+      setIsAssigningContractor(false);
+    }
+  }
+
   useEffect(() => {
     void loadData();
   }, []);
+
+  useEffect(() => {
+    void loadContractors();
+  }, [canManageContractorLink]);
+
+  useEffect(() => {
+    setAssignmentContractorId(selectedDeal?.contractorId?.trim() ?? "");
+    setAssignmentStatus(null);
+  }, [selectedDeal?.id, selectedDeal?.contractorId]);
 
   useEffect(() => {
     async function hydrateSelectedContractor() {
@@ -841,7 +987,40 @@ export default function DealsPage() {
                       </div>
 
                       <div className="rounded-2xl bg-sky-50 px-4 py-3 text-sm text-sky-800 ring-1 ring-inset ring-sky-200">
-                        Contractor Link: {getDealContractorDisplayName(selectedDeal)}
+                        <p className="font-semibold">Contractor Link: {getDealContractorDisplayName(selectedDeal)}</p>
+                        {canManageContractorLink && selectedDeal ? (
+                          <div className="mt-3 grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
+                            <select
+                              value={assignmentContractorId}
+                              onChange={(event) => setAssignmentContractorId(event.target.value)}
+                              disabled={isLoadingContractors || isAssigningContractor}
+                              className="min-h-11 rounded-2xl border border-sky-200 bg-white px-3 py-2 text-sm text-slate-800 shadow-sm disabled:cursor-not-allowed disabled:bg-slate-100"
+                              aria-label="Select contractor to link"
+                            >
+                              <option value="">{isLoadingContractors ? "Loading contractors..." : "Select contractor"}</option>
+                              {contractors.map((contractor) => (
+                                <option key={contractor.id} value={contractor.id}>
+                                  {contractor.companyName}
+                                </option>
+                              ))}
+                            </select>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                void assignSelectedContractor();
+                              }}
+                              disabled={isLoadingContractors || isAssigningContractor || !assignmentContractorId.trim()}
+                              className="min-h-11 rounded-2xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+                            >
+                              {isAssigningContractor ? "Linking..." : getContractorLinkActionLabel(selectedDeal.contractorId)}
+                            </button>
+                          </div>
+                        ) : null}
+                        {assignmentStatus ? (
+                          <p className={`mt-2 text-xs ${assignmentStatus.tone === "error" ? "text-rose-700" : assignmentStatus.tone === "success" ? "text-emerald-700" : "text-slate-600"}`}>
+                            {assignmentStatus.detail}
+                          </p>
+                        ) : null}
                       </div>
                     </div>
 
