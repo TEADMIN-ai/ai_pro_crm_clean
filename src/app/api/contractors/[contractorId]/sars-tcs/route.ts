@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getFirebaseAdmin } from "@/lib/firebase/admin";
 import { AuthorizationError, assertCanAccessContractor, isPrivilegedRole, requireAuthorizedUser } from "@/lib/server/authz";
-import { SARS_TCS_SOQS_VERIFY_URL, buildSarsTcsProjection, createProvidedPinRecord, recordSarsVerificationResult, sanitizeSarsTcsRecord, type SarsTcsVerificationRecord } from "@/lib/sars-tcs";
+import { SARS_TCS_SOQS_VERIFY_URL, buildSarsTcsProjection, createProvidedPinRecord, recordSarsVerificationResult, sanitizeSarsTcsRecord, sanitizeSarsTcsWritePayload, type SarsTcsVerificationRecord } from "@/lib/sars-tcs";
 import { resolveContractorForAccess } from "@/server/services/contractorService";
 function jsonError(message: string, status = 500) { return NextResponse.json({ error: message }, { status }); }
 function str(value: unknown): string | null { return typeof value === "string" && value.trim() ? value.trim() : null; }
@@ -14,8 +14,9 @@ async function loadLatestRecord(contractorId: string): Promise<SarsTcsVerificati
 async function saveCurrentRecord(record: SarsTcsVerificationRecord, previous?: SarsTcsVerificationRecord | null, reason = "superseded") {
   const db = getFirebaseAdmin();
   if (previous && previous.id !== record.id) await db.collection("contractors").doc(record.contractorId).collection("sarsTcsVerifications").doc(previous.id).set({ supersededBy: record.id, supersededAt: new Date().toISOString(), supersededReason: reason, updatedAt: new Date().toISOString() }, { merge: true });
-  await db.collection("contractors").doc(record.contractorId).collection("sarsTcsVerifications").doc(record.id).set(record, { merge: false });
-  await db.collection("contractors").doc(record.contractorId).set({ sarsTcsCurrentVerificationId: record.id, sarsTcsSummary: sanitizeSarsTcsRecord(record), updatedAt: new Date().toISOString() }, { merge: true });
+  const payload = sanitizeSarsTcsWritePayload(record);
+  await db.collection("contractors").doc(payload.contractorId).collection("sarsTcsVerifications").doc(payload.id).set(payload, { merge: false });
+  await db.collection("contractors").doc(payload.contractorId).set({ sarsTcsCurrentVerificationId: payload.id, sarsTcsSummary: sanitizeSarsTcsRecord(payload), updatedAt: new Date().toISOString() }, { merge: true });
 }
 export async function GET(request: NextRequest, context: { params: Promise<{ contractorId: string }> }) {
   try {

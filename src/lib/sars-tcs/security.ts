@@ -13,8 +13,82 @@ export function protectTcsPin(pin: string): { encryptedTcsPin: string; protected
 export function redactTcsSecrets(value: string): string {
   return value.replace(PIN_PATTERN, (token) => (/\d/.test(token) ? "[TCS_PIN_REDACTED:" + token.slice(-4) + "]" : token));
 }
+
+const SENSITIVE_AUDIT_METADATA_KEYS = new Set(["pin", "tcsPin", "encryptedTcsPin"]);
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  if (!value || typeof value !== "object") return false;
+  const prototype = Object.getPrototypeOf(value);
+  return prototype === Object.prototype || prototype === null;
+}
+
+export function sanitizeFirestoreValue<T>(value: T): T {
+  if (value === undefined) return undefined as T;
+
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => sanitizeFirestoreValue(item))
+      .filter((item) => item !== undefined) as T;
+  }
+
+  if (!isPlainObject(value)) return value;
+
+  const output: Record<string, unknown> = {};
+  for (const [key, item] of Object.entries(value)) {
+    const sanitized = sanitizeFirestoreValue(item);
+    if (sanitized !== undefined) output[key] = sanitized;
+  }
+
+  return output as T;
+}
+
+function sanitizeAuditMetadataValue(value: unknown): unknown {
+  if (value === undefined) return undefined;
+
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => sanitizeAuditMetadataValue(item))
+      .filter((item) => item !== undefined);
+  }
+
+  if (!isPlainObject(value)) return value;
+
+  const output: Record<string, unknown> = {};
+  for (const [key, item] of Object.entries(value)) {
+    if (SENSITIVE_AUDIT_METADATA_KEYS.has(key)) continue;
+    const sanitized = sanitizeAuditMetadataValue(item);
+    if (sanitized !== undefined) output[key] = sanitized;
+  }
+
+  return output;
+}
+
+function sanitizeAuditMetadata(metadata: Record<string, unknown> | undefined): Record<string, unknown> | undefined {
+  if (!metadata) return undefined;
+  return sanitizeFirestoreValue(sanitizeAuditMetadataValue(metadata)) as Record<string, unknown>;
+}
+
 export function sanitizeAuditTrail(entries: SarsTcsAuditEntry[] = []): SarsTcsAuditEntry[] {
-  return entries.map((entry) => ({ ...entry, message: redactTcsSecrets(entry.message), metadata: entry.metadata ? { ...entry.metadata, pin: undefined, tcsPin: undefined, encryptedTcsPin: undefined } : undefined }));
+  return entries.map((entry) => {
+    const metadata = sanitizeAuditMetadata(entry.metadata);
+    return sanitizeFirestoreValue({
+      ...entry,
+      message: redactTcsSecrets(entry.message),
+      ...(metadata ? { metadata } : {}),
+    }) as SarsTcsAuditEntry;
+  });
+}
+
+export function sanitizeSarsTcsWritePayload(record: SarsTcsVerificationRecord): SarsTcsVerificationRecord {
+  const { pin: _pin, tcsPin: _tcsPin, auditTrail, ...rest } = record as SarsTcsVerificationRecord & {
+    pin?: unknown;
+    tcsPin?: unknown;
+  };
+
+  return sanitizeFirestoreValue({
+    ...rest,
+    auditTrail: sanitizeAuditTrail(auditTrail),
+  }) as SarsTcsVerificationRecord;
 }
 function audit(type: string, message: string, actorUid: string | null, actorName: string | null, previousStatus: SarsTcsVerificationRecord["verificationStatus"] | null, newStatus: SarsTcsVerificationRecord["verificationStatus"] | null): SarsTcsAuditEntry {
   return { id: randomUUID(), type, message: redactTcsSecrets(message), actorUid, actorName, createdAt: iso(new Date()), previousStatus, newStatus };
