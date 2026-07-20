@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isVehicleFinanceRole } from "@/lib/auth/roleUtils";
-import { isHygieneDriverDashboardPath, isRoarCarsDashboardPath } from "@/lib/auth/roleRouting";
+import { getDashboardPath, isHygieneDriverDashboardPath, isRoarCarsDashboardPath } from "@/lib/auth/roleRouting";
 import { AuthorizationError, resolveAuthorizedIdentity } from "@/lib/server/authz";
 import { verifySessionValue } from "@/lib/server/verifySession";
 
@@ -38,14 +38,15 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(new URL("/login", request.url));
   }
 
-  if (isVehicleFinanceRole(role)) {
-    if (pathname === "/dashboard" || pathname === "/dashboard/") {
-      return NextResponse.redirect(new URL("/dashboard/vehicle-finance", request.url));
+  if (pathname === "/dashboard" || pathname === "/dashboard/") {
+    const dashboardPath = getDashboardPath(role);
+    if (dashboardPath !== pathname) {
+      return NextResponse.redirect(new URL(dashboardPath, request.url));
     }
+  }
 
-    if (!isRoarCarsDashboardPath(pathname)) {
-      return new NextResponse("Unauthorized", { status: 403 });
-    }
+  if (isVehicleFinanceRole(role) && !isRoarCarsDashboardPath(pathname)) {
+    return new NextResponse("Unauthorized", { status: 403 });
   }
 
   if (pathname.startsWith("/dashboard/hygiene")) {
@@ -60,15 +61,9 @@ export async function proxy(request: NextRequest) {
     }
   }
 
-  if (pathname === "/dashboard" && role === "contractor") {
-    return NextResponse.redirect(new URL("/dashboard/contractor", request.url));
-  }
-
   return NextResponse.next();
 }
 
 export const config = {
   matcher: ["/dashboard", "/dashboard/:path*"],
 };
-
-

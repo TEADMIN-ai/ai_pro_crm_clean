@@ -218,6 +218,9 @@ export function getEnterpriseDashboardPath(role: UserRole): string {
       return ENTERPRISE_ROUTE_PATHS.hygieneJobs;
     case "staff":
       return ENTERPRISE_ROUTE_PATHS.staff;
+    case "auditor":
+    case "viewer":
+      return ENTERPRISE_ROUTE_PATHS.profile;
     default:
       return ENTERPRISE_ROUTE_PATHS.login;
   }
@@ -283,6 +286,4 @@ export function getEnterprisePermissionPolicyByType(type: WorkspaceType): Enterp
       };
   }
 }
-
-
 

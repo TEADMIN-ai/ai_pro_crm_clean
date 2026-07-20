@@ -8,9 +8,12 @@ import {
 describe("role dashboard routing", () => {
   test.each([
     ["admin", "/dashboard/admin"],
+    ["manager", "/dashboard/manager"],
     ["staff", "/dashboard/staff"],
     ["driver", "/dashboard/hygiene/jobs"],
     ["contractor", "/dashboard/contractor"],
+    ["auditor", "/dashboard/profile"],
+    ["viewer", "/dashboard/profile"],
     ["dealerPilot", "/dashboard/vehicle-finance"],
     ["vehicleFinanceStaff", "/dashboard/vehicle-finance"],
     ["ROAR_CARS_STAFF", "/dashboard/vehicle-finance"],
@@ -21,6 +24,8 @@ describe("role dashboard routing", () => {
   test("redirects unauthorized authenticated users to their role dashboard", () => {
     expect(getUnauthorizedRedirectPath("contractor")).toBe("/dashboard/contractor");
     expect(getUnauthorizedRedirectPath("staff")).toBe("/dashboard/staff");
+    expect(getUnauthorizedRedirectPath("auditor")).toBe("/dashboard/profile");
+    expect(getUnauthorizedRedirectPath("viewer")).toBe("/dashboard/profile");
     expect(getUnauthorizedRedirectPath("driver")).toBe("/dashboard/hygiene/jobs");
     expect(getUnauthorizedRedirectPath("dealerPilot")).toBe("/dashboard/vehicle-finance");
     expect(getUnauthorizedRedirectPath("vehicleFinanceStaff")).toBe("/dashboard/vehicle-finance");
