@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getFirebaseAdmin } from "@/lib/firebase/admin";
 import { AuthorizationError, requireAuthorizedUser, type AuthorizedUser } from "@/lib/server/authz";
 import { buildSubmissionReviewView, canAccessSubmissionReview, isMockSubmissionReviewData } from "@/lib/submission-review";
+import { isContractorVisibleToWorkspace } from "@/lib/contractors/contractorVisibility";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 type Data=Record<string,unknown>;
@@ -18,6 +19,7 @@ async function toView(review:Data,actor:AuthorizedUser,workspaceId:string|null){
 if(isMockSubmissionReviewData(review))return null;
 const dealId=asString(review.dealId)??asString(review.id),contractorId=asString(review.contractorId);
 const deal=dealId?await doc("deals",dealId):null,contractor=contractorId?await doc("contractors",contractorId):null;
+if(contractor&&!isContractorVisibleToWorkspace(contractor,{workspaceId:workspaceId??asString(review.workspaceId)??asString(asRecord(deal).workspaceId),actorRole:actor.role}).visible)return null;
 const access=canAccessSubmissionReview({actor:{role:actor.role,contractorId:actor.contractorId,workspaceId},review,contractor});
 if(!access.ok){const failure=access as {status:number;reason:string};throw Object.assign(new Error(failure.reason),{status:failure.status});}
 return buildSubmissionReviewView({review,deal,contractor,activity:dealId?await activity(dealId):[]});

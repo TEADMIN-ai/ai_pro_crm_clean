@@ -43,7 +43,7 @@ export async function getOpportunityExecutionView(dealId: string, actor?: Author
   const contractor = resolved?.ok && !isArchivedContractor(resolved.contractor) ? resolved.contractor : null;
   const state = buildOpportunityExecutionState({ deal, contractor: contractor as Record<string, unknown> | null });
   const projection = buildProcurementExecutionProjection({ deal: { ...deal, sarsTcsSummary: contractor ? (contractor as Record<string, unknown>).sarsTcsSummary : null }, state, remediationRequests: state.remediationRequests });
-  const matches = matchContractorsForOpportunity({ deal, contractors: await listContractors() as Array<Record<string, unknown> & { id: string }> });
+  const matches = matchContractorsForOpportunity({ deal, contractors: await listContractors({ workspaceId: asString(deal.workspaceId), actorRole: actor?.role ?? null }) as Array<Record<string, unknown> & { id: string }> });
   const activitySnapshot = await getFirebaseAdmin().collection("deals").doc(dealId).collection("activity").orderBy("createdAt", "desc").limit(25).get();
   const activity = activitySnapshot.docs.map((doc) => ({ id: doc.id, ...(doc.data() ?? {}) }));
   return { deal, contractor, state, projection, matches, activity };

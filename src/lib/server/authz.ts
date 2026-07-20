@@ -1,4 +1,4 @@
-﻿import type { NextRequest } from 'next/server';
+import type { NextRequest } from 'next/server';
 import { getFirebaseAdmin } from '@/lib/firebase/admin';
 import { buildUserProfile, normalizeContractorId, resolveRole, type UserProfile } from '@/lib/auth/userProfile';
 import { ensureContractorAuthLinkage } from '@/lib/contractors/contractorAuthLink';
@@ -13,8 +13,10 @@ export interface AuthorizedUser {
   email?: string;
   role: UserRole;
   contractorId?: string;
+  workspaceId?: string;
   capabilities?: readonly CapabilityKey[];
 }
+
 export class AuthorizationError extends Error {
   status: number;
 
@@ -24,7 +26,6 @@ export class AuthorizationError extends Error {
     this.status = status;
   }
 }
-
 async function getUserProfile(uid: string): Promise<UserProfile | null> {
   const snapshot = await getFirebaseAdmin().collection('users').doc(uid).get();
   if (!snapshot.exists) {
@@ -39,6 +40,7 @@ export interface ResolvedIdentity {
   email?: string;
   role: UserRole;
   contractorId?: string;
+  workspaceId?: string;
   capabilities?: readonly CapabilityKey[];
   profile: UserProfile | null;
 }
@@ -70,11 +72,11 @@ export async function resolveAuthorizedIdentity(args: {
     email: args.email,
     role,
     contractorId,
+    workspaceId: profile?.workspace?.id ?? profile?.workspaceId,
     capabilities,
     profile,
   };
 }
-
 export async function requireAuthorizedUser(request: NextRequest): Promise<AuthorizedUser> {
   try {
     const decoded = await requireAuth(request);
@@ -113,6 +115,7 @@ export async function requireAuthorizedUser(request: NextRequest): Promise<Autho
       email: resolved.email,
       role: resolved.role,
       contractorId: resolvedContractorId,
+      workspaceId: resolved.workspaceId,
       capabilities: resolved.capabilities,
     };
   } catch (error) {
@@ -124,7 +127,6 @@ export async function requireAuthorizedUser(request: NextRequest): Promise<Autho
     throw new AuthorizationError('unauthorized', 401);
   }
 }
-
 export function canAccessContractor(user: AuthorizedUser, contractorId: string): boolean {
   if (user.role === 'admin' || user.role === 'manager' || user.role === 'staff') {
     return true;

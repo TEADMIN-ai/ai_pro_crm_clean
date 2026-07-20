@@ -1,4 +1,5 @@
 import { getFirebaseAdmin } from "@/lib/firebase/admin";
+import { isContractorVisibleToWorkspace, type ContractorVisibilityContext } from "@/lib/contractors/contractorVisibility";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const EXPIRING_SOON_MS = 30 * DAY_MS;
@@ -363,7 +364,7 @@ function summarizeOpportunities(opportunities: Array<{ id: string; data: RawReco
   };
 }
 
-export async function getEnterpriseKpiSnapshot(): Promise<EnterpriseKpiSnapshot> {
+export async function getEnterpriseKpiSnapshot(context: ContractorVisibilityContext): Promise<EnterpriseKpiSnapshot> {
   const now = Date.now();
   const [
     opportunitiesSnapshot,
@@ -385,11 +386,13 @@ export async function getEnterpriseKpiSnapshot(): Promise<EnterpriseKpiSnapshot>
     getFirebaseAdmin().collectionGroup("documents").get(),
   ]);
 
-  const opportunitySummary = summarizeOpportunities(opportunitiesSnapshot, now);
+  const scopedOpportunities = context.workspaceId ? opportunitiesSnapshot.filter(({ data }) => asString(data.workspaceId) === context.workspaceId) : [];
+  const scopedContractorRecords = contractorsSnapshot.filter(({ data }) => isContractorVisibleToWorkspace(data, context).visible);
+  const opportunitySummary = summarizeOpportunities(scopedOpportunities, now);
   const contractorAssignments = new Set<string>();
-  opportunitiesSnapshot.forEach(({ data }) => getAssignedContractorIds(data).forEach((contractorId) => contractorAssignments.add(contractorId)));
+  scopedOpportunities.forEach(({ data }) => getAssignedContractorIds(data).forEach((contractorId) => contractorAssignments.add(contractorId)));
 
-  const contractors = contractorsSnapshot.map(({ data }) => ({
+  const contractors = scopedContractorRecords.map(({ data }) => ({
     readinessScore: clampPercent(asNumber(data.readinessScore) ?? asNumber(data.readinessConfidence) ?? 0),
     complianceConfidence: clampPercent(asNumber(data.complianceConfidence) ?? 0),
     tenderLockStatus: asString(data.tenderLockStatus),

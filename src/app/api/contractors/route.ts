@@ -87,8 +87,14 @@ export async function GET(request: NextRequest) {
     const user = await requireAuthorizedUser(request);
     assertPrivilegedRole(user);
 
+    if (!user.workspaceId) {
+      return NextResponse.json({ error: "Workspace context is required" }, { status: 403 });
+    }
+
     const includeArchived = request.nextUrl.searchParams.get("includeArchived") === "true" && user.role === "admin";
-    const contractors = await listContractors({ includeArchived });
+    const includeNonProduction = request.nextUrl.searchParams.get("includeNonProduction") === "true" && user.role === "admin";
+    const includeLegacyUnassigned = request.nextUrl.searchParams.get("includeLegacyUnassigned") === "true" && user.role === "admin";
+    const contractors = await listContractors({ workspaceId: user.workspaceId, actorRole: user.role, includeArchived, includeNonProduction, includeLegacyUnassigned });
     return NextResponse.json(contractors);
   } catch (error: any) {
     if (error instanceof AuthorizationError) {

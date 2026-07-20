@@ -11,6 +11,7 @@ import {
   SUPPORTED_DOCUMENT_TYPES,
 } from "@/lib/compliance/contractorCompliance";
 import { recordAuditLog } from "@/server/services/auditLogService";
+import { classifyContractorRecord, emptyContractorVisibilityDiagnostics, isContractorVisibleToWorkspace, updateContractorVisibilityDiagnostics, type ContractorVisibilityContext } from "@/lib/contractors/contractorVisibility";
 import { AuthorizationError, type AuthorizedUser } from "@/lib/server/authz";
 import type { ContractorTier } from "@/types/contractor";
 import type { ContractorDocument } from "@/types/document";
@@ -64,45 +65,20 @@ function defaultSubmissionLimitForTier(tier: ContractorTier): number {
   }
 }
 
-export async function listContractors(options: { includeArchived?: boolean } = {}) {
+export type ListContractorsOptions = ContractorVisibilityContext;
+export async function listContractors(options: ListContractorsOptions) {
   const queryPath = "contractors";
   const snapshot = await getFirebaseAdmin().collection(queryPath).get();
-  const rawContractors: Array<Record<string, unknown> & { id: string }> = snapshot.docs.map((doc) => ({
-    id: doc.id,
-    ...(doc.data() as Record<string, unknown>),
-  }));
-  const filteredDemoRecords = rawContractors.filter(isDemoContractorRecord).length;
-  const contractors = await Promise.all(
-    rawContractors
-      .filter((contractor) => !isDemoContractorRecord(contractor))
-      .filter((contractor) => options.includeArchived === true || contractor.archived !== true)
-      .map(async (contractor) => enrichContractorListItem(contractor)),
-  );
-  const legacyRecords = contractors.filter((contractor) => !asString((contractor as Record<string, unknown>).workspaceId)).length;
-  const sortedContractors = contractors.sort((a, b) => {
-    const aCreatedAt = typeof a["createdAt"] === "number" ? a["createdAt"] : 0;
-    const bCreatedAt = typeof b["createdAt"] === "number" ? b["createdAt"] : 0;
-    return bCreatedAt - aCreatedAt;
-  });
-
-  console.info("[contractor-repository] list", {
-    queryPath,
-    filters: { excludedDemoRecords: true, workspaceId: null },
-    recordsReturned: sortedContractors.length,
-    legacyRecordsDetected: legacyRecords,
-    rejectedCrossWorkspaceRecords: 0,
-    filteredDemoRecords,
-  });
-
+  const rawContractors: Array<Record<string, unknown> & { id: string }> = snapshot.docs.map((doc) => ({ id: doc.id, ...(doc.data() as Record<string, unknown>) }));
+  const diagnostics = emptyContractorVisibilityDiagnostics();
+  const visibleContractors = rawContractors.filter((contractor) => { const decision = isContractorVisibleToWorkspace(contractor, options); updateContractorVisibilityDiagnostics(diagnostics, decision); return decision.visible; });
+  const contractors = await Promise.all(visibleContractors.map(async (contractor) => ({ ...(await enrichContractorListItem(contractor)), recordClassification: classifyContractorRecord(contractor) })));
+  const sortedContractors = contractors.sort((a, b) => { const aCreatedAt = typeof a["createdAt"] === "number" ? a["createdAt"] : 0; const bCreatedAt = typeof b["createdAt"] === "number" ? b["createdAt"] : 0; return bCreatedAt !== aCreatedAt ? bCreatedAt - aCreatedAt : String(a.id).localeCompare(String(b.id)); });
+  console.info("[contractor-repository] list", { queryPath, filters: { workspaceId: options.workspaceId ?? null, includeArchived: options.includeArchived === true, includeNonProduction: options.includeNonProduction === true, includeLegacyUnassigned: options.includeLegacyUnassigned === true }, diagnostics });
   return sortedContractors;
 }
-
 function isDemoContractorRecord(contractor: Record<string, unknown>): boolean {
-  return contractor.demoContractor === true ||
-    contractor.benchmarkContractor === true ||
-    contractor.regressionValidationContractor === true ||
-    contractor.operationalReplayContractor === true ||
-    contractor.canonicalProfile === true;
+  return classifyContractorRecord(contractor) !== "PRODUCTION";
 }
 
 function isReviewRequiredDocument(document: ContractorDocument): boolean {

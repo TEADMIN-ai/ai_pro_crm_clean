@@ -48,12 +48,12 @@ describe("contractor archive service", () => {
   });
 
   test("archived contractors are excluded from the active list", async () => {
-    const contractors = await listContractors();
+    const contractors = await listContractors({ workspaceId: "w1", actorRole: "staff" });
     expect(contractors.map((contractor) => contractor.id)).toEqual(["active", "dependent"]);
   });
 
   test("archived contractors are visible when explicitly included for admin review", async () => {
-    const contractors = await listContractors({ includeArchived: true });
+    const contractors = await listContractors({ workspaceId: "w1", actorRole: "admin", includeArchived: true });
     expect(contractors.map((contractor) => contractor.id)).toContain("archived");
   });
 
@@ -118,7 +118,7 @@ describe("contractor archive service", () => {
   });
 
   test("active legitimate contractors remain visible", async () => {
-    const contractors = await listContractors();
+    const contractors = await listContractors({ workspaceId: "w1", actorRole: "staff" });
     expect(contractors.find((contractor) => contractor.id === "active")).toMatchObject({
       companyName: "Mackay and Daughters Enterprises",
     });

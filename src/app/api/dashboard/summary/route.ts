@@ -32,7 +32,8 @@ function emptySummary(error?: string, status = 500) {
 export async function GET(request: NextRequest) {
   try {
     const user = await requireAuthorizedUser(request);
-    const snapshot = await getEnterpriseKpiSnapshot();
+    if (!user.workspaceId) return emptySummary("Workspace context is required", 403);
+    const snapshot = await getEnterpriseKpiSnapshot({ workspaceId: user.workspaceId, actorRole: user.role });
 
     return NextResponse.json({
       totalDeals: snapshot.dashboardSummary.totalOpportunities,

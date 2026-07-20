@@ -38,8 +38,9 @@ function emptyPayload(error?: string, status = 500) {
 
 export async function GET(request: NextRequest) {
   try {
-    await requireAuthorizedUser(request);
-    return NextResponse.json(await getEnterpriseKpiSnapshot());
+    const user = await requireAuthorizedUser(request);
+    if (!user.workspaceId) return emptyPayload("Workspace context is required", 403);
+    return NextResponse.json(await getEnterpriseKpiSnapshot({ workspaceId: user.workspaceId, actorRole: user.role }));
   } catch (error) {
     if (error instanceof AuthorizationError) {
       return emptyPayload(error.message, error.status);
