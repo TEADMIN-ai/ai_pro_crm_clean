@@ -1,4 +1,5 @@
 import type { Deal } from "@/types/deal";
+import { hasResolvedContractorBusinessIdentity } from "@/lib/contractors/contractorBusinessIdentity";
 import {
   buildOpportunityRequirementDetails,
   calculateProfileCompleteness,
@@ -368,6 +369,10 @@ function canonicalContractorId(contractor: AnyRecord): string | null {
   return str(contractor.contractorId) ?? str(contractor.id) ?? str(contractor.uid) ?? str(contractor.authUid) ?? str(contractor.userId);
 }
 
+function isContractorIdentityResolved(contractor: AnyRecord): boolean {
+  return hasResolvedContractorBusinessIdentity(contractor);
+}
+
 function contractorWorkspaceId(contractor: AnyRecord): string | null {
   const workspace = rec(contractor.workspace);
   return str(contractor.workspaceId) ?? str(workspace.id);
@@ -375,7 +380,7 @@ function contractorWorkspaceId(contractor: AnyRecord): string | null {
 
 function contractorDecisionBlockers(contractor: AnyRecord, dealWorkspaceId: string | null, compliance: ReturnType<typeof evaluateOpportunityCompliance>): string[] {
   const blockers: string[] = [];
-  if (!canonicalContractorId(contractor)) blockers.push("Contractor identity is unresolved");
+  if (!canonicalContractorId(contractor) || !isContractorIdentityResolved(contractor)) blockers.push("Contractor identity is unresolved");
   const contractorWorkspace = contractorWorkspaceId(contractor);
   if (!dealWorkspaceId) blockers.push("Opportunity workspace is unresolved");
   if (!contractorWorkspace) blockers.push("Contractor workspace is unresolved");

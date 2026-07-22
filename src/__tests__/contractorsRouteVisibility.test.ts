@@ -97,3 +97,27 @@ describe("/api/contractors visibility scope", () => {
     expect(JSON.stringify(body)).not.toContain("contractor-1");
   });
 });
+
+describe("/api/contractors deal assignment selector options", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  test("returns structured verified selector options and excludes personal profile names", async () => {
+    requireAuthorizedUser.mockResolvedValue({ uid: "staff-1", role: "staff", workspaceId: "workspace-a" });
+    listContractors.mockResolvedValue([
+      { id: "user-doc", contractorId: "user-doc", userId: "user-doc", workspaceId: "workspace-a", status: "active", identityResolved: true, companyName: "Mr K" },
+      { id: "contractor-a", contractorId: "contractor-a", userId: "user-a", workspaceId: "workspace-a", status: "active", identityResolved: true, legalName: "Mackay and Daughters Enterprises (Pty) Ltd" },
+    ]);
+
+    const response = await GET(request("http://localhost/api/contractors?purpose=dealAssignmentSelector"));
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.contractors).toEqual([
+      expect.objectContaining({ contractorId: "contractor-a", label: "Mackay and Daughters Enterprises (Pty) Ltd", workspaceId: "workspace-a", identityResolved: true }),
+    ]);
+    expect(JSON.stringify(body)).not.toContain("Mr K");
+    expect(JSON.stringify(body)).not.toContain("user-doc");
+  });
+});

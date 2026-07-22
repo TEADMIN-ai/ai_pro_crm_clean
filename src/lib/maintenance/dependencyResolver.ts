@@ -1,5 +1,6 @@
 import type { BrokenReferenceIssue, RepairOperation } from "./repairStrategies";
 import { isArchivalCandidate, nowIso } from "./repairStrategies";
+import { buildUnresolvedContractorIdentityFields, resolveContractorBusinessIdentity } from "@/lib/contractors/contractorBusinessIdentity";
 import type { FirestoreDb } from "./referenceValidator";
 
 type DocumentData = Record<string, unknown>;
@@ -69,12 +70,16 @@ function restoredUserPayload(uid: string, sourcePath: string, sourceData: Docume
 
 function restoredContractorPayload(contractorId: string, sourcePath: string, sourceData: DocumentData | null): DocumentData {
   const email = asString(sourceData?.email);
-  const name =
-    asString(sourceData?.name) ??
-    asString(sourceData?.displayName) ??
-    ([sourceData?.firstName, sourceData?.lastName].map(asString).filter(Boolean).join(" ") ||
-      email ||
-      contractorId);
+  const now = nowIso();
+  const workspaceId = asString(sourceData?.workspaceId);
+  const identity = resolveContractorBusinessIdentity({
+    ...(sourceData ?? {}),
+    contractorId,
+    id: contractorId,
+  }, {
+    technicalIds: [contractorId],
+    personalValues: [sourceData?.name, sourceData?.displayName, sourceData?.firstName, sourceData?.lastName],
+  });
 
   return {
     id: contractorId,
@@ -84,16 +89,33 @@ function restoredContractorPayload(contractorId: string, sourcePath: string, sou
     userId: contractorId,
     email: email ?? null,
     contactEmail: email ?? null,
-    name,
-    companyName: name,
-    contactPerson: name,
-    status: asString(sourceData?.status) ?? "restored",
+    ...(identity.identityResolved
+      ? {
+          legalName: identity.legalName,
+          tradingName: identity.tradingName,
+          registeredBusinessName: identity.registeredBusinessName,
+          companyName: identity.companyName ?? identity.label,
+          name: identity.label,
+          identityResolved: true,
+          identityStatus: "VERIFIED",
+          identityResolutionStatus: "VERIFIED",
+          businessIdentityEvidenceStatus: "VERIFIED",
+        }
+      : buildUnresolvedContractorIdentityFields({
+          source: "maintenance.dependencyResolver",
+          sourceUserUid: contractorId,
+          workspaceId,
+          existingBlockingReasons: identity.blockingReasons,
+          nowIso: now,
+        })),
+    status: identity.identityResolved ? asString(sourceData?.status) ?? "restored" : "identity_unresolved",
     complianceApproved: false,
     integrityRestored: true,
-    integrityRestoredAt: nowIso(),
+    integrityRestoredAt: now,
     integrityRepairSource: sourcePath,
+    integrityRepairStrategy: identity.identityResolved ? "RESTORE_VERIFIED_IDENTITY" : "RESTORE_UNRESOLVED_IDENTITY",
     createdAt: Date.now(),
-    updatedAt: nowIso(),
+    updatedAt: now,
     ...copyWorkspaceFields(sourceData ?? {}),
   };
 }

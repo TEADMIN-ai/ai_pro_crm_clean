@@ -12,6 +12,7 @@ import {
 } from "@/lib/compliance/contractorCompliance";
 import { getDealContractorDisplayName, isDealContractorResolved } from "@/lib/deals/contractorReferenceDisplay";
 import { buildAssignContractorRequest, canManageDealContractorLink, getContractorLinkActionLabel } from "@/lib/deals/dealsHubContractorAssignment";
+import type { ContractorSelectorOption } from "@/lib/contractors/contractorSelectorOptions";
 import { buildDealsDashboardDecision, findDashboardMatch, type DashboardMatchDecision, type DashboardProjectionDecision } from "@/lib/deals/dealsDashboardDecision";
 
 export const dynamic = "force-dynamic";
@@ -39,10 +40,7 @@ type Deal = {
 };
 
 
-type ContractorOption = {
-  id: string;
-  companyName: string;
-};
+type ContractorOption = ContractorSelectorOption;
 
 type UploadKind = "compliance" | "supporting";
 type ExecutionView = { projection?: DashboardProjectionDecision | null; matches?: DashboardMatchDecision[] };
@@ -155,24 +153,18 @@ function normalizeDeals(payload: unknown): Deal[] {
 }
 
 function normalizeContractorOptions(payload: unknown): ContractorOption[] {
-  const source = Array.isArray(payload)
-    ? payload
-    : payload && typeof payload === "object" && Array.isArray((payload as { contractors?: unknown[] }).contractors)
-      ? (payload as { contractors: unknown[] }).contractors
-      : [];
+  const source = payload && typeof payload === "object" && Array.isArray((payload as { contractors?: unknown[] }).contractors)
+    ? (payload as { contractors: unknown[] }).contractors
+    : [];
 
-  return source
-    .map((item) => {
-      const record = item && typeof item === "object" ? (item as Record<string, unknown>) : {};
-      const id = typeof record.id === "string" ? record.id.trim() : typeof record.contractorId === "string" ? record.contractorId.trim() : "";
-      const companyName =
-        (typeof record.companyName === "string" && record.companyName.trim()) ||
-        (typeof record.businessName === "string" && record.businessName.trim()) ||
-        (typeof record.tradingName === "string" && record.tradingName.trim()) ||
-        id;
-      return { id, companyName };
-    })
-    .filter((item) => item.id.length > 0);
+  return source.flatMap((item) => {
+    const record = item && typeof item === "object" ? (item as Record<string, unknown>) : {};
+    const contractorId = typeof record.contractorId === "string" ? record.contractorId.trim() : "";
+    const label = typeof record.label === "string" ? record.label.trim() : "";
+    const workspaceId = typeof record.workspaceId === "string" ? record.workspaceId.trim() : "";
+    if (!contractorId || !label || !workspaceId || record.identityResolved !== true) return [];
+    return [{ contractorId, label, workspaceId, legalName: typeof record.legalName === "string" ? record.legalName : null, tradingName: typeof record.tradingName === "string" ? record.tradingName : null, registeredBusinessName: typeof record.registeredBusinessName === "string" ? record.registeredBusinessName : null, linkedUserId: typeof record.linkedUserId === "string" ? record.linkedUserId : null, status: typeof record.status === "string" ? record.status : "UNKNOWN", identityResolved: true as const }];
+  });
 }
 
 function getStatusClasses(tone: StatusTone): string {
@@ -390,7 +382,7 @@ export default function DealsPage() {
     setIsLoadingContractors(true);
 
     try {
-      const response = await authFetch(API_ROUTES.CONTRACTORS);
+      const response = await authFetch(`${API_ROUTES.CONTRACTORS}?purpose=dealAssignmentSelector`);
       const payload = await response.json();
 
       if (!response.ok) {
@@ -956,10 +948,10 @@ export default function DealsPage() {
                               className="min-h-11 rounded-2xl border border-sky-200 bg-white px-3 py-2 text-sm text-slate-800 shadow-sm disabled:cursor-not-allowed disabled:bg-slate-100"
                               aria-label="Select contractor to link"
                             >
-                              <option value="">{isLoadingContractors ? "Loading contractors..." : "Select contractor"}</option>
+                              <option value="">{isLoadingContractors ? "Loading contractors..." : contractors.length ? "Select contractor" : "No verified contractors available"}</option>
                               {contractors.map((contractor) => (
-                                <option key={contractor.id} value={contractor.id}>
-                                  {contractor.companyName}
+                                <option key={contractor.contractorId} value={contractor.contractorId}>
+                                  {contractor.label}
                                 </option>
                               ))}
                             </select>

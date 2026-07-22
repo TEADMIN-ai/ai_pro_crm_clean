@@ -51,3 +51,13 @@ describe("Deals Hub contractor link UI wiring", () => {
     expect(missingDecision.assignmentAllowed).toBe(false);
   });
 });
+
+describe("Deals Hub canonical contractor selector wiring", () => {
+  it("loads and renders only structured canonical contractor selector options", () => {
+    expect(source).toContain("purpose=dealAssignmentSelector");
+    expect(source).toContain("No verified contractors available");
+    expect(source).toContain("contractor.contractorId");
+    expect(source).toContain("contractor.label");
+    expect(source).not.toContain("contractor.companyName");
+  });
+});

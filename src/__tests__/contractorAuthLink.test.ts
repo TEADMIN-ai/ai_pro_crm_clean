@@ -18,6 +18,8 @@ jest.mock("@/lib/firebase/admin", () => ({
 }));
 
 import { ensureContractorAuthLinkage } from "@/lib/contractors/contractorAuthLink";
+import { buildContractorSelectorOption } from "@/lib/contractors/contractorSelectorOptions";
+import { matchContractorsForOpportunity } from "@/lib/opportunities/opportunityExecution";
 
 function createDocSnapshot(id: string, data?: Record<string, unknown>) {
   return {
@@ -56,7 +58,7 @@ describe("ensureContractorAuthLinkage", () => {
                 createDocSnapshot(id, {
                   uid: id,
                   email: "contractor@example.com",
-                  name: "Torque Empire",
+                  name: "Mr K",
                   role: "contractor",
                   contractorId: id,
                   createdAt: 123,
@@ -89,7 +91,7 @@ describe("ensureContractorAuthLinkage", () => {
     getUser.mockResolvedValue({
       uid: "FC6EgOoPtqedWvGjfdZPn8y19kx2",
       email: "contractor@example.com",
-      displayName: "Torque Empire",
+      displayName: "Mr K",
       customClaims: {
         role: "contractor",
         contractorId: "FC6EgOoPtqedWvGjfdZPn8y19kx2",
@@ -114,6 +116,19 @@ describe("ensureContractorAuthLinkage", () => {
       }),
       { merge: true },
     );
+    const created = contractorSet.mock.calls[0][0] as Record<string, unknown>;
+    expect(created).toEqual(expect.objectContaining({ identityResolved: false, identityStatus: "UNRESOLVED", identityResolutionStatus: "UNRESOLVED", workspaceId: null, workspaceResolutionStatus: "UNRESOLVED", businessIdentityEvidenceStatus: "MISSING", status: "identity_unresolved", logicVersion: "contractor-business-identity-v1" }));
+    expect(created.companyName).toBeUndefined();
+    expect(created.legalName).toBeUndefined();
+    expect(created.businessName).toBeUndefined();
+    expect(created.tradingName).toBeUndefined();
+    expect(created.registeredName).toBeUndefined();
+    expect(created.registeredBusinessName).toBeUndefined();
+    expect(created.name).toBeUndefined();
+    expect(created.contactPerson).toBeUndefined();
+    expect(JSON.stringify(created)).not.toContain("Mr K");
+    expect(created.blockingReasons).toEqual(expect.arrayContaining(["Contractor business identity evidence is missing", "Contractor workspace resolution is unresolved"]));
+    expect(created.sourceMetadata).toEqual(expect.objectContaining({ source: "test", sourceUserUid: "FC6EgOoPtqedWvGjfdZPn8y19kx2", workspaceResolutionStatus: "UNRESOLVED", decisionLogicVersion: "contractor-business-identity-v1" }));
     expect(setCustomUserClaims).not.toHaveBeenCalled();
     expect(usersSet).not.toHaveBeenCalled();
   });
@@ -222,5 +237,24 @@ describe("ensureContractorAuthLinkage", () => {
       }),
       { merge: true },
     );
+  });
+});
+
+describe("unresolved contractor linkage downstream invariants", () => {
+  it("keeps unresolved linkage records out of selector, matching and assignment eligibility", () => {
+    const unresolvedRecord = { id: "contractor-1", contractorId: "contractor-1", workspaceId: "workspace-a", identityResolved: false, identityStatus: "UNRESOLVED", readinessScore: 100, complianceStatusScore: 100, taxValid: true, csdValid: true, bbbeeValid: true, coidaValid: true, bankingValid: true };
+    expect(buildContractorSelectorOption(unresolvedRecord)).toBeNull();
+    const [match] = matchContractorsForOpportunity({ deal: { id: "deal-1", workspaceId: "workspace-a", category: "civil works", requirementsReview: { reviewed: true, taxRequirement: false, csdRequirement: false, bbbeeRequirement: false, coidaRequirement: false, bankingRequirement: false, compulsoryReturnables: [] } }, contractors: [unresolvedRecord] });
+    expect(match.blockingReasons).toContain("Contractor identity is unresolved");
+    expect(match.eligible).toBe(false);
+    expect(match.assignmentAllowed).toBe(false);
+    expect(match.matchScore).toBe(0);
+  });
+
+  it("allows later verified onboarding evidence to promote selector eligibility safely", () => {
+    const unresolved = { contractorId: "contractor-1", workspaceId: "workspace-a", identityResolved: false, identityStatus: "UNRESOLVED", status: "identity_unresolved" };
+    const verified = { ...unresolved, legalName: "Verified Civil Works Pty Ltd", identityResolved: true, identityStatus: "VERIFIED", status: "active" };
+    expect(buildContractorSelectorOption(unresolved)).toBeNull();
+    expect(buildContractorSelectorOption(verified)?.label).toBe("Verified Civil Works Pty Ltd");
   });
 });

@@ -12,6 +12,7 @@ import {
 } from "@/lib/compliance/contractorCompliance";
 import { recordAuditLog } from "@/server/services/auditLogService";
 import { classifyContractorRecord, emptyContractorVisibilityDiagnostics, isContractorVisibleToWorkspace, updateContractorVisibilityDiagnostics, type ContractorVisibilityContext } from "@/lib/contractors/contractorVisibility";
+import { buildUnresolvedContractorIdentityFields, resolveContractorBusinessIdentity } from "@/lib/contractors/contractorBusinessIdentity";
 import { AuthorizationError, type AuthorizedUser } from "@/lib/server/authz";
 import type { ContractorTier } from "@/types/contractor";
 import type { ContractorDocument } from "@/types/document";
@@ -45,6 +46,21 @@ function asNumber(value: unknown): number | undefined {
   return typeof value === "number" && Number.isFinite(value) ? value : undefined;
 }
 
+function omitContractorBusinessIdentityFields(payload: Record<string, unknown>): Record<string, unknown> {
+  const sanitized = { ...payload };
+  for (const key of [
+    "legalName",
+    "businessName",
+    "registeredBusinessName",
+    "companyName",
+    "tradingName",
+    "name",
+    "allowUnresolvedIdentity",
+  ]) {
+    delete sanitized[key];
+  }
+  return sanitized;
+}
 function normalizeTier(value: unknown): ContractorTier {
   return value === "bronze" || value === "silver" || value === "gold" || value === "platinum" ? value : "basic";
 }
@@ -174,7 +190,15 @@ export async function createContractor(
 ) {
   const createdAt = typeof payload.createdAt === "number" ? payload.createdAt : Date.now();
   const updatedAt = new Date(createdAt).toISOString();
-  const companyName = asString(payload.companyName) ?? asString(payload.name) ?? "Unnamed Contractor";
+  const identityDecision = resolveContractorBusinessIdentity(payload);
+  if (identityDecision.status === "CONFLICT") {
+    throw new Error("Contractor business identity evidence is conflicting");
+  }
+  const allowUnresolvedIdentity = payload.allowUnresolvedIdentity === true;
+  if (!identityDecision.identityResolved && !allowUnresolvedIdentity) {
+    throw new Error("Verified contractor business identity is required");
+  }
+  const safePayload = omitContractorBusinessIdentityFields(payload);
   const companyRegistrationNumber = asString(payload.companyRegistrationNumber) ?? asString(payload.registrationNumber);
   const email = asString(payload.email) ?? asString(payload.contactEmail);
   const phone = asString(payload.phone) ?? asString(payload.contactPhone);
@@ -201,11 +225,27 @@ export async function createContractor(
   };
 
   await docRef.set({
-    ...payload,
+    ...safePayload,
     id: contractorId,
     contractorId,
-    companyName,
-    name: asString(payload.name) ?? companyName,
+    ...(identityDecision.identityResolved
+      ? {
+          legalName: identityDecision.legalName,
+          tradingName: identityDecision.tradingName,
+          registeredBusinessName: identityDecision.registeredBusinessName,
+          companyName: identityDecision.companyName ?? identityDecision.label,
+          name: identityDecision.label,
+          identityResolved: true,
+          identityStatus: "VERIFIED",
+          identityResolutionStatus: "VERIFIED",
+          businessIdentityEvidenceStatus: "VERIFIED",
+        }
+      : buildUnresolvedContractorIdentityFields({
+          source: "contractorService.createContractor",
+          sourceUserUid: createdBy,
+          workspaceId: asString(payload.workspaceId),
+          nowIso: updatedAt,
+        })),
     companyRegistrationNumber: companyRegistrationNumber ?? null,
     registrationNumber: companyRegistrationNumber ?? null,
     email: email ?? null,

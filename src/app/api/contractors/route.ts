@@ -3,6 +3,7 @@ import { getAuth } from "firebase-admin/auth";
 import { getFirebaseAdmin } from "@/lib/firebase/admin";
 import { ensureContractorAuthLinkage } from "@/lib/contractors/contractorAuthLink";
 import { sendContractorOnboardingEmail } from "@/lib/email/contractorOnboardingEmail";
+import { buildContractorSelectorOptions } from "@/lib/contractors/contractorSelectorOptions";
 import { listContractors } from "@/server/services/contractorService";
 import { AuthorizationError, assertPrivilegedRole, requireAuthorizedUser } from "@/lib/server/authz";
 
@@ -95,6 +96,9 @@ export async function GET(request: NextRequest) {
     const includeNonProduction = request.nextUrl.searchParams.get("includeNonProduction") === "true" && user.role === "admin";
     const includeLegacyUnassigned = request.nextUrl.searchParams.get("includeLegacyUnassigned") === "true" && user.role === "admin";
     const contractors = await listContractors({ workspaceId: user.workspaceId, actorRole: user.role, includeArchived, includeNonProduction, includeLegacyUnassigned });
+    if (request.nextUrl.searchParams.get("purpose") === "dealAssignmentSelector") {
+      return NextResponse.json({ contractors: buildContractorSelectorOptions(contractors) });
+    }
     return NextResponse.json(contractors);
   } catch (error: any) {
     if (error instanceof AuthorizationError) {

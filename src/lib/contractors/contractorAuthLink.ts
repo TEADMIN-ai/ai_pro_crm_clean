@@ -6,6 +6,7 @@ import {
   resolveRole,
   type UserProfile,
 } from "@/lib/auth/userProfile";
+import { buildUnresolvedContractorIdentityFields } from "@/lib/contractors/contractorBusinessIdentity";
 import type { UserRole } from "@/lib/auth/roleUtils";
 
 interface ContractorCandidate {
@@ -159,36 +160,38 @@ function chooseCanonicalContractorId(params: {
   return preferredContractorId ?? uid;
 }
 
+
+function workspaceIdFromProfile(profile: UserProfile | null): string | null {
+  const value = profile && "workspaceId" in profile ? (profile as unknown as Record<string, unknown>).workspaceId : null;
+  return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
+}
+
 function buildMissingContractorPayload(params: {
   contractorId: string;
   uid: string;
+  source: string;
   profile: UserProfile | null;
   authUser: UserRecord | null;
 }): Record<string, unknown> {
   const now = Date.now();
   const updatedAt = new Date(now).toISOString();
-  const email =
-    asString(params.profile?.email) ??
-    asString(params.authUser?.email) ??
-    undefined;
-  const displayName =
-    asString(params.profile?.name) ??
-    asString(params.authUser?.displayName) ??
-    email ??
-    params.contractorId;
-
+  const email = asString(params.profile?.email) ?? asString(params.authUser?.email) ?? undefined;
+  const workspaceId = workspaceIdFromProfile(params.profile);
   return {
     id: params.contractorId,
     contractorId: params.contractorId,
     uid: params.uid,
     authUid: params.uid,
     userId: params.uid,
+    linkedUserId: params.uid,
     email: email ?? null,
     contactEmail: email ?? null,
-    name: displayName,
-    companyName: displayName,
-    contactPerson: displayName,
-    status: params.profile?.status ?? "pending",
+    ...buildUnresolvedContractorIdentityFields({
+      source: params.source,
+      sourceUserUid: params.uid,
+      workspaceId,
+      nowIso: updatedAt,
+    }),
     createdAt: typeof params.profile?.createdAt === "number" ? params.profile.createdAt : now,
     updatedAt,
     complianceApproved: false,
@@ -341,6 +344,7 @@ export async function ensureContractorAuthLinkage(
       buildMissingContractorPayload({
         contractorId: canonicalContractorId,
         uid: input.uid,
+        source: input.source,
         profile,
         authUser,
       }),
