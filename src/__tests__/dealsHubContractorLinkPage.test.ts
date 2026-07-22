@@ -1,5 +1,6 @@
 import { readFileSync } from "fs";
 import path from "path";
+import { buildDealsDashboardDecision } from "@/lib/deals/dealsDashboardDecision";
 
 const source = readFileSync(
   path.join(process.cwd(), "src/app/dashboard/deals/page.tsx"),
@@ -7,11 +8,17 @@ const source = readFileSync(
 );
 
 describe("Deals Hub contractor link UI wiring", () => {
-  it("keeps the no-contractor state visible and blocks pack generation until resolution", () => {
+  it("keeps the no-contractor state visible and blocks pack generation through the canonical decision", () => {
+    const decision = buildDealsDashboardDecision({ deal: { contractorReferenceResolution: { status: "none" } } });
+
     expect(source).toContain("Not linked");
     expect(source).toContain("This deal is not linked to a contractor. Actions are restricted.");
-    expect(source).toContain("Generate Pack is disabled because this deal has no linked contractor.");
+    expect(source).toContain("dashboardDecision.primaryBlockingReason");
+    expect(source).toContain("disabled={!canGeneratePack || isGeneratingPack}");
+    expect(source).toContain("if (!canGeneratePack)");
     expect(source).toContain("isDealContractorResolved(selectedDeal)");
+    expect(decision.canGeneratePack).toBe(false);
+    expect(decision.primaryBlockingReason).toBe("Contractor identity unresolved");
   });
 
   it("gates assignment controls to authorised roles through the shared helper", () => {
@@ -24,15 +31,23 @@ describe("Deals Hub contractor link UI wiring", () => {
     expect(source).toContain("window.confirm(\"Change the linked contractor for this deal?\")");
   });
 
-  it("uses the canonical opportunity execution assignment action and refreshes deal state", () => {
+  it("uses the canonical opportunity execution assignment action and refreshes canonical decision state", () => {
     expect(source).toContain("buildAssignContractorRequest(nextContractorId)");
     expect(source).toContain("`${API_ROUTES.OPPORTUNITY_REGISTER}/${encodeURIComponent(selectedDeal.id)}/execution`");
     expect(source).toContain("await loadData(true);");
-    expect(source).toContain("await loadSelectedContractor(nextContractorId);");
+    expect(source).toContain("await loadExecutionView(selectedDeal.id);");
+    expect(source).not.toContain("await loadSelectedContractor(nextContractorId);");
   });
 
-  it("prevents duplicate assignment submissions while a link request is in flight", () => {
+  it("prevents duplicate or unauthorized assignment submissions unless canonical assignment allows it", () => {
+    const missingDecision = buildDealsDashboardDecision({
+      deal: { contractorId: "c1", contractorReferenceResolution: { status: "resolved" } },
+      projection: { contractorId: "c1", complianceStatus: "VALID", readinessStatus: "READY", readinessScore: 100, eligible: true },
+    });
+
     expect(source).toContain("setIsAssigningContractor(true)");
-    expect(source).toContain("disabled={isLoadingContractors || isAssigningContractor || !assignmentContractorId.trim()}");
+    expect(source).toContain("selectedAssignmentDecision?.assignmentAllowed !== true");
+    expect(source).toContain("disabled={isLoadingContractors || isAssigningContractor || !assignmentContractorId.trim() || selectedAssignmentDecision?.assignmentAllowed !== true}");
+    expect(missingDecision.assignmentAllowed).toBe(false);
   });
 });

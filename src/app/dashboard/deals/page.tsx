@@ -489,6 +489,7 @@ export default function DealsPage() {
       }
 
       await loadData(true);
+      await loadExecutionView(selectedDeal.id);
       setAssignmentStatus({
         label: "Linked",
         detail: "Contractor, compliance coverage, readiness, and workflow state refreshed.",
@@ -651,10 +652,10 @@ export default function DealsPage() {
       return;
     }
 
-    if (!(selectedDeal.contractorId as string)) {
-      const message = "Generate Pack is disabled until a contractor is linked to the selected deal.";
+    if (!canGeneratePack) {
+      const message = dashboardDecision.primaryBlockingReason;
       setPackStatus({
-        label: "Error occurred",
+        label: "Blocked",
         detail: message,
         tone: "error",
       });
@@ -1066,7 +1067,7 @@ export default function DealsPage() {
                           title={
                             canGeneratePack
                               ? "Generate Tender Pack"
-                              : "Link a contractor to this deal before generating the pack."
+                              : dashboardDecision.primaryBlockingReason
                           }
                           className="rounded-3xl border border-slate-200 bg-white px-5 py-4 text-sm font-semibold text-slate-800 shadow-sm transition hover:border-sky-200 hover:bg-sky-50 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
                         >
