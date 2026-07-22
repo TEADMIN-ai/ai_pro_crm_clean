@@ -144,6 +144,9 @@ export type ContractorMatchResult = {
   disqualifyingRequirements: string[];
   recommendationReason: string;
   complianceStatus: OpportunityComplianceStatus;
+  eligible: boolean;
+  assignmentAllowed: boolean;
+  blockingReasons: string[];
 };
 
 export const OPPORTUNITY_PHASES: OpportunityExecutionPhase[] = [
@@ -361,6 +364,27 @@ function contractorName(contractor: AnyRecord | null): string | null {
   if (!contractor) return null;
   return str(contractor.companyName) ?? str(contractor.businessName) ?? str(contractor.company) ?? str(contractor.name) ?? str(contractor.tradingName);
 }
+function canonicalContractorId(contractor: AnyRecord): string | null {
+  return str(contractor.contractorId) ?? str(contractor.id) ?? str(contractor.uid) ?? str(contractor.authUid) ?? str(contractor.userId);
+}
+
+function contractorWorkspaceId(contractor: AnyRecord): string | null {
+  const workspace = rec(contractor.workspace);
+  return str(contractor.workspaceId) ?? str(workspace.id);
+}
+
+function contractorDecisionBlockers(contractor: AnyRecord, dealWorkspaceId: string | null, compliance: ReturnType<typeof evaluateOpportunityCompliance>): string[] {
+  const blockers: string[] = [];
+  if (!canonicalContractorId(contractor)) blockers.push("Contractor identity is unresolved");
+  const contractorWorkspace = contractorWorkspaceId(contractor);
+  if (!dealWorkspaceId) blockers.push("Opportunity workspace is unresolved");
+  if (!contractorWorkspace) blockers.push("Contractor workspace is unresolved");
+  if (dealWorkspaceId && contractorWorkspace && dealWorkspaceId !== contractorWorkspace) blockers.push("Contractor belongs to a different workspace");
+  if (isArchivedContractor(contractor)) blockers.push("Contractor is archived");
+  if (compliance.status !== "VALID") blockers.push(...compliance.missing, ...compliance.expired.map((item) => item + " expired"));
+  return Array.from(new Set(blockers));
+}
+
 function isArchivedContractor(contractor: AnyRecord | null): boolean {
   if (!contractor) return false;
   return contractor.archived === true || normalize(contractor.status) === "archived";
@@ -577,30 +601,33 @@ function isMockContractor(contractor: AnyRecord): boolean {
 
 export function matchContractorsForOpportunity(input: { deal: Deal | AnyRecord; contractors: Array<AnyRecord & { id: string }> }): ContractorMatchResult[] {
   const requirements = extractOpportunityRequirements(input.deal);
+  const dealWorkspaceId = str(rec(input.deal).workspaceId);
   const sourceText = [requirements.serviceCategory, requirements.location, requirements.cidbRequirement].filter(Boolean).join(" ");
   return input.contractors.filter((contractor) => !isMockContractor(contractor)).map((contractor) => {
     const capabilities = arr(contractor.capabilities ?? contractor.serviceCategories ?? contractor.services ?? contractor.categories);
     const regions = arr(contractor.provinces ?? contractor.serviceAreas ?? contractor.regions);
-    const compliance = evaluateOpportunityCompliance(requirements, contractor, str(rec(input.deal).workspaceId));
+    const compliance = evaluateOpportunityCompliance(requirements, contractor, dealWorkspaceId);
     const readiness = pct(contractor.readinessScore);
     const profileCompleteness = calculateProfileCompleteness(contractor);
-    const generalCompliance = pct(contractor.readinessScore ?? contractor.complianceStatusScore);
+    const generalCompliance = compliance.status === "VALID" ? pct(contractor.complianceStatusScore ?? contractor.readinessScore) : 0;
     const submissionReadiness = calculateSubmissionReadiness(compliance.details);
     const missingDocuments = compliance.details.filter((detail) => detail.blockerSeverity !== "none").map((detail) => detail.reason);
+    const blockingReasons = contractorDecisionBlockers(contractor, dealWorkspaceId, compliance);
+    const eligible = blockingReasons.length === 0;
     const capabilityScore = capabilities.length === 0 ? 8 : capabilities.some((item) => textHas(sourceText, item) || textHas(item, requirements.serviceCategory ?? "")) ? 30 : 0;
     const regionScore = !requirements.location || regions.length === 0 ? 10 : regions.some((item) => textHas(requirements.location ?? "", item) || textHas(item, requirements.location ?? "")) ? 20 : 0;
     const cidbScore = !requirements.cidbRequirement ? 10 : arr(contractor.cidbGradings ?? contractor.cidbRequirements).some((item) => textHas(item, requirements.cidbRequirement ?? "")) ? 20 : -10;
     const complianceScore = compliance.status === "VALID" ? 20 : ["UNVERIFIED", "UNCLASSIFIED", "DUPLICATE", "REQUIRES_MANUAL_REVIEW"].includes(compliance.status) ? 8 : -15;
-    const matchScore = Math.max(0, Math.min(100, capabilityScore + regionScore + cidbScore + complianceScore + Math.round(generalCompliance * 0.2)));
+    const matchScore = eligible ? Math.max(0, Math.min(100, capabilityScore + regionScore + cidbScore + complianceScore + Math.round(generalCompliance * 0.2))) : 0;
     const validRequirementsCount = compliance.details.filter((detail) => detail.status === "VALID").length;
     const missingCount = compliance.details.filter((detail) => detail.status === "MISSING").length;
     const expiredCount = compliance.details.filter((detail) => detail.status === "EXPIRED").length;
     const reviewRequiredCount = compliance.details.filter((detail) => ["UNVERIFIED", "UNCLASSIFIED", "DUPLICATE", "REQUIRES_MANUAL_REVIEW"].includes(detail.status)).length;
-    const recommendationReason = missingDocuments.length
-      ? missingDocuments.join("; ")
+    const recommendationReason = blockingReasons.length
+      ? blockingReasons.join("; ")
       : "Matched against category, geography, compliance, profile completeness and opportunity requirements.";
     return {
-      contractorId: str(contractor.contractorId) ?? contractor.id,
+      contractorId: canonicalContractorId(contractor) ?? contractor.id,
       contractorName: contractorName(contractor) ?? contractor.id,
       matchScore,
       readiness,
@@ -617,6 +644,9 @@ export function matchContractorsForOpportunity(input: { deal: Deal | AnyRecord; 
       disqualifyingRequirements: compliance.status === "VALID" ? [] : missingDocuments,
       recommendationReason,
       complianceStatus: compliance.status,
+      eligible,
+      assignmentAllowed: eligible,
+      blockingReasons,
     };
   }).sort((left, right) => right.matchScore - left.matchScore);
 }

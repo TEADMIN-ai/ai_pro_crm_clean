@@ -103,6 +103,27 @@ describe("opportunity contractor assignment idempotency", () => {
     });
   }
 
+
+  test("server assignment rejects contractor with unresolved mandatory compliance", async () => {
+    const db = seedDb();
+    getFirebaseAdmin.mockReturnValue(db);
+    const blockedContractor = { ...contractorOne, taxValid: false, taxVerified: false, taxCompliant: false, readinessScore: 0 };
+    resolveContractorReference.mockResolvedValueOnce({
+      ok: true,
+      storedReference: "c1",
+      referenceType: "firestore_document_id",
+      contractorId: "c1",
+      workspaceId: "workspace-a",
+      contractor: blockedContractor,
+    });
+
+    await expect(applyOpportunityExecutionAction({ dealId: "deal-1", action: "assign_contractor", actor, contractorId: "c1" })).rejects.toMatchObject({
+      message: expect.stringContaining("Contractor assignment blocked"),
+      status: 409,
+    });
+    expect(db.store.deals["deal-1"].contractorAssignment).toBeUndefined();
+    expect(Object.keys(db.store.auditLogs)).toEqual([]);
+  });
   test("retrying the same assignment preserves createdAt and does not duplicate activity or audit entries", async () => {
     const db = seedDb();
     getFirebaseAdmin.mockReturnValue(db);

@@ -3,7 +3,7 @@ import { getFirebaseAdmin } from "@/lib/firebase/admin";
 import type { AuthorizedUser } from "@/lib/server/authz";
 import { listContractors } from "@/server/services/contractorService";
 import { getContractorBusinessName, resolveContractorReference } from "@/lib/contractors/contractorReferenceResolver";
-import { buildOpportunityExecutionState, extractOpportunityRequirements, matchContractorsForOpportunity, validateOpportunityTransition, type OpportunityExecutionPhase, type OpportunityRequirementReview } from "@/lib/opportunities/opportunityExecution";
+import { buildOpportunityExecutionState, evaluateOpportunityCompliance, extractOpportunityRequirements, matchContractorsForOpportunity, validateOpportunityTransition, type OpportunityExecutionPhase, type OpportunityRequirementReview } from "@/lib/opportunities/opportunityExecution";
 import { buildProcurementExecutionProjection } from "@/lib/opportunities/procurementExecutionProjection";
 import { getDealContractorReference } from "@/lib/deals/contractorReference";
 
@@ -89,6 +89,14 @@ export async function applyOpportunityExecutionAction(input: ActionInput) {
     const canonicalContractorId = resolved.contractorId;
     const canonicalContractorName = getContractorBusinessName(resolved.contractor);
     const workspaceId = asString(deal.workspaceId) ?? resolved.workspaceId;
+    if (!workspaceId || !resolved.workspaceId || workspaceId !== resolved.workspaceId) {
+      throw Object.assign(new Error("Contractor workspace resolution blocked assignment"), { status: 409 });
+    }
+    const compliance = evaluateOpportunityCompliance(requirements, resolved.contractor, workspaceId);
+    if (compliance.status !== "VALID") {
+      const blockers = [...compliance.missing, ...compliance.expired.map((item) => item + " expired")];
+      throw Object.assign(new Error("Contractor assignment blocked: " + (blockers.join("; ") || compliance.status)), { status: 409 });
+    }
     const executionWorkspaceId = `exec-${input.dealId}`;
     const submissionReviewId = input.dealId;
     const existingAssignment = asRecord(deal.contractorAssignment);
@@ -161,6 +169,4 @@ export async function applyOpportunityExecutionAction(input: ActionInput) {
   const nextView = await getOpportunityExecutionView(input.dealId, input.actor);
   return { ...nextView, redirectTo: input.action === "assign_contractor" ? `/dashboard/deals/${input.dealId}/execution` : undefined };
 }
-
-
 

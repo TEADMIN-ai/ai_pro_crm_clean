@@ -81,6 +81,7 @@ const baseDeal = {
   opportunityExecution: {
     requirementsReviewed: true,
     complianceReviewed: true,
+    pricingComplete: true,
     documentsPrepared: true,
     internalReviewApproved: true,
     contractorApprovalComplete: true,
@@ -255,5 +256,48 @@ describe("canonical procurement execution projection", () => {
     expect(serialized).not.toContain("A1B2C3D4E5");
     expect(serialized).not.toContain("encryptedTcsPin");
     expect(serialized).not.toContain("protectedSecretRef");
+  });
+
+  it("does not invent freshness or logic version values", () => {
+    const projection = projectionFor(baseDeal);
+    expect(projection.evaluatedAt).toBeNull();
+    expect(projection.logicVersion).toBeNull();
+    expect(projection.stale).toBeNull();
+  });
+
+  it("empty required document evidence does not create ready projection state", () => {
+    const state = buildOpportunityExecutionState({ deal: baseDeal, contractor });
+    const projection = buildProcurementExecutionProjection({
+      deal: baseDeal,
+      state: { ...state, documentChecklist: [] },
+      remediationRequests: state.remediationRequests,
+    });
+
+    expect(projection.readinessStatus).not.toBe("READY");
+    expect(projection.readinessScore).toBeNull();
+    expect(projection.submissionReadiness).toBeNull();
+  });
+
+  it("score of 100 with a blocking reason remains blocked", () => {
+    const state = buildOpportunityExecutionState({ deal: baseDeal, contractor });
+    const projection = buildProcurementExecutionProjection({
+      deal: baseDeal,
+      state: { ...state, submissionReadiness: 100, blockers: ["Compliance evidence unavailable"] },
+      remediationRequests: state.remediationRequests,
+    });
+
+    expect(projection.readinessStatus).toBe("BLOCKED");
+    expect(projection.readinessScore).toBeNull();
+    expect(projection.assignmentAllowed).toBe(false);
+    expect(projection.blockingReasons).toContain("Compliance evidence unavailable");
+  });
+
+  it("valid canonical projection exposes assignment authority", () => {
+    const projection = projectionFor(baseDeal);
+    expect(projection.decisionStatus).toBe("ALLOWED");
+    expect(projection.readinessStatus).toBe("READY");
+    expect(projection.readinessScore).toBe(100);
+    expect(projection.assignmentAllowed).toBe(true);
+    expect(projection.eligible).toBe(true);
   });
 });

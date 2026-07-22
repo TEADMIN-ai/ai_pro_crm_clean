@@ -13,10 +13,10 @@ function tone(status: string) {
   return "warning" as const;
 }
 
-function statusFrom(score: number, blocked: boolean, started: boolean) {
-  if (score >= 100 && !blocked) return "COMPLETE";
+function statusFrom(score: number | null, blocked: boolean, started: boolean) {
+  if (score !== null && score >= 100 && !blocked) return "COMPLETE";
   if (blocked) return "BLOCKED";
-  if (started || score > 0) return "IN_PROGRESS";
+  if (started || (score !== null && score > 0)) return "IN_PROGRESS";
   return "NOT_STARTED";
 }
 
@@ -25,7 +25,7 @@ function stageRows(projection: ProcurementExecutionProjection) {
   const route = (path: string) => path.replace("[dealId]", encodeURIComponent(projection.dealId));
   return [
     { title: "Requirements Review", status: projection.requirementsReviewStatus, progress: projection.tenderAnalysisStatus === "NOT_STARTED" ? 0 : readiness.tenderAnalysisCompleteness, owner: "Staff", due: projection.dueDate, action: "Open Workspace", href: route("/dashboard/deals/[dealId]/tender-intelligence"), blockers: projection.intelligenceBlockers },
-    { title: "Contractor Assignment", status: projection.contractorId ? "COMPLETE" : "BLOCKED", progress: projection.contractorId ? 100 : 0, owner: "Staff", due: projection.dueDate, action: "Open Workspace", href: route("/dashboard/deals/[dealId]/execution"), blockers: projection.contractorId ? [] : projection.blockers.filter((item) => item.problem.includes("bidder") || item.problem.includes("assignment")) },
+    { title: "Contractor Assignment", status: projection.assignmentAllowed === true ? "COMPLETE" : projection.contractorIdentityStatus, progress: projection.assignmentAllowed === true ? 100 : 0, owner: "Staff", due: projection.dueDate, action: "Open Workspace", href: route("/dashboard/deals/[dealId]/execution"), blockers: projection.assignmentAllowed === true ? [] : projection.blockers.filter((item) => item.problem.includes("bidder") || item.problem.includes("assignment") || item.problem.includes("Contractor")) },
     { title: "Compliance", status: projection.complianceStatus, progress: readiness.generalContractorCompliance, owner: "Compliance", due: projection.dueDate, action: "Open Workspace", href: projection.contractorId ? "/dashboard/contractors/" + encodeURIComponent(projection.contractorId) : route("/dashboard/deals/[dealId]/execution"), blockers: projection.complianceBlockers },
     { title: "Supplier Quotes", status: projection.supplierQuoteStatus, progress: projection.quoteCoverage, owner: "Staff", due: projection.dueDate, action: "Open Workspace", href: route("/dashboard/deals/[dealId]/supplier-quotes"), blockers: projection.quoteBlockers },
     { title: "Tender Intelligence", status: projection.tenderAnalysisStatus, progress: readiness.tenderAnalysisCompleteness, owner: "Staff", due: projection.dueDate, action: "Open Workspace", href: route("/dashboard/deals/[dealId]/tender-intelligence"), blockers: projection.intelligenceBlockers },
@@ -33,7 +33,7 @@ function stageRows(projection: ProcurementExecutionProjection) {
     { title: "Document Preparation", status: projection.documentPreparationStatus, progress: readiness.documentCompleteness, owner: "Staff", due: projection.dueDate, action: "Open Workspace", href: route("/dashboard/deals/[dealId]/execution"), blockers: projection.blockers.filter((item) => /returnable|document|signature|amendment/i.test(item.problem)) },
     { title: "Internal Review", status: projection.reviewStatus, progress: projection.reviewStatus === "complete" ? 100 : 0, owner: "Manager", due: projection.dueDate, action: "Open Workspace", href: "/dashboard/submission-review?dealId=" + encodeURIComponent(projection.dealId), blockers: projection.blockers.filter((item) => /review/i.test(item.problem)) },
     { title: "Tender Pack", status: projection.packStatus, progress: projection.packStatus === "VALIDATED" ? 100 : 0, owner: "Operations", due: projection.dueDate, action: "Open Workspace", href: "/dashboard/tender-pack-requests", blockers: projection.blockers.filter((item) => /pack/i.test(item.problem)) },
-    { title: "Submission", status: projection.submissionStatus, progress: projection.submissionReadiness, owner: "Operations", due: projection.dueDate, action: "Open Workspace", href: route("/dashboard/deals/[dealId]/execution"), blockers: projection.blockers },
+    { title: "Submission", status: projection.readinessStatus, progress: projection.readinessScore, owner: "Operations", due: projection.dueDate, action: "Open Workspace", href: route("/dashboard/deals/[dealId]/execution"), blockers: projection.blockers },
   ].map((stage) => ({ ...stage, status: statusFrom(stage.progress, stage.blockers.length > 0, stage.status !== "NOT_STARTED") }));
 }
 
@@ -46,7 +46,7 @@ export default function ProcurementExecutionProjectionPanel({ projection }: Prop
           <EnterpriseKpiCard label="Bidder" value={projection.contractorName ?? "Not assigned"} helper={projection.contractorId ?? "Assign bidder"} />
           <EnterpriseKpiCard label="Tender value" value={projection.totalTenderValue ? "R " + projection.totalTenderValue.toLocaleString("en-ZA") : "Not priced"} helper={projection.grossMargin ? projection.grossMargin + "% margin" : "Margin pending"} />
           <EnterpriseKpiCard label="Owner" value={projection.assignedOwner} helper={projection.dueDate ?? "No due date"} />
-          <EnterpriseKpiCard label="Submission readiness" value={projection.submissionReadiness + "%"} helper={projection.nextAction.blocker ?? "No blocker"} />
+          <EnterpriseKpiCard label="Submission readiness" value={projection.readinessScore === null ? projection.readinessStatus : projection.readinessScore + "%"} helper={projection.blockingReasons[0] ?? projection.nextAction.blocker ?? "No blocker"} />
         </div>
         {projection.blockers.length ? (
           <div className="mt-4 grid gap-2">
@@ -72,7 +72,7 @@ export default function ProcurementExecutionProjectionPanel({ projection }: Prop
                 </div>
                 <EnterpriseStatusBadge value={stage.status} tone={tone(stage.status)} />
               </div>
-              <p className="mt-3 text-sm font-semibold">{stage.progress}% complete</p>
+              <p className="mt-3 text-sm font-semibold">{stage.progress === null ? stage.status : stage.progress + "% complete"}</p>
               <p className="mt-1 text-xs text-[color:var(--tex-text-muted)]">Due: {stage.due ?? "Not captured"}</p>
               {stage.blockers[0] ? <p className="mt-3 text-sm text-red-800">{stage.blockers[0].problem}</p> : <p className="mt-3 text-sm text-[color:var(--tex-text-muted)]">No blocker recorded.</p>}
               <div className="mt-4"><EnterpriseActionButton href={stage.href} variant="secondary">{stage.action}</EnterpriseActionButton></div>

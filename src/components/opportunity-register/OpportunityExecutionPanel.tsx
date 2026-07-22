@@ -240,7 +240,7 @@ export default function OpportunityExecutionPanel({ dealId, state, matches }: Pr
               <td>{match.submissionReadiness}%</td>
               <td>{match.validRequirementsCount} valid / {match.missingCount} missing / {match.expiredCount} expired / {match.reviewRequiredCount} review</td>
               <td>{match.recommendationReason}</td>
-              <td><EnterpriseActionButton disabled={pending || state.currentPhase !== "MATCHING_REQUIRED"} onClick={() => submit("assign_contractor", { contractorId: match.contractorId })} variant="success">Assign</EnterpriseActionButton></td>
+              <td><EnterpriseActionButton disabled={pending || state.currentPhase !== "MATCHING_REQUIRED" || match.assignmentAllowed !== true} onClick={() => submit("assign_contractor", { contractorId: match.contractorId })} variant={match.assignmentAllowed === true ? "success" : "secondary"} title={match.blockingReasons[0] ?? undefined}>Assign</EnterpriseActionButton></td>
             </tr>
           ))}</tbody>
         </EnterpriseTable> : <EnterpriseEmptyState title="No live contractor matches" detail="No canonical contractor records matched this opportunity." />}

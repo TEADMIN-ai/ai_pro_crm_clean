@@ -10,9 +10,9 @@ import {
   getDocumentTypeLabel,
   type SupportedDocumentType,
 } from "@/lib/compliance/contractorCompliance";
-import { matchRequirements } from "@/lib/tender/matchRequirements";
 import { getDealContractorDisplayName, isDealContractorResolved } from "@/lib/deals/contractorReferenceDisplay";
 import { buildAssignContractorRequest, canManageDealContractorLink, getContractorLinkActionLabel } from "@/lib/deals/dealsHubContractorAssignment";
+import { buildDealsDashboardDecision, findDashboardMatch, type DashboardMatchDecision, type DashboardProjectionDecision } from "@/lib/deals/dealsDashboardDecision";
 
 export const dynamic = "force-dynamic";
 export const fetchCache = "force-no-store";
@@ -38,21 +38,6 @@ type Deal = {
   suggestions?: string[];
 };
 
-type ContractorDocumentEntry = {
-  uploaded?: boolean;
-  valid?: boolean;
-  issues?: string[];
-};
-
-type ContractorRecord = {
-  id: string;
-  complianceApproved?: boolean;
-  readinessScore?: number;
-  docsMissing?: number;
-  tenderLockStatus?: "READY" | "RISK" | "BLOCKED";
-  isTenderLocked?: boolean;
-  documents?: Partial<Record<"cipc" | "tax" | "bbbee" | "coida", ContractorDocumentEntry>>;
-};
 
 type ContractorOption = {
   id: string;
@@ -60,6 +45,7 @@ type ContractorOption = {
 };
 
 type UploadKind = "compliance" | "supporting";
+type ExecutionView = { projection?: DashboardProjectionDecision | null; matches?: DashboardMatchDecision[] };
 type StatusTone = "idle" | "loading" | "success" | "error";
 
 type StatusState = {
@@ -310,12 +296,12 @@ function getWorkflowBulletClasses(state: "active" | "complete" | "idle"): string
 export default function DealsPage() {
   const { role } = useAuth();
   const [deals, setDeals] = useState<Deal[]>([]);
-  const [selectedContractor, setSelectedContractor] = useState<ContractorRecord | null>(null);
   const [contractors, setContractors] = useState<ContractorOption[]>([]);
   const [isLoadingContractors, setIsLoadingContractors] = useState(false);
   const [assignmentContractorId, setAssignmentContractorId] = useState("");
   const [isAssigningContractor, setIsAssigningContractor] = useState(false);
   const [assignmentStatus, setAssignmentStatus] = useState<StatusState | null>(null);
+  const [executionView, setExecutionView] = useState<ExecutionView | null>(null);
   const [selectedDealId, setSelectedDealId] = useState<string>("");
   const [pageLoading, setPageLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -337,58 +323,19 @@ export default function DealsPage() {
 
   const selectedDeal = deals.find((deal) => deal.id === selectedDealId) ?? deals[0] ?? null;
   const canManageContractorLink = canManageDealContractorLink(role);
-  const readinessMatch = selectedDeal && selectedContractor
-    ? matchRequirements(selectedContractor, selectedDeal)
-    : null;
-  const contractorReady =
-    selectedContractor?.complianceApproved === true ||
-    (
-      typeof selectedContractor?.docsMissing === "number" &&
-      selectedContractor.docsMissing === 0 &&
-      typeof selectedContractor.readinessScore === "number" &&
-      selectedContractor.readinessScore >= 80 &&
-      selectedContractor.isTenderLocked !== true
-    );
-  const canGeneratePack = Boolean(
-    isDealContractorResolved(selectedDeal) &&
-      contractorReady &&
-      (readinessMatch?.ready ?? true)
-  );
+  const executionMatches = executionView?.matches ?? [];
+  const selectedAssignmentDecision = findDashboardMatch(executionMatches, assignmentContractorId);
+  const linkedContractorDecision = selectedDeal?.contractorId ? findDashboardMatch(executionMatches, selectedDeal.contractorId) : null;
+  const dashboardDecision = buildDealsDashboardDecision({
+    deal: selectedDeal,
+    projection: executionView?.projection ?? null,
+    selectedMatch: selectedAssignmentDecision ?? linkedContractorDecision,
+  });
+  const canGeneratePack = dashboardDecision.canGeneratePack;
   const uploadState = getWorkflowStepState("upload", complianceStatus, tenderDocsStatus, packStatus);
   const processState = getWorkflowStepState("process", complianceStatus, tenderDocsStatus, packStatus);
   const generateState = getWorkflowStepState("generate", complianceStatus, tenderDocsStatus, packStatus);
   const outputState = getWorkflowStepState("output", complianceStatus, tenderDocsStatus, packStatus);
-
-  async function loadSelectedContractor(contractorId: string) {
-    const response = await authFetch(API_ROUTES.CONTRACTOR_DETAIL(contractorId));
-    if (!response.ok) {
-      const payload = (await response.json().catch(() => null)) as { error?: string } | null;
-      throw new Error(payload?.error ?? `Failed to load contractor ${contractorId}`);
-    }
-
-    const payload = (await response.json()) as ContractorRecord & {
-      success?: boolean;
-      readinessScore?: unknown;
-      docsMissing?: unknown;
-      tenderLockStatus?: unknown;
-      isTenderLocked?: unknown;
-    };
-
-    setSelectedContractor({
-      id: payload.id,
-      complianceApproved: payload.complianceApproved,
-      readinessScore: typeof payload.readinessScore === "number" ? payload.readinessScore : undefined,
-      docsMissing: typeof payload.docsMissing === "number" ? payload.docsMissing : undefined,
-      tenderLockStatus:
-        payload.tenderLockStatus === "READY" ||
-        payload.tenderLockStatus === "RISK" ||
-        payload.tenderLockStatus === "BLOCKED"
-          ? payload.tenderLockStatus
-          : undefined,
-      isTenderLocked: payload.isTenderLocked === true,
-      documents: payload.documents,
-    });
-  }
 
   async function loadData(showRefreshState = false) {
     if (showRefreshState) {
@@ -464,6 +411,23 @@ export default function DealsPage() {
     }
   }
 
+  async function loadExecutionView(dealId: string) {
+    try {
+      const response = await authFetch(`${API_ROUTES.OPPORTUNITY_REGISTER}/${encodeURIComponent(dealId)}/execution`);
+      const payload = (await response.json().catch(() => null)) as ExecutionView | null;
+      if (!response.ok) {
+        throw new Error((payload as { error?: string } | null)?.error ?? "Failed to load execution decision.");
+      }
+      setExecutionView({
+        projection: payload?.projection ?? null,
+        matches: Array.isArray(payload?.matches) ? payload.matches : [],
+      });
+    } catch (error) {
+      console.error("Failed to load canonical execution decision:", error);
+      setExecutionView(null);
+    }
+  }
+
   async function assignSelectedContractor() {
     if (!selectedDeal) {
       return;
@@ -474,6 +438,15 @@ export default function DealsPage() {
       setAssignmentStatus({
         label: "Error occurred",
         detail: "Select a contractor before linking this deal.",
+        tone: "error",
+      });
+      return;
+    }
+
+    if (selectedAssignmentDecision?.assignmentAllowed !== true) {
+      setAssignmentStatus({
+        label: "Blocked",
+        detail: selectedAssignmentDecision?.blockingReasons?.[0] ?? dashboardDecision.primaryBlockingReason,
         tone: "error",
       });
       return;
@@ -516,7 +489,6 @@ export default function DealsPage() {
       }
 
       await loadData(true);
-      await loadSelectedContractor(nextContractorId);
       setAssignmentStatus({
         label: "Linked",
         detail: "Contractor, compliance coverage, readiness, and workflow state refreshed.",
@@ -544,27 +516,18 @@ export default function DealsPage() {
   }, [canManageContractorLink]);
 
   useEffect(() => {
+    if (!selectedDeal?.id) {
+      setExecutionView(null);
+      return;
+    }
+
+    void loadExecutionView(selectedDeal.id);
+  }, [selectedDeal?.id]);
+
+  useEffect(() => {
     setAssignmentContractorId(selectedDeal?.contractorId?.trim() ?? "");
     setAssignmentStatus(null);
   }, [selectedDeal?.id, selectedDeal?.contractorId]);
-
-  useEffect(() => {
-    async function hydrateSelectedContractor() {
-      if (!selectedDeal?.contractorId?.trim()) {
-        setSelectedContractor(null);
-        return;
-      }
-
-      try {
-        await loadSelectedContractor((selectedDeal.contractorId as string));
-      } catch (error) {
-        console.error("Failed to load contractor readiness data:", error);
-        setSelectedContractor(null);
-      }
-    }
-
-    void hydrateSelectedContractor();
-  }, [selectedDeal?.contractorId]);
 
   function openFilePicker(kind: UploadKind) {
     if (kind === "compliance") {
@@ -644,9 +607,6 @@ export default function DealsPage() {
 
       await response.json();
       await loadData(true);
-      if ((selectedDeal.contractorId as string)) {
-        await loadSelectedContractor((selectedDeal.contractorId as string));
-      }
 
       setStatus({
         label: "Processed",
@@ -950,12 +910,10 @@ export default function DealsPage() {
                   <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
                     <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">Readiness</p>
                     <p className="mt-4 text-3xl font-semibold text-slate-900">
-                    {readinessMatch?.score ?? selectedDeal?.readinessScore ?? 0}%
+                    {dashboardDecision.readinessScore === null ? dashboardDecision.readinessLabel : `${dashboardDecision.readinessScore}%`}
                     </p>
                   <p className="mt-2 text-sm text-slate-500">
-                    {selectedContractor?.complianceApproved
-                      ? "Current tender readiness score."
-                      : "Awaiting contractor readiness and approval."}
+                    {dashboardDecision.primaryBlockingReason}
                   </p>
                 </div>
 
@@ -1009,7 +967,7 @@ export default function DealsPage() {
                               onClick={() => {
                                 void assignSelectedContractor();
                               }}
-                              disabled={isLoadingContractors || isAssigningContractor || !assignmentContractorId.trim()}
+                              disabled={isLoadingContractors || isAssigningContractor || !assignmentContractorId.trim() || selectedAssignmentDecision?.assignmentAllowed !== true}
                               className="min-h-11 rounded-2xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:bg-slate-300"
                             >
                               {isAssigningContractor ? "Linking..." : getContractorLinkActionLabel(selectedDeal.contractorId)}
@@ -1125,19 +1083,13 @@ export default function DealsPage() {
 
                     {!canGeneratePack && selectedDeal ? (
                       <div className="mt-6 rounded-3xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-900">
-                        {selectedDeal.contractorReferenceResolution?.status === "unresolved"
-                          ? "Linked contractor record could not be resolved."
-                          : isDealContractorResolved(selectedDeal)
-                            ? selectedContractor?.complianceApproved
-                              ? "Generate Pack is disabled until contractor requirements are valid for this tender."
-                              : "Generate Pack is disabled until contractor compliance is approved."
-                            : "Generate Pack is disabled because this deal has no linked contractor."}
+                        {dashboardDecision.primaryBlockingReason}
                       </div>
                     ) : null}
 
                     {selectedDeal && selectedDeal.contractorReferenceResolution?.status === "unresolved" ? (
                       <div className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">
-                        <p className="font-semibold">Linked contractor record could not be resolved.</p>
+                        <p className="font-semibold">Contractor identity unresolved</p>
                         <p className="mt-1">Administrator repair is required before contractor actions can continue.</p>
                       </div>
                     ) : !isDealContractorResolved(selectedDeal) && selectedDeal ? (
@@ -1154,45 +1106,16 @@ export default function DealsPage() {
                         </p>
                       </div>
                     ) : null}
-
-                    {readinessMatch ? (
+                    {selectedDeal ? (
                       <div className="mt-4 rounded-3xl border border-slate-200 bg-white p-5">
-                        <p className="text-sm font-semibold text-slate-900">Tender Requirement Match</p>
-                        <p className="mt-2 text-sm text-slate-700">Readiness: {readinessMatch.score}%</p>
-                        <p className="mt-2 text-sm text-slate-700">
-                          Risk Level:{" "}
-                          <span
-                            className={
-                              readinessMatch.riskLevel === "LOW"
-                                ? "text-green-600"
-                                : readinessMatch.riskLevel === "MEDIUM"
-                                ? "text-yellow-600"
-                                : "text-red-600"
-                            }
-                          >
-                            {readinessMatch.riskLevel}
-                          </span>
-                        </p>
-                        <p className="mt-2 text-sm text-gray-600">
-                          {readinessMatch.recommendation}
-                        </p>
-                        {readinessMatch.fixSuggestions?.length > 0 && (
-                          <div className="mt-3">
-                            <p className="font-semibold text-sm">Fix Suggestions:</p>
-                            <ul className="text-sm text-gray-600">
-                              {readinessMatch.fixSuggestions.map((s: string, i: number) => (
-                                <li key={i}>- {s}</li>
-                              ))}
-                            </ul>
-                          </div>
-                        )}
-                        {readinessMatch.missing.length > 0 ? (
-                          <p className="mt-2 text-sm text-red-500">
-                            Missing: {readinessMatch.missing.join(", ")}
-                          </p>
-                        ) : (
-                          <p className="mt-2 text-sm text-emerald-600">All core compliance requirements are valid.</p>
-                        )}
+                        <p className="text-sm font-semibold text-slate-900">Canonical Decision</p>
+                        <p className="mt-2 text-sm text-slate-700">{dashboardDecision.contractorIdentityLabel}</p>
+                        <p className="mt-2 text-sm text-slate-700">{dashboardDecision.complianceLabel}</p>
+                        <p className="mt-2 text-sm text-slate-700">{dashboardDecision.readinessLabel}</p>
+                        {dashboardDecision.recommendationText ? <p className="mt-2 text-sm text-slate-700">{dashboardDecision.recommendationText}</p> : null}
+                        {dashboardDecision.blockingReasons.length ? (
+                          <p className="mt-2 text-sm text-red-600">{dashboardDecision.blockingReasons.join("; ")}</p>
+                        ) : null}
                       </div>
                     ) : null}
 
@@ -1255,7 +1178,7 @@ export default function DealsPage() {
                                   </td>
                                   <td className="px-6 py-4 text-sm text-slate-600">{deal.status || "Unknown"}</td>
                                   <td className="px-6 py-4 text-sm text-slate-600">
-                                    {deal.readinessScore ?? 0}%
+                                    Readiness not verified
                                   </td>
                                   <td className="px-6 py-4">
                                     <span className={`inline-flex rounded-full px-3 py-1 text-xs font-medium ${getRiskBadgeClasses(deal.riskLevel)}`}>
@@ -1266,7 +1189,7 @@ export default function DealsPage() {
                                     <div className="space-y-1">
                                       {deal.contractorReferenceResolution?.status === "unresolved" ? (
                                         <>
-                                          <p className="text-sm font-medium text-rose-700">Linked contractor record could not be resolved.</p>
+                                          <p className="text-sm font-medium text-rose-700">Contractor identity unresolved</p>
                                           <p className="text-xs text-slate-500">Administrator repair required</p>
                                         </>
                                       ) : deal.contractorId?.trim() ? (

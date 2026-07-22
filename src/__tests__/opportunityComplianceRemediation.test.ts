@@ -131,6 +131,37 @@ describe("opportunity compliance remediation", () => {
     expect(matches).toHaveLength(1);
   });
 
+
+  test("missing compliance blocks recommendation and assignment eligibility", () => {
+    const [match] = matchContractorsForOpportunity({ deal, contractors: [{ ...baseContractor, id: "c1", documents: [], taxValid: false, taxVerified: false, taxCompliant: false }] });
+    expect(match.complianceStatus).toBe("MISSING");
+    expect(match.generalCompliance).toBe(0);
+    expect(match.submissionReadiness).toBeLessThan(100);
+    expect(match.matchScore).toBe(0);
+    expect(match.eligible).toBe(false);
+    expect(match.assignmentAllowed).toBe(false);
+    expect(match.blockingReasons).toContain("Tax Compliance document not found");
+    expect(match.recommendationReason).toContain("Tax Compliance document not found");
+  });
+
+  test("unresolved contractor workspace blocks recommendation eligibility", () => {
+    const [match] = matchContractorsForOpportunity({
+      deal,
+      contractors: [{ ...baseContractor, id: "c1", workspaceId: undefined, documents: [doc({}), doc({ id: "csd-1", documentType: "csd", fileName: "CSD Registration Report.pdf" })] }],
+    });
+    expect(match.matchScore).toBe(0);
+    expect(match.eligible).toBe(false);
+    expect(match.assignmentAllowed).toBe(false);
+    expect(match.blockingReasons).toContain("Contractor workspace is unresolved");
+  });
+
+  test("absence of mandatory requirements does not create 100 percent submission readiness", () => {
+    const state = buildOpportunityExecutionState({
+      deal: { id: "deal-no-req", workspaceId: "workspace-a", opportunityExecution: { requirementsReviewed: true, requirements: { reviewed: true } }, tenderAnalysis: { requiredCertificates: [] }, documents: [] },
+      contractor: { ...baseContractor, documents: [] },
+    });
+    expect(state.submissionReadiness).toBe(0);
+  });
   test("UI model exposes exact action and reason", () => {
     const [match] = matchContractorsForOpportunity({ deal, contractors: [{ ...baseContractor, id: "c1", documents: [doc({ verified: false, status: "uploaded" })] }] });
     expect(match.complianceDetails.find((detail) => detail.key === "tax")).toMatchObject({ status: "UNVERIFIED", requiredAction: "Verify document", reason: "Tax Compliance document uploaded but not verified" });

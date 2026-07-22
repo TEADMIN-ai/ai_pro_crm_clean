@@ -9,6 +9,7 @@ This repository now treats the following folders as the governing TEOS documenta
 
 ## Canonical Governance
 - [TEOS Master Engineering Charter](./architecture/TEOS_MASTER_ENGINEERING_CHARTER.md)
+- [TEOS Production Decision Integrity Standard](./architecture/TEOS_PRODUCTION_DECISION_INTEGRITY_STANDARD.md)
 - [System Architecture](./architecture/SYSTEM_ARCHITECTURE.md)
 - [Authentication Architecture](./architecture/AUTHENTICATION_ARCHITECTURE.md)
 - [Multi-Workspace Architecture](./architecture/MULTI_WORKSPACE_ARCHITECTURE.md)

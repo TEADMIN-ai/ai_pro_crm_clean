@@ -28,7 +28,7 @@ export type ProcurementReadinessModel = {
   tenderAnalysisCompleteness: number;
   pricingCompleteness: number;
   documentCompleteness: number;
-  submissionReadiness: number;
+  submissionReadiness: number | null;
 };
 
 export type ProcurementNextAction = {
@@ -96,8 +96,20 @@ export type ProcurementExecutionProjection = {
   submissionReviewId: string | null;
   reviewStatus: OpportunityTaskStatus;
   packStatus: string;
-  submissionReadiness: number;
+  submissionReadiness: number | null;
   submissionStatus: OpportunityTaskStatus;
+  decisionStatus: "ALLOWED" | "BLOCKED" | "UNKNOWN" | "UNRESOLVED" | "DATA_ERROR";
+  readinessStatus: "READY" | "BLOCKED" | "UNKNOWN" | "UNRESOLVED";
+  readinessScore: number | null;
+  assignmentAllowed: boolean;
+  eligible: boolean;
+  blockingReasons: string[];
+  warnings: string[];
+  evaluatedAt: string | null;
+  logicVersion: string | null;
+  stale: boolean | null;
+  contractorIdentityStatus: "RESOLVED" | "UNRESOLVED";
+  workspaceResolutionStatus: "RESOLVED" | "UNRESOLVED";
 };
 
 function rec(value: unknown): AnyRecord {
@@ -249,8 +261,9 @@ export function buildProcurementExecutionProjection(input: {
   const sarsBlockerReason = state.requirements.sarsVerificationRequired ? 'Tender requires current live SARS TCS verification.' : 'Existing SARS TCS verification result requires resolution.';
   const sarsBlockers = sarsProjection.sarsVerificationBlockers.map((item) => blocker(item, sarsBlockerReason, 'compliance', sarsProjection.sarsVerificationRoute ?? '/dashboard/deals/' + encodeURIComponent(dealId) + '/execution', sarsProjection.sarsRecheckDueAt ?? dueDate));
   const allComplianceBlockers = [...complianceBlockers, ...sarsBlockers];
-  const documentsComplete = state.documentChecklist.filter((item) => item.required).every((item) => item.status === "COMPLETE");
-  const documentCompleteness = state.documentChecklist.length ? pct((state.documentChecklist.filter((item) => item.status === "COMPLETE" || item.status === "NOT_APPLICABLE").length / state.documentChecklist.length) * 100) : 100;
+  const requiredDocuments = state.documentChecklist.filter((item) => item.required);
+  const documentsComplete = requiredDocuments.length > 0 && requiredDocuments.every((item) => item.status === "COMPLETE");
+  const documentCompleteness = state.documentChecklist.length ? pct((state.documentChecklist.filter((item) => item.status === "COMPLETE" || item.status === "NOT_APPLICABLE").length / state.documentChecklist.length) * 100) : 0;
   const tenderAnalysisCompleteness = requirementsReviewStatus === "APPROVED" ? 100 : tenderAnalysisStatus === "ANALYSIS_COMPLETE" || tenderAnalysisStatus === "REVIEW_REQUIRED" ? 75 : tenderAnalysisStatus === "ANALYSING" ? 40 : 0;
   const mappingIncomplete = pricingRequired && (String(rec(pricing).mappingStatus ?? execution.mappingStatus ?? "").toUpperCase().includes("MAPPING_REQUIRED") || pricingStatus === "MAPPING_REQUIRED");
   const pricingIncomplete = pricingRequired && !pricingApproved && ["NOT_STARTED", "SOURCE_QUOTES_REQUIRED", "TENDER_ANALYSIS_REQUIRED", "PRICING_IN_PROGRESS", "VALIDATION_FAILED"].includes(pricingStatus.toUpperCase());
@@ -283,7 +296,7 @@ export function buildProcurementExecutionProjection(input: {
   const ready = submission.ready && !quoteBlockers.length && !intelligenceBlockers.length && !pricingBlockers.length && (!pricingRequired || Boolean(pricingDocumentId));
   const nextAction = buildNextAction({
     state,
-    assignmentValid: Boolean(state.contractorId),
+    assignmentValid: state.assignment.complete,
     complianceBlockers: allComplianceBlockers,
     sarsBlockers,
     sarsNextAction: sarsProjection.sarsNextAction,
@@ -300,13 +313,21 @@ export function buildProcurementExecutionProjection(input: {
     ready,
   });
   const blockers = [...allComplianceBlockers, ...quoteBlockers, ...intelligenceBlockers, ...pricingBlockers, ...submission.blockers.map((item) => blocker(item, "Submission readiness requires this prerequisite.", nextAction.owner, nextAction.href ?? "/dashboard/deals/" + encodeURIComponent(dealId) + "/execution", dueDate))];
+  const contractorIdentityStatus = state.contractorId ? "RESOLVED" : "UNRESOLVED";
+  const workspaceResolutionStatus = str(deal.workspaceId) ? "RESOLVED" : "UNRESOLVED";
+  const eligible = contractorIdentityStatus === "RESOLVED" && workspaceResolutionStatus === "RESOLVED" && state.complianceStatus === "VALID" && allComplianceBlockers.length === 0;
+  const blockingReasons = Array.from(new Set([...blockers.map((item) => item.problem), ...state.blockers]));
+  const assignmentAllowed = eligible && blockingReasons.length === 0;
+  const decisionStatus: ProcurementExecutionProjection["decisionStatus"] = contractorIdentityStatus === "UNRESOLVED" || workspaceResolutionStatus === "UNRESOLVED" ? "UNRESOLVED" : ready && blockingReasons.length === 0 ? "ALLOWED" : "BLOCKED";
+  const readinessStatus: ProcurementExecutionProjection["readinessStatus"] = ready && blockingReasons.length === 0 ? "READY" : decisionStatus === "UNRESOLVED" ? "UNRESOLVED" : "BLOCKED";
+  const readinessScore = readinessStatus === "READY" ? 100 : null;
   return {
     workspaceId: str(deal.workspaceId),
     opportunityId: String(deal.opportunityId ?? deal.id ?? dealId),
     dealId,
     contractorId: state.contractorId,
     contractorName: state.contractorName,
-    currentPhase: ready ? "READY_FOR_SUBMISSION" : state.currentPhase,
+    currentPhase: readinessStatus === "READY" ? "READY_FOR_SUBMISSION" : state.currentPhase,
     readiness: readinessModel,
     blockers,
     nextAction,
@@ -355,8 +376,20 @@ export function buildProcurementExecutionProjection(input: {
     submissionReviewId,
     reviewStatus,
     packStatus,
-    submissionReadiness: ready ? 100 : pct((Object.values(readinessModel).reduce((sum, item) => sum + item, 0) / Object.values(readinessModel).length)),
+    submissionReadiness: readinessScore,
     submissionStatus: state.submissionStatus,
+    decisionStatus,
+    readinessStatus,
+    readinessScore,
+    assignmentAllowed,
+    eligible,
+    blockingReasons,
+    warnings: [],
+    evaluatedAt: str(execution.decisionEvaluatedAt),
+    logicVersion: str(execution.decisionLogicVersion),
+    stale: typeof execution.decisionStale === "boolean" ? execution.decisionStale : null,
+    contractorIdentityStatus,
+    workspaceResolutionStatus,
   };
 }
 

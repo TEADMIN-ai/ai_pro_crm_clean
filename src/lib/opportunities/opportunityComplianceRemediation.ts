@@ -362,7 +362,7 @@ export function calculateProfileCompleteness(contractor: AnyRecord | null): numb
 
 export function calculateSubmissionReadiness(requirements: OpportunityRequirementDetail[]): number {
   const required = requirements.filter((requirement) => requirement.required);
-  if (!required.length) return 100;
+  if (!required.length) return 0;
   return pct((required.filter((requirement) => requirement.status === "VALID" || requirement.status === "NOT_APPLICABLE").length / required.length) * 100);
 }
 
