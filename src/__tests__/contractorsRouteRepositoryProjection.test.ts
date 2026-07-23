@@ -60,7 +60,32 @@ jest.mock("@/lib/email/contractorOnboardingEmail", () => ({ sendContractorOnboar
 
 import { GET } from "@/app/api/contractors/route";
 
-const now = "2026-07-23T08:00:00.000Z";
+const publicContractorKeys = [
+  "id",
+  "contractorId",
+  "workspaceId",
+  "companyName",
+  "tradingName",
+  "contractorReference",
+  "registrationNumber",
+  "csdNumber",
+  "status",
+  "identityStatus",
+  "identityResolved",
+  "identityMatchStatus",
+  "documentCompletenessScore",
+  "complianceDecisionStatus",
+  "readinessScore",
+  "readinessDecisionStatus",
+  "assignmentAllowed",
+  "blockingReasons",
+  "externalVerificationStatus",
+  "csdValidationStatus",
+  "evaluatedAt",
+  "logicVersion",
+  "stale",
+  "historicalDecision"
+];
 
 function request(path: string) {
   return new NextRequest(`http://localhost${path}`);
@@ -70,7 +95,7 @@ function verifiedDocument(type: string) {
   return {
     id: type,
     data: {
-      contractorId: "contractor-mrk",
+      contractorId: "internal-id",
       documentType: type,
       fileUrl: `https://example.com/${type}.pdf`,
       verified: true,
@@ -82,51 +107,30 @@ function verifiedDocument(type: string) {
 
 function addLegacyMrKRecord() {
   contractorDocs.push({
-    id: "contractor-mrk",
+    id: "internal-id",
     data: {
-      id: "contractor-mrk",
-      contractorId: "contractor-mrk",
-      workspaceId: "workspace-a",
-      role: "contractor",
-      status: "active",
+      id: "internal-id",
+      contractorId: "internal-id",
       companyName: "Mr K",
-      name: "Mr K",
-      taxpayerName: "TORQUE EMPIRE",
-      csdNumber: "MISREPRESENT",
-      readinessScore: 100,
+      contactPerson: "Mr K",
+      userId: "internal-user-id",
+      uid: "internal-user-id",
+      authUid: "internal-user-id",
+      email: "redacted@example.com",
+      status: "restored",
+      workspaceId: "workspace-a",
+      complianceScore: 100,
+      complianceStatus: "complete",
       readinessStatus: "READY",
       readinessDecisionStatus: "READY",
-      complianceStatus: "complete",
+      readinessScore: 100,
+      documents: {},
+      sarsTcsSummary: { status: "PENDING" },
+      recordClassification: "PRODUCTION",
+      taxpayerName: "TORQUE EMPIRE",
+      csdNumber: "MISREPRESENT",
       overallStatus: "Approved / Compliant",
-      authUid: "auth-uid",
-      userId: "user-id",
-      uid: "legacy-uid",
       futureRawFirestoreField: "must-not-leak",
-      sarsTcsSummary: {
-        id: "sars-1",
-        workspaceId: "workspace-a",
-        contractorId: "contractor-mrk",
-        taxReferenceNumber: "1234567890",
-        registeredTaxpayerName: "TORQUE EMPIRE",
-        pinLastFour: "1234",
-        pinStatus: "PROVIDED",
-        pinProvidedAt: now,
-        pinProvidedBy: "staff-1",
-        consentConfirmed: true,
-        consentConfirmedAt: now,
-        verificationStatus: "PENDING",
-        verifiedAt: null,
-        taxpayerNameMatch: "NOT_CHECKED",
-        taxReferenceMatch: "NOT_CHECKED",
-        registrationNumberMatch: "NOT_CHECKED",
-        contractorIdentityMatch: "NOT_CHECKED",
-        mismatchReasons: [],
-        createdAt: now,
-        updatedAt: now,
-        createdBy: "staff-1",
-        version: 1,
-        auditTrail: [],
-      },
     },
     documents: [
       verifiedDocument("cipc"),
@@ -154,9 +158,11 @@ describe("/api/contractors canonical repository route projection", () => {
 
     expect(response.status).toBe(200);
     expect(response.headers.get("cache-control")).toBe("private, no-store, max-age=0, must-revalidate");
+    expect(response.headers.get("x-teos-contractor-contract-version")).toBe("contractor-repository-public-v2");
+    expect(Object.keys(contractor).sort()).toEqual([...publicContractorKeys].sort());
     expect(contractor).toMatchObject({
-      id: "contractor-mrk",
-      contractorId: "contractor-mrk",
+      id: "internal-id",
+      contractorId: "internal-id",
       workspaceId: "workspace-a",
       identityStatus: "CONFLICT",
       identityMatchStatus: "CONFLICT",
@@ -206,9 +212,9 @@ describe("/api/contractors canonical repository route projection", () => {
 
     expect(response.status).toBe(200);
     expect(response.headers.get("cache-control")).toBe("private, no-store, max-age=0, must-revalidate");
-    expect(JSON.stringify(body)).not.toContain("auth-uid");
-    expect(JSON.stringify(body)).not.toContain("user-id");
-    expect(JSON.stringify(body)).not.toContain("legacy-uid");
+    expect(JSON.stringify(body)).not.toContain("internal-user-id");
+    expect(JSON.stringify(body)).not.toContain("redacted@example.com");
+    expect(JSON.stringify(body)).not.toContain("futureRawFirestoreField");
     expect(body.contractors).toEqual([
       expect.objectContaining({
         contractorId: "contractor-valid",

@@ -96,6 +96,12 @@ export function validateCipcRegistrationNumber(value: unknown): BusinessIdentifi
   return /^\d{4}\/\d{6}\/\d{2}$/.test(candidate) ? "VALID" : "UNRESOLVED";
 }
 
+function normalizeSarsTcsRecord(value: unknown): SarsTcsVerificationRecord | null {
+  if (!value || typeof value !== "object") return null;
+  const record = { ...(value as Record<string, unknown>) };
+  if (!str(record.verificationStatus)) record.verificationStatus = str(record.status);
+  return record as SarsTcsVerificationRecord;
+}
 function resolveIdentityMatch(contractor: Record<string, unknown>): {
   identityStatus: ContractorRepositoryDecision["identityStatus"];
   identityMatchStatus: ContractorIdentityMatchStatus;
@@ -156,9 +162,7 @@ export function buildContractorRepositoryDecision(input: {
   const evaluatedAt = input.evaluatedAt ?? new Date().toISOString();
   const summary = calculateContractorCompliance(input.documents);
   const identity = resolveIdentityMatch(input.contractor);
-  const sarsRecord = input.contractor.sarsTcsSummary && typeof input.contractor.sarsTcsSummary === "object"
-    ? input.contractor.sarsTcsSummary as SarsTcsVerificationRecord
-    : null;
+  const sarsRecord = normalizeSarsTcsRecord(input.contractor.sarsTcsSummary);
   const taxDocumentStatus = summary.missingDocumentTypes.includes("taxClearance") ? "missing" : "verified";
   const sarsProjection = buildSarsTcsProjection({
     record: sarsRecord,

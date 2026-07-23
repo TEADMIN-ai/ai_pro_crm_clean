@@ -13,6 +13,7 @@ export const revalidate = 0;
 
 const PRIVATE_NO_STORE_HEADERS = {
   "Cache-Control": "private, no-store, max-age=0, must-revalidate",
+  "X-TEOS-Contractor-Contract-Version": "contractor-repository-public-v2",
 };
 
 function getString(value: unknown): string {
@@ -107,10 +108,11 @@ export async function GET(request: NextRequest) {
     const includeArchived = request.nextUrl.searchParams.get("includeArchived") === "true" && user.role === "admin";
     const includeNonProduction = request.nextUrl.searchParams.get("includeNonProduction") === "true" && user.role === "admin";
     const includeLegacyUnassigned = request.nextUrl.searchParams.get("includeLegacyUnassigned") === "true" && user.role === "admin";
-    const contractors = serializePublicContractors(await listContractors({ workspaceId: user.workspaceId, actorRole: user.role, includeArchived, includeNonProduction, includeLegacyUnassigned }));
+    const repositoryContractors = await listContractors({ workspaceId: user.workspaceId, actorRole: user.role, includeArchived, includeNonProduction, includeLegacyUnassigned });
+    const contractors = serializePublicContractors(repositoryContractors);
     if (request.nextUrl.searchParams.get("purpose") === "dealAssignmentSelector") {
       return NextResponse.json(
-        { contractors: serializePublicContractorSelectorOptions(buildContractorSelectorOptions(contractors)) },
+        { contractors: serializePublicContractorSelectorOptions(buildContractorSelectorOptions(repositoryContractors)) },
         { headers: PRIVATE_NO_STORE_HEADERS },
       );
     }
