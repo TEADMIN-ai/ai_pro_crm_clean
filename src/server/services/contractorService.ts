@@ -13,6 +13,7 @@ import {
 import { recordAuditLog } from "@/server/services/auditLogService";
 import { classifyContractorRecord, emptyContractorVisibilityDiagnostics, isContractorVisibleToWorkspace, updateContractorVisibilityDiagnostics, type ContractorVisibilityContext } from "@/lib/contractors/contractorVisibility";
 import { buildUnresolvedContractorIdentityFields, resolveContractorBusinessIdentity } from "@/lib/contractors/contractorBusinessIdentity";
+import { buildContractorRepositoryDecision } from "@/lib/contractors/contractorRepositoryDecision";
 import { AuthorizationError, type AuthorizedUser } from "@/lib/server/authz";
 import type { ContractorTier } from "@/types/contractor";
 import type { ContractorDocument } from "@/types/document";
@@ -93,9 +94,6 @@ export async function listContractors(options: ListContractorsOptions) {
   console.info("[contractor-repository] list", { queryPath, filters: { workspaceId: options.workspaceId ?? null, includeArchived: options.includeArchived === true, includeNonProduction: options.includeNonProduction === true, includeLegacyUnassigned: options.includeLegacyUnassigned === true }, diagnostics });
   return sortedContractors;
 }
-function isDemoContractorRecord(contractor: Record<string, unknown>): boolean {
-  return classifyContractorRecord(contractor) !== "PRODUCTION";
-}
 
 function isReviewRequiredDocument(document: ContractorDocument): boolean {
   return Boolean(document.fileUrl) &&
@@ -139,48 +137,93 @@ function resolveDocumentSignal(documents: ContractorDocument[], type: "taxCleara
   return "Missing";
 }
 
+
+function repositoryStatusLabel(decision: ReturnType<typeof buildContractorRepositoryDecision>): string {
+  if (decision.readinessDecisionStatus === "READY") return "Approved / Compliant";
+  if (decision.identityStatus === "CONFLICT") return "Blocked / Identity conflict";
+  if (decision.identityStatus === "UNRESOLVED") return "Blocked / Identity unresolved";
+  if (decision.stale) return "Blocked / Stale decision";
+  return "Blocked / Compliance review required";
+}
+
+function repositoryDocumentSignalLabel(status: string): string {
+  return status === "VALID" ? "Verified" : status === "INVALID" ? "Invalid" : "Unresolved";
+}
+
+function safeRepositoryContractorFields(contractor: Record<string, unknown> & { id: string }) {
+  return {
+    id: contractor.id,
+    contractorId: asString(contractor.contractorId) ?? contractor.id,
+    workspaceId: asString(contractor.workspaceId),
+    workspaceSlug: asString(contractor.workspaceSlug),
+    archived: contractor.archived === true,
+    archivedAt: contractor.archivedAt ?? null,
+    archiveReason: asString(contractor.archiveReason),
+    companyName: asString(contractor.companyName),
+    businessName: asString(contractor.businessName),
+    legalName: asString(contractor.legalName),
+    tradingName: asString(contractor.tradingName),
+    name: asString(contractor.name),
+    status: asString(contractor.status),
+    createdAt: contractor.createdAt ?? null,
+    updatedAt: contractor.updatedAt ?? null,
+    lastDocumentUpdateAt: contractor.lastDocumentUpdateAt ?? null,
+    registrationNumber: asString(contractor.registrationNumber),
+    companyRegistrationNumber: asString(contractor.companyRegistrationNumber),
+    csdNumber: asString(contractor.csdNumber),
+    csdMNumber: asString(contractor.csdMNumber),
+    mNumber: asString(contractor.mNumber),
+    teosContractorReference: asString(contractor.teosContractorReference),
+    contractorReference: asString(contractor.contractorReference),
+    contractorNumber: asString(contractor.contractorNumber),
+    businessReference: asString(contractor.businessReference),
+  };
+}
+
 async function enrichContractorListItem(contractor: Record<string, unknown> & { id: string }) {
   const contractorId = asString(contractor.contractorId) ?? contractor.id;
   const documents = await listContractorDocuments(contractorId);
   const summary = calculateContractorCompliance(documents);
+  const decision = buildContractorRepositoryDecision({ contractor, documents });
   const reviewRequiredCount = documents.filter(isReviewRequiredDocument).length;
   const requiredDocsApprovedCount = SUPPORTED_DOCUMENT_TYPES.length - summary.docsMissing;
-  const hasFullDocumentReadiness =
-    summary.docsMissing === 0 && summary.expiredDocumentCount === 0 && summary.tenderLockStatus === "READY";
-  const complianceApproved = contractor.complianceApproved === true;
-  const overallStatus =
-    complianceApproved
-      ? "Approved / Compliant"
-      : hasFullDocumentReadiness
-        ? "Pending Review"
-        : reviewRequiredCount > 0
-          ? "Review Required"
-          : summary.docsMissing > 0
-            ? "Onboarding"
-            : "Pending Review";
 
   return {
-    ...contractor,
-    readinessScore:
-      typeof contractor.readinessScore === "number" && Number.isFinite(contractor.readinessScore)
-        ? contractor.readinessScore
-        : summary.readinessScore,
-    complianceStatusScore:
-      typeof contractor.complianceStatusScore === "number" && Number.isFinite(contractor.complianceStatusScore)
-        ? contractor.complianceStatusScore
-        : summary.complianceStatusScore,
+    ...safeRepositoryContractorFields(contractor),
+    readinessScore: decision.readinessScore,
+    readinessStatus: decision.readinessDecisionStatus,
+    complianceStatusScore: decision.complianceDecisionStatus === "VALID" ? summary.complianceStatusScore : null,
+    complianceStatus: decision.complianceDecisionStatus,
+    complianceDecisionStatus: decision.complianceDecisionStatus,
+    readinessDecisionStatus: decision.readinessDecisionStatus,
+    documentCompletenessScore: decision.documentCompletenessScore,
+    documentReviewStatus: decision.documentReviewStatus,
+    externalVerificationStatus: decision.externalVerificationStatus,
+    identityMatchStatus: decision.identityMatchStatus,
+    identityStatus: decision.identityStatus,
+    assignmentAllowed: decision.assignmentAllowed,
+    blockingReasons: decision.blockingReasons,
+    warnings: decision.warnings,
+    evaluatedAt: decision.evaluatedAt,
+    logicVersion: decision.logicVersion,
+    stale: decision.stale,
+    staleReasons: decision.staleReasons,
+    csdValidationStatus: decision.csdValidationStatus,
+    registrationValidationStatus: decision.registrationValidationStatus,
+    historicalDecision: decision.historicalDecision,
     docsMissing: summary.docsMissing,
     missingDocumentTypes: summary.missingDocumentTypes,
-    tenderLockStatus: summary.tenderLockStatus,
-    isTenderLocked: summary.isTenderLocked,
+    tenderLockStatus: decision.readinessDecisionStatus === "READY" ? "READY" : "BLOCKED",
+    isTenderLocked: decision.readinessDecisionStatus !== "READY",
     requiredDocsApprovedCount,
     requiredDocsTotalCount: SUPPORTED_DOCUMENT_TYPES.length,
     reviewRequiredCount,
-    overallStatus,
-    complianceApproved,
+    overallStatus: repositoryStatusLabel(decision),
+    complianceApproved: decision.complianceDecisionStatus === "VALID",
     taxPinStatus: resolveDocumentSignal(documents, "taxClearance"),
-    csdStatus: resolveDocumentSignal(documents, "csd"),
+    csdStatus: repositoryDocumentSignalLabel(decision.csdValidationStatus),
     lastDocumentUpdateAt: latestDocumentUpdate(documents) ?? contractor.lastDocumentUpdateAt ?? contractor.updatedAt ?? null,
+    recordClassification: classifyContractorRecord(contractor),
   };
 }
 
@@ -317,6 +360,7 @@ export async function updateContractorById(contractorId: string, updates: Record
 }
 
 export async function deleteContractorById(_contractorId: string) {
+  void _contractorId;
   throw new Error("Hard deletion of contractor records is disabled. Use archiveContractorById instead.");
 }
 
