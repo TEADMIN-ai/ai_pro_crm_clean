@@ -3,6 +3,7 @@ import { getAuth } from "firebase-admin/auth";
 import { getFirebaseAdmin } from "@/lib/firebase/admin";
 import { ensureContractorAuthLinkage } from "@/lib/contractors/contractorAuthLink";
 import { sendContractorOnboardingEmail } from "@/lib/email/contractorOnboardingEmail";
+import { resolveContractorBusinessIdentity } from "@/lib/contractors/contractorBusinessIdentity";
 import { buildContractorSelectorOptions } from "@/lib/contractors/contractorSelectorOptions";
 import { serializePublicContractors, serializePublicContractorSelectorOptions } from "@/lib/contractors/contractorRepositoryResponse";
 import { listContractors } from "@/server/services/contractorService";
@@ -144,15 +145,26 @@ export async function POST(req: NextRequest) {
     const db = getFirebaseAdmin();
     const email = normalizeEmail(body.email);
     submittedEmail = email;
-    const companyName = getString(body.companyName) || getString(body.company) || getString(body.name);
+    const identity = resolveContractorBusinessIdentity({
+      ...body,
+      companyName: body.companyName ?? body.company,
+    });
+    const companyName = identity.label ?? "";
     const contactPerson = getString(body.contactPerson) || companyName;
     const phone = getOptionalString(body.phone) ?? getOptionalString(body.contactPhone);
     const registrationNumber =
       getString(body.registrationNumber) || getString(body.companyRegistrationNumber);
 
-    if (!email || !companyName) {
+    if (!user.workspaceId) {
       return NextResponse.json(
-        { error: "Missing required contractor fields" },
+        { error: "Workspace context is required" },
+        { status: 403 }
+      );
+    }
+
+    if (!email) {
+      return NextResponse.json(
+        { error: "A valid contractor email is required" },
         { status: 400 }
       );
     }
@@ -160,6 +172,20 @@ export async function POST(req: NextRequest) {
     if (!isValidEmail(email)) {
       return NextResponse.json(
         { error: "A valid email is required" },
+        { status: 400 }
+      );
+    }
+
+    if (identity.status === "CONFLICT") {
+      return NextResponse.json(
+        { error: "Contractor business identity evidence is conflicting" },
+        { status: 400 }
+      );
+    }
+
+    if (!identity.identityResolved || !companyName) {
+      return NextResponse.json(
+        { error: "Verified contractor legal or company name is required" },
         { status: 400 }
       );
     }
@@ -180,21 +206,40 @@ export async function POST(req: NextRequest) {
       contractorId,
       authUid: contractorId,
       userId: contractorId,
+      linkedUserId: contractorId,
+      workspaceId: user.workspaceId,
       email,
       contactEmail: email,
+      legalName: identity.legalName,
+      tradingName: identity.tradingName,
+      registeredBusinessName: identity.registeredBusinessName,
       companyName,
       company: companyName,
       name: companyName,
+      identityResolved: true,
+      identityStatus: "VERIFIED",
+      identityResolutionStatus: "VERIFIED",
+      businessIdentityEvidenceStatus: "VERIFIED",
       contactPerson,
       phone,
       contactPhone: phone,
       registrationNumber: registrationNumber || "",
       companyRegistrationNumber: registrationNumber || "",
+      status: "onboarding",
       createdAt,
       updatedAt,
       complianceApproved: false,
+      readinessScore: null,
+      readinessStatus: "INCOMPLETE",
+      readinessDecisionStatus: "UNRESOLVED",
+      assignmentAllowed: false,
+      blockingReasons: [
+        "Required contractor documents are missing or unverified",
+        "SARS and compliance verification are incomplete",
+      ],
       createdBy: user.uid,
       createdByEmail: user.email ?? null,
+      createdByRole: user.role,
     };
 
     try {
