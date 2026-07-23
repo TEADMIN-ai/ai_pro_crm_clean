@@ -66,7 +66,7 @@ export function getContractorWorkspaceLabel(contractor: ContractorListItem): str
 }
 
 export function getContractorTradingName(contractor: ContractorListItem): string {
-  return clean(contractor.tradingName) || clean(contractor.businessName) || "Not recorded";
+  return clean(contractor.tradingName) || "Not recorded";
 }
 
 export function formatContractorDate(value: unknown): string {

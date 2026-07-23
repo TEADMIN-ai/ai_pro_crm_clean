@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import {
   EnterpriseActionButton,
@@ -25,6 +25,11 @@ import {
   summarizeContractorList,
   type ContractorListItem,
 } from "@/lib/contractors/contractorListModel";
+import {
+  getBusinessFacingContractorReference,
+  getCipcRegistrationNumber,
+  getCsdSupplierNumber,
+} from "@/lib/contractors/contractorReferencePresentation";
 
 type LoadState = "loading" | "ready" | "empty" | "forbidden" | "error";
 
@@ -66,6 +71,7 @@ function latestUpdate(contractor: ContractorListItem): string {
 }
 
 export default function ContractorsWorkspace() {
+  const router = useRouter();
   const [state, setState] = useState<LoadState>("loading");
   const [contractors, setContractors] = useState<ContractorListItem[]>([]);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -113,7 +119,11 @@ export default function ContractorsWorkspace() {
   }
 
   useEffect(() => {
-    void loadContractors();
+    const handle = window.setTimeout(() => {
+      void loadContractors();
+    }, 0);
+
+    return () => window.clearTimeout(handle);
   }, []);
 
   const summary = useMemo(() => summarizeContractorList(contractors), [contractors]);
@@ -213,8 +223,10 @@ export default function ContractorsWorkspace() {
             <thead>
               <tr>
                 <th>Business</th>
-                <th>Contractor ID</th>
+                <th>Contractor Reference</th>
                 <th>Trading Name</th>
+                <th>CIPC Registration Number</th>
+                <th>CSD Supplier Number</th>
                 <th>Onboarding Status</th>
                 <th>Approval</th>
                 <th>Readiness</th>
@@ -228,20 +240,24 @@ export default function ContractorsWorkspace() {
             <tbody>
               {contractors.map((contractor) => {
                 const contractorId = getContractorCanonicalId(contractor);
+                const contractorHref = `/dashboard/contractors/${encodeURIComponent(contractorId)}`;
                 const legacy = !contractor.workspaceId?.trim();
 
                 return (
                   <tr key={contractor.id}>
                     <td>
-                      <Link
-                        href={`/dashboard/contractors/${encodeURIComponent(contractorId)}`}
-                        className="font-semibold text-sky-700 hover:text-sky-900"
+                      <button
+                        type="button"
+                        onClick={() => router.push(contractorHref)}
+                        className="text-left font-semibold text-sky-700 hover:text-sky-900"
                       >
                         {getContractorBusinessName(contractor)}
-                      </Link>
+                      </button>
                     </td>
-                    <td className="font-mono text-xs">{contractorId}</td>
+                    <td>{getBusinessFacingContractorReference(contractor)}</td>
                     <td>{getContractorTradingName(contractor)}</td>
+                    <td>{getCipcRegistrationNumber(contractor)}</td>
+                    <td>{getCsdSupplierNumber(contractor)}</td>
                     <td>
                       <EnterpriseStatusBadge value={statusLabel(contractor)} />
                     </td>

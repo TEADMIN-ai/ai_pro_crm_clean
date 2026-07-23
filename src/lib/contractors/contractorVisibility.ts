@@ -30,6 +30,7 @@ export interface ContractorVisibilityDiagnostics {
   excludedNonProduction: number;
   excludedArchived: number;
   excludedLegacyUnassigned: number;
+  excludedUserProfiles: number;
   missingWorkspaceContext: number;
 }
 
@@ -39,6 +40,11 @@ function clean(value: unknown): string | null {
 
 function flag(record: Record<string, unknown>, ...keys: string[]): boolean {
   return keys.some((key) => record[key] === true);
+}
+
+function isStaffOnlyRole(value: unknown): boolean {
+  const role = clean(value)?.toLowerCase() ?? null;
+  return role === "admin" || role === "staff" || role === "manager";
 }
 
 function normalizedClassification(value: unknown): ContractorRecordClassification | null {
@@ -112,6 +118,10 @@ export function isContractorVisibleToWorkspace(
     return { visible: false, classification, reason: "missing_workspace_context" };
   }
 
+  if (isStaffOnlyRole(record.role)) {
+    return { visible: false, classification, reason: "staff_user_profile" };
+  }
+
   if (!recordWorkspaceId) {
     return context.includeLegacyUnassigned === true && context.actorRole === "admin"
       ? { visible: true, classification: "LEGACY_UNASSIGNED", reason: null }
@@ -133,6 +143,7 @@ export function emptyContractorVisibilityDiagnostics(): ContractorVisibilityDiag
     excludedNonProduction: 0,
     excludedArchived: 0,
     excludedLegacyUnassigned: 0,
+    excludedUserProfiles: 0,
     missingWorkspaceContext: 0,
   };
 }
@@ -149,6 +160,7 @@ export function updateContractorVisibilityDiagnostics(
   if (decision.reason === "cross_workspace") diagnostics.excludedCrossWorkspace += 1;
   else if (decision.reason === "archived") diagnostics.excludedArchived += 1;
   else if (decision.reason === "legacy_unassigned") diagnostics.excludedLegacyUnassigned += 1;
+  else if (decision.reason === "staff_user_profile") diagnostics.excludedUserProfiles += 1;
   else if (decision.reason === "missing_workspace_context") diagnostics.missingWorkspaceContext += 1;
   else diagnostics.excludedNonProduction += 1;
 }
