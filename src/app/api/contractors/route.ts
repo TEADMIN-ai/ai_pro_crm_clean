@@ -4,8 +4,16 @@ import { getFirebaseAdmin } from "@/lib/firebase/admin";
 import { ensureContractorAuthLinkage } from "@/lib/contractors/contractorAuthLink";
 import { sendContractorOnboardingEmail } from "@/lib/email/contractorOnboardingEmail";
 import { buildContractorSelectorOptions } from "@/lib/contractors/contractorSelectorOptions";
+import { serializePublicContractors, serializePublicContractorSelectorOptions } from "@/lib/contractors/contractorRepositoryResponse";
 import { listContractors } from "@/server/services/contractorService";
 import { AuthorizationError, assertPrivilegedRole, requireAuthorizedUser } from "@/lib/server/authz";
+
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
+const PRIVATE_NO_STORE_HEADERS = {
+  "Cache-Control": "private, no-store, max-age=0, must-revalidate",
+};
 
 function getString(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
@@ -32,6 +40,10 @@ function isFirebaseAuthError(error: unknown, code: string): boolean {
       typeof error.code === "string" &&
       error.code === code
   );
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : "Unknown error";
 }
 
 async function findExistingContractorByEmail(email: string) {
@@ -95,12 +107,15 @@ export async function GET(request: NextRequest) {
     const includeArchived = request.nextUrl.searchParams.get("includeArchived") === "true" && user.role === "admin";
     const includeNonProduction = request.nextUrl.searchParams.get("includeNonProduction") === "true" && user.role === "admin";
     const includeLegacyUnassigned = request.nextUrl.searchParams.get("includeLegacyUnassigned") === "true" && user.role === "admin";
-    const contractors = await listContractors({ workspaceId: user.workspaceId, actorRole: user.role, includeArchived, includeNonProduction, includeLegacyUnassigned });
+    const contractors = serializePublicContractors(await listContractors({ workspaceId: user.workspaceId, actorRole: user.role, includeArchived, includeNonProduction, includeLegacyUnassigned }));
     if (request.nextUrl.searchParams.get("purpose") === "dealAssignmentSelector") {
-      return NextResponse.json({ contractors: buildContractorSelectorOptions(contractors) });
+      return NextResponse.json(
+        { contractors: serializePublicContractorSelectorOptions(buildContractorSelectorOptions(contractors)) },
+        { headers: PRIVATE_NO_STORE_HEADERS },
+      );
     }
-    return NextResponse.json(contractors);
-  } catch (error: any) {
+    return NextResponse.json(contractors, { headers: PRIVATE_NO_STORE_HEADERS });
+  } catch (error: unknown) {
     if (error instanceof AuthorizationError) {
       return NextResponse.json({ error: error.message }, { status: error.status });
     }
@@ -108,7 +123,7 @@ export async function GET(request: NextRequest) {
     console.error(" CONTRACTORS FETCH ERROR:", error);
 
     return NextResponse.json(
-      { error: "Failed to fetch contractors", details: error.message },
+      { error: "Failed to fetch contractors", details: errorMessage(error) },
       { status: 500 }
     );
   }
@@ -279,7 +294,7 @@ export async function POST(req: NextRequest) {
       },
       { status: 201 }
     );
-  } catch (error: any) {
+  } catch (error: unknown) {
     if (error instanceof AuthorizationError) {
       return NextResponse.json({ error: error.message }, { status: error.status });
     }
