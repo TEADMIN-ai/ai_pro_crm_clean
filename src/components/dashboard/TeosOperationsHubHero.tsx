@@ -1,8 +1,18 @@
-﻿"use client";
+"use client";
 
 import Image from "next/image";
 import { ActionButton, MetricCard } from "@/components/tex/ExecutivePrimitives";
 import type { EnterpriseKpiSnapshot } from "@/lib/kpis/enterpriseSnapshot";
+
+export function TeosOperationsHubHeroFromSnapshot({ data }: { data: EnterpriseKpiSnapshot }) {
+  return (
+    <TeosOperationsHubHero
+      data={data}
+      readinessScore={String(data.readiness.averageScore) + "%"}
+      submissionRate={String(data.submissions.conversionRate) + "%"}
+    />
+  );
+}
 
 export default function TeosOperationsHubHero({
   data,

@@ -13,6 +13,7 @@ import Card, { IdentityCardHeader } from "@/components/ui/Card";
 import Badge from "@/components/ui/Badge";
 import Table from "@/components/ui/Table";
 import RevenueKpiRow from "@/components/Kpi/RevenueKpiRow";
+import { TeosOperationsHubHeroFromSnapshot } from "@/components/dashboard/TeosOperationsHubHero";
 
 function getDealRiskTone(value: number): "success" | "warning" | "danger" {
   if (value >= 500000) return "danger";
@@ -49,6 +50,7 @@ export default function EnterpriseManagerDashboard() {
   return (
     <RequireRole allow={["admin", "manager"]}>
       <div className="enterprise-page enterprise-grid">
+        {data ? <TeosOperationsHubHeroFromSnapshot data={data} /> : null}
         <Card><HeroBanner image={heroImage} title="Manager Dashboard" subtitle="Revenue, pipeline health, and execution velocity" /></Card>
 
         <Card>

@@ -2,6 +2,9 @@
 
 import { useEffect, useState } from "react";
 import TeosOperationsHubHero from "@/components/dashboard/TeosOperationsHubHero";
+import AdminDashboardHome from "@/components/dashboard/AdminDashboardHome";
+import EnterpriseManagerDashboard from "@/components/dashboard/EnterpriseManagerDashboard";
+import StaffDashboardHome from "@/components/dashboard/StaffDashboardHome";
 import { useAuth } from "@/context/AuthContext";
 import { isVehicleFinanceRole } from "@/lib/auth/roleUtils";
 import RequireRole from "@/components/auth/RequireRole";
@@ -30,7 +33,7 @@ export default function EnterpriseDashboardHome() {
   const { loading: authLoading, role, contractorId } = useAuth();
   const [redirecting, setRedirecting] = useState(false);
   const { data, loading, error } = useEnterpriseKpis({
-    enabled: !authLoading && role !== "contractor" && !isVehicleFinanceRole(role),
+    enabled: !authLoading && role !== "admin" && role !== "manager" && role !== "staff" && role !== "contractor" && !isVehicleFinanceRole(role),
   });
 
   useEffect(() => {
@@ -50,6 +53,18 @@ export default function EnterpriseDashboardHome() {
 
   if (redirecting || isVehicleFinanceRole(role)) {
     return <DashboardCard><p className="text-sm font-medium">Opening Vehicle Finance command center...</p></DashboardCard>;
+  }
+
+  if (role === "admin") {
+    return <AdminDashboardHome />;
+  }
+
+  if (role === "manager") {
+    return <EnterpriseManagerDashboard />;
+  }
+
+  if (role === "staff") {
+    return <StaffDashboardHome />;
   }
 
   if (loading) {

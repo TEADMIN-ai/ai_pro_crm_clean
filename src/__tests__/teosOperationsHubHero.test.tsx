@@ -1,9 +1,30 @@
-﻿import fs from "node:fs";
+import fs from "node:fs";
 import path from "node:path";
 import { renderToStaticMarkup } from "react-dom/server";
 
+import EnterpriseDashboardHome from "@/components/dashboard/EnterpriseDashboardHome";
 import TeosOperationsHubHero from "@/components/dashboard/TeosOperationsHubHero";
+import { useAuth } from "@/context/AuthContext";
+import { useEnterpriseKpis } from "@/hooks/useEnterpriseKpis";
+import type { UserRole } from "@/lib/auth/roleUtils";
 import type { EnterpriseKpiSnapshot } from "@/lib/kpis/enterpriseSnapshot";
+
+jest.mock("next/navigation", () => ({
+  useRouter: () => ({ replace: jest.fn(), push: jest.fn() }),
+}));
+
+jest.mock("@/context/AuthContext", () => ({
+  useAuth: jest.fn(),
+}));
+
+jest.mock("@/hooks/useEnterpriseKpis", () => ({
+  useEnterpriseKpis: jest.fn(),
+}));
+
+jest.mock("@/components/contractors/ContractorOnboardingView", () => ({
+  __esModule: true,
+  default: ({ contractorId }: { contractorId: string }) => <div>Contractor onboarding {contractorId}</div>,
+}));
 
 jest.mock("next/image", () => ({
   __esModule: true,
@@ -60,5 +81,35 @@ describe("TEOS operations hub hero", () => {
     expect(markup).toContain("Submission Rate");
     expect(markup).toContain("25%");
     expect(markup).toContain("Risk Watch");
+  });
+});
+
+const mockedUseAuth = jest.mocked(useAuth);
+const mockedUseEnterpriseKpis = jest.mocked(useEnterpriseKpis);
+
+function renderDashboardFor(role: UserRole) {
+  mockedUseAuth.mockReturnValue({ user: role === "guest" ? null : ({ uid: role + "-uid", email: role + "@example.test", role } as never), role, workspace: null, workspaceId: undefined, contractorId: role === "contractor" ? "CON-1" : undefined, capabilities: [], loading: false, error: null, logout: jest.fn() });
+  mockedUseEnterpriseKpis.mockReturnValue({ data: snapshot, loading: false, error: null });
+  return renderToStaticMarkup(<EnterpriseDashboardHome />);
+}
+
+describe("TEOS operations hub runtime integration", () => {
+  beforeEach(() => jest.clearAllMocks());
+  test("renders on the real EnterpriseDashboardHome admin path before Admin Control Tower", () => {
+    const markup = renderDashboardFor("admin");
+    expect(markup).toContain("One intelligent operating hub. Four divisions. Total control.");
+    expect(markup).toContain("Admin Control Tower");
+    expect(markup.indexOf("One intelligent operating hub. Four divisions. Total control.")).toBeLessThan(markup.indexOf("Admin Control Tower"));
+  });
+  test.each(["manager", "staff"] as const)("renders for %s on the main dashboard role branch", (role) => {
+    expect(renderDashboardFor(role)).toContain("One intelligent operating hub. Four divisions. Total control.");
+  });
+  test.each(["contractor", "driver"] as const)("does not expose the hero to %s", (role) => {
+    expect(renderDashboardFor(role)).not.toContain("One intelligent operating hub. Four divisions. Total control.");
+  });
+  test("CTA destinations exist as dashboard routes", () => {
+    for (const routeFile of ["src/app/dashboard/opportunity-register/page.tsx", "src/app/dashboard/contractors/page.tsx", "src/app/dashboard/hygiene/page.tsx"]) {
+      expect(fs.existsSync(path.join(process.cwd(), routeFile))).toBe(true);
+    }
   });
 });
