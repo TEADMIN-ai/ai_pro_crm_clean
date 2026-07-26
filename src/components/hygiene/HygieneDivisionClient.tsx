@@ -14,10 +14,12 @@ import { API_ROUTES } from "@/lib/apiRoutes";
 import { authFetch } from "@/lib/client/authFetch";
 import { useAuth } from "@/context/AuthContext";
 import { teosDesignTokens } from "@/lib/design/teosDesignTokens";
+import { buildHygieneAtAGlance, buildVerifiedEvidenceGallery } from "@/lib/hygiene/dashboardPresentation";
 import {
   HYGIENE_PHOTO_CATEGORIES,
   type HygieneCollection,
   type HygieneDashboardData,
+  type HygieneEvidencePhoto,
   type HygieneManifest,
   type HygienePhotoCategory,
   type HygieneRecordClassification,
@@ -334,6 +336,162 @@ function DisposalWarningCell({ manifest }: { manifest: HygieneManifest }) {
       {hasMissingFacility ? <StatusBadge value="Compliance Warning" /> : null}
       {hasPendingCertificate ? <StatusBadge value="Disposal Pending" /> : null}
     </div>
+  );
+}
+
+
+function metricTone(status: ReturnType<typeof buildHygieneAtAGlance>[number]["status"]) {
+  if (status === "good") return "success";
+  if (status === "attention") return "warning";
+  return "neutral";
+}
+
+function EvidenceMedia({ photo }: { photo: HygieneEvidencePhoto }) {
+  if (/\.pdf(\?|$)/i.test(photo.fileUrl)) {
+    return (
+      <div className="mb-4 flex h-36 items-center justify-center rounded-lg border border-white/10 bg-slate-950/60 text-sm font-bold text-slate-200">
+        Document evidence
+      </div>
+    );
+  }
+
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={photo.fileUrl}
+      alt={photo.category + " evidence for collection " + photo.collectionId}
+      loading="lazy"
+      className="mb-4 h-36 w-full rounded-lg border border-white/10 object-cover"
+    />
+  );
+}
+
+function VerifiedEvidenceGallery({
+  data,
+  siteById,
+}: {
+  data: HygieneDashboardData;
+  siteById: Map<string, string>;
+}) {
+  const evidenceItems = buildVerifiedEvidenceGallery(data);
+
+  return (
+    <Panel title="Verified Operational Evidence" eyebrow="Authorised media">
+      <div className="mb-4 rounded-xl border border-cyan-200/20 bg-cyan-400/10 p-4 text-sm leading-6 text-cyan-50">
+        Evidence below is loaded only from the authorised Hygiene data response. Media remains linked to its client,
+        site, collection and manifest record; no cross-client media is mixed into this view.
+      </div>
+      {evidenceItems.length === 0 ? (
+        <EmptyState
+          title="No verified operational evidence available"
+          detail="The current authorised data set does not include linked evidence media yet. Upload evidence through the existing Hygiene evidence workflow before treating this gallery as operational proof."
+        />
+      ) : (
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {evidenceItems.map((item) => (
+            <a
+              key={item.photo.photoId}
+              href={item.photo.fileUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="rounded-xl border border-[color:var(--hygiene-border)] bg-slate-950/35 p-4 shadow-sm transition hover:bg-slate-950/45 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-200"
+            >
+              <EvidenceMedia photo={item.photo} />
+              <div className="flex items-start justify-between gap-3">
+                <PrimaryCell title={item.workflowStage} subtitle={item.photo.photoId} />
+                <StatusBadge value="Verified Link" tone="success" />
+              </div>
+              <dl className="mt-4 grid grid-cols-2 gap-2 text-xs">
+                {[
+                  ["Site", siteById.get(item.photo.siteId) ?? item.siteName],
+                  ["Captured", formatDate(item.capturedAt)],
+                  ["Operator", item.operator],
+                  ["Stage", item.workflowStage],
+                ].map(([label, value]) => (
+                  <div key={label} className="rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2">
+                    <dt className="font-bold uppercase tracking-[0.08em] text-slate-400">{label}</dt>
+                    <dd className="mt-1 font-semibold text-slate-100">{value}</dd>
+                  </div>
+                ))}
+              </dl>
+            </a>
+          ))}
+        </div>
+      )}
+    </Panel>
+  );
+}
+
+function ServiceWorkflowSequence() {
+  const steps = [
+    ["1", "Preparation and PPE", "Staff confirm PPE, vehicle readiness and service equipment before dispatch."],
+    ["2", "Site Collection", "Driver attends the client site, services bins and captures service evidence."],
+    ["3", "Secured Transportation", "Waste is sealed, loaded and transported under controlled chain of custody."],
+    ["4", "Authorised Disposal", "Disposal facility confirmation and certificate evidence close the waste route."],
+    ["5", "Manifest / Certificate / Report", "Manifest, evidence, certificate and monthly report complete the audit pack."],
+  ];
+
+  return (
+    <Panel title="How the Service Works" eyebrow="Controlled hygiene workflow">
+      <div className="grid gap-3 md:grid-cols-5">
+        {steps.map(([number, title, detail]) => (
+          <article key={title} className="rounded-xl border border-white/10 bg-white/[0.04] p-4">
+            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[color:var(--hygiene-primary)] text-sm font-black text-white">{number}</div>
+            <h3 className="mt-4 text-sm font-bold text-white">{title}</h3>
+            <p className="mt-2 text-xs leading-5 text-slate-300">{detail}</p>
+          </article>
+        ))}
+      </div>
+    </Panel>
+  );
+}
+
+function ComplianceControlsPanel() {
+  const controls = [
+    ["PPE and Vehicle Checks", "Vehicle inspection, PPE availability, spill kit and secured container checks."],
+    ["Waste Manifest", "Manifest generation links waste type, quantity, client, site and transporter details."],
+    ["GPS / Time Evidence", "Driver job events preserve timestamps and GPS metadata when device data is available."],
+    ["Incident Reporting", "Incident Photo evidence is tracked separately for non-conformance review."],
+    ["Disposal Confirmation", "Awaiting disposal remains visible until facility confirmation and certificate evidence are present."],
+    ["Completion Certificate / Report", "Compliance documents and reports close the operational audit trail."],
+  ];
+
+  return (
+    <Panel title="Compliance Controls" eyebrow="Environmental health pack">
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+        {controls.map(([title, detail]) => (
+          <div key={title} className="rounded-xl border border-white/10 bg-white/[0.04] p-4">
+            <StatusBadge value="Control" tone="info" />
+            <h3 className="mt-3 text-sm font-bold text-white">{title}</h3>
+            <p className="mt-2 text-xs leading-5 text-slate-300">{detail}</p>
+          </div>
+        ))}
+      </div>
+    </Panel>
+  );
+}
+
+function MediaDemonstrationArea() {
+  return (
+    <Panel title="Media Demonstration" eyebrow="Presentation support">
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1.2fr)_minmax(260px,0.8fr)]">
+        <div className="flex min-h-64 items-center justify-center rounded-xl border border-dashed border-white/20 bg-slate-950/45 p-6 text-center">
+          <div>
+            <p className="text-xs font-black uppercase tracking-[0.18em] text-amber-100">Demonstration Media - Not Operational Evidence</p>
+            <h3 className="mt-3 text-xl font-bold text-white">Hygiene workflow video placeholder</h3>
+            <p className="mt-2 max-w-xl text-sm leading-6 text-slate-300">
+              No approved local Hygiene explanatory video is present in the repository. This area is ready for an approved hosted or local asset and intentionally renders no broken media.
+            </p>
+          </div>
+        </div>
+        <div className="rounded-xl border border-white/10 bg-white/[0.04] p-4">
+          <h3 className="text-sm font-bold text-white">Media rule</h3>
+          <p className="mt-2 text-sm leading-6 text-slate-300">
+            Presentation media must be approved local or hosted material. Operational evidence remains separate and must come from the authorised Hygiene evidence API.
+          </p>
+        </div>
+      </div>
+    </Panel>
   );
 }
 
@@ -663,14 +821,19 @@ export default function HygieneDivisionClient({ view }: { view: HygieneView }) {
     <div data-module="hygiene" className="tex-shell space-y-6 text-white" style={hygieneThemeStyle}>
       <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleEvidenceSelection} />
 
-      <section className="rounded-2xl border border-white/10 bg-white/[0.04] p-5 shadow-sm">
-        <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-teal-100">Hygiene Division</p>
-            <h1 className="mt-2 text-2xl font-semibold text-white">CBAVO Services Operations Dashboard</h1>
-            <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-300">
-              Internal Torque Empire workspace for hygiene scheduling, driver workflow, digital manifests, evidence, compliance, and monthly reporting.
-            </p>
+      <section className="overflow-hidden rounded-2xl border border-white/10 bg-slate-950/55 shadow-sm">
+        <div className="grid gap-5 p-5 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
+          <div className="flex min-w-0 flex-col gap-4 sm:flex-row sm:items-center">
+            <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white p-2">
+              <img src="/corporate/logo/torque-empire-primary.png" alt="Torque Empire logo" className="max-h-full max-w-full object-contain" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-teal-100">Hygiene Division</p>
+              <h1 className="mt-2 text-2xl font-semibold text-white md:text-3xl">Torque Empire Hygiene Operations</h1>
+              <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-300">
+                Controlled collection, secured transport, authorised disposal evidence and compliance reporting for Hygiene service delivery.
+              </p>
+            </div>
           </div>
           <div className="flex flex-wrap gap-2">
             <button type="button" onClick={() => void loadData(true)} disabled={refreshing} className={secondaryButtonClass}>
@@ -841,6 +1004,25 @@ export default function HygieneDivisionClient({ view }: { view: HygieneView }) {
 
       {!loading && data && view === "home" ? (
         <div className="space-y-6">
+          <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+            {buildHygieneAtAGlance(data).map((metric) => (
+              <KpiCard
+                key={metric.label}
+                label={metric.label}
+                value={typeof metric.value === "string" ? <StatusBadge value={metric.value} tone={metricTone(metric.status)} /> : metric.value}
+                helper={metric.helper}
+              />
+            ))}
+          </section>
+
+          <VerifiedEvidenceGallery data={data} siteById={siteById} />
+
+          <ServiceWorkflowSequence />
+
+          <ComplianceControlsPanel />
+
+          <MediaDemonstrationArea />
+
           <Panel title="Operational Actions" eyebrow="Office workflow">
             <div className="flex flex-wrap gap-2">
               {canManage ? <SmallAction variant="primary" onClick={() => openModal("collection", "Create Collection")}>Create Collection</SmallAction> : null}
@@ -1178,10 +1360,7 @@ export default function HygieneDivisionClient({ view }: { view: HygieneView }) {
               <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
                 {data.evidencePhotos.map((photo) => (
                   <a key={photo.photoId} href={photo.fileUrl} target="_blank" rel="noreferrer" className="rounded-xl border border-[color:var(--hygiene-border)] bg-slate-950/35 p-4 shadow-sm transition hover:bg-slate-950/45">
-                    {/\.(png|jpg|jpeg|webp|gif)(\?|$)/i.test(photo.fileUrl) || photo.category !== "Disposal Certificate" ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={photo.fileUrl} alt={`${photo.category} evidence`} className="mb-4 h-36 w-full rounded-lg object-cover" />
-                    ) : null}
+                    <EvidenceMedia photo={photo} />
                     <div className="flex items-start justify-between gap-3">
                       <PrimaryCell title={photo.category} subtitle={photo.photoId} />
                       <StatusBadge value="Completed" />
