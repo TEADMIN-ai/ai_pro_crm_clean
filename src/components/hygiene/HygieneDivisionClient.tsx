@@ -14,7 +14,8 @@ import { API_ROUTES } from "@/lib/apiRoutes";
 import { authFetch } from "@/lib/client/authFetch";
 import { useAuth } from "@/context/AuthContext";
 import { teosDesignTokens } from "@/lib/design/teosDesignTokens";
-import { buildHygieneAtAGlance, buildVerifiedEvidenceGallery } from "@/lib/hygiene/dashboardPresentation";
+import { HYGIENE_LIGHT_SURFACE_NOTICE, buildHygieneAtAGlance, buildVerifiedEvidenceGallery } from "@/lib/hygiene/dashboardPresentation";
+import { NUWKEM_PRODUCTS_URL, NUWKEM_PRODUCT_MEDIA } from "@/lib/hygiene/nuwkemProductMedia";
 import {
   HYGIENE_PHOTO_CATEGORIES,
   type HygieneCollection,
@@ -377,7 +378,7 @@ function VerifiedEvidenceGallery({
 
   return (
     <Panel title="Verified Operational Evidence" eyebrow="Authorised media">
-      <div className="mb-4 rounded-xl border border-cyan-200/20 bg-cyan-400/10 p-4 text-sm leading-6 text-cyan-50">
+      <div className={HYGIENE_LIGHT_SURFACE_NOTICE.className} style={HYGIENE_LIGHT_SURFACE_NOTICE.style}>
         Evidence below is loaded only from the authorised Hygiene data response. Media remains linked to its client,
         site, collection and manifest record; no cross-client media is mixed into this view.
       </div>
@@ -466,6 +467,43 @@ function ComplianceControlsPanel() {
             <p className="mt-2 text-xs leading-5 text-slate-300">{detail}</p>
           </div>
         ))}
+      </div>
+    </Panel>
+  );
+}
+
+function AuthorisedProductSolutions() {
+  return (
+    <Panel title="Authorised Hygiene Product Solutions" eyebrow="Supplier product showcase">
+      <div className={HYGIENE_LIGHT_SURFACE_NOTICE.className} style={HYGIENE_LIGHT_SURFACE_NOTICE.style}>
+        Torque Empire supplies selected Nuwkem and Ticra&trade; professional hygiene solutions as part of its hygiene-service offering.
+        This supplier showcase is not operational field evidence and does not contain private distributor pricing, credentials or portal content.
+      </div>
+      <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        {NUWKEM_PRODUCT_MEDIA.map((item) => (
+          <article key={item.id} className="rounded-xl border border-[color:var(--hygiene-border)] bg-slate-950/35 p-4 shadow-sm">
+            {item.publicAssetPath ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={item.publicAssetPath} alt={item.alt} loading="lazy" className="h-36 w-full rounded-lg border border-white/10 bg-white object-contain p-2" />
+            ) : (
+              <div className="flex h-36 items-center justify-center rounded-lg border border-dashed border-white/20 bg-slate-950/55 p-4 text-center">
+                <div>
+                  <p className="text-xs font-black uppercase tracking-[0.16em] text-amber-100">Distributor Product Media Placeholder</p>
+                  <p className="mt-2 text-sm font-bold text-white">{item.category}</p>
+                </div>
+              </div>
+            )}
+            <h3 className="mt-4 text-sm font-bold text-white">{item.category}</h3>
+            <p className="mt-2 text-xs leading-5 text-slate-300">{item.summary}</p>
+            <p className="mt-3 text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-400">Distributor media | Brochure page {item.sourcePage}</p>
+          </article>
+        ))}
+      </div>
+      <div className="mt-5 flex flex-col gap-3 rounded-xl border border-white/10 bg-slate-950/35 p-4 text-sm leading-6 text-slate-300 md:flex-row md:items-center md:justify-between">
+        <p>
+          Nuwkem and Ticra&trade; product names and imagery remain the property of their respective owner and are displayed for authorised distributor presentation.
+        </p>
+        <a className={smallLinkClass} href={NUWKEM_PRODUCTS_URL} target="_blank" rel="noreferrer">View Nuwkem products</a>
       </div>
     </Panel>
   );
@@ -821,26 +859,57 @@ export default function HygieneDivisionClient({ view }: { view: HygieneView }) {
     <div data-module="hygiene" className="tex-shell space-y-6 text-white" style={hygieneThemeStyle}>
       <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleEvidenceSelection} />
 
-      <section className="overflow-hidden rounded-2xl border border-white/10 bg-slate-950/55 shadow-sm">
-        <div className="grid gap-5 p-5 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
+      <section className="relative min-h-[430px] overflow-hidden rounded-[32px] border border-teal-300/25 bg-slate-950 shadow-[0_28px_100px_rgba(2,8,23,0.55)]">
+        <img
+          src="/media/partners/nuwkem/nuwkem-hygiene-environment-hero.webp"
+          alt="Nuwkem and Ticra distributor product presentation media"
+          className="absolute inset-0 h-full w-full object-cover object-center opacity-55"
+          loading="eager"
+        />
+        <div className="absolute inset-0 bg-[linear-gradient(100deg,rgba(2,6,23,0.98)_0%,rgba(2,8,23,0.86)_52%,rgba(2,8,23,0.42)_100%)]" />
+        <div className="relative flex min-h-[430px] max-w-4xl flex-col justify-center px-5 py-10 sm:px-8 lg:px-12">
           <div className="flex min-w-0 flex-col gap-4 sm:flex-row sm:items-center">
-            <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white p-2">
+            <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-xl border border-white/15 bg-white p-2 shadow-xl">
               <img src="/corporate/logo/torque-empire-primary.png" alt="Torque Empire logo" className="max-h-full max-w-full object-contain" />
             </div>
             <div className="min-w-0">
-              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-teal-100">Hygiene Division</p>
-              <h1 className="mt-2 text-2xl font-semibold text-white md:text-3xl">Torque Empire Hygiene Operations</h1>
-              <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-300">
-                Controlled collection, secured transport, authorised disposal evidence and compliance reporting for Hygiene service delivery.
-              </p>
+              <div className="inline-flex items-center gap-2 rounded-full border border-teal-200/20 bg-slate-950/65 px-3 py-1.5 backdrop-blur-md">
+                <span className="h-2 w-2 rounded-full bg-teal-300 shadow-[0_0_14px_rgba(45,212,191,0.9)]" />
+                <span className="text-[10px] font-bold uppercase tracking-[0.28em] text-teal-100">Torque Empire Hygiene Division</span>
+              </div>
+              <p className="mt-4 text-xs font-bold uppercase tracking-[0.32em] text-teal-200/85">Authorised Nuwkem distributor presentation</p>
             </div>
           </div>
-          <div className="flex flex-wrap gap-2">
+
+          <h1 className="mt-6 max-w-3xl text-4xl font-semibold text-white sm:text-5xl lg:text-6xl">
+            Torque Empire Hygiene Division
+          </h1>
+          <p className="mt-5 max-w-3xl text-base leading-7 text-slate-100 lg:text-lg">
+            Professional hygiene solutions, controlled waste operations and digital compliance evidence from collection through completion.
+          </p>
+
+          <div className="mt-7 flex flex-wrap gap-3">
+            <Link href="/dashboard/hygiene/jobs" className="rounded-full bg-teal-300 px-5 py-3 text-sm font-semibold text-slate-950 no-underline transition hover:bg-teal-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-100">
+              Open Driver Workflow
+            </Link>
+            <Link href="/dashboard/hygiene/evidence" className="rounded-full border border-white/20 bg-white/10 px-5 py-3 text-sm font-semibold text-white no-underline transition hover:bg-white/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-100">
+              View Operational Evidence
+            </Link>
+            <Link href="/dashboard/hygiene/compliance" className="rounded-full border border-white/20 bg-white/10 px-5 py-3 text-sm font-semibold text-white no-underline transition hover:bg-white/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-100">
+              View Compliance Records
+            </Link>
+          </div>
+
+          <p className="mt-5 max-w-3xl text-xs font-semibold uppercase tracking-[0.18em] text-teal-100/85">
+            Supplier imagery shown here is distributor presentation media, not operational evidence.
+          </p>
+
+          <div className="mt-7 flex flex-wrap gap-2">
             <button type="button" onClick={() => void loadData(true)} disabled={refreshing} className={secondaryButtonClass}>
               {refreshing ? "Refreshing..." : "Refresh"}
             </button>
             {role === "admin" ? (
-              <label className="flex min-h-10 items-center gap-2 rounded-xl border border-white/15 bg-white/[0.06] px-3 py-2 text-xs font-bold text-slate-100">
+              <label className="flex min-h-10 items-center gap-2 rounded-xl border border-white/15 bg-slate-950/65 px-3 py-2 text-xs font-bold text-slate-100 backdrop-blur-md">
                 <input type="checkbox" checked={showTestData} onChange={(event) => setShowTestData(event.target.checked)} />
                 Show Test Data
               </label>
@@ -852,15 +921,15 @@ export default function HygieneDivisionClient({ view }: { view: HygieneView }) {
             ) : null}
           </div>
         </div>
-
-        <div className="mt-5 flex gap-2 overflow-x-auto pb-1">
-          {navItems.map((item) => (
-            <Link key={item.href} href={item.href} className={`whitespace-nowrap rounded-lg border px-3 py-2 text-sm font-semibold transition ${item.view === view ? "border-[color:var(--hygiene-primary)] bg-[color:var(--hygiene-primary)] text-white shadow-sm" : "border-[color:var(--hygiene-border)] bg-white/[0.04] text-[color:var(--hygiene-text-muted)] hover:bg-white/[0.10]"}`}>
-              {item.label}
-            </Link>
-          ))}
-        </div>
       </section>
+
+      <nav aria-label="Hygiene Division dashboard" className="flex gap-2 overflow-x-auto rounded-2xl border border-white/10 bg-slate-950/55 p-2">
+        {navItems.map((item) => (
+          <Link key={item.href} href={item.href} className={`whitespace-nowrap rounded-lg border px-3 py-2 text-sm font-semibold transition ${item.view === view ? "border-[color:var(--hygiene-primary)] bg-[color:var(--hygiene-primary)] text-white shadow-sm" : "border-[color:var(--hygiene-border)] bg-white/[0.04] text-[color:var(--hygiene-text-muted)] hover:bg-white/[0.10]"}`}>
+            {item.label}
+          </Link>
+        ))}
+      </nav>
 
       {mutationStatus ? (
         <div className="rounded-xl border border-[color:var(--hygiene-success)] bg-emerald-50 p-4 text-sm font-bold text-emerald-950">{mutationStatus}</div>
@@ -1020,6 +1089,8 @@ export default function HygieneDivisionClient({ view }: { view: HygieneView }) {
           <ServiceWorkflowSequence />
 
           <ComplianceControlsPanel />
+
+          <AuthorisedProductSolutions />
 
           <MediaDemonstrationArea />
 

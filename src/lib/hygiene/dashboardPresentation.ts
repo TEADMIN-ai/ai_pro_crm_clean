@@ -5,6 +5,7 @@ import type {
   HygieneManifest,
   HygieneSite,
 } from "@/types/hygiene";
+import { teosDesignTokens } from "@/lib/design/teosDesignTokens";
 
 export type HygieneAtAGlanceMetric = {
   label: string;
@@ -21,6 +22,52 @@ export type HygieneEvidenceGalleryItem = {
   workflowStage: string;
   isImage: boolean;
 };
+
+export const HYGIENE_LIGHT_SURFACE_NOTICE = {
+  className: "mb-4 rounded-xl border p-4 text-sm leading-6",
+  style: {
+    backgroundColor: teosDesignTokens.color.info[50],
+    borderColor: teosDesignTokens.status.info.border,
+    color: teosDesignTokens.color.neutral[950],
+  },
+  contrast: {
+    background: teosDesignTokens.color.info[50],
+    foreground: teosDesignTokens.color.neutral[950],
+  },
+} as const;
+
+export function getContrastRatio(foreground: string, background: string): number {
+  const foregroundLuminance = relativeLuminance(foreground);
+  const backgroundLuminance = relativeLuminance(background);
+  const lighter = Math.max(foregroundLuminance, backgroundLuminance);
+  const darker = Math.min(foregroundLuminance, backgroundLuminance);
+
+  return Number(((lighter + 0.05) / (darker + 0.05)).toFixed(2));
+}
+
+function relativeLuminance(hexColor: string): number {
+  const [red, green, blue] = hexToRgb(hexColor).map((channel) => {
+    const normalized = channel / 255;
+    return normalized <= 0.03928
+      ? normalized / 12.92
+      : Math.pow((normalized + 0.055) / 1.055, 2.4);
+  });
+
+  return 0.2126 * red + 0.7152 * green + 0.0722 * blue;
+}
+
+function hexToRgb(hexColor: string): [number, number, number] {
+  const normalized = hexColor.replace("#", "");
+  if (!/^[0-9a-fA-F]{6}$/.test(normalized)) {
+    throw new Error(`Unsupported hex colour: ${hexColor}`);
+  }
+
+  return [
+    Number.parseInt(normalized.slice(0, 2), 16),
+    Number.parseInt(normalized.slice(2, 4), 16),
+    Number.parseInt(normalized.slice(4, 6), 16),
+  ];
+}
 
 export function buildHygieneAtAGlance(data: HygieneDashboardData): HygieneAtAGlanceMetric[] {
   const scheduledCollections = data.collections.filter((collection) => collection.status === "Scheduled").length;

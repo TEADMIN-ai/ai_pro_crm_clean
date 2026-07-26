@@ -1,0 +1,67 @@
+{
+  "sourceTitle": "Generic Mini Brochure 2024",
+  "materialType": "Nuwkem/Ticra distributor material",
+  "presentationPurpose": "Dashboard supplier product showcase for Torque Empire Hygiene Operations Environmental Health presentation",
+  "assets": [
+    {
+      "id": "hygiene-environment-hero",
+      "file": "nuwkem-hygiene-environment-hero.webp",
+      "sourcePage": 2,
+      "sourceObject": "img_p1_1",
+      "sourceObjectDimensions": "2732x1912",
+      "outputDimensions": "1600x900",
+      "purpose": "Wide 16:9 Hygiene Division hero presentation image"
+    },
+    {
+      "id": "sanitary-waste-bins",
+      "file": "sanitary-waste-solution.webp",
+      "sourcePage": 4,
+      "sourceObject": "img_p3_13",
+      "sourceObjectDimensions": "222x222",
+      "outputDimensions": "480x360",
+      "purpose": "Sanitary bin or waste solution category presentation"
+    },
+    {
+      "id": "soap-sanitiser-dispensers",
+      "file": "soap-sanitiser-dispenser.webp",
+      "sourcePage": 4,
+      "sourceObject": "img_p3_5",
+      "sourceObjectDimensions": "222x222",
+      "outputDimensions": "480x360",
+      "purpose": "Soap and sanitiser dispenser category presentation"
+    },
+    {
+      "id": "paper-dryer-solution",
+      "file": "paper-dryer-solution.webp",
+      "sourcePage": 4,
+      "sourceObject": "img_p3_11",
+      "sourceObjectDimensions": "222x222",
+      "outputDimensions": "480x360",
+      "purpose": "Paper dispenser or hand dryer category presentation"
+    },
+    {
+      "id": "consumables-refills",
+      "file": "consumables-refills.webp",
+      "sourcePage": 8,
+      "sourceObject": "img_p7_16, img_p7_12, img_p7_8, img_p7_19",
+      "sourceObjectDimensions": "133x109, 91x155, 87x152, 135x135",
+      "outputDimensions": "480x360",
+      "purpose": "Small readable consumables and refills product selection"
+    },
+    {
+      "id": "premium-dispenser-range",
+      "file": "premium-dispenser-range.webp",
+      "sourcePage": 6,
+      "sourceObject": "img_p5_5, img_p5_6, img_p5_9, img_p5_10",
+      "sourceObjectDimensions": "225x225, 222x222, 222x222, 222x222",
+      "outputDimensions": "640x360",
+      "purpose": "Grouped premium metallic dispenser product presentation"
+    }
+  ],
+  "usageNotes": [
+    "These media assets are supplier/distributor presentation media only.",
+    "They must not be labelled or treated as operational evidence, field evidence, disposal evidence or client evidence.",
+    "No distributor pricing, credentials or private portal content is included.",
+    "Source PDF, embedded extractions, contact sheets and temporary brochure renders are excluded from version control."
+  ]
+}

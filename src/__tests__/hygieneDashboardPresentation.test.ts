@@ -1,5 +1,7 @@
-import { buildHygieneAtAGlance, buildVerifiedEvidenceGallery } from "@/lib/hygiene/dashboardPresentation";
+import { HYGIENE_LIGHT_SURFACE_NOTICE, buildHygieneAtAGlance, buildVerifiedEvidenceGallery, getContrastRatio } from "@/lib/hygiene/dashboardPresentation";
 import type { HygieneDashboardData } from "@/types/hygiene";
+import { NUWKEM_PRODUCTS_URL, NUWKEM_PRODUCT_MEDIA } from "@/lib/hygiene/nuwkemProductMedia";
+import { existsSync, readFileSync } from "fs";
 
 function dashboardData(overrides: Partial<HygieneDashboardData> = {}): HygieneDashboardData {
   return {
@@ -29,6 +31,73 @@ function dashboardData(overrides: Partial<HygieneDashboardData> = {}): HygieneDa
 }
 
 describe("hygiene dashboard presentation model", () => {
+  it("uses WCAG AA contrast for reusable light-surface notices", () => {
+    const ratio = getContrastRatio(
+      HYGIENE_LIGHT_SURFACE_NOTICE.contrast.foreground,
+      HYGIENE_LIGHT_SURFACE_NOTICE.contrast.background
+    );
+
+    expect(ratio).toBeGreaterThanOrEqual(4.5);
+    expect(ratio).toBe(17.58);
+    expect(HYGIENE_LIGHT_SURFACE_NOTICE.style.color).toBe("#020617");
+    expect(HYGIENE_LIGHT_SURFACE_NOTICE.style.backgroundColor).toBe("#E0F2FE");
+    expect(HYGIENE_LIGHT_SURFACE_NOTICE.className).toContain("mb-4");
+  });
+
+  it("reuses the accessible light-surface notice for the verified evidence information panel", () => {
+    const source = readFileSync("src/components/hygiene/HygieneDivisionClient.tsx", "utf8");
+    const evidencePanelSource = source.slice(
+      source.indexOf("function VerifiedEvidenceGallery"),
+      source.indexOf("function ServiceWorkflowSequence")
+    );
+
+    expect(evidencePanelSource).toContain("HYGIENE_LIGHT_SURFACE_NOTICE.className");
+    expect(evidencePanelSource).toContain("HYGIENE_LIGHT_SURFACE_NOTICE.style");
+    expect(evidencePanelSource).not.toContain("text-cyan-50");
+    expect(evidencePanelSource).not.toContain("bg-cyan-400/10");
+  });
+
+  it("renders a full Hygiene Division hero with live route calls to action and supplier-media labelling", () => {
+    const source = readFileSync("src/components/hygiene/HygieneDivisionClient.tsx", "utf8");
+    const heroSource = source.slice(
+      source.indexOf('src="/media/partners/nuwkem/nuwkem-hygiene-environment-hero.webp"'),
+      source.indexOf('aria-label="Hygiene Division dashboard"')
+    );
+
+    expect(heroSource).toContain("Torque Empire Hygiene Division");
+    expect(heroSource).toContain("Professional hygiene solutions, controlled waste operations and digital compliance evidence from collection through completion.");
+    expect(heroSource).toContain('src="/corporate/logo/torque-empire-primary.png"');
+    expect(heroSource).toContain('src="/media/partners/nuwkem/nuwkem-hygiene-environment-hero.webp"');
+    expect(heroSource).toContain("Authorised Nuwkem distributor presentation");
+    expect(heroSource).toContain("Supplier imagery shown here is distributor presentation media, not operational evidence.");
+    expect(heroSource).toContain('href="/dashboard/hygiene/jobs"');
+    expect(heroSource).toContain("Open Driver Workflow");
+    expect(heroSource).toContain('href="/dashboard/hygiene/evidence"');
+    expect(heroSource).toContain("View Operational Evidence");
+    expect(heroSource).toContain('href="/dashboard/hygiene/compliance"');
+    expect(heroSource).toContain("View Compliance Records");
+    expect(heroSource).toContain("rgba(2,6,23,0.98)");
+    expect(heroSource).not.toContain("text-cyan-50");
+    expect(heroSource).not.toContain("bg-cyan-400/10");
+  });
+
+  it("keeps Nuwkem distributor media local, authorised and provenance-labelled", () => {
+    expect(NUWKEM_PRODUCTS_URL).toBe("https://www.nuwkem.co.za/products/");
+    expect(NUWKEM_PRODUCT_MEDIA).toHaveLength(5);
+    expect(NUWKEM_PRODUCT_MEDIA.map((item) => item.category)).toEqual([
+      "Sanitary waste solution",
+      "Soap and sanitiser dispenser",
+      "Paper dispenser / hand dryer",
+      "Consumables and refills",
+      "Premium dispenser range",
+    ]);
+    expect(NUWKEM_PRODUCT_MEDIA.every((item) => item.publicAssetPath.startsWith("/media/partners/nuwkem/"))).toBe(true);
+    expect(NUWKEM_PRODUCT_MEDIA.every((item) => item.publicAssetPath.endsWith(".webp"))).toBe(true);
+    expect(NUWKEM_PRODUCT_MEDIA.every((item) => item.sourcePage > 0)).toBe(true);
+    expect(NUWKEM_PRODUCT_MEDIA.some((item) => item.publicAssetPath.includes("nuwkem.co.za"))).toBe(false);
+    expect(NUWKEM_PRODUCT_MEDIA.every((item) => existsSync(`public${item.publicAssetPath}`))).toBe(true);
+  });
+
   it("keeps unavailable operational metrics explicit instead of inventing live figures", () => {
     const metrics = buildHygieneAtAGlance(dashboardData());
 
