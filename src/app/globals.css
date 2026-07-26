@@ -1202,3 +1202,61 @@ body {
 .tex-action-button--warning:hover:not(:disabled) {
   filter: brightness(1.04);
 }
+
+.tex-dark-surface-hero {
+  --tex-dark-hero-heading: #f8fafc;
+  --tex-dark-hero-copy: #e2e8f0;
+  --tex-dark-hero-eyebrow: #e0f2fe;
+  --tex-dark-hero-metric-bg: rgba(15, 23, 42, 0.72);
+  --tex-dark-hero-metric-border: rgba(186, 230, 253, 0.22);
+  --tex-dark-hero-metric-label: #bae6fd;
+  --tex-dark-hero-metric-value: #ffffff;
+  color: var(--tex-dark-hero-copy);
+}
+
+.tex-shell .tex-dark-surface-hero .tex-dark-surface-hero__eyebrow,
+.dashboard-app-shell .tex-dark-surface-hero .tex-dark-surface-hero__eyebrow,
+.enterprise-page .tex-dark-surface-hero .tex-dark-surface-hero__eyebrow {
+  color: var(--tex-dark-hero-eyebrow);
+}
+
+.tex-shell .tex-dark-surface-hero h1.tex-dark-surface-hero__heading,
+.dashboard-app-shell .tex-dark-surface-hero h1.tex-dark-surface-hero__heading,
+.enterprise-page .tex-dark-surface-hero h1.tex-dark-surface-hero__heading {
+  color: var(--tex-dark-hero-heading);
+}
+
+.tex-shell .tex-dark-surface-hero p.tex-dark-surface-hero__copy,
+.dashboard-app-shell .tex-dark-surface-hero p.tex-dark-surface-hero__copy,
+.enterprise-page .tex-dark-surface-hero p.tex-dark-surface-hero__copy {
+  color: var(--tex-dark-hero-copy);
+}
+
+.tex-shell .tex-dark-surface-hero .tex-dark-surface-hero__metric.tex-metric-card,
+.dashboard-app-shell .tex-dark-surface-hero .tex-dark-surface-hero__metric.tex-metric-card,
+.enterprise-page .tex-dark-surface-hero .tex-dark-surface-hero__metric.tex-metric-card {
+  border-color: var(--tex-dark-hero-metric-border);
+  background: linear-gradient(135deg, rgba(15, 23, 42, 0.82), rgba(8, 47, 73, 0.46)), var(--tex-dark-hero-metric-bg);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 18px 48px rgba(2, 8, 23, 0.22);
+  color: var(--tex-dark-hero-metric-value);
+}
+
+.tex-shell .tex-dark-surface-hero .tex-dark-surface-hero__metric .tex-metric-label,
+.dashboard-app-shell .tex-dark-surface-hero .tex-dark-surface-hero__metric .tex-metric-label,
+.enterprise-page .tex-dark-surface-hero .tex-dark-surface-hero__metric .tex-metric-label {
+  color: var(--tex-dark-hero-metric-label);
+}
+
+.tex-shell .tex-dark-surface-hero .tex-dark-surface-hero__metric .tex-metric-value,
+.dashboard-app-shell .tex-dark-surface-hero .tex-dark-surface-hero__metric .tex-metric-value,
+.enterprise-page .tex-dark-surface-hero .tex-dark-surface-hero__metric .tex-metric-value {
+  color: var(--tex-dark-hero-metric-value);
+}
+
+.tex-shell .tex-dark-surface-hero .tex-dark-surface-hero__action-secondary,
+.dashboard-app-shell .tex-dark-surface-hero .tex-dark-surface-hero__action-secondary,
+.enterprise-page .tex-dark-surface-hero .tex-dark-surface-hero__action-secondary {
+  border-color: rgba(226, 232, 240, 0.2);
+  background-color: rgba(15, 23, 42, 0.58);
+  color: var(--tex-dark-hero-heading);
+}

@@ -1,0 +1,31 @@
+{
+  "title": "Biohazard Awareness",
+  "classification": "Demonstration Media - Not Operational Evidence",
+  "purpose": "A visual awareness clip supporting staff briefing and presentation discussions around controlled hygiene and biohazard environments.",
+  "source": {
+    "type": "Approved local RecForth video",
+    "boundedSourceFolder": "C:\\Users\\User\\Videos\\RecForth",
+    "sourceFile": "20260727002716.mp4",
+    "originalUnmodified": true
+  },
+  "processing": {
+    "toolchain": "ffmpeg-static 6.1.1 essentials build via tmp/video-tools",
+    "outputVideo": "/media/hygiene/demonstration/biohazard-awareness-demo.mp4",
+    "outputPoster": "/media/hygiene/demonstration/biohazard-awareness-poster.webp",
+    "videoCodec": "H.264",
+    "pixelFormat": "yuv420p",
+    "fastStartMetadata": true,
+    "aspectRatioPreserved": true,
+    "outputDimensions": "1280x720",
+    "audioDecision": "No source audio stream detected; output contains no audio."
+  },
+  "restrictions": [
+    "Not client evidence",
+    "Not site evidence",
+    "Not collection evidence",
+    "Not transport evidence",
+    "Not disposal evidence",
+    "Not field evidence",
+    "Does not alter compliance status or operational records"
+  ]
+}

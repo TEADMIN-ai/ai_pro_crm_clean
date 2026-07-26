@@ -72,10 +72,10 @@ describe("TEOS operations hub hero", () => {
     expect(markup).not.toContain("href=\"/dashboard\"");
   });
 
-  test("keeps MetricCard label and value text readable on translucent cards", () => {
+  test("uses scoped dark-surface treatment for heading, copy and metrics", () => {
     const markup = renderHero();
-    expect(markup).toContain("[&amp;_.tex-metric-label]:text-sky-100/80");
-    expect(markup).toContain("[&amp;_.tex-metric-value]:text-white");
+    expect(markup).toContain("tex-dark-surface-hero");
+    expect(markup).toContain("tex-dark-surface-hero__metric");
     expect(markup).toContain("Avg Readiness");
     expect(markup).toContain("74%");
     expect(markup).toContain("Submission Rate");

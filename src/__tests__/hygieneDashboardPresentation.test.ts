@@ -1,4 +1,4 @@
-import { HYGIENE_LIGHT_SURFACE_NOTICE, buildHygieneAtAGlance, buildVerifiedEvidenceGallery, getContrastRatio } from "@/lib/hygiene/dashboardPresentation";
+import { HYGIENE_DEMONSTRATION_MEDIA, HYGIENE_LIGHT_SURFACE_NOTICE, buildHygieneAtAGlance, buildVerifiedEvidenceGallery, getContrastRatio } from "@/lib/hygiene/dashboardPresentation";
 import type { HygieneDashboardData } from "@/types/hygiene";
 import { NUWKEM_PRODUCTS_URL, NUWKEM_PRODUCT_MEDIA } from "@/lib/hygiene/nuwkemProductMedia";
 import { existsSync, readFileSync } from "fs";
@@ -76,9 +76,18 @@ describe("hygiene dashboard presentation model", () => {
     expect(heroSource).toContain("View Operational Evidence");
     expect(heroSource).toContain('href="/dashboard/hygiene/compliance"');
     expect(heroSource).toContain("View Compliance Records");
+    expect(heroSource).toContain("tex-dark-surface-hero");
+    expect(heroSource).toContain("tex-dark-surface-hero__eyebrow");
+    expect(heroSource).toContain("tex-dark-surface-hero__heading");
+    expect(heroSource).toContain("tex-dark-surface-hero__copy");
+    expect(heroSource).toContain("tex-dark-surface-hero__action-secondary");
     expect(heroSource).toContain("rgba(2,6,23,0.98)");
     expect(heroSource).not.toContain("text-cyan-50");
     expect(heroSource).not.toContain("bg-cyan-400/10");
+    expect(heroSource).not.toContain("text-[color:var(--tex-text-strong)]");
+    expect(heroSource).not.toContain("text-[color:var(--tex-text-muted)]");
+    expect(heroSource).not.toContain("text-white sm:text-5xl");
+    expect(heroSource).not.toContain("text-slate-100 lg:text-lg");
   });
 
   it("keeps Nuwkem distributor media local, authorised and provenance-labelled", () => {
@@ -161,4 +170,44 @@ describe("hygiene dashboard presentation model", () => {
     expect(items[0].photo.photoId).toBe("VISIBLE");
     expect(items[0].siteName).toBe("Visible Site");
   });
+});
+
+test("approved Hygiene demonstration media stays presentation-only", () => {
+  expect(HYGIENE_DEMONSTRATION_MEDIA.label).toBe("Demonstration Media - Not Operational Evidence");
+  expect(HYGIENE_DEMONSTRATION_MEDIA.title).toBe("Biohazard Awareness");
+  expect(HYGIENE_DEMONSTRATION_MEDIA.videoSrc).toBe("/media/hygiene/demonstration/biohazard-awareness-demo.mp4");
+  expect(HYGIENE_DEMONSTRATION_MEDIA.posterSrc).toBe("/media/hygiene/demonstration/biohazard-awareness-poster.webp");
+  expect(HYGIENE_DEMONSTRATION_MEDIA.description).toBe("A visual awareness clip supporting staff briefing and presentation discussions around controlled hygiene and biohazard environments.");
+  expect(existsSync("public/media/hygiene/demonstration/biohazard-awareness-demo.mp4")).toBe(true);
+  expect(existsSync("public/media/hygiene/demonstration/biohazard-awareness-poster.webp")).toBe(true);
+
+  const provenance = JSON.parse(readFileSync("public/media/hygiene/demonstration/biohazard-awareness-provenance.json", "utf8"));
+  expect(provenance.classification).toBe("Demonstration Media - Not Operational Evidence");
+  expect(provenance.source.sourceFile).toBe("20260727002716.mp4");
+  expect(provenance.restrictions).toEqual(expect.arrayContaining([
+    "Not client evidence",
+    "Not site evidence",
+    "Not collection evidence",
+    "Not transport evidence",
+    "Not disposal evidence",
+    "Not field evidence",
+  ]));
+});
+
+test("Hygiene demonstration panel renders an accessible muted local video", () => {
+  const source = readFileSync("src/components/hygiene/HygieneDivisionClient.tsx", "utf8");
+  const mediaPanelSource = source.slice(
+    source.indexOf("function MediaDemonstrationArea"),
+    source.indexOf("export default function HygieneDivisionClient")
+  );
+
+  expect(mediaPanelSource).toContain("<video");
+  expect(mediaPanelSource).toContain("controls");
+  expect(mediaPanelSource).toContain("muted");
+  expect(mediaPanelSource).toContain("playsInline");
+  expect(mediaPanelSource).toContain('preload="metadata"');
+  expect(mediaPanelSource).toContain("poster={HYGIENE_DEMONSTRATION_MEDIA.posterSrc}");
+  expect(mediaPanelSource).toContain("aria-label={HYGIENE_DEMONSTRATION_MEDIA.title}");
+  expect(mediaPanelSource).toContain("HYGIENE_DEMONSTRATION_MEDIA.videoSrc");
+  expect(mediaPanelSource).not.toContain("autoPlay");
 });

@@ -14,7 +14,7 @@ import { API_ROUTES } from "@/lib/apiRoutes";
 import { authFetch } from "@/lib/client/authFetch";
 import { useAuth } from "@/context/AuthContext";
 import { teosDesignTokens } from "@/lib/design/teosDesignTokens";
-import { HYGIENE_LIGHT_SURFACE_NOTICE, buildHygieneAtAGlance, buildVerifiedEvidenceGallery } from "@/lib/hygiene/dashboardPresentation";
+import { HYGIENE_DEMONSTRATION_MEDIA, HYGIENE_LIGHT_SURFACE_NOTICE, buildHygieneAtAGlance, buildVerifiedEvidenceGallery } from "@/lib/hygiene/dashboardPresentation";
 import { NUWKEM_PRODUCTS_URL, NUWKEM_PRODUCT_MEDIA } from "@/lib/hygiene/nuwkemProductMedia";
 import {
   HYGIENE_PHOTO_CATEGORIES,
@@ -513,19 +513,32 @@ function MediaDemonstrationArea() {
   return (
     <Panel title="Media Demonstration" eyebrow="Presentation support">
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1.2fr)_minmax(260px,0.8fr)]">
-        <div className="flex min-h-64 items-center justify-center rounded-xl border border-dashed border-white/20 bg-slate-950/45 p-6 text-center">
-          <div>
-            <p className="text-xs font-black uppercase tracking-[0.18em] text-amber-100">Demonstration Media - Not Operational Evidence</p>
-            <h3 className="mt-3 text-xl font-bold text-white">Hygiene workflow video placeholder</h3>
-            <p className="mt-2 max-w-xl text-sm leading-6 text-slate-300">
-              No approved local Hygiene explanatory video is present in the repository. This area is ready for an approved hosted or local asset and intentionally renders no broken media.
-            </p>
-          </div>
-        </div>
+        <figure className="overflow-hidden rounded-xl border border-white/10 bg-slate-950/55 shadow-2xl shadow-slate-950/30">
+          <video
+            className="aspect-video w-full bg-slate-950 object-cover"
+            controls
+            muted
+            playsInline
+            preload="metadata"
+            poster={HYGIENE_DEMONSTRATION_MEDIA.posterSrc}
+            aria-label={HYGIENE_DEMONSTRATION_MEDIA.title}
+          >
+            <source src={HYGIENE_DEMONSTRATION_MEDIA.videoSrc} type="video/mp4" />
+            Your browser does not support the approved Hygiene demonstration video.
+          </video>
+          <figcaption className="border-t border-white/10 bg-slate-950/80 p-4">
+            <p className="text-xs font-black uppercase tracking-[0.18em] text-amber-100">{HYGIENE_DEMONSTRATION_MEDIA.label}</p>
+            <h3 className="mt-2 text-xl font-bold text-white">{HYGIENE_DEMONSTRATION_MEDIA.title}</h3>
+            <p className="mt-2 text-sm leading-6 text-slate-300">{HYGIENE_DEMONSTRATION_MEDIA.description}</p>
+          </figcaption>
+        </figure>
         <div className="rounded-xl border border-white/10 bg-white/[0.04] p-4">
           <h3 className="text-sm font-bold text-white">Media rule</h3>
           <p className="mt-2 text-sm leading-6 text-slate-300">
             Presentation media must be approved local or hosted material. Operational evidence remains separate and must come from the authorised Hygiene evidence API.
+          </p>
+          <p className="mt-3 text-sm leading-6 text-slate-300">
+            This video is not classified as client, site, collection, transport, disposal or field evidence and does not affect compliance records.
           </p>
         </div>
       </div>
@@ -859,7 +872,7 @@ export default function HygieneDivisionClient({ view }: { view: HygieneView }) {
     <div data-module="hygiene" className="tex-shell space-y-6 text-white" style={hygieneThemeStyle}>
       <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleEvidenceSelection} />
 
-      <section className="relative min-h-[430px] overflow-hidden rounded-[32px] border border-teal-300/25 bg-slate-950 shadow-[0_28px_100px_rgba(2,8,23,0.55)]">
+      <section className="tex-dark-surface-hero relative min-h-[430px] overflow-hidden rounded-[32px] border border-teal-300/25 bg-slate-950 shadow-[0_28px_100px_rgba(2,8,23,0.55)]">
         <img
           src="/media/partners/nuwkem/nuwkem-hygiene-environment-hero.webp"
           alt="Nuwkem and Ticra distributor product presentation media"
@@ -875,16 +888,16 @@ export default function HygieneDivisionClient({ view }: { view: HygieneView }) {
             <div className="min-w-0">
               <div className="inline-flex items-center gap-2 rounded-full border border-teal-200/20 bg-slate-950/65 px-3 py-1.5 backdrop-blur-md">
                 <span className="h-2 w-2 rounded-full bg-teal-300 shadow-[0_0_14px_rgba(45,212,191,0.9)]" />
-                <span className="text-[10px] font-bold uppercase tracking-[0.28em] text-teal-100">Torque Empire Hygiene Division</span>
+                <span className="tex-dark-surface-hero__eyebrow text-[10px] font-bold uppercase tracking-[0.28em]">Torque Empire Hygiene Division</span>
               </div>
-              <p className="mt-4 text-xs font-bold uppercase tracking-[0.32em] text-teal-200/85">Authorised Nuwkem distributor presentation</p>
+              <p className="tex-dark-surface-hero__eyebrow mt-4 text-xs font-bold uppercase tracking-[0.32em]">Authorised Nuwkem distributor presentation</p>
             </div>
           </div>
 
-          <h1 className="mt-6 max-w-3xl text-4xl font-semibold text-white sm:text-5xl lg:text-6xl">
+          <h1 className="tex-dark-surface-hero__heading mt-6 max-w-3xl text-4xl font-semibold sm:text-5xl lg:text-6xl">
             Torque Empire Hygiene Division
           </h1>
-          <p className="mt-5 max-w-3xl text-base leading-7 text-slate-100 lg:text-lg">
+          <p className="tex-dark-surface-hero__copy mt-5 max-w-3xl text-base leading-7 lg:text-lg">
             Professional hygiene solutions, controlled waste operations and digital compliance evidence from collection through completion.
           </p>
 
@@ -892,15 +905,15 @@ export default function HygieneDivisionClient({ view }: { view: HygieneView }) {
             <Link href="/dashboard/hygiene/jobs" className="rounded-full bg-teal-300 px-5 py-3 text-sm font-semibold text-slate-950 no-underline transition hover:bg-teal-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-100">
               Open Driver Workflow
             </Link>
-            <Link href="/dashboard/hygiene/evidence" className="rounded-full border border-white/20 bg-white/10 px-5 py-3 text-sm font-semibold text-white no-underline transition hover:bg-white/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-100">
+            <Link href="/dashboard/hygiene/evidence" className="tex-dark-surface-hero__action-secondary rounded-full px-5 py-3 text-sm font-semibold no-underline transition hover:bg-white/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-100">
               View Operational Evidence
             </Link>
-            <Link href="/dashboard/hygiene/compliance" className="rounded-full border border-white/20 bg-white/10 px-5 py-3 text-sm font-semibold text-white no-underline transition hover:bg-white/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-100">
+            <Link href="/dashboard/hygiene/compliance" className="tex-dark-surface-hero__action-secondary rounded-full px-5 py-3 text-sm font-semibold no-underline transition hover:bg-white/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-100">
               View Compliance Records
             </Link>
           </div>
 
-          <p className="mt-5 max-w-3xl text-xs font-semibold uppercase tracking-[0.18em] text-teal-100/85">
+          <p className="tex-dark-surface-hero__eyebrow mt-5 max-w-3xl text-xs font-semibold uppercase tracking-[0.18em]">
             Supplier imagery shown here is distributor presentation media, not operational evidence.
           </p>
 

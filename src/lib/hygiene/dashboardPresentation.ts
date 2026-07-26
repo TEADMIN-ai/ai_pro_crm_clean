@@ -23,6 +23,16 @@ export type HygieneEvidenceGalleryItem = {
   isImage: boolean;
 };
 
+export const HYGIENE_DEMONSTRATION_MEDIA = {
+  label: "Demonstration Media - Not Operational Evidence",
+  title: "Biohazard Awareness",
+  description:
+    "A visual awareness clip supporting staff briefing and presentation discussions around controlled hygiene and biohazard environments.",
+  videoSrc: "/media/hygiene/demonstration/biohazard-awareness-demo.mp4",
+  posterSrc: "/media/hygiene/demonstration/biohazard-awareness-poster.webp",
+  provenanceSrc: "/media/hygiene/demonstration/biohazard-awareness-provenance.json",
+} as const;
+
 export const HYGIENE_LIGHT_SURFACE_NOTICE = {
   className: "mb-4 rounded-xl border p-4 text-sm leading-6",
   style: {
