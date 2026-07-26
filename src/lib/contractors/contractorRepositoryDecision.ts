@@ -39,6 +39,16 @@ export type ContractorRepositoryDecision = {
   };
 };
 
+export function getContractorRepositoryStatusLabel(
+  decision: Pick<ContractorRepositoryDecision, "readinessDecisionStatus" | "identityStatus" | "stale">,
+): string {
+  if (decision.readinessDecisionStatus === "READY") return "Approved / Compliant";
+  if (decision.identityStatus === "CONFLICT") return "Blocked / Identity conflict";
+  if (decision.identityStatus === "UNRESOLVED") return "Blocked / Identity unresolved";
+  if (decision.stale) return "Blocked / Stale decision";
+  return "Blocked / Compliance review required";
+}
+
 function str(value: unknown): string | null {
   return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
 }

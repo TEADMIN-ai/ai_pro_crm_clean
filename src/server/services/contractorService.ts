@@ -5,7 +5,6 @@ import {
   type ContractorReferenceResolution,
 } from "@/lib/contractors/contractorReferenceResolver";
 import {
-  calculateContractorCompliance,
   normalizeContractorUploadDocumentType,
   normalizeSupportedDocumentType,
   SUPPORTED_DOCUMENT_TYPES,
@@ -13,7 +12,7 @@ import {
 import { recordAuditLog } from "@/server/services/auditLogService";
 import { classifyContractorRecord, emptyContractorVisibilityDiagnostics, isContractorVisibleToWorkspace, updateContractorVisibilityDiagnostics, type ContractorVisibilityContext } from "@/lib/contractors/contractorVisibility";
 import { buildUnresolvedContractorIdentityFields, resolveContractorBusinessIdentity } from "@/lib/contractors/contractorBusinessIdentity";
-import { buildContractorRepositoryDecision } from "@/lib/contractors/contractorRepositoryDecision";
+import { buildContractorOnboardingDecisionView } from "@/lib/contractors/contractorOnboardingDecisionView";
 import { AuthorizationError, type AuthorizedUser } from "@/lib/server/authz";
 import type { ContractorTier } from "@/types/contractor";
 import type { ContractorDocument } from "@/types/document";
@@ -138,13 +137,6 @@ function resolveDocumentSignal(documents: ContractorDocument[], type: "taxCleara
 }
 
 
-function repositoryStatusLabel(decision: ReturnType<typeof buildContractorRepositoryDecision>): string {
-  if (decision.readinessDecisionStatus === "READY") return "Approved / Compliant";
-  if (decision.identityStatus === "CONFLICT") return "Blocked / Identity conflict";
-  if (decision.identityStatus === "UNRESOLVED") return "Blocked / Identity unresolved";
-  if (decision.stale) return "Blocked / Stale decision";
-  return "Blocked / Compliance review required";
-}
 
 function repositoryDocumentSignalLabel(status: string): string {
   return status === "VALID" ? "Verified" : status === "INVALID" ? "Invalid" : "Unresolved";
@@ -183,8 +175,8 @@ function safeRepositoryContractorFields(contractor: Record<string, unknown> & { 
 async function enrichContractorListItem(contractor: Record<string, unknown> & { id: string }) {
   const contractorId = asString(contractor.contractorId) ?? contractor.id;
   const documents = await listContractorDocuments(contractorId);
-  const summary = calculateContractorCompliance(documents);
-  const decision = buildContractorRepositoryDecision({ contractor, documents });
+  const decision = buildContractorOnboardingDecisionView({ contractor, documents });
+  const summary = decision.documentSummary;
   const reviewRequiredCount = documents.filter(isReviewRequiredDocument).length;
   const requiredDocsApprovedCount = SUPPORTED_DOCUMENT_TYPES.length - summary.docsMissing;
 
@@ -210,6 +202,9 @@ async function enrichContractorListItem(contractor: Record<string, unknown> & { 
     staleReasons: decision.staleReasons,
     csdValidationStatus: decision.csdValidationStatus,
     registrationValidationStatus: decision.registrationValidationStatus,
+    documentSummary: decision.documentSummary,
+    assignmentSummary: decision.assignmentSummary,
+    reviewSummary: decision.reviewSummary,
     historicalDecision: decision.historicalDecision,
     docsMissing: summary.docsMissing,
     missingDocumentTypes: summary.missingDocumentTypes,
@@ -218,7 +213,7 @@ async function enrichContractorListItem(contractor: Record<string, unknown> & { 
     requiredDocsApprovedCount,
     requiredDocsTotalCount: SUPPORTED_DOCUMENT_TYPES.length,
     reviewRequiredCount,
-    overallStatus: repositoryStatusLabel(decision),
+    overallStatus: decision.overallStatus,
     complianceApproved: decision.complianceDecisionStatus === "VALID",
     taxPinStatus: resolveDocumentSignal(documents, "taxClearance"),
     csdStatus: repositoryDocumentSignalLabel(decision.csdValidationStatus),

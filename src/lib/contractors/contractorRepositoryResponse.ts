@@ -10,6 +10,10 @@ export type PublicContractorRepositoryItem = {
   registrationNumber: unknown;
   csdNumber: unknown;
   status: unknown;
+  overallStatus: unknown;
+  documentSummary: unknown;
+  assignmentSummary: unknown;
+  reviewSummary: unknown;
   identityStatus: unknown;
   identityResolved: unknown;
   identityMatchStatus: unknown;
@@ -54,6 +58,10 @@ export function serializePublicContractor(record: Record<string, unknown>): Publ
     registrationNumber: str(record.registrationNumber),
     csdNumber: str(record.csdNumber),
     status: str(record.status),
+    overallStatus: str(record.overallStatus),
+    documentSummary: record.documentSummary ?? null,
+    assignmentSummary: record.assignmentSummary ?? null,
+    reviewSummary: record.reviewSummary ?? null,
     identityStatus: str(record.identityStatus),
     identityResolved: record.identityResolved === true,
     identityMatchStatus: str(record.identityMatchStatus),

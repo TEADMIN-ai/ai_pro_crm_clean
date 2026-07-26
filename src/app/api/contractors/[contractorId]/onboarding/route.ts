@@ -12,6 +12,7 @@ import {
   getLatestValidContractorSignature,
 } from "@/server/services/contractorAcknowledgementService";
 import { listContractorDocuments, resolveContractorForAccess } from "@/server/services/contractorService";
+import { buildContractorOnboardingDecisionView } from "@/lib/contractors/contractorOnboardingDecisionView";
 import {
   buildContractorOperationalTimeline,
   buildLastAction,
@@ -63,6 +64,7 @@ function normalizeVisibleNote(id: string, data: Record<string, unknown>, contrac
     createdAt: toIsoDate(data.createdAt),
   };
 }
+
 
 async function listContractorNotes(contractorId: string, contractorRole: boolean) {
   const snapshot = await getFirebaseAdmin()
@@ -119,6 +121,7 @@ export async function GET(
       getLatestContractorAcknowledgement(canonicalContractorId),
       getLatestValidContractorSignature(canonicalContractorId),
     ]);
+    const canonicalDecision = buildContractorOnboardingDecisionView({ contractor, documents });
     const lastAction = contractorRole ? null : buildLastAction(timeline);
 
     const linkedDeals = deals
@@ -149,6 +152,7 @@ export async function GET(
           contractorReferenceType: resolved.referenceType,
         },
         documents,
+        canonicalDecision,
         notes,
         commandNotes,
         timeline,

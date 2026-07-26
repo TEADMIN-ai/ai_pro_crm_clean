@@ -70,6 +70,10 @@ const publicContractorKeys = [
   "registrationNumber",
   "csdNumber",
   "status",
+  "overallStatus",
+  "documentSummary",
+  "assignmentSummary",
+  "reviewSummary",
   "identityStatus",
   "identityResolved",
   "identityMatchStatus",
@@ -168,10 +172,14 @@ describe("/api/contractors canonical repository route projection", () => {
       identityMatchStatus: "CONFLICT",
       readinessScore: null,
       assignmentAllowed: false,
+      overallStatus: "Blocked / Identity conflict",
       csdValidationStatus: "INVALID",
       externalVerificationStatus: "PENDING",
     });
     expect(contractor.readinessDecisionStatus).not.toBe("READY");
+    expect(contractor.assignmentSummary).toMatchObject({ status: "BLOCKED", assignmentAllowed: false });
+    expect(contractor.reviewSummary.reviewRequiredCount).toBe(0);
+    expect(contractor.documentSummary.docsMissing).toBe(0);
     expect(contractor.historicalDecision).toMatchObject({
       readinessScore: 100,
       readinessStatus: "READY",
