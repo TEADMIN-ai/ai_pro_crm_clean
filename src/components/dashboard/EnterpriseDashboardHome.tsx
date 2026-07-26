@@ -1,14 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import HeroBanner from "@/components/hero/HeroBanner";
-import { getHeroImage } from "@/config/heroRules";
+import TeosOperationsHubHero from "@/components/dashboard/TeosOperationsHubHero";
 import { useAuth } from "@/context/AuthContext";
 import { isVehicleFinanceRole } from "@/lib/auth/roleUtils";
 import RequireRole from "@/components/auth/RequireRole";
 import ContractorOnboardingView from "@/components/contractors/ContractorOnboardingView";
 import { useEnterpriseKpis } from "@/hooks/useEnterpriseKpis";
-import { ActionButton, DashboardCard, DashboardShell, InsightPanel, MetricCard, ModuleHeader, StatusBadge } from "@/components/tex/ExecutivePrimitives";
+import { DashboardCard, DashboardShell, InsightPanel, StatusBadge } from "@/components/tex/ExecutivePrimitives";
 import Card, { IdentityCardHeader } from "@/components/ui/Card";
 import Badge from "@/components/ui/Badge";
 import Table from "@/components/ui/Table";
@@ -66,7 +65,6 @@ export default function EnterpriseDashboardHome() {
   const hasProductionRecords = total > 0 || data.contractors.total > 0 || data.submissions.total > 0;
   const readinessScore = `${data.readiness.averageScore}%`;
   const submissionRate = `${data.submissions.conversionRate}%`;
-  const heroImage = getHeroImage({ role: "manager", totalDeals: total, unassignedDeals: data.opportunities.unassigned, isMonthEnd: new Date().getDate() >= 25 });
 
   return (
     <RequireRole allow={["admin", "manager", "staff"]}>
@@ -83,15 +81,7 @@ export default function EnterpriseDashboardHome() {
           </div>
         </DashboardCard>
 
-        <ModuleHeader eyebrow="Enterprise Overview" title="Torque Empire AI Procurement Intelligence" description="Live opportunity, contractor, client, collection, compliance, revenue, document, and readiness data." actions={<ActionButton href="/dashboard/vehicle-finance">Open Vehicle Finance Command Center</ActionButton>}>
-          <div className="grid w-full gap-3 sm:grid-cols-3 lg:max-w-xl">
-            <MetricCard label="Avg Readiness" value={readinessScore} />
-            <MetricCard label="Submission Rate" value={submissionRate} />
-            <MetricCard label="Risk Watch" value={summary.risk} />
-          </div>
-        </ModuleHeader>
-
-        <Card><HeroBanner image={heroImage} title="Manager Dashboard" subtitle="Enterprise opportunity readiness and execution velocity" /></Card>
+        <TeosOperationsHubHero data={data} readinessScore={readinessScore} submissionRate={submissionRate} />
 
         <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4 xl:gap-5">
           <Card><p className="enterprise-metric-label">Total Opportunities</p><h2 className="enterprise-metric-value">{total}</h2></Card>
