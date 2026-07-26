@@ -10,6 +10,25 @@ import { emitGovernanceEvent } from "@/lib/governance/emitter";
 import { withGovernanceObservation } from "@/lib/governance/observer";
 import { AuthorizationError, assertPrivilegedRole, requireAuthorizedUser } from "@/lib/server/authz";
 
+function scheduleCanonicalStatusObservation(params: Parameters<typeof observeLegacyCanonicalDocumentStatus>[0]) {
+  queueMicrotask(() => {
+    try {
+      observeLegacyCanonicalDocumentStatus(params);
+    } catch (error) {
+      console.warn("[governance_divergence_observation_failed]", {
+        sourceName: params.governanceContext.route.sourceName,
+        documentId: params.documentId,
+        contractorId: params.contractorId ?? null,
+        documentType: params.documentType ?? null,
+        reason:
+          error instanceof Error
+            ? error.message
+            : "Unknown divergence observation scheduling failure",
+      });
+    }
+  });
+}
+
 export const PATCH = withGovernanceObservation(
   {
     sourceName: "top_level_document_status_patch",
@@ -163,7 +182,7 @@ export const PATCH = withGovernanceObservation(
       ],
     });
 
-    observeLegacyCanonicalDocumentStatus({
+    scheduleCanonicalStatusObservation({
       governanceContext,
       contractorId,
       documentId,

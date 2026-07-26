@@ -17,6 +17,25 @@ import { withGovernanceObservation } from "@/lib/governance/observer";
 import { generateFixSuggestion } from "@/lib/services/aiFixService";
 import { recalculateContractorCompliance } from "@/lib/server/recalculateContractorCompliance";
 
+function scheduleCanonicalStatusObservation(params: Parameters<typeof observeLegacyCanonicalDocumentStatus>[0]) {
+  queueMicrotask(() => {
+    try {
+      observeLegacyCanonicalDocumentStatus(params);
+    } catch (error) {
+      console.warn("[governance_divergence_observation_failed]", {
+        sourceName: params.governanceContext.route.sourceName,
+        documentId: params.documentId,
+        contractorId: params.contractorId ?? null,
+        documentType: params.documentType ?? null,
+        reason:
+          error instanceof Error
+            ? error.message
+            : "Unknown divergence observation scheduling failure",
+      });
+    }
+  });
+}
+
 export const runtime = "nodejs";
 
 type RouteContext = {
@@ -176,7 +195,7 @@ export const PATCH = withGovernanceObservation(
       await recalculateContractorCompliance(db, contractorId, governanceContext);
     }
 
-    observeLegacyCanonicalDocumentStatus({
+    scheduleCanonicalStatusObservation({
       governanceContext,
       contractorId: contractorId ?? existingContractorId,
       documentId,

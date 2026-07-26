@@ -119,6 +119,25 @@ function emitDocumentComparisonEvent(params: {
   });
 }
 
+function warnGovernanceDivergenceObservationFailed(params: {
+  governanceContext: GovernanceContext;
+  documentId: string;
+  contractorId: string;
+  documentType: string;
+  error: unknown;
+}) {
+  console.warn("[governance_divergence_observation_failed]", {
+    sourceName: params.governanceContext.route.sourceName,
+    documentId: params.documentId,
+    contractorId: params.contractorId,
+    documentType: params.documentType,
+    reason:
+      params.error instanceof Error
+        ? params.error.message
+        : "Unknown divergence observation failure",
+  });
+}
+
 export function observeLegacyCanonicalDocumentStatus(params: {
   governanceContext: GovernanceContext;
   contractorId?: string | null;
@@ -134,9 +153,8 @@ export function observeLegacyCanonicalDocumentStatus(params: {
     return;
   }
 
-  queueMicrotask(() => {
     void (async () => {
-      try {
+    try {
         const snapshot = await getFirebaseAdmin()
           .collection("contractors")
           .doc(contractorId)
@@ -175,16 +193,14 @@ export function observeLegacyCanonicalDocumentStatus(params: {
           legacyStatus: params.legacyStatus,
           canonicalStatus,
           divergenceClassification,
-        });
-      } catch (error) {
-        console.warn("[governance_divergence_observation_failed]", {
-          sourceName: params.governanceContext.route.sourceName,
-          documentId: params.documentId,
-          contractorId,
-          documentType,
-          reason: error instanceof Error ? error.message : "Unknown divergence observation failure",
-        });
-      }
-    })();
-  });
+        });    } catch (error) {
+      warnGovernanceDivergenceObservationFailed({
+        governanceContext: params.governanceContext,
+        documentId: params.documentId,
+        contractorId,
+        documentType,
+        error,
+      });
+    }
+  })();
 }

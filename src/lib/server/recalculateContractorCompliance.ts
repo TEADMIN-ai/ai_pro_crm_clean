@@ -340,6 +340,20 @@ export async function recalculateContractorCompliance(
     readinessBefore.isTenderLocked !== summary.isTenderLocked;
 
   if (legacyTriggeredRecompute && readinessChanged) {
+    const divergenceFields = ["readinessScore", "docsMissing", "tenderLockStatus", "isTenderLocked"].filter((field) => {
+      switch (field) {
+        case "readinessScore":
+          return readinessBefore.readinessScore !== summary.readinessScore;
+        case "docsMissing":
+          return readinessBefore.docsMissing !== summary.docsMissing;
+        case "tenderLockStatus":
+          return readinessBefore.tenderLockStatus !== summary.tenderLockStatus;
+        case "isTenderLocked":
+          return readinessBefore.isTenderLocked !== summary.isTenderLocked;
+        default:
+          return false;
+      }
+    });
     emitGovernanceEvent({
       eventId: crypto.randomUUID(),
       eventVersion: "v1",
@@ -375,21 +389,10 @@ export async function recalculateContractorCompliance(
       },
       comparison: {
         comparedFields: ["readinessScore", "docsMissing", "tenderLockStatus", "isTenderLocked"],
-        divergenceFields: ["readinessScore", "docsMissing", "tenderLockStatus", "isTenderLocked"].filter((field) => {
-          switch (field) {
-            case "readinessScore":
-              return readinessBefore.readinessScore !== summary.readinessScore;
-            case "docsMissing":
-              return readinessBefore.docsMissing !== summary.docsMissing;
-            case "tenderLockStatus":
-              return readinessBefore.tenderLockStatus !== summary.tenderLockStatus;
-            case "isTenderLocked":
-              return readinessBefore.isTenderLocked !== summary.isTenderLocked;
-            default:
-              return false;
-          }
-        }),
+        divergenceFields: divergenceFields,
         divergenceClassification: DIVERGENCE_CLASSIFICATIONS.STALE_STATE_COMPENSATION,
+        staleStateDetected: true,
+        changedState: true,
       },
     });
 
@@ -429,21 +432,10 @@ export async function recalculateContractorCompliance(
         },
         comparison: {
           comparedFields: ["readinessScore", "docsMissing", "tenderLockStatus", "isTenderLocked"],
-          divergenceFields: ["readinessScore", "docsMissing", "tenderLockStatus", "isTenderLocked"].filter((field) => {
-            switch (field) {
-              case "readinessScore":
-                return readinessBefore.readinessScore !== summary.readinessScore;
-              case "docsMissing":
-                return readinessBefore.docsMissing !== summary.docsMissing;
-              case "tenderLockStatus":
-                return readinessBefore.tenderLockStatus !== summary.tenderLockStatus;
-              case "isTenderLocked":
-                return readinessBefore.isTenderLocked !== summary.isTenderLocked;
-              default:
-                return false;
-            }
-          }),
+          divergenceFields: divergenceFields,
           divergenceClassification: DIVERGENCE_CLASSIFICATIONS.CANONICAL_OVERWRITE_AFTER_LEGACY_WRITE,
+          staleStateDetected: true,
+          changedState: true,
         },
       });
     }
