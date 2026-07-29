@@ -1,4 +1,4 @@
-import type {
+﻿import type {
   HygieneCollection,
   HygieneCollectionOutcome,
   HygieneManifest,
@@ -9,7 +9,7 @@ export const HYGIENE_MANIFEST_DISPLAY_LABELS: Record<HygieneManifestDisplayStatu
   generated: "Generated",
   pending_generation: "Pending generation",
   zero_waste_record: "Zero-waste service record",
-  not_applicable_cancelled: "Not applicable � cancelled",
+  not_applicable_cancelled: "Not applicable — cancelled",
 };
 
 export const HYGIENE_MANIFEST_DISPLAY_TONES: Record<HygieneManifestDisplayStatus, "success" | "warning" | "info" | "neutral"> = {

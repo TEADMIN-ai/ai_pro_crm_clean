@@ -1,4 +1,4 @@
-import { HYGIENE_MANIFEST_DISPLAY_LABELS, buildHygieneReportMetrics, deriveManifestDisplayStatus, hasRealHygieneManifestId, isManifestGenerationRequired } from "@/lib/hygiene/hygieneManifestDisplay";
+﻿import { HYGIENE_MANIFEST_DISPLAY_LABELS, buildHygieneReportMetrics, deriveManifestDisplayStatus, hasRealHygieneManifestId, isManifestGenerationRequired } from "@/lib/hygiene/hygieneManifestDisplay";
 import type { HygieneCollection, HygieneManifest } from "@/types/hygiene";
 
 function c(overrides: Partial<HygieneCollection> = {}): HygieneCollection {
@@ -21,7 +21,7 @@ describe("hygiene manifest display classification", () => {
     expect(HYGIENE_MANIFEST_DISPLAY_LABELS.generated).toBe("Generated");
     expect(HYGIENE_MANIFEST_DISPLAY_LABELS.pending_generation).toBe("Pending generation");
     expect(HYGIENE_MANIFEST_DISPLAY_LABELS.zero_waste_record).toBe("Zero-waste service record");
-    expect(HYGIENE_MANIFEST_DISPLAY_LABELS.not_applicable_cancelled).toBe("Not applicable � cancelled");
+    expect(HYGIENE_MANIFEST_DISPLAY_LABELS.not_applicable_cancelled).toBe("Not applicable — cancelled");
     expect(hasRealHygieneManifestId("TE-WM-1783888267150")).toBe(true);
     expect(hasRealHygieneManifestId("Pending")).toBe(false);
   });
