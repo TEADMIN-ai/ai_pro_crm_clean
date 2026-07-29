@@ -22,6 +22,12 @@ import {
 import { inferHygieneRecordClassification, isOperationalHygieneRecord, normalizeHygieneRecordClassification } from "@/lib/hygiene/recordClassification";
 import { filterHygieneDashboardDataForVisibility } from "@/lib/hygiene/hygieneVisibility";
 import {
+  buildHygieneReportMetrics,
+  hasRealHygieneManifestId,
+  isManifestGenerationRequired,
+  isWasteBearingHygieneCollection,
+} from "@/lib/hygiene/hygieneManifestDisplay";
+import {
   validateHygieneBinAsset,
   validateHygieneClient,
   validateHygieneCollection,
@@ -231,8 +237,9 @@ function isInMonth(dateValue: string | null, yearMonth: string): boolean {
 function computeKpis(data: Omit<HygieneDashboardData, "kpis">): HygieneDashboardKpis {
   const currentMonth = "2026-06";
   const collectionsDueThisWeek = data.collections.filter((collection) => collection.status === "Scheduled").length;
-  const completedThisMonth = data.collections.filter((collection) => collection.status === "Completed" && isInMonth(collection.completedAt, currentMonth)).length;
-  const disposalCertificatesPending = data.manifests.filter((manifest) => manifest.status === "Disposal Pending" || manifest.status === "Awaiting Disposal").length;
+  const completedThisMonth = data.collections.filter((collection) => isWasteBearingHygieneCollection(collection) && collection.status === "Completed" && isInMonth(collection.completedAt, currentMonth)).length;
+  const wasteBearingCollectionIds = new Set(data.collections.filter(isWasteBearingHygieneCollection).map((collection) => collection.collectionId));
+  const disposalCertificatesPending = data.manifests.filter((manifest) => wasteBearingCollectionIds.has(manifest.collectionId) && manifest.quantity > 0 && (manifest.status === "Disposal Pending" || manifest.status === "Awaiting Disposal")).length;
 
   return {
     activeHygieneClients: data.clients.filter((client) => client.status === "Active").length,
@@ -240,7 +247,7 @@ function computeKpis(data: Omit<HygieneDashboardData, "kpis">): HygieneDashboard
     activeBinAssets: data.assets.filter((asset) => asset.status === "Active").length,
     collectionsDueThisWeek,
     collectionsCompletedThisMonth: completedThisMonth,
-    wasteServicesCompleted: data.manifests.reduce((total, manifest) => total + manifest.quantity, 0),
+    wasteServicesCompleted: data.manifests.filter((manifest) => wasteBearingCollectionIds.has(manifest.collectionId) && manifest.quantity > 0).reduce((total, manifest) => total + manifest.quantity, 0),
     disposalCertificatesPending,
     complianceStatus: computeComplianceStatus(data.complianceDocuments),
     monthlyContractRevenue: data.clients.reduce((total, client) => total + client.monthlyRevenue, 0),
@@ -514,7 +521,7 @@ export async function getHygieneMobileJobs(user: AuthorizedUser): Promise<Hygien
   const collectionIds = new Set(collections.map((collection) => collection.collectionId));
   const siteIds = new Set(collections.map((collection) => collection.siteId));
   const clientIds = new Set(collections.map((collection) => collection.clientId));
-  const manifestIds = new Set(collections.map((collection) => collection.manifestId).filter((id) => id !== "Pending"));
+  const manifestIds = new Set(collections.map((collection) => collection.manifestId).filter(hasRealHygieneManifestId));
 
   return {
     ...data,
@@ -873,6 +880,7 @@ export async function upsertHygieneCollection(user: AuthorizedUser, input: Parti
     substitutionTimestamp: input.substitutionTimestamp,
     binCountConfirmed: input.binCountConfirmed,
     adminOverrideReason: input.adminOverrideReason,
+    collectionOutcome: input.collectionOutcome,
   });
   await assertRecordGraph({ clientId: record.clientId, siteId: record.siteId });
   await setValidatedRecord(HYGIENE_COLLECTIONS.collections, record.collectionId, record);
@@ -926,10 +934,13 @@ export async function assignHygieneBackupTransport(user: AuthorizedUser, input: 
 export async function generateHygieneManifest(user: AuthorizedUser, collectionId: string): Promise<HygieneManifest> {
   assertHygieneStaffMutationAccess(user);
   const collection = await getCollectionForWorkflow(collectionId, user);
+  if (!isManifestGenerationRequired(collection) && !hasRealHygieneManifestId(collection.manifestId)) {
+    throw new HygieneWorkflowError("Manifest generation is not applicable to cancelled or zero-waste hygiene service records.", 409, "hygiene_manifest_not_applicable");
+  }
   const siteSnapshot = await getFirebaseAdmin().collection(HYGIENE_COLLECTIONS.sites).doc(collection.siteId).get();
   const site = validateHygieneSite(siteSnapshot.data());
   const timestamp = nowIso();
-  const manifestId = collection.manifestId !== "Pending" ? collection.manifestId : nextId("TE-WM");
+  const manifestId = hasRealHygieneManifestId(collection.manifestId) ? collection.manifestId : nextId("TE-WM");
   const record = validateHygieneManifest({
     manifestId,
     collectionId: collection.collectionId,
@@ -1009,19 +1020,23 @@ export async function generateHygieneMonthlyReport(user: AuthorizedUser, period:
   const data = await getHygieneDashboardData(user);
   const collections = data.collections.filter((collection) => collection.scheduledDate.startsWith(period) || collection.completedAt?.startsWith(period));
   const collectionIds = new Set(collections.map((collection) => collection.collectionId));
-  const siteIds = new Set(collections.map((collection) => collection.siteId));
   const manifests = data.manifests.filter((manifest) => collectionIds.has(manifest.collectionId));
   const evidence = data.evidencePhotos.filter((photo) => collectionIds.has(photo.collectionId));
+  const reportMetrics = buildHygieneReportMetrics({
+    collections,
+    manifests,
+    evidenceCount: evidence.length,
+  });
   const report = validateHygieneReport({
     reportId: `TE-HR-${period}`,
     period,
-    collectionsCompleted: collections.filter((collection) => collection.status === "Completed").length,
-    sitesServiced: siteIds.size,
-    totalBinsServiced: manifests.reduce((total, manifest) => total + manifest.quantity, 0),
-    manifestsCreated: manifests.length,
-    disposalCertificatesPending: manifests.filter((manifest) => manifest.status !== "Certified").length,
+    collectionsCompleted: reportMetrics.collectionsCompleted,
+    sitesServiced: reportMetrics.sitesServiced,
+    totalBinsServiced: reportMetrics.totalBinsServiced,
+    manifestsCreated: reportMetrics.manifestsCreated,
+    disposalCertificatesPending: reportMetrics.disposalCertificatesPending,
     incidents: evidence.filter((photo) => photo.category === "Incident Photo").length,
-    evidenceCompletionPercentage: collections.length ? Math.round((evidence.length / Math.max(collections.length * 4, 1)) * 100) : 0,
+    evidenceCompletionPercentage: reportMetrics.evidenceCompletionPercentage,
     revenueSummary: data.clients.reduce((total, client) => total + client.monthlyRevenue, 0),
     createdAt: nowIso(),
   });

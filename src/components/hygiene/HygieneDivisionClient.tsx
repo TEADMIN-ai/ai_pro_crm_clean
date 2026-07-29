@@ -15,6 +15,12 @@ import { authFetch } from "@/lib/client/authFetch";
 import { useAuth } from "@/context/AuthContext";
 import { teosDesignTokens } from "@/lib/design/teosDesignTokens";
 import { HYGIENE_DEMONSTRATION_MEDIA, HYGIENE_LIGHT_SURFACE_NOTICE, buildHygieneAtAGlance, buildVerifiedEvidenceGallery } from "@/lib/hygiene/dashboardPresentation";
+import {
+  HYGIENE_MANIFEST_DISPLAY_LABELS,
+  HYGIENE_MANIFEST_DISPLAY_TONES,
+  deriveManifestDisplayStatus,
+  hasRealHygieneManifestId,
+} from "@/lib/hygiene/hygieneManifestDisplay";
 import { NUWKEM_PRODUCTS_URL, NUWKEM_PRODUCT_MEDIA } from "@/lib/hygiene/nuwkemProductMedia";
 import {
   HYGIENE_PHOTO_CATEGORIES,
@@ -169,6 +175,18 @@ function PrimaryCell({ title, subtitle }: { title: string; subtitle?: string }) 
     <div className="min-w-0">
       <p className="truncate text-sm font-semibold text-white">{title}</p>
       {subtitle ? <p className="mt-1 truncate text-[11px] leading-4 text-slate-300">{subtitle}</p> : null}
+    </div>
+  );
+}
+
+function ManifestDisplayCell({ collection }: { collection: HygieneCollection }) {
+  const displayStatus = deriveManifestDisplayStatus(collection);
+  const manifestId = hasRealHygieneManifestId(collection.manifestId) ? collection.manifestId : null;
+
+  return (
+    <div className="space-y-1">
+      <StatusBadge value={HYGIENE_MANIFEST_DISPLAY_LABELS[displayStatus]} tone={HYGIENE_MANIFEST_DISPLAY_TONES[displayStatus]} />
+      {manifestId ? <p className="truncate text-[11px] leading-4 text-slate-300">{manifestId}</p> : null}
     </div>
   );
 }
@@ -1341,11 +1359,12 @@ export default function HygieneDivisionClient({ view }: { view: HygieneView }) {
                 />
               ))}
             </div>
-            <DataTable headers={["Collection", "Client / Site", "Schedule", "Driver / Vehicle", "Signature", "Status", "Actions"]} emptyLabel="collections" rows={data.collections.map((collection) => [
-              <PrimaryCell key="collection" title={collection.collectionId} subtitle={`Manifest ${collection.manifestId}`} />,
+            <DataTable headers={["Collection", "Client / Site", "Schedule", "Driver / Vehicle", "Manifest", "Signature", "Status", "Actions"]} emptyLabel="collections" rows={data.collections.map((collection) => [
+              <PrimaryCell key="collection" title={collection.collectionId} />,
               <PrimaryCell key="client" title={clientById.get(collection.clientId) ?? collection.clientId} subtitle={siteById.get(collection.siteId) ?? collection.siteId} />,
               <PrimaryCell key="schedule" title={formatDate(collection.scheduledDate)} subtitle={collection.scheduledTimeWindow} />,
               <PrimaryCell key="driver" title={collection.assignedDriver} subtitle={`${collection.vehicleName} | ${collection.vehicleRegistration}`} />,
+              <ManifestDisplayCell key="manifest" collection={collection} />,
               collection.clientSignatureStatus,
               <StatusBadge key="status" value={collection.status} />,
               <div key="actions" className="flex max-w-md flex-wrap gap-2">

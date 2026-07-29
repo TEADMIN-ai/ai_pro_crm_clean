@@ -3,6 +3,7 @@ import {
   type HygieneBinAsset,
   type HygieneClient,
   type HygieneCollection,
+  type HygieneCollectionOutcome,
   type HygieneComplianceDocument,
   type HygieneDriverLog,
   type HygieneEvidencePhoto,
@@ -45,6 +46,15 @@ function optionalString(record: Record<string, unknown>, field: string): string 
   }
 
   return value.trim();
+}
+
+function optionalCollectionOutcome(record: Record<string, unknown>): HygieneCollectionOutcome | undefined {
+  const value = record.collectionOutcome;
+  if (value === null || value === undefined || value === "") return undefined;
+  if (value !== "waste_collected" && value !== "zero_waste" && value !== "cancelled") {
+    throw new Error("Invalid hygiene payload: collectionOutcome is not supported.");
+  }
+  return value;
 }
 
 function optionalBoolean(record: Record<string, unknown>, field: string): boolean | undefined {
@@ -237,6 +247,7 @@ export function validateHygieneCollection(input: unknown): HygieneCollection {
     vehicleRegistration: requireString(record, "vehicleRegistration"),
     vehicleName: requireString(record, "vehicleName"),
     status: requireString(record, "status") as HygieneCollection["status"],
+    collectionOutcome: optionalCollectionOutcome(record),
     arrivalTime: optionalString(record, "arrivalTime"),
     departureTime: optionalString(record, "departureTime"),
     completedAt: optionalString(record, "completedAt"),

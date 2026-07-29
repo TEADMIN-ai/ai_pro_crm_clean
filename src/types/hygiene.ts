@@ -7,6 +7,8 @@ export type HygieneClientStatus = "Active" | "Pending" | "Inactive" | "Suspended
 export type HygienePaymentStatus = "Paid" | "Pending" | "Overdue";
 export type HygieneAssetStatus = "Active" | "Pending" | "In Maintenance" | "Retired";
 export type HygieneCollectionStatus = "Scheduled" | "In Progress" | "Awaiting Disposal" | "Completed" | "Overdue" | "Cancelled" | "Rescheduled";
+export type HygieneCollectionOutcome = "waste_collected" | "zero_waste" | "cancelled";
+export type HygieneManifestDisplayStatus = "generated" | "pending_generation" | "zero_waste_record" | "not_applicable_cancelled";
 export type HygieneManifestStatus = "Draft" | "Generated" | "In Transit" | "Awaiting Disposal" | "Disposed" | "Certified" | "Disposal Pending" | "Certificate Received" | "Completed";
 export type HygieneComplianceStatus = "Compliance Green" | "Compliance Warning" | "Compliance Expired";
 export type HygieneDocumentStatus = "Active" | "Pending" | "Compliance Green" | "Compliance Warning" | "Compliance Expired";
@@ -116,6 +118,7 @@ export interface HygieneCollection {
   vehicleRegistration: string;
   vehicleName: string;
   status: HygieneCollectionStatus;
+  collectionOutcome?: HygieneCollectionOutcome;
   arrivalTime: string | null;
   departureTime: string | null;
   completedAt: string | null;
