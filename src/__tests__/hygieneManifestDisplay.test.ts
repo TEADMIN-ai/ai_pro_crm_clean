@@ -51,6 +51,12 @@ describe("hygiene manifest display classification", () => {
     expect(metrics.disposalCertificatesPending).toBe(1);
   });
 
+  it("does not treat zero bin count alone as a zero-waste service record", () => {
+    const record = c({ collectionId: "TE-COL-1783071399102", manifestId: "Pending", binCountConfirmed: 0, notes: "Operational collection update." });
+    expect(deriveManifestDisplayStatus(record)).toBe("pending_generation");
+    expect(isManifestGenerationRequired(record)).toBe(true);
+  });
+
   it("does not regress disposal-certificate status or collection completion status", () => {
     const certifiedManifest = m({ status: "Certified", disposalCertificateNo: "CERT-1" });
     const completedCollection = c({ manifestId: certifiedManifest.manifestId });

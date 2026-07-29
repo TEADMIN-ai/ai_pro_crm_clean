@@ -34,7 +34,7 @@ export function deriveHygieneCollectionOutcome(collection: Pick<HygieneCollectio
   if (collection.status === "Cancelled" || collection.collectionOutcome === "cancelled") return "cancelled";
   if (collection.collectionOutcome === "zero_waste") return "zero_waste";
   if (collection.collectionOutcome === "waste_collected") return "waste_collected";
-  if (collection.binCountConfirmed === 0 || notesIndicateZeroWaste(collection.notes)) return "zero_waste";
+  if (notesIndicateZeroWaste(collection.notes)) return "zero_waste";
   return "waste_collected";
 }
 
