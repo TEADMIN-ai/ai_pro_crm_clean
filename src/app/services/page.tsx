@@ -1,0 +1,1 @@
+﻿import type { Metadata } from "next"; import { ServicesPage } from "@/components/corporate/CorporateSite"; export const metadata: Metadata = { title: "Services", description: "Torque Empire services across procurement, hygiene and waste management, telecommunications, automotive support, and TEOS." }; export default function Page() { return <ServicesPage />; }

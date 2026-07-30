@@ -6,7 +6,7 @@ import StandaloneRootRedirect from "@/components/pwa/StandaloneRootRedirect";
 export const metadata: Metadata = {
   title: "Torque Empire",
   description:
-    "Torque Empire is a technology-driven company delivering procurement, hygiene and waste management, telecommunications, and TEOS business technology.",
+    "Torque Empire delivers procurement, hygiene and waste management, telecommunications, and automotive support, backed by the secure TEOS operating platform.",
 };
 
 export default function Page() {

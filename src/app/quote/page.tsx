@@ -1,0 +1,1 @@
+﻿import type { Metadata } from "next"; import { QuotePage } from "@/components/corporate/CorporateSite"; export const metadata: Metadata = { title: "Request a Quote", description: "Prepare a structured Torque Empire quote request email for procurement, hygiene, telecoms, automotive, or TEOS enquiries." }; export default function Page() { return <QuotePage />; }

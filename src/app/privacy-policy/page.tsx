@@ -1,0 +1,1 @@
+﻿import type { Metadata } from "next"; import { PrivacyPolicyPage } from "@/components/corporate/CorporateSite"; export const metadata: Metadata = { title: "Privacy Policy", description: "Website privacy information for public Torque Empire enquiries and the non-mutating quote request form." }; export default function Page() { return <PrivacyPolicyPage />; }

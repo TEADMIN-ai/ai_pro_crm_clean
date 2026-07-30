@@ -1,0 +1,1 @@
+﻿import type { Metadata } from "next"; import { TermsPage } from "@/components/corporate/CorporateSite"; export const metadata: Metadata = { title: "Terms of Use", description: "Website terms for Torque Empire public information, service enquiries, quote validity, and external links." }; export default function Page() { return <TermsPage />; }

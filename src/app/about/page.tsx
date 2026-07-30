@@ -1,0 +1,1 @@
+﻿import type { Metadata } from "next"; import { AboutPage } from "@/components/corporate/CorporateSite"; export const metadata: Metadata = { title: "About", description: "About Torque Empire, its four operating divisions, founding vision, values, and TEOS technology enablement." }; export default function Page() { return <AboutPage />; }
