@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { useState, type FormEvent } from 'react';
 import { getCorporateEmail } from '@/lib/corporate/companyProfile';
@@ -50,7 +50,7 @@ export function buildQuoteMailto(input: QuoteRequestFields, to = getCorporateEma
     'Message:',
     safe.message,
     '',
-    'Consent confirmed: Yes. The requester understands this opens their email application and does not automatically create a TEOS account or CRM record.',
+    'Consent confirmed: Yes. The requester consents to Torque Empire using this information to respond to the enquiry.',
   ].join('\n');
   return 'mailto:' + encodeURIComponent(to) + '?subject=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(body);
 }
@@ -81,7 +81,7 @@ export default function QuoteRequestForm() {
 
   return (
     <form onSubmit={submit} className='grid gap-5 rounded-md border border-slate-200 bg-white p-5 shadow-sm sm:p-6' noValidate>
-      <p className='rounded-md border border-blue-100 bg-blue-50 p-3 text-sm font-medium leading-6 text-[#0b2f57]'>This Phase 1 form opens your email application with a structured request. It does not submit to a server, create a TEOS account, or write to CRM records.</p>
+      <p className='text-sm font-medium leading-6 text-slate-600'>Complete the form below and your enquiry will be prepared for email submission to Torque Empire.</p>
       <div className='grid gap-4 md:grid-cols-2'>
         <TextField name='fullName' label='Full name' value={values.fullName} error={errors.fullName} onChange={update} required />
         <TextField name='companyName' label='Company name' value={values.companyName} error={errors.companyName} onChange={update} />
