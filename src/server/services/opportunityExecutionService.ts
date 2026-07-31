@@ -3,9 +3,10 @@ import { getFirebaseAdmin } from "@/lib/firebase/admin";
 import type { AuthorizedUser } from "@/lib/server/authz";
 import { listContractors } from "@/server/services/contractorService";
 import { getContractorBusinessName, resolveContractorReference } from "@/lib/contractors/contractorReferenceResolver";
-import { buildOpportunityExecutionState, evaluateOpportunityCompliance, extractOpportunityRequirements, matchContractorsForOpportunity, validateOpportunityTransition, type OpportunityExecutionPhase, type OpportunityRequirementReview } from "@/lib/opportunities/opportunityExecution";
+import { buildOpportunityExecutionState, extractOpportunityRequirements, matchContractorsForOpportunity, validateOpportunityTransition, type ContractorMatchResult, type OpportunityExecutionPhase, type OpportunityRequirementReview } from "@/lib/opportunities/opportunityExecution";
 import { buildProcurementExecutionProjection } from "@/lib/opportunities/procurementExecutionProjection";
 import { getDealContractorReference } from "@/lib/deals/contractorReference";
+import { assertAssignmentAllowed, evaluateContractorAssignmentAuthority } from "@/server/services/contractorAssignmentAuthorityService";
 
 type ActionInput = { dealId: string; action: string; actor: AuthorizedUser; contractorId?: string; requirements?: Partial<OpportunityRequirementReview>; submission?: Record<string, unknown> };
 function asString(value: unknown): string | null { return typeof value === "string" && value.trim() ? value.trim() : null; }
@@ -43,7 +44,32 @@ export async function getOpportunityExecutionView(dealId: string, actor?: Author
   const contractor = resolved?.ok && !isArchivedContractor(resolved.contractor) ? resolved.contractor : null;
   const state = buildOpportunityExecutionState({ deal, contractor: contractor as Record<string, unknown> | null });
   const projection = buildProcurementExecutionProjection({ deal: { ...deal, sarsTcsSummary: contractor ? (contractor as Record<string, unknown>).sarsTcsSummary : null }, state, remediationRequests: state.remediationRequests });
-  const matches = matchContractorsForOpportunity({ deal, contractors: await listContractors({ workspaceId: asString(deal.workspaceId), actorRole: actor?.role ?? null }) as Array<Record<string, unknown> & { id: string }> });
+  const baseMatches = matchContractorsForOpportunity({ deal, contractors: await listContractors({ workspaceId: asString(deal.workspaceId), actorRole: actor?.role ?? null }) as Array<Record<string, unknown> & { id: string }> });
+  const matches: ContractorMatchResult[] = actor
+    ? await Promise.all(baseMatches.map(async (match) => {
+      const decision = await evaluateContractorAssignmentAuthority({ dealId, contractorReference: match.contractorId, actor, deal });
+      return {
+        ...match,
+        contractorId: decision.contractorId ?? match.contractorId,
+        assignmentAllowed: decision.status === "ALLOWED",
+        eligible: decision.status === "ALLOWED",
+        blockingReasons: decision.blockers,
+        recommendationReason: decision.blockers.length ? decision.blockers.join("; ") : match.recommendationReason,
+        readinessDecisionStatus: decision.readinessDecisionStatus,
+        decisionLogicVersion: decision.decisionLogicVersion,
+        authorityStatus: decision.status,
+      };
+    }))
+    : baseMatches.map((match) => ({
+      ...match,
+      assignmentAllowed: false,
+      eligible: false,
+      blockingReasons: ["Authenticated actor context is required for assignment authority"],
+      recommendationReason: "Authenticated actor context is required for assignment authority",
+      readinessDecisionStatus: "UNKNOWN",
+      decisionLogicVersion: null,
+      authorityStatus: "BLOCKED",
+    }));
   const activitySnapshot = await getFirebaseAdmin().collection("deals").doc(dealId).collection("activity").orderBy("createdAt", "desc").limit(25).get();
   const activity = activitySnapshot.docs.map((doc) => ({ id: doc.id, ...(doc.data() ?? {}) }));
   return { deal, contractor, state, projection, matches, activity };
@@ -83,20 +109,11 @@ export async function applyOpportunityExecutionAction(input: ActionInput) {
   if (input.action === "find_matching_contractors") execution.matchingCompleted = true;
   if (input.action === "assign_contractor") {
     if (!input.contractorId) throw Object.assign(new Error("contractorId is required"), { status: 400 });
-    const resolved = await resolveContractorReference({ reference: input.contractorId, expectedWorkspaceId: asString(deal.workspaceId), actor: input.actor, dealId: input.dealId, logContext: "opportunity_assignment" });
-    if (!resolved.ok) throw Object.assign(new Error("Contractor reference rejected"), { status: 404 });
-    if (isArchivedContractor(resolved.contractor)) throw Object.assign(new Error("Archived contractor cannot be assigned"), { status: 409 });
-    const canonicalContractorId = resolved.contractorId;
-    const canonicalContractorName = getContractorBusinessName(resolved.contractor);
-    const workspaceId = asString(deal.workspaceId) ?? resolved.workspaceId;
-    if (!workspaceId || !resolved.workspaceId || workspaceId !== resolved.workspaceId) {
-      throw Object.assign(new Error("Contractor workspace resolution blocked assignment"), { status: 409 });
-    }
-    const compliance = evaluateOpportunityCompliance(requirements, resolved.contractor, workspaceId);
-    if (compliance.status !== "VALID") {
-      const blockers = [...compliance.missing, ...compliance.expired.map((item) => item + " expired")];
-      throw Object.assign(new Error("Contractor assignment blocked: " + (blockers.join("; ") || compliance.status)), { status: 409 });
-    }
+    const authority = await evaluateContractorAssignmentAuthority({ dealId: input.dealId, contractorReference: input.contractorId, actor: input.actor, targetPhase: target, deal });
+    assertAssignmentAllowed(authority);
+    const canonicalContractorId = authority.contractorId as string;
+    const canonicalContractorName = authority.contractor ? getContractorBusinessName(authority.contractor) : canonicalContractorId;
+    const workspaceId = authority.workspaceId as string;
     const executionWorkspaceId = `exec-${input.dealId}`;
     const submissionReviewId = input.dealId;
     const existingAssignment = asRecord(deal.contractorAssignment);

@@ -148,6 +148,9 @@ export type ContractorMatchResult = {
   eligible: boolean;
   assignmentAllowed: boolean;
   blockingReasons: string[];
+  readinessDecisionStatus?: "READY" | "BLOCKED" | "UNRESOLVED" | "STALE" | "UNKNOWN";
+  decisionLogicVersion?: string | null;
+  authorityStatus?: "ALLOWED" | "BLOCKED";
 };
 
 export const OPPORTUNITY_PHASES: OpportunityExecutionPhase[] = [

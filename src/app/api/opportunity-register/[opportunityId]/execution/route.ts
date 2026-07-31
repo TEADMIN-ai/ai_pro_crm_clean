@@ -4,6 +4,10 @@ import { applyOpportunityExecutionAction, getOpportunityExecutionView } from "@/
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+function authorityDecisionFromError(error: unknown) {
+  return typeof error === "object" && error !== null && "decision" in error ? (error as { decision?: unknown }).decision : null;
+}
+
 function statusFromError(error: unknown) {
   return typeof error === "object" && error !== null && "status" in error && typeof (error as { status?: unknown }).status === "number" ? (error as { status: number }).status : 500;
 }
@@ -37,6 +41,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ op
     return NextResponse.json(result);
   } catch (error) {
     if (error instanceof AuthorizationError) return NextResponse.json({ error: error.message }, { status: error.status });
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Failed to update execution workflow" }, { status: statusFromError(error) });
+    const decision = authorityDecisionFromError(error);
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Failed to update execution workflow", ...(decision ? { decision } : {}) }, { status: statusFromError(error) });
   }
 }
