@@ -6,7 +6,7 @@ const APP_SHELL = [
   "/manifest.webmanifest",
   "/icon",
   "/apple-icon",
-  "/brand/logo/favicon.png",
+  "/corporate/logo/favicon.png",
   "/corporate/logo/torque-empire-primary.png",
   "/brand/logo/torque-empire-light.png",
 ];

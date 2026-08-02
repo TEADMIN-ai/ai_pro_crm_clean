@@ -93,7 +93,7 @@ export default function LoginPage() {
           }}
         >
           <Image
-            src="/brand/logo/favicon.png"
+            src="/corporate/logo/favicon.png"
             alt="Torque Empire TEOS"
             width={72}
             height={72}
