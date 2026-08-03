@@ -5,7 +5,7 @@ import { compareEtendersSourceChange, buildEtendersImportPayload, createEtenders
 import type { EtendersImportReviewInput, EtendersSearchFilters, EtendersSourceRecord } from "@/lib/etenders/types";
 import { getFirebaseAdmin } from "@/lib/firebase/admin";
 import type { AuthorizedUser } from "@/lib/server/authz";
-import { getContractorById } from "@/server/services/contractorService";
+import { assertAssignmentAllowed, evaluateContractorAssignmentAuthority } from "@/server/services/contractorAssignmentAuthorityService";
 
 function asString(value: unknown): string | null {
   return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
@@ -93,43 +93,45 @@ export async function assignEtendersContractor(input: {
   actor: AuthorizedUser;
 }) {
   const db = getFirebaseAdmin();
-  const [dealSnapshot, contractor] = await Promise.all([
-    db.collection("deals").doc(input.dealId).get(),
-    getContractorById(input.contractorId),
-  ]);
+  const dealSnapshot = await db.collection("deals").doc(input.dealId).get();
 
   if (!dealSnapshot.exists) throw new Error("Deal not found");
-  if (!contractor) throw new Error("Contractor not found");
 
   const deal = (dealSnapshot.data() ?? {}) as Record<string, unknown>;
   const source = deal.etendersSource as EtendersSourceRecord | undefined;
   if (!source?.sourceOpportunityId) throw new Error("Deal is not linked to an eTenders source");
 
-  const contractorWorkspaceId = asString((contractor as Record<string, unknown>).workspaceId);
-  const dealWorkspaceId = asString(deal.workspaceId);
-  if (contractorWorkspaceId && dealWorkspaceId && contractorWorkspaceId !== dealWorkspaceId) {
-    throw new Error("Cross-workspace contractor assignment rejected");
-  }
+  const authority = await evaluateContractorAssignmentAuthority({
+    dealId: input.dealId,
+    contractorReference: input.contractorId,
+    actor: input.actor,
+    targetPhase: "COMPLIANCE_REVIEW",
+    deal: { id: dealSnapshot.id, ...deal },
+  });
+  assertAssignmentAllowed(authority);
 
-  const missing = Array.isArray((contractor as Record<string, unknown>).missingCriticalDocuments)
-    ? ((contractor as Record<string, unknown>).missingCriticalDocuments as unknown[]).filter((item): item is string => typeof item === "string")
-    : [];
+  const contractor = authority.contractor as Record<string, unknown> | undefined;
+  const contractorId = asString(authority.contractorId);
+  const workspaceId = asString(authority.workspaceId);
+  if (!contractor || !contractorId) throw new Error("Contractor identity unresolved");
+  if (!workspaceId) throw new Error("Contractor workspace unresolved");
+
   const execution = createEtendersExecutionWorkspace({
     opportunityId: input.dealId,
     dealId: input.dealId,
-    contractorId: input.contractorId,
-    workspaceId: dealWorkspaceId ?? contractorWorkspaceId ?? "default",
+    contractorId,
+    workspaceId,
     sourceTenderId: source.sourceOpportunityId,
-    complianceMissing: missing,
+    complianceMissing: [],
     boqRequired: (deal.boqRequired as { required?: boolean } | undefined)?.required === true,
   });
 
   await db.collection("deals").doc(input.dealId).set(
     {
-      companyId: input.contractorId,
-      contractorId: input.contractorId,
-      contractorName: asString((contractor as Record<string, unknown>).companyName) ?? asString((contractor as Record<string, unknown>).businessName) ?? input.contractorId,
-      workflowStatus: missing.length > 0 ? "COMPLIANCE_REVIEW" : "CONTRACTOR_ASSIGNED",
+      companyId: contractorId,
+      contractorId,
+      contractorName: asString(contractor.companyName) ?? asString(contractor.businessName) ?? contractorId,
+      workflowStatus: "CONTRACTOR_ASSIGNED",
       etendersExecutionWorkspace: execution,
       updatedAt: new Date(),
     },
@@ -138,10 +140,9 @@ export async function assignEtendersContractor(input: {
   await db.collection("deals").doc(input.dealId).collection("activity").add({
     type: "contractor_assigned",
     message: "Contractor assigned and eTenders execution workspace created",
-    to: input.contractorId,
+    to: contractorId,
     performedByEmail: input.actor.email ?? null,
     createdAt: new Date(),
   });
   return execution;
 }
-
