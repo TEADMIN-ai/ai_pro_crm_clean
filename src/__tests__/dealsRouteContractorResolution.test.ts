@@ -106,7 +106,7 @@ describe("/api/deals contractor reference resolution", () => {
       contractor: { id: "canonical-c", companyName: "Canonical Contractor" },
     });
 
-    const response = await GET(request(), undefined);
+    const response = await GET(request());
     const payload = await response.json();
 
     expect(response.status).toBe(200);
@@ -144,7 +144,7 @@ describe("/api/deals contractor reference resolution", () => {
       }),
     ];
 
-    const response = await GET(request(), undefined);
+    const response = await GET(request());
     const payload = await response.json();
 
     expect(response.status).toBe(200);
@@ -169,7 +169,7 @@ describe("/api/deals contractor reference resolution", () => {
       candidateIds: ["other-workspace-c"],
     });
 
-    const response = await GET(request(), undefined);
+    const response = await GET(request());
     const payload = await response.json();
 
     expect(response.status).toBe(200);

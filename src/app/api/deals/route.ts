@@ -3,26 +3,13 @@ export const runtime = "nodejs";
 
 import { NextRequest, NextResponse } from "next/server";
 import { getFirebaseAdmin } from "@/lib/firebase/admin";
-import {
-  AUTHORITY_CLASSIFICATIONS,
-  DIVERGENCE_CLASSIFICATIONS,
-  MUTATION_CLASSIFICATIONS,
-  ROUTE_CLASSIFICATIONS,
-} from "@/lib/governance/classification";
-import type { GovernanceContext } from "@/lib/governance/context";
-import { emitGovernanceEvent } from "@/lib/governance/emitter";
-import { withGovernanceObservation } from "@/lib/governance/observer";
 import { AuthorizationError, isPrivilegedRole, requireAuthorizedUser } from "@/lib/server/authz";
-import { generateAIInsights } from "@/lib/ai/generateInsights";
-import { calculateReadiness } from "@/lib/engine/readinessEngine";
 import { generateFixSuggestions } from "@/lib/engine/fixSuggestions";
 import { analyzeTenderText } from "@/lib/tenderAnalysisService";
 import { getContractorBusinessName, resolveContractorReference } from "@/lib/contractors/contractorReferenceResolver";
 import { getDealContractorReference } from "@/lib/deals/contractorReference";
 
 const db = getFirebaseAdmin();
-
-const AI_INSIGHTS_TTL_MS = 1000 * 60 * 60 * 24;
 
 function getString(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
@@ -32,161 +19,111 @@ function getNumber(value: unknown): number {
   return typeof value === "number" && Number.isFinite(value) ? value : 0;
 }
 
-function arraysEqual(left: unknown, right: unknown): boolean {
-  if (!Array.isArray(left) || !Array.isArray(right)) {
-    return false;
+function getStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    return [];
   }
 
-  if (left.length !== right.length) {
-    return false;
-  }
-
-  return left.every((value, index) => value === right[index]);
+  return value
+    .filter((item): item is string => typeof item === "string")
+    .map((item) => item.trim())
+    .filter(Boolean);
 }
 
-function getChangedReadinessFields(data: Record<string, unknown>, readiness: ReturnType<typeof calculateReadiness>): string[] {
-  const changedFields: string[] = [];
+type StoredReadinessProjection = {
+  source: "stored_snapshot";
+  status: "UNKNOWN" | "BLOCKED" | "STALE";
+  readinessScore: number | null;
+  riskLevel: string | null;
+  missingDocs: string[];
+  stale: true;
+  staleReasons: string[];
+  assignmentAllowed: false;
+  eligible: false;
+  blockingReasons: string[];
+};
 
-  if (data.readinessScore !== readiness.readinessScore) {
-    changedFields.push("readinessScore");
+function buildStoredReadinessProjection(data: Record<string, unknown>): StoredReadinessProjection {
+  const storedScore = typeof data.readinessScore === "number" && Number.isFinite(data.readinessScore)
+    ? data.readinessScore
+    : null;
+  const missingDocs = getStringArray(data.missingDocs);
+  const staleReasons: string[] = [];
+
+  if (storedScore === null) {
+    staleReasons.push("No canonical readiness snapshot is available for this deal.");
   }
 
-  if (data.riskLevel !== readiness.riskLevel) {
-    changedFields.push("riskLevel");
+  if (missingDocs.length > 0) {
+    staleReasons.push("Required document evidence is incomplete.");
   }
 
-  if (!arraysEqual(data.missingDocs, readiness.missingDocs)) {
-    changedFields.push("missingDocs");
+  if (!getString(data.readinessUpdatedAt) && !getString(data.assignmentDecisionEvaluatedAt)) {
+    staleReasons.push("Readiness has not been refreshed by an explicit authorised workflow.");
   }
 
-  return changedFields;
-}
+  if (!getString(data.assignmentDecisionLogicVersion) && !getString(data.readinessLogicVersion)) {
+    staleReasons.push("No canonical decision logic version is attached to this snapshot.");
+  }
 
-function emitDealsGetObservation(params: {
-  governanceContext: GovernanceContext;
-  user: {
-    uid: string;
-    email?: string | null;
-    role?: string | null;
+  const status: StoredReadinessProjection["status"] =
+    storedScore === null ? "UNKNOWN" : missingDocs.length > 0 ? "BLOCKED" : "STALE";
+
+  const blockingReasons = staleReasons.length > 0
+    ? staleReasons
+    : ["GET /api/deals does not authorise assignment or repair readiness state."];
+
+  return {
+    source: "stored_snapshot",
+    status,
+    readinessScore: status === "STALE" && staleReasons.length === 0 ? storedScore : null,
+    riskLevel: getString(data.riskLevel) || null,
+    missingDocs,
+    stale: true,
+    staleReasons: blockingReasons,
+    assignmentAllowed: false,
+    eligible: false,
+    blockingReasons,
   };
-  dealId: string;
-  contractorId: string | null;
-  eventType:
-    | "deals_get_side_effect_recompute_observed"
-    | "deals_get_stale_state_compensation_observed"
-    | "deals_get_canonical_correction_observed"
-    | "deals_get_noop_recompute_observed";
-  changedFields: string[];
-  latencyMs: number;
-  isStale: boolean;
-  readinessChanged: boolean;
-}) {
-  const comparisonFields = ["readinessScore", "riskLevel", "missingDocs"];
-  const divergenceClassification =
-    params.readinessChanged
-      ? DIVERGENCE_CLASSIFICATIONS.STALE_STATE_COMPENSATION
-      : DIVERGENCE_CLASSIFICATIONS.LEGACY_CANONICAL_STATUS_MATCH;
-
-  emitGovernanceEvent({
-    eventId: crypto.randomUUID(),
-    eventVersion: "v1",
-    occurredAt: new Date().toISOString(),
-    category:
-      params.eventType === "deals_get_side_effect_recompute_observed"
-        ? "legacy_mutation"
-        : "divergence_observation",
-    eventType: params.eventType,
-    correlation: {
-      correlationId: params.governanceContext.correlationId,
-      requestId: params.governanceContext.requestId,
-    },
-    actor: {
-      actorId: params.user.uid,
-      actorEmail: params.user.email?.trim() || null,
-      actorRole: params.user.role ?? null,
-    },
-    source: {
-      sourceType: "route",
-      sourceName: params.governanceContext.route.sourceName,
-      routePath: params.governanceContext.route.routePath ?? null,
-      method: params.governanceContext.route.method ?? "GET",
-      sourceClassification: params.governanceContext.route.sourceClassification ?? null,
-    },
-    entity: {
-      entityType: "deal",
-      entityId: params.dealId,
-      contractorId: params.contractorId,
-    },
-    mutation: {
-      mutationType: MUTATION_CLASSIFICATIONS.LEGACY_GET_SIDE_EFFECT_WRITE,
-      mutatedFields: params.changedFields,
-    },
-  governance: {
-      routeClassification: ROUTE_CLASSIFICATIONS.LEGACY,
-      sourceClassification: params.governanceContext.route.sourceClassification ?? ROUTE_CLASSIFICATIONS.LEGACY,
-      authorityClassification: AUTHORITY_CLASSIFICATIONS.DERIVED_WRITER,
-      latencyMs: params.latencyMs,
-      failOpen: true,
-    },
-    comparison: {
-      comparedFields: comparisonFields,
-      divergenceFields: params.changedFields,
-      divergenceClassification,
-      staleStateDetected: params.isStale,
-      changedState: params.readinessChanged,
-    },
-  });
 }
 
-export const GET = withGovernanceObservation(
-  {
-    sourceName: "deals_get",
-    routePath: "/api/deals",
-    method: "GET",
-    sourceType: "route",
-    sourceClassification: ROUTE_CLASSIFICATIONS.LEGACY,
-  },
-  async (req: NextRequest, _context: unknown, governanceContext) => {
+export async function GET(req: NextRequest) {
   try {
     const user = await requireAuthorizedUser(req);
 
     let snapshot;
-
-    if (isPrivilegedRole(user.role)) {
+    if (user.role === "contractor") {
+      if (!user.contractorId) {
+        return NextResponse.json({ error: "Contractor profile required" }, { status: 403 });
+      }
+      snapshot = await db.collection("deals").where("contractorId", "==", user.contractorId).get();
+    } else if (isPrivilegedRole(user.role)) {
       snapshot = await db.collection("deals").get();
-    } else if (user.role === "contractor" && user.contractorId) {
-      snapshot = await db
-        .collection("deals")
-        .where("contractorId", "==", user.contractorId)
-        .get();
     } else {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     const deals = await Promise.all(
-      snapshot.docs.map(async (doc) => {
-        const observationStartedAt = Date.now();
+      snapshot.docs.map(async (doc: { id: string; data: () => Record<string, unknown> }) => {
         const data = doc.data();
-        const readiness = calculateReadiness(
-          (data.contractorDocs as Record<string, boolean> | undefined) || {}
-        );
-        const suggestions = generateFixSuggestions({
-          ...data,
-          ...readiness,
-        });
-        const changedFields = getChangedReadinessFields(data, readiness);
-        const readinessChanged = changedFields.length > 0;
-        const isStale =
-          typeof data.aiInsightsUpdatedAt !== "number" ||
-          Date.now() - data.aiInsightsUpdatedAt > AI_INSIGHTS_TTL_MS;
-        const contractorReference = getDealContractorReference(data as Record<string, unknown>);
+        const description = getString(data.description);
+        const title = getString(data.title);
+        const scopeText = getString(data.scopeOfWork);
+        const combinedTenderText = [title, description, scopeText].filter(Boolean).join("\n\n");
+        const tenderAnalysis = analyzeTenderText(combinedTenderText);
+        const readinessProjection = buildStoredReadinessProjection(data);
+        const suggestions = readinessProjection.missingDocs.length > 0
+          ? generateFixSuggestions({
+              id: doc.id,
+              title,
+              missingDocs: readinessProjection.missingDocs,
+              readinessScore: readinessProjection.readinessScore ?? 0,
+              riskLevel: readinessProjection.riskLevel ?? "unknown",
+            })
+          : [];
+        const storedAiInsights = getString(data.aiInsights) || null;
+        const contractorReference = getDealContractorReference(data);
         const contractorId = contractorReference.status === "reference_present" ? contractorReference.value : null;
-
-        let aiInsights =
-          typeof data.aiInsights === "string" && data.aiInsights.trim().length > 0
-            ? data.aiInsights
-            : null;
-
         const contractorResolution = contractorId
           ? await resolveContractorReference({
               reference: contractorId,
@@ -199,142 +136,17 @@ export const GET = withGovernanceObservation(
         const resolvedContractor = contractorResolution?.ok === true ? contractorResolution.contractor : null;
         const canonicalContractorId = contractorResolution?.ok === true ? contractorResolution.contractorId : null;
         const resolvedContractorName = resolvedContractor ? getContractorBusinessName(resolvedContractor) : null;
+        const resolvedCompanyId = getString(data.companyId) || null;
 
-        const shouldGenerateAI = !aiInsights || isStale || readinessChanged;
-
-        if (shouldGenerateAI) {
-          try {
-            aiInsights = await generateAIInsights({
-              ...data,
-              ...readiness,
-            });
-
-            await db.collection("deals").doc(doc.id).update({
-              aiInsights,
-              aiInsightsUpdatedAt: Date.now(),
-              readinessScore: readiness.readinessScore,
-              riskLevel: readiness.riskLevel,
-              missingDocs: readiness.missingDocs,
-            });
-
-            if (readinessChanged) {
-              emitDealsGetObservation({
-                governanceContext,
-                user,
-                dealId: doc.id,
-                contractorId,
-                eventType: "deals_get_side_effect_recompute_observed",
-                changedFields,
-                latencyMs: Date.now() - observationStartedAt,
-                isStale,
-                readinessChanged,
-              });
-
-              emitDealsGetObservation({
-                governanceContext,
-                user,
-                dealId: doc.id,
-                contractorId,
-                eventType: "deals_get_stale_state_compensation_observed",
-                changedFields,
-                latencyMs: Date.now() - observationStartedAt,
-                isStale,
-                readinessChanged,
-              });
-
-              emitDealsGetObservation({
-                governanceContext,
-                user,
-                dealId: doc.id,
-                contractorId,
-                eventType: "deals_get_canonical_correction_observed",
-                changedFields,
-                latencyMs: Date.now() - observationStartedAt,
-                isStale,
-                readinessChanged,
-              });
-            } else {
-              emitDealsGetObservation({
-                governanceContext,
-                user,
-                dealId: doc.id,
-                contractorId,
-                eventType: "deals_get_noop_recompute_observed",
-                changedFields,
-                latencyMs: Date.now() - observationStartedAt,
-                isStale,
-                readinessChanged,
-              });
-            }
-          } catch (err) {
-            console.error("AI generation failed:", err);
-            aiInsights = aiInsights || null;
-          }
-        } else if (readinessChanged) {
-          await db.collection("deals").doc(doc.id).update({
-            readinessScore: readiness.readinessScore,
-            riskLevel: readiness.riskLevel,
-            missingDocs: readiness.missingDocs,
-          });
-
-          emitDealsGetObservation({
-            governanceContext,
-            user,
-            dealId: doc.id,
-            contractorId,
-            eventType: "deals_get_side_effect_recompute_observed",
-            changedFields,
-            latencyMs: Date.now() - observationStartedAt,
-            isStale,
-            readinessChanged,
-          });
-
-          emitDealsGetObservation({
-            governanceContext,
-            user,
-            dealId: doc.id,
-            contractorId,
-            eventType: "deals_get_stale_state_compensation_observed",
-            changedFields,
-            latencyMs: Date.now() - observationStartedAt,
-            isStale,
-            readinessChanged,
-          });
-
-          emitDealsGetObservation({
-            governanceContext,
-            user,
-            dealId: doc.id,
-            contractorId,
-            eventType: "deals_get_canonical_correction_observed",
-            changedFields,
-            latencyMs: Date.now() - observationStartedAt,
-            isStale,
-            readinessChanged,
-          });
-        } else {
-          emitDealsGetObservation({
-            governanceContext,
-            user,
-            dealId: doc.id,
-            contractorId,
-            eventType: "deals_get_noop_recompute_observed",
-            changedFields,
-            latencyMs: Date.now() - observationStartedAt,
-            isStale,
-            readinessChanged,
-          });
-        }
-
-        // FUTURE: enforce readiness-based restrictions here
-        // if (role === "contractor" && readiness.readinessScore < 60) {
-        //   block action
-        // }
         return {
           id: doc.id,
           ...data,
+          title,
+          description,
+          scopeOfWork: scopeText,
           contractorId: canonicalContractorId ?? undefined,
           contractorName: resolvedContractorName ?? undefined,
+          companyId: resolvedCompanyId,
           storedContractorReference: contractorId,
           contractorReference: contractorReference.status === "reference_present"
             ? { status: "reference_present", field: contractorReference.field, value: contractorReference.value }
@@ -353,9 +165,14 @@ export const GET = withGovernanceObservation(
                   referenceField: contractorReference.field,
                   failureReason: contractorResolution?.failureReason ?? "not_found",
                 },
-          ...readiness,
+          readinessScore: readinessProjection.readinessScore,
+          riskLevel: readinessProjection.riskLevel,
+          missingDocs: readinessProjection.missingDocs,
+          readinessProjection,
+          aiInsights: storedAiInsights,
+          aiInsightsStatus: storedAiInsights ? "stored_snapshot" : "unavailable",
           suggestions,
-          aiInsights: aiInsights || null,
+          tenderAnalysis,
         };
       })
     );
@@ -373,7 +190,7 @@ export const GET = withGovernanceObservation(
       { status: 500 }
     );
   }
-});
+}
 
 export async function POST(req: NextRequest) {
   try {
