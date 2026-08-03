@@ -20,6 +20,10 @@ function getString(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
 }
 
+function isValidRouteParam(value: string): boolean {
+  return value.length > 0 && value.replace(/[A-Za-z0-9_-]/g, "").length === 0;
+}
+
 function wantsJsonResponse(request: NextRequest): boolean {
   const requestUrl = request.nextUrl ?? new URL(request.url);
   return requestUrl.searchParams.get("format") === "json" ||
@@ -27,8 +31,12 @@ function wantsJsonResponse(request: NextRequest): boolean {
 }
 
 function isValidStoragePath(contractorId: string, documentType: string, storagePath: string): boolean {
-  const escapedDocumentType = documentType.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  return new RegExp(`^contractors/${contractorId}/${escapedDocumentType}(?:_\\d+)?\\.pdf$`).test(storagePath);
+  const prefix = "contractors/" + contractorId + "/";
+  const fileName = storagePath.slice(prefix.length);
+  return storagePath.startsWith(prefix) &&
+    storagePath.split("/").every((segment) => segment.length > 0 && segment !== "." && segment !== "..") &&
+    !storagePath.startsWith("/") &&
+    (fileName === documentType + ".pdf" || (fileName.startsWith(documentType + "_") && fileName.endsWith(".pdf")));
 }
 
 export async function GET(
@@ -40,7 +48,7 @@ export async function GET(
     const { contractorId, documentType: rawDocumentType } = await context.params;
     const documentType = normalizeContractorUploadDocumentType(rawDocumentType);
 
-    if (!contractorId || !rawDocumentType) {
+    if (!contractorId || !rawDocumentType || !isValidRouteParam(contractorId)) {
       return jsonError("Missing contractorId or documentType", 400);
     }
 
@@ -49,6 +57,26 @@ export async function GET(
     }
 
     assertCanAccessContractor(user, contractorId);
+
+    const contractorSnapshot = await getFirebaseAdmin()
+      .collection("contractors")
+      .doc(contractorId)
+      .get();
+
+    if (!contractorSnapshot.exists) {
+      return jsonError("Contractor not found", 404);
+    }
+
+    const contractor = (contractorSnapshot.data() ?? {}) as Record<string, unknown>;
+    const contractorWorkspaceId = getString(contractor.workspaceId);
+    const userWorkspaceId = getString(user.workspaceId);
+    if (!contractorWorkspaceId) {
+      return jsonError("Contractor workspace unresolved", 403);
+    }
+
+    if (!userWorkspaceId || userWorkspaceId !== contractorWorkspaceId) {
+      return jsonError("unauthorized", 403);
+    }
 
     const snapshot = await getFirebaseAdmin()
       .collection("contractors")
@@ -62,6 +90,21 @@ export async function GET(
     }
 
     const data = (snapshot.data() ?? {}) as Record<string, unknown>;
+    const recordContractorId = getString(data.contractorId);
+    const recordWorkspaceId = getString(data.workspaceId);
+    const recordDocumentType = normalizeContractorUploadDocumentType(getString(data.documentType) || getString(data.docType) || getString(data.type));
+
+    if (recordContractorId && recordContractorId !== contractorId) {
+      return jsonError("unauthorized", 403);
+    }
+
+    if (recordWorkspaceId && recordWorkspaceId !== contractorWorkspaceId) {
+      return jsonError("unauthorized", 403);
+    }
+
+    if (recordDocumentType && recordDocumentType !== documentType) {
+      return jsonError("unauthorized", 403);
+    }
     const storagePath = getString(data.storagePath) || getString(data.filePath) || getString(data.filename);
 
     if (!storagePath || !isValidStoragePath(contractorId, documentType, storagePath)) {
@@ -85,7 +128,7 @@ export async function GET(
       contractorId,
       documentId: snapshot.id,
       documentType,
-      storagePath,
+      storagePathVerified: true,
       expiresAt: new Date(expiresAt).toISOString(),
       responseMode: wantsJsonResponse(request) ? "json" : "redirect",
     });

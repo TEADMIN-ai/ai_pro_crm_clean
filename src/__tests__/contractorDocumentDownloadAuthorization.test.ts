@@ -1,4 +1,5 @@
 const requireAuthorizedUser = jest.fn();
+const contractorGet = jest.fn();
 const documentGet = jest.fn();
 const getSignedUrl = jest.fn();
 const storageObjectExists = jest.fn();
@@ -16,6 +17,7 @@ jest.mock("@/lib/firebase/admin", () => ({
   getFirebaseAdmin: () => ({
     collection: () => ({
       doc: () => ({
+        get: contractorGet,
         collection: () => ({
           doc: () => ({
             get: documentGet,
@@ -29,11 +31,13 @@ jest.mock("@/lib/firebase/admin", () => ({
   }),
 }));
 
+import { AuthorizationError } from "@/lib/server/authz";
 import { GET } from "@/app/api/contractors/[contractorId]/documents/[documentType]/download/route";
 
 describe("contractor document download authorization", () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    contractorGet.mockResolvedValue({ exists: true, data: () => ({ workspaceId: "workspace-a" }) });
     documentGet.mockResolvedValue({
       exists: true,
       data: () => ({
@@ -68,6 +72,7 @@ describe("contractor document download authorization", () => {
       uid: "user-1",
       role: "contractor",
       contractorId: "target-contractor",
+      workspaceId: "workspace-a",
     });
 
     const before = Date.now();
@@ -87,11 +92,53 @@ describe("contractor document download authorization", () => {
     expect(options.expires).toBeGreaterThanOrEqual(before + 5 * 60 * 1000);
     expect(options.expires).toBeLessThanOrEqual(after + 5 * 60 * 1000);
   });
+
+  test("rejects cross-workspace internal access before signing", async () => {
+    requireAuthorizedUser.mockResolvedValue({ uid: "staff-1", role: "staff", workspaceId: "workspace-b" });
+
+    const response = await GET(new Request("http://localhost/download?format=json") as never, {
+      params: Promise.resolve({ contractorId: "target-contractor", documentType: "cipc" }),
+    });
+    const payload = (await response.json()) as { error?: string };
+
+    expect(response.status).toBe(403);
+    expect(payload.error).toBe("unauthorized");
+    expect(documentGet).not.toHaveBeenCalled();
+    expect(storageBucketFile).not.toHaveBeenCalled();
+    expect(getSignedUrl).not.toHaveBeenCalled();
+  });
+
+  test("rejects unauthenticated access before contractor or storage reads", async () => {
+    requireAuthorizedUser.mockRejectedValue(new AuthorizationError("unauthorized", 401));
+
+    const response = await GET(new Request("http://localhost/download?format=json") as never, {
+      params: Promise.resolve({ contractorId: "target-contractor", documentType: "cipc" }),
+    });
+
+    expect(response.status).toBe(401);
+    expect(contractorGet).not.toHaveBeenCalled();
+    expect(documentGet).not.toHaveBeenCalled();
+    expect(getSignedUrl).not.toHaveBeenCalled();
+  });
+
+  test("allows same-workspace internal roles", async () => {
+    requireAuthorizedUser.mockResolvedValue({ uid: "manager-1", role: "manager", workspaceId: "workspace-a" });
+
+    const response = await GET(new Request("http://localhost/download?format=json") as never, {
+      params: Promise.resolve({ contractorId: "target-contractor", documentType: "cipc" }),
+    });
+    const payload = (await response.json()) as { success?: boolean; url?: string };
+
+    expect(response.status).toBe(200);
+    expect(payload).toMatchObject({ success: true, url: "https://signed.example/cipc.pdf" });
+    expect(getSignedUrl).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe("contractor document download retrieval for manual-review uploads", () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    contractorGet.mockResolvedValue({ exists: true, data: () => ({ workspaceId: "workspace-a" }) });
     storageBucketFile.mockReturnValue({ exists: storageObjectExists, getSignedUrl });
     storageObjectExists.mockResolvedValue([true]);
     getSignedUrl.mockResolvedValue(["https://signed.example/csd.pdf"]);
@@ -102,6 +149,7 @@ describe("contractor document download retrieval for manual-review uploads", () 
       uid: "user-1",
       role: "contractor",
       contractorId: "target-contractor",
+      workspaceId: "workspace-a",
     });
     documentGet.mockResolvedValue({
       exists: true,
@@ -131,6 +179,7 @@ describe("contractor document download retrieval for manual-review uploads", () 
       uid: "user-1",
       role: "contractor",
       contractorId: "target-contractor",
+      workspaceId: "workspace-a",
     });
 
     const response = await GET(new Request("http://localhost/download") as never, {

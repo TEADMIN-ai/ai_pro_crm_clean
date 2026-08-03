@@ -1,4 +1,5 @@
 const requireAuthorizedUser = jest.fn();
+const contractorGet = jest.fn();
 const documentGet = jest.fn();
 const storageObjectExists = jest.fn();
 const getSignedUrl = jest.fn();
@@ -16,6 +17,7 @@ jest.mock("@/lib/firebase/admin", () => ({
   getFirebaseAdmin: () => ({
     collection: () => ({
       doc: () => ({
+        get: contractorGet,
         collection: () => ({
           doc: () => ({
             get: documentGet,
@@ -29,6 +31,7 @@ jest.mock("@/lib/firebase/admin", () => ({
   }),
 }));
 
+import { buildContractorDocumentDownloadUrl } from "@/lib/documents/contractorDocumentDownloadUrl";
 import { GET } from "@/app/api/contractors/[contractorId]/documents/[documentType]/download/route";
 
 describe("contractor document download route coverage", () => {
@@ -36,9 +39,11 @@ describe("contractor document download route coverage", () => {
     jest.clearAllMocks();
     requireAuthorizedUser.mockResolvedValue({
       uid: "user-1",
+      workspaceId: "workspace-a",
       role: "contractor",
       contractorId: "target-contractor",
     });
+    contractorGet.mockResolvedValue({ exists: true, data: () => ({ workspaceId: "workspace-a" }) });
     storageBucketFile.mockReturnValue({ exists: storageObjectExists, getSignedUrl });
     storageObjectExists.mockResolvedValue([true]);
     getSignedUrl.mockResolvedValue(["https://signed.example/document.pdf"]);
@@ -103,5 +108,57 @@ describe("contractor document download route coverage", () => {
     expect(storageBucketFile).toHaveBeenCalledWith("contractors/target-contractor/cidb_123.pdf");
     expect(storageObjectExists).toHaveBeenCalledTimes(1);
     expect(getSignedUrl).not.toHaveBeenCalled();
+  });
+
+  test("returns a controlled error when the contractor record is missing", async () => {
+    contractorGet.mockResolvedValue({ exists: false, data: () => ({}) });
+
+    const response = await GET(new Request("http://localhost/download?format=json") as never, {
+      params: Promise.resolve({ contractorId: "target-contractor", documentType: "cipc" }),
+    });
+    const payload = (await response.json()) as { error?: string };
+
+    expect(response.status).toBe(404);
+    expect(payload.error).toBe("Contractor not found");
+    expect(documentGet).not.toHaveBeenCalled();
+    expect(getSignedUrl).not.toHaveBeenCalled();
+  });
+
+  test("rejects a storage path belonging to another contractor", async () => {
+    documentGet.mockResolvedValue({
+      exists: true,
+      data: () => ({ storagePath: "contractors/other-contractor/cipc_123.pdf" }),
+    });
+
+    const response = await GET(new Request("http://localhost/download?format=json") as never, {
+      params: Promise.resolve({ contractorId: "target-contractor", documentType: "cipc" }),
+    });
+    const payload = (await response.json()) as { error?: string };
+
+    expect(response.status).toBe(403);
+    expect(payload.error).toBe("Document storage path is invalid");
+    expect(storageBucketFile).not.toHaveBeenCalled();
+    expect(getSignedUrl).not.toHaveBeenCalled();
+  });
+
+  test("rejects a malformed storage path", async () => {
+    documentGet.mockResolvedValue({
+      exists: true,
+      data: () => ({ storagePath: "contractors/target-contractor/../cipc_123.pdf" }),
+    });
+
+    const response = await GET(new Request("http://localhost/download?format=json") as never, {
+      params: Promise.resolve({ contractorId: "target-contractor", documentType: "cipc" }),
+    });
+    const payload = (await response.json()) as { error?: string };
+
+    expect(response.status).toBe(403);
+    expect(payload.error).toBe("Document storage path is invalid");
+    expect(storageBucketFile).not.toHaveBeenCalled();
+    expect(getSignedUrl).not.toHaveBeenCalled();
+  });
+
+  test("helper URL matches the implemented download route", () => {
+    expect(buildContractorDocumentDownloadUrl("contractor-1", "taxClearance")).toBe("/api/contractors/contractor-1/documents/taxClearance/download");
   });
 });
