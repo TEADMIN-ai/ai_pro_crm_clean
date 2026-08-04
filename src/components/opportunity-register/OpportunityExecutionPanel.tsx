@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { EnterpriseActionButton, EnterpriseEmptyState, EnterprisePanel, EnterpriseStatusBadge, EnterpriseTable } from "@/components/ui/EnterpriseUI";
+import { authFetch } from "@/lib/client/authFetch";
 import type { ContractorMatchResult, OpportunityAction, OpportunityActionKey, OpportunityExecutionState, OpportunityRequirementReview, OpportunityStageStatus } from "@/lib/opportunities/opportunityExecution";
 
 type Props = { dealId: string; state: OpportunityExecutionState; matches: ContractorMatchResult[] };
@@ -35,26 +36,39 @@ function statusTone(status: OpportunityStageStatus) {
 function actionByKey(actions: OpportunityAction[], key: OpportunityActionKey) {
   return actions.find((action) => action.key === key);
 }
+function blockersFromPayload(payload: unknown): string[] {
+  if (!payload || typeof payload !== "object") return [];
+  const decision = (payload as { decision?: unknown }).decision;
+  if (!decision || typeof decision !== "object") return [];
+  const blockers = (decision as { blockers?: unknown }).blockers;
+  return Array.isArray(blockers) ? blockers.filter((item): item is string => typeof item === "string" && item.trim().length > 0) : [];
+}
+function workflowErrorMessage(status: number, payload: unknown) {
+  if (status === 401) return "Your session has expired. Please sign in again.";
+  if (status === 403) return "Your account does not have permission to perform this action.";
+  const blockers = blockersFromPayload(payload);
+  if (blockers.length) return blockers.join("; ");
+  return payload && typeof payload === "object" && typeof (payload as { error?: unknown }).error === "string"
+    ? (payload as { error: string }).error
+    : "Workflow action failed";
+}
 
 export default function OpportunityExecutionPanel({ dealId, state, matches }: Props) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
-  const [requirements, setRequirements] = useState<OpportunityRequirementReview>(state.requirements);
-
-  useEffect(() => {
-    setRequirements(state.requirements);
-  }, [state.requirements]);
+  const [requirementsDraft, setRequirementsDraft] = useState(() => ({ source: state.requirements, value: state.requirements }));
+  const requirements = requirementsDraft.source === state.requirements ? requirementsDraft.value : state.requirements;
 
   async function runAction(action: string, extra: Record<string, unknown> = {}) {
     setError(null);
-    const response = await fetch("/api/opportunity-register/" + encodeURIComponent(dealId) + "/execution", {
+    const response = await authFetch("/api/opportunity-register/" + encodeURIComponent(dealId) + "/execution", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action, ...extra }),
     });
     const payload = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(typeof payload.error === "string" ? payload.error : "Workflow action failed");
+    if (!response.ok) throw new Error(workflowErrorMessage(response.status, payload));
     if (typeof payload.redirectTo === "string") router.push(payload.redirectTo);
     else router.refresh();
   }
@@ -66,7 +80,10 @@ export default function OpportunityExecutionPanel({ dealId, state, matches }: Pr
   }
 
   function setRequirement(key: keyof OpportunityRequirementReview, value: string | boolean) {
-    setRequirements((current) => ({ ...current, [key]: value }));
+    setRequirementsDraft((current) => {
+      const base = current.source === state.requirements ? current.value : state.requirements;
+      return { source: state.requirements, value: { ...base, [key]: value } };
+    });
   }
 
   function renderAction(action: OpportunityAction | undefined) {
