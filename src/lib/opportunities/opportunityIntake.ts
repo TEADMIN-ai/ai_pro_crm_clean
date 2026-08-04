@@ -9,6 +9,7 @@ export interface OpportunityExtractionField {
 }
 
 export interface OpportunityExtractionResult {
+  extractionId?: string;
   fields: Partial<Record<keyof OpportunityDraftFields, OpportunityExtractionField>>;
   extractedText?: string;
   documentName?: string;
@@ -42,6 +43,10 @@ export interface OpportunityDraftFields {
 
 export interface OpportunityDraft extends OpportunityDraftFields {
   draftId: string;
+  activeRfqExtractionId?: string;
+  activeRfqFileName?: string;
+  rfqExtractionStatus?: string;
+  rfqExtractionError?: string;
   uploadedDocuments: OpportunityUploadedDocument[];
   fieldSources: Partial<Record<keyof OpportunityDraftFields, OpportunityFieldSource>>;
   extractionMetadata: OpportunityExtractionResult[];
@@ -219,4 +224,115 @@ export function markManualField<K extends keyof OpportunityDraftFields>(
 export function normalizeEstimatedValue(value: string): number {
   const parsed = Number(value.replace(/[^\d.-]/g, ""));
   return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+}
+
+
+
+
+export function createOpportunityExtractionId(prefix = "rfq-extraction"): string {
+  const randomId = typeof globalThis.crypto?.randomUUID === "function"
+    ? globalThis.crypto.randomUUID()
+    : String(Date.now()) + "-" + Math.random().toString(36).slice(2, 10)
+  return prefix + "-" + randomId
+}
+
+export function createDraftForRfqExtractionSession(input: {
+  fileName: string
+  fileSize?: number
+  contentType?: string
+  extractionId?: string
+  draftId?: string
+}): OpportunityDraft {
+  const extractionId = input.extractionId ?? createOpportunityExtractionId()
+  const draft = createOpportunityDraft(input.draftId ?? "opp-draft-" + extractionId)
+  return {
+    ...draft,
+    activeRfqExtractionId: extractionId,
+    activeRfqFileName: input.fileName,
+    rfqExtractionStatus: "processing",
+    rfqExtractionError: undefined,
+    uploadedDocuments: [
+      {
+        id: extractionId,
+        documentType: "rfq",
+        name: input.fileName,
+        size: input.fileSize,
+        contentType: input.contentType ?? "application/pdf",
+        analysis: null,
+      },
+    ],
+  }
+}
+
+
+export function clearExtractedOpportunityFields(draft: OpportunityDraft): OpportunityDraft {
+  const next: OpportunityDraft = {
+    ...draft,
+    fieldSources: { ...draft.fieldSources },
+    extractionMetadata: [],
+    updatedAt: new Date().toISOString(),
+  }
+
+  const keys: Array<keyof OpportunityDraftFields> = [
+    "referenceNumber",
+    "opportunityTitle",
+    "clientName",
+    "municipality",
+    "department",
+    "closingDate",
+    "estimatedValue",
+    "province",
+    "category",
+    "description",
+    "assignedContractorId",
+  ]
+
+  for (const key of keys) {
+    if (next.fieldSources[key] === "extracted") {
+      next[key] = ""
+      next.fieldSources[key] = "missing"
+    }
+  }
+
+  return next
+}
+
+export function applyRfqExtractionToDraft(draft: OpportunityDraft, extraction: OpportunityExtractionResult): OpportunityDraft {
+  if (draft.activeRfqExtractionId && extraction.extractionId && draft.activeRfqExtractionId !== extraction.extractionId) {
+    return draft
+  }
+
+  const merged = mergeExtractionIntoDraft(draft, extraction)
+  const extractionId = extraction.extractionId ?? draft.activeRfqExtractionId
+  return {
+    ...merged,
+    activeRfqExtractionId: extractionId,
+    activeRfqFileName: extraction.documentName ?? draft.activeRfqFileName,
+    rfqExtractionStatus: "extracted",
+    rfqExtractionError: undefined,
+    uploadedDocuments: merged.uploadedDocuments.map((document) =>
+      document.documentType === "rfq" && document.id === extractionId
+        ? { ...document, analysis: extraction }
+        : document,
+    ),
+  }
+}
+
+export function markRfqExtractionFailed(draft: OpportunityDraft, extractionId: string, error: string): OpportunityDraft {
+  if (draft.activeRfqExtractionId && draft.activeRfqExtractionId !== extractionId) {
+    return draft
+  }
+
+  const cleared = clearExtractedOpportunityFields(draft)
+  return {
+    ...cleared,
+    activeRfqExtractionId: extractionId,
+    rfqExtractionStatus: "failed",
+    rfqExtractionError: error,
+    uploadedDocuments: cleared.uploadedDocuments.map((document) =>
+      document.documentType === "rfq" && document.id === extractionId
+        ? { ...document, analysis: null }
+        : document,
+    ),
+  }
 }

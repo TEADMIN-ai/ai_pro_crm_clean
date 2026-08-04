@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, type ChangeEvent, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ChangeEvent, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import {
   EnterpriseActionButton,
@@ -17,11 +17,13 @@ import { API_ROUTES } from "@/lib/routes";
 import {
   OPPORTUNITY_DRAFT_STORAGE_KEY,
   buildOpportunitySummary,
+  applyRfqExtractionToDraft,
+  createDraftForRfqExtractionSession,
   createOpportunityDraft,
   getMissingCreateRequirements,
   getStepCompletion,
   markManualField,
-  mergeExtractionIntoDraft,
+  markRfqExtractionFailed,
   normalizeEstimatedValue,
   type OpportunityDocumentKey,
   type OpportunityDraft,
@@ -67,6 +69,7 @@ function createEmptyFileState(): FileState {
 }
 
 function readSavedDraft(mode: IntakeMode): OpportunityDraft {
+  if (mode === "upload") return createOpportunityDraft();
   if (typeof window === "undefined") return createOpportunityDraft();
   try {
     const saved = window.localStorage.getItem(`${OPPORTUNITY_DRAFT_STORAGE_KEY}:${mode}`);
@@ -110,17 +113,13 @@ export default function OpportunityIntakeWizard({ mode, initialStep = 0 }: { mod
   const router = useRouter();
   const { workspaceId } = useAuth();
   const [activeStep, setActiveStep] = useState(() => Math.min(Math.max(initialStep, 0), STEPS.length - 1));
-  const [draft, setDraft] = useState<OpportunityDraft>(() => createOpportunityDraft());
+  const [draft, setDraft] = useState<OpportunityDraft>(() => readSavedDraft(mode));
   const [files, setFiles] = useState<FileState>(() => createEmptyFileState());
   const [analysisState, setAnalysisState] = useState<Record<string, string>>({});
   const [createError, setCreateError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
-  const [restored, setRestored] = useState(false);
-
-  useEffect(() => {
-    setDraft(readSavedDraft(mode));
-    setRestored(true);
-  }, [mode]);
+  const [restored] = useState(true);
+  const latestRfqExtractionIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!restored || typeof window === "undefined") return;
@@ -148,49 +147,64 @@ export default function OpportunityIntakeWizard({ mode, initialStep = 0 }: { mod
     setDraft((current) => markManualField(current, key, value));
   }
 
-  function addDocuments(documentType: OpportunityDocumentKey, selectedFiles: File[], extraction?: OpportunityExtractionResult) {
+  function addDocuments(documentType: OpportunityDocumentKey, selectedFiles: File[]) {
     const documents: OpportunityUploadedDocument[] = selectedFiles.map((file, index) => ({
       id: `${documentType}-${file.name}-${file.size}-${index}`,
       documentType,
       name: file.name,
       size: file.size,
       contentType: file.type || "application/pdf",
-      analysis: documentType === "rfq" ? extraction ?? null : null,
-    }));
+      analysis: null,
+    }))
     setDraft((current) => {
-      const retained = current.uploadedDocuments.filter((document) => document.documentType !== documentType || document.storagePath);
-      let next: OpportunityDraft = { ...current, uploadedDocuments: [...retained, ...documents], updatedAt: new Date().toISOString() };
-      if (extraction) next = mergeExtractionIntoDraft(next, extraction);
-      return next;
-    });
+      const retained = current.uploadedDocuments.filter((document) => document.documentType !== documentType || document.storagePath)
+      return { ...current, uploadedDocuments: [...retained, ...documents], updatedAt: new Date().toISOString() }
+    })
   }
 
-  async function analyzePrimaryDocument(file: File) {
-    const key = `${file.name}:${file.size}`;
-    setAnalysisState((current) => ({ ...current, [key]: "Analyzing" }));
+  async function analyzePrimaryDocument(file: File, extractionId: string) {
+    const key = extractionId
+    setAnalysisState({ [key]: "Analyzing" })
     try {
-      const formData = new FormData();
-      formData.append("file", file);
-      const response = await authFetch(API_ROUTES.OPPORTUNITY_REGISTER_ANALYZE, { method: "POST", body: formData });
-      const payload = (await response.json()) as { extraction?: OpportunityExtractionResult; error?: string };
-      if (!response.ok || !payload.extraction) throw new Error(payload.error ?? "Document analysis failed");
-      setAnalysisState((current) => ({ ...current, [key]: "Extracted" }));
-      return payload.extraction;
+      const formData = new FormData()
+      formData.append("file", file)
+      formData.append("extractionId", extractionId)
+      const response = await authFetch(API_ROUTES.OPPORTUNITY_REGISTER_ANALYZE, { method: "POST", body: formData })
+      const payload = (await response.json()) as { extraction?: OpportunityExtractionResult; error?: string }
+      if (!response.ok || !payload.extraction) throw new Error(payload.error ?? "Document analysis failed")
+      if (latestRfqExtractionIdRef.current !== extractionId) return
+      setAnalysisState((current) => ({ ...current, [key]: "Extracted" }))
+      setDraft((current) => applyRfqExtractionToDraft(current, { ...payload.extraction, extractionId, documentName: payload.extraction?.documentName ?? file.name }))
     } catch (error) {
-      setAnalysisState((current) => ({ ...current, [key]: "Manual review" }));
-      console.error("Opportunity RFQ extraction failed", error);
-      return undefined;
+      if (latestRfqExtractionIdRef.current !== extractionId) return
+      const message = error instanceof Error ? error.message : "Document analysis failed"
+      setAnalysisState((current) => ({ ...current, [key]: "Manual review" }))
+      setDraft((current) => markRfqExtractionFailed(current, extractionId, message))
+      console.error("Opportunity RFQ extraction failed", error)
     }
   }
 
   async function handleFiles(documentType: OpportunityDocumentKey, event: ChangeEvent<HTMLInputElement>) {
-    const selectedFiles = Array.from(event.target.files ?? []);
-    event.target.value = "";
-    setFiles((current) => ({ ...current, [documentType]: selectedFiles }));
-    const extraction = documentType === "rfq" && selectedFiles[0] ? await analyzePrimaryDocument(selectedFiles[0]) : undefined;
-    addDocuments(documentType, selectedFiles, extraction);
-  }
+    const selectedFiles = Array.from(event.target.files ?? [])
+    event.target.value = ""
 
+    if (documentType === "rfq") {
+      const file = selectedFiles[0]
+      if (!file) return
+      const sessionDraft = createDraftForRfqExtractionSession({ fileName: file.name, fileSize: file.size, contentType: file.type || "application/pdf" })
+      const extractionId = sessionDraft.activeRfqExtractionId ?? sessionDraft.draftId
+      latestRfqExtractionIdRef.current = extractionId
+      setFiles({ ...createEmptyFileState(), rfq: [file] })
+      setAnalysisState({ [extractionId]: "Analyzing" })
+      setCreateError(null)
+      setDraft(sessionDraft)
+      await analyzePrimaryDocument(file, extractionId)
+      return
+    }
+
+    setFiles((current) => ({ ...current, [documentType]: selectedFiles }))
+    addDocuments(documentType, selectedFiles)
+  }
   async function createOpportunity() {
     if (!canCreate) return;
     setCreating(true);
@@ -304,7 +318,7 @@ export default function OpportunityIntakeWizard({ mode, initialStep = 0 }: { mod
                 </EnterprisePanel>
               </div>
               <div className="grid gap-4">
-                <EnterprisePanel eyebrow="Create readiness" title="Required checks">
+                <EnterprisePanel eyebrow="Create readiness" title={["Required checks", draft.activeRfqFileName, draft.activeRfqExtractionId, draft.rfqExtractionStatus].filter(Boolean).join(" / ")}>
                   {missingRequirements.length ? <div className="grid gap-2">{missingRequirements.map((item) => <EnterpriseStatusBadge key={item} value={`Missing: ${item}`} tone="warning" />)}</div> : <EnterpriseStatusBadge value="All minimum requirements satisfied" tone="success" />}
                   {createError ? <p className="mt-4 text-sm font-semibold text-[color:var(--tex-danger)]">{createError}</p> : null}
                   <div className="mt-5"><EnterpriseActionButton type="button" variant="success" disabled={!canCreate} onClick={() => void createOpportunity()}>{creating ? "Creating..." : "Create Opportunity"}</EnterpriseActionButton></div>

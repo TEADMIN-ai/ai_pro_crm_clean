@@ -45,6 +45,7 @@ function valueField(value: string, confidence: number, source: string): Opportun
 export async function extractOpportunityMetadataFromPdf(input: {
   fileName: string;
   buffer: Buffer | Uint8Array;
+  extractionId?: string;
 }): Promise<OpportunityExtractionResult> {
   const extractedText = await extractTextFromPdf(input.buffer);
   const title =
@@ -96,6 +97,7 @@ export async function extractOpportunityMetadataFromPdf(input: {
   }
 
   return {
+    extractionId: input.extractionId,
     fields,
     extractedText,
     documentName: input.fileName,

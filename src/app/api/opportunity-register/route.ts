@@ -5,6 +5,7 @@ import { AuthorizationError, isPrivilegedRole, requireAuthorizedUser } from "@/l
 import { extractOpportunityMetadataFromPdf } from "@/lib/opportunities/opportunityDocumentExtraction";
 import {
   canCreateOpportunity,
+  clearExtractedOpportunityFields,
   createOpportunityDraft,
   getMissingCreateRequirements,
   mergeExtractionIntoDraft,
@@ -117,8 +118,8 @@ export async function POST(request: NextRequest) {
     const now = new Date();
     const dealRef = db.collection("deals").doc();
     const uploadedDocuments: OpportunityUploadedDocument[] = [];
-    const extractionMetadata = [...draft.extractionMetadata];
-    let enrichedDraft = draft;
+    const extractionMetadata = primaryFiles.length > 0 ? [] : [...draft.extractionMetadata];
+    let enrichedDraft = primaryFiles.length > 0 ? clearExtractedOpportunityFields(draft) : draft;
     const bucket = getFirebaseStorageBucket();
 
     for (const documentType of DOCUMENT_TYPES) {
@@ -143,7 +144,7 @@ export async function POST(request: NextRequest) {
 
         let analysis = null;
         if (documentType === "rfq") {
-          analysis = await extractOpportunityMetadataFromPdf({ fileName: uploadedFile.name, buffer });
+          analysis = await extractOpportunityMetadataFromPdf({ fileName: uploadedFile.name, buffer, extractionId: enrichedDraft.activeRfqExtractionId });
           enrichedDraft = mergeExtractionIntoDraft(enrichedDraft, analysis);
           extractionMetadata.push(analysis);
         }

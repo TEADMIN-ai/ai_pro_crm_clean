@@ -1,42 +1,54 @@
-import { NextRequest, NextResponse } from "next/server";
-import { AuthorizationError, isPrivilegedRole, requireAuthorizedUser } from "@/lib/server/authz";
-import { extractOpportunityMetadataFromPdf } from "@/lib/opportunities/opportunityDocumentExtraction";
+import { NextRequest, NextResponse } from "next/server"
+import { AuthorizationError, isPrivilegedRole, requireAuthorizedUser } from "@/lib/server/authz"
+import { extractOpportunityMetadataFromPdf } from "@/lib/opportunities/opportunityDocumentExtraction"
+import { createOpportunityExtractionId } from "@/lib/opportunities/opportunityIntake"
 
-export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
+export const runtime = "nodejs"
+export const dynamic = "force-dynamic"
 
 export async function POST(request: NextRequest) {
   try {
-    const user = await requireAuthorizedUser(request);
+    const user = await requireAuthorizedUser(request)
     if (!isPrivilegedRole(user.role)) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
 
-    const formData = await request.formData();
-    const uploadedFile = formData.get("file");
+    const formData = await request.formData()
+    const uploadedFile = formData.get("file")
     if (!(uploadedFile instanceof File)) {
-      return NextResponse.json({ error: "file is required" }, { status: 400 });
+      return NextResponse.json({ error: "file is required" }, { status: 400 })
     }
     if (!uploadedFile.name.toLowerCase().endsWith(".pdf")) {
-      return NextResponse.json({ error: "Only PDF files can be analyzed" }, { status: 400 });
+      return NextResponse.json({ error: "Only PDF files can be analyzed" }, { status: 400 })
     }
 
-    const buffer = Buffer.from(await uploadedFile.arrayBuffer());
+    const rawExtractionId = formData.get("extractionId")
+    let extractionId = ""
+    if (typeof rawExtractionId === "string") {
+      extractionId = rawExtractionId.trim()
+    }
+    if (extractionId.length === 0) {
+      extractionId = createOpportunityExtractionId()
+    }
+
+    const buffer = Buffer.from(await uploadedFile.arrayBuffer())
     const extraction = await extractOpportunityMetadataFromPdf({
       fileName: uploadedFile.name,
       buffer,
-    });
+      extractionId,
+    })
 
-    return NextResponse.json({ extraction }, { status: 200 });
+    return NextResponse.json({ extraction }, { status: 200 })
   } catch (error) {
     if (error instanceof AuthorizationError) {
-      return NextResponse.json({ error: error.message }, { status: error.status });
+      return NextResponse.json({ error: error.message }, { status: error.status })
     }
 
-    console.error("[opportunity-register/analyze] failed", error);
+    console.error("[opportunity-register/analyze] failed", error)
+    const details = error instanceof Error ? error.message : "Unknown error"
     return NextResponse.json(
-      { error: "Failed to analyze opportunity document", details: error instanceof Error ? error.message : "Unknown error" },
+      { error: "Failed to analyze opportunity document", details },
       { status: 500 },
-    );
+    )
   }
 }
