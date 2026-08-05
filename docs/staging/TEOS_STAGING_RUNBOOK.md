@@ -221,3 +221,37 @@ If production credentials are found in Preview:
 2. Rotate the affected production service account.
 3. Review Vercel deployment logs for any accidental protected write attempts.
 4. Document findings before resuming staging setup.
+
+## Staging UAT Preparation Slice
+
+Required local env before apply/reset: FIREBASE_PROJECT_ID=torque-empire-ai-pro-crm-staging, TEOS_ENVIRONMENT=staging, FIREBASE_STORAGE_BUCKET=torque-empire-teos-staging.firebasestorage.app, plus temporary staging Admin credential values.
+
+Set TEOS_STAGING_ADMIN_PASSWORD and TEOS_STAGING_STAFF_PASSWORD only as temporary local environment variables. Do not commit or print them.
+
+Seed dry-run: npx tsx scripts/staging/seedStagingUat.ts
+Seed apply: npx tsx scripts/staging/seedStagingUat.ts --apply
+
+All seeded records carry environment=staging, syntheticData=true, seedVersion=staging-uat-v1, createdBy=staging-seed.
+
+Reset dry-run: npx tsx scripts/staging/resetStagingUat.ts
+Reset delete: npx tsx scripts/staging/resetStagingUat.ts --confirm-delete-staging-synthetic-data
+
+Reset refuses non-staging projects, verifies exact staging synthetic record markers, never deletes whole collections, and deletes Auth users only when staging synthetic custom claims are present.
+
+## Browser UAT Checklist - Current Staging Slice
+
+1. Sign in as staging admin.
+2. Confirm banner: STAGING - TEST DATA ONLY.
+3. Confirm no production Firebase identifiers appear.
+4. Upload RFQ A.
+5. Upload RFQ B.
+6. Confirm RFQ A fields are cleared.
+7. Create the synthetic opportunity.
+8. Assign the canonical synthetic contractor.
+9. Confirm the request succeeds without 401/403.
+10. Confirm contractor count becomes 1.
+11. Refresh.
+12. Confirm assignment persists.
+13. Confirm Tax and CSD blockers recalculate.
+14. Confirm unresolved contractor cannot be assigned.
+15. Confirm no production records were written.
