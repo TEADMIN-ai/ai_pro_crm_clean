@@ -11,6 +11,7 @@ secure/
 .env
 .env.local
 .env.*
+!.env.staging.example
 
 # Platform
 .vercel/

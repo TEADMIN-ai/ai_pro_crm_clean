@@ -32,6 +32,23 @@ Do not copy production service-account credentials into staging or Preview.
 8. Store the staging private key only in the Vercel Preview environment.
 9. Do not export or clone production personal data into staging.
 
+## Staging Service Account
+
+Create and handle the staging Admin credential through Firebase Console only:
+
+1. Open Firebase Console.
+2. Select project `torque-empire-ai-pro-crm-staging`.
+3. Open Project settings.
+4. Open Service accounts.
+5. Confirm the selected project is the staging project, not production.
+6. Click Generate new private key.
+7. Download the JSON key only long enough to copy values into Vercel Preview environment variables.
+8. Store values only in the Vercel Preview environment.
+9. Convert the multiline private key for Vercel by replacing actual line breaks with escaped `\n` sequences. Keep the BEGIN/END PRIVATE KEY markers intact.
+10. Never commit the JSON key, a copied service-account JSON object, private key text, API keys, tokens, or credentials.
+11. After Vercel Preview values are confirmed, delete the locally downloaded JSON key.
+12. If the JSON key or private key is exposed, revoke the service-account key in Firebase Console immediately, generate a new staging key, and replace the Vercel Preview value.
+
 ## Vercel Preview Variables
 
 Preview must use staging values only:
@@ -47,9 +64,51 @@ FIREBASE_PROJECT_ID
 FIREBASE_CLIENT_EMAIL
 FIREBASE_PRIVATE_KEY
 FIREBASE_STORAGE_BUCKET
+TEOS_ENVIRONMENT
 ```
 
 Production variables must remain unchanged and must continue to point to `torque-empire-ai-pro-crm`.
+
+Use `.env.staging.example` as the name-only template. It contains placeholders only and must not be filled with real values in the repository.
+
+## Vercel Preview Configuration
+
+Do not run these commands until Mr K is ready to paste the staging values directly into the Vercel CLI prompts. Each command targets Preview only and does not deploy.
+
+```powershell
+npx vercel env add NEXT_PUBLIC_FIREBASE_API_KEY preview
+npx vercel env add NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN preview
+npx vercel env add NEXT_PUBLIC_FIREBASE_PROJECT_ID preview
+npx vercel env add NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET preview
+npx vercel env add NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID preview
+npx vercel env add NEXT_PUBLIC_FIREBASE_APP_ID preview
+npx vercel env add FIREBASE_PROJECT_ID preview
+npx vercel env add FIREBASE_CLIENT_EMAIL preview
+npx vercel env add FIREBASE_PRIVATE_KEY preview
+npx vercel env add FIREBASE_STORAGE_BUCKET preview
+npx vercel env add TEOS_ENVIRONMENT preview
+```
+
+Required Preview values:
+
+```text
+NEXT_PUBLIC_FIREBASE_PROJECT_ID=torque-empire-ai-pro-crm-staging
+NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=torque-empire-teos-staging.firebasestorage.app
+FIREBASE_PROJECT_ID=torque-empire-ai-pro-crm-staging
+FIREBASE_STORAGE_BUCKET=torque-empire-teos-staging.firebasestorage.app
+TEOS_ENVIRONMENT=staging
+```
+
+Do not use `production` as the target for staging values. Do not run `npx vercel --prod`, `npx vercel alias`, or any deployment command during this setup slice.
+
+Safe metadata inspection:
+
+```powershell
+npx vercel whoami
+npx vercel env ls
+```
+
+`vercel env ls` prints variable names and encrypted status only. Do not print, paste, or commit values.
 
 ## Environment Verification
 
@@ -70,6 +129,18 @@ The script prints only non-secret diagnostics:
 
 It must never print private keys, service-account JSON, API tokens, or user credentials.
 
+Run the Vercel Preview isolation audit after Preview and Production values are available locally through ignored env files or inside controlled CI. The audit redacts values and prints only names/status:
+
+```powershell
+npx vercel env pull .vercel\.env.preview.local --environment=preview
+npx vercel env pull .vercel\.env.production.local --environment=production
+npx tsx scripts/staging/verifyVercelPreviewEnvironment.ts --preview-env-file .vercel\.env.preview.local --production-env-file .vercel\.env.production.local
+Remove-Item -LiteralPath .vercel\.env.preview.local
+Remove-Item -LiteralPath .vercel\.env.production.local
+```
+
+The `.vercel` directory is gitignored. Treat pulled env files as local secrets and delete them after verification.
+
 ## Safety Guard
 
 Server-side Firebase use is guarded by `src/lib/server/environmentSafety.ts`.
@@ -82,6 +153,14 @@ The guard rejects:
 - protected writes without deployment environment identity
 - public/Admin project ID mismatch
 - development using production Firebase without `TEOS_ALLOW_DEVELOPMENT_PRODUCTION_FIREBASE=allow-development-production-firebase`
+
+## Direct Script Guard Gap
+
+The following direct scripts bypass `src/lib/server/environmentSafety.ts` and must not be run against staging or production until a separate hardening slice adds the same fail-closed environment guard:
+
+- `scripts/bootstrapAdminRole.ts` initializes Firebase Admin directly from `FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL`, and `FIREBASE_PRIVATE_KEY`, then mutates Auth custom claims.
+- `scripts/migrateDocuments.ts` initializes Firebase Admin directly from `FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL`, and `FIREBASE_PRIVATE_KEY`, then writes Firestore contractor document records.
+- `scripts/migrate-deals.js` initializes Firebase Admin from `secrets/service-account.json`, then writes Firestore deal records.
 
 ## Synthetic Data Rules
 
