@@ -1,4 +1,4 @@
-﻿import { ReactNode } from "react";
+import { ReactNode } from "react";
 import { getGovernanceAlerts } from "@/lib/governance/alerts";
 import { getGovernanceVisibilitySnapshot } from "@/lib/governance/visibility";
 import DashboardHeader from "@/components/layout/DashboardHeader";
@@ -17,7 +17,13 @@ function buildGovernanceNavBadge(): GovernanceNavBadge {
   };
 }
 
-export default function DashboardLayout({ children }: { children: ReactNode }) {
+export default function DashboardLayout({
+  children,
+  stagingBanner,
+}: {
+  children: ReactNode;
+  stagingBanner?: string | null;
+}) {
   const governanceBadge = buildGovernanceNavBadge();
 
   return (
@@ -34,6 +40,11 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
 
       <div className="relative z-10 md:pl-72">
         <header className="sticky top-0 z-30 border-b border-[color:var(--tex-border)] bg-[color:var(--tex-surface)] backdrop-blur-xl">
+          {stagingBanner ? (
+            <div className="bg-amber-500 px-4 py-2 text-center text-xs font-bold uppercase tracking-[0.16em] text-slate-950">
+              {stagingBanner}
+            </div>
+          ) : null}
           <div className="mx-auto flex max-w-[1600px] flex-col gap-4 px-4 py-4 sm:px-6 lg:px-8">
             <div className="flex items-center justify-between gap-4">
               <DashboardWorkspaceIdentity variant="header" />

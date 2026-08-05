@@ -1,6 +1,7 @@
-﻿import { applicationDefault, cert, getApps, initializeApp, type AppOptions, type ServiceAccount } from "firebase-admin/app";
+import { applicationDefault, cert, getApps, initializeApp, type AppOptions, type ServiceAccount } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
 import { getStorage } from "firebase-admin/storage";
+import { assertFirebaseEnvironmentSafe } from "@/lib/server/environmentSafety";
 
 function normalizePrivateKey(privateKey: string | undefined) {
   return privateKey?.replace(/\\n/g, "\n").replace(/^"(.*)"$/, "$1").trim();
@@ -48,6 +49,11 @@ function resolveAdminCredential() {
 export const firebaseAdminStorageBucket = resolveFirebaseStorageBucket();
 
 if (!getApps().length) {
+  const environmentClassification = assertFirebaseEnvironmentSafe({
+    operation: "admin-init",
+    requireProjectId: process.env.NODE_ENV !== "test",
+    requireDeploymentIdentity: process.env.NODE_ENV !== "test",
+  });
   const { credential, credentialSource } = resolveAdminCredential();
   const appOptions: AppOptions = {
     credential,
@@ -61,7 +67,8 @@ if (!getApps().length) {
 
   console.log("[FIREBASE_ADMIN_INIT]", {
     credentialSource,
-    projectId: process.env.FIREBASE_PROJECT_ID?.trim() ?? null,
+    deploymentEnvironment: environmentClassification.deploymentEnvironment,
+    projectId: environmentClassification.firebaseProjectId,
     storageBucket: firebaseAdminStorageBucket ?? null,
   });
 }
