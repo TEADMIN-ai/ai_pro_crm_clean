@@ -57,6 +57,7 @@ export default function OpportunityExecutionPanel({ dealId, state, matches }: Pr
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [expandedBlockerId, setExpandedBlockerId] = useState<string | null>(null);
   const [requirementsDraft, setRequirementsDraft] = useState(() => ({ source: state.requirements, value: state.requirements }));
   const requirements = requirementsDraft.source === state.requirements ? requirementsDraft.value : state.requirements;
 
@@ -84,6 +85,11 @@ export default function OpportunityExecutionPanel({ dealId, state, matches }: Pr
       const base = current.source === state.requirements ? current.value : state.requirements;
       return { source: state.requirements, value: { ...base, [key]: value } };
     });
+  }
+
+  function reviewBlockers(contractorId: string) {
+    setExpandedBlockerId(contractorId);
+    window.requestAnimationFrame(() => document.getElementById("contractor-blockers-" + contractorId)?.focus());
   }
 
   function renderAction(action: OpportunityAction | undefined) {
@@ -250,6 +256,19 @@ export default function OpportunityExecutionPanel({ dealId, state, matches }: Pr
                     ))}
                   </div>
                 </details>
+                {match.assignmentAllowed !== true ? (
+                  <div
+                    id={"contractor-blockers-" + match.contractorId}
+                    tabIndex={-1}
+                    className="mt-2 rounded-md border border-red-200 bg-red-50 p-2 text-xs text-red-900"
+                    aria-label={"Assignment blockers for " + match.contractorName}
+                  >
+                    <p className="font-semibold">Assignment blocked</p>
+                    <ul className="mt-1 grid gap-1">
+                      {match.blockingReasons.length ? match.blockingReasons.map((blocker) => <li key={blocker}>{blocker}</li>) : <li>Assignment authority did not allow this contractor.</li>}
+                    </ul>
+                  </div>
+                ) : null}
               </td>
               <td>{match.opportunityMatch}%</td>
               <td>{match.profileCompleteness}%</td>
@@ -257,7 +276,19 @@ export default function OpportunityExecutionPanel({ dealId, state, matches }: Pr
               <td>{match.submissionReadiness}%</td>
               <td>{match.validRequirementsCount} valid / {match.missingCount} missing / {match.expiredCount} expired / {match.reviewRequiredCount} review</td>
               <td>{match.recommendationReason}</td>
-              <td><EnterpriseActionButton disabled={pending || state.currentPhase !== "MATCHING_REQUIRED" || match.assignmentAllowed !== true} onClick={() => submit("assign_contractor", { contractorId: match.contractorId })} variant={match.assignmentAllowed === true ? "success" : "secondary"} title={match.blockingReasons[0] ?? undefined}>Assign</EnterpriseActionButton></td>
+              <td>{match.assignmentAllowed === true ? (
+                <EnterpriseActionButton disabled={pending || state.currentPhase !== "MATCHING_REQUIRED"} onClick={() => submit("assign_contractor", { contractorId: match.contractorId })} variant="success">Assign</EnterpriseActionButton>
+              ) : (
+                <EnterpriseActionButton
+                  type="button"
+                  variant="secondary"
+                  aria-expanded={expandedBlockerId === match.contractorId}
+                  aria-controls={"contractor-blockers-" + match.contractorId}
+                  onClick={() => reviewBlockers(match.contractorId)}
+                >
+                  Review Blockers
+                </EnterpriseActionButton>
+              )}</td>
             </tr>
           ))}</tbody>
         </EnterpriseTable> : <EnterpriseEmptyState title="No live contractor matches" detail="No canonical contractor records matched this opportunity." />}
