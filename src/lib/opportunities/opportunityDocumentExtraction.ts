@@ -37,6 +37,17 @@ function normalizeDate(value: string): string {
   return `${dmy[3]}-${month}-${dmy[1].padStart(2, "0")}`;
 }
 
+type ExtractedLabelField = "clientName" | "department";
+
+function sanitizeLabelValue(value: string, field: ExtractedLabelField): string {
+  const normalized = normalizeLine(value);
+  if (!normalized) return "";
+  if (normalized.toUpperCase().includes("CONTACT PERSON")) return "";
+  if (/^(?:client|issuer|issuing authority|buyer|department|supply chain)$/i.test(normalized)) return "";
+  if (field === "department" && normalized.toLowerCase().startsWith("department:")) return "";
+  return normalized;
+}
+
 function valueField(value: string, confidence: number, source: string): OpportunityExtractionField | undefined {
   const normalized = normalizeLine(value);
   return normalized ? { value: normalized, confidence, source } : undefined;
@@ -83,9 +94,9 @@ export async function extractOpportunityMetadataFromPdf(input: {
   const mappings = {
     referenceNumber: valueField(referenceNumber, 0.86, "RFQ/RFP reference pattern"),
     opportunityTitle: valueField(title, title === input.fileName ? 0.45 : 0.76, "document title/description"),
-    clientName: valueField(clientName, 0.72, "issuer/client label"),
+    clientName: valueField(sanitizeLabelValue(clientName, "clientName"), 0.72, "issuer/client label"),
     municipality: valueField(municipality, 0.7, "municipality label"),
-    department: valueField(department, 0.68, "department label"),
+    department: valueField(sanitizeLabelValue(department, "department"), 0.68, "department label"),
     closingDate: valueField(normalizeDate(closingRaw), 0.78, "closing date label"),
     estimatedValue: valueField(estimatedValue ? estimatedValue.replace(/,/g, "") : "", 0.72, "estimated value label"),
     province: valueField(province, 0.62, "province label"),
