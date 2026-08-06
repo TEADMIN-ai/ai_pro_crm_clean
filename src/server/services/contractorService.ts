@@ -315,7 +315,7 @@ export async function createContractor(
   return docRef.id;
 }
 
-export async function getContractorById(contractorId: string) {
+export async function getContractorById(contractorId: string): Promise<(Record<string, unknown> & { id: string }) | null> {
   const snapshot = await getFirebaseAdmin().collection("contractors").doc(contractorId).get();
   if (!snapshot.exists) {
     return null;
@@ -502,10 +502,17 @@ export type ContractorArchiveActor = Pick<AuthorizedUser, "uid" | "email" | "rol
   workspaceId?: string | null;
 };
 
+export type ContractorDependencySummary = {
+  linkedUserCount: number;
+  linkedOpportunityCount: number;
+  activeAssignmentCount: number;
+  documentCount: number;
+  tenderPackCount: number;
+  submissionReviewCount: number;
+};
+
 function assertAdminArchiveActor(actor: ContractorArchiveActor): void {
-  if (actor.role !== "admin") {
-    throw new AuthorizationError("Contractor archive requires admin authorisation", 403);
-  }
+  if (actor.role !== "admin") throw new AuthorizationError("Contractor archive requires admin authorisation", 403);
 }
 
 function contractorWorkspaceId(contractor: Record<string, unknown>): string | null {
@@ -523,39 +530,123 @@ function assertArchiveWorkspace(actor: ContractorArchiveActor, contractor: Recor
   }
 }
 
+function normalizeContractorId(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const normalized = value.trim().replace(/^contractors\//, "");
+  return normalized && normalized.length <= 150 && !normalized.includes("/") ? normalized : null;
+}
+
+function containsContractorReference(value: unknown, contractorId: string): boolean {
+  if (typeof value === "string") return value === contractorId || value === `contractors/${contractorId}`;
+  if (Array.isArray(value)) return value.some((item) => containsContractorReference(item, contractorId));
+  if (value && typeof value === "object") return Object.values(value as Record<string, unknown>).some((item) => containsContractorReference(item, contractorId));
+  return false;
+}
+
+async function readCollectionRecords(collectionName: string): Promise<Record<string, unknown>[]> {
+  try {
+    const snapshot = await getFirebaseAdmin().collection(collectionName).get();
+    return snapshot.docs.map((doc) => ({ id: doc.id, ...((doc.data() ?? {}) as Record<string, unknown>) }));
+  } catch {
+    return [];
+  }
+}
+
+export async function getContractorDependencySummary(contractorId: string): Promise<ContractorDependencySummary> {
+  const [contractorDocuments, users, deals, tenderPacks, tenderPackRequests, submissionReviews] = await Promise.all([
+    listContractorDocuments(contractorId),
+    readCollectionRecords("users"),
+    readCollectionRecords("deals"),
+    readCollectionRecords("tenderPacks"),
+    readCollectionRecords("tenderPackRequests"),
+    readCollectionRecords("submissionReviews"),
+  ]);
+  const linkedUsers = users.filter((record) => containsContractorReference(record, contractorId));
+  const linkedDeals = deals.filter((record) => containsContractorReference(record, contractorId));
+  const activeAssignments = linkedDeals.filter((record) => {
+    const assignment = record.contractorAssignment;
+    return Boolean(assignment && typeof assignment === "object" && (assignment as Record<string, unknown>).assignmentStatus === "assigned");
+  });
+  const linkedTenderPacks = [...tenderPacks, ...tenderPackRequests].filter((record) => containsContractorReference(record, contractorId));
+  const linkedSubmissionReviews = submissionReviews.filter((record) => containsContractorReference(record, contractorId));
+
+  return {
+    linkedUserCount: linkedUsers.length,
+    linkedOpportunityCount: linkedDeals.length,
+    activeAssignmentCount: activeAssignments.length,
+    documentCount: contractorDocuments.length,
+    tenderPackCount: linkedTenderPacks.length,
+    submissionReviewCount: linkedSubmissionReviews.length,
+  };
+}
+
 export async function archiveContractorById(input: {
   contractorId: string;
   reason: string;
   actor: ContractorArchiveActor;
+  replacementContractorId?: string | null;
+  dependencySummary?: ContractorDependencySummary;
+  confirmActiveAssignments?: boolean;
 }): Promise<Record<string, unknown> & { id: string }> {
   assertAdminArchiveActor(input.actor);
-  const contractor = await getContractorById(input.contractorId);
-  if (!contractor) {
-    throw new Error("Contractor not found");
-  }
+  const contractorId = normalizeContractorId(input.contractorId);
+  if (!contractorId) throw new Error("Malformed contractor ID");
+  const archiveReason = input.reason.trim();
+  if (!archiveReason) throw new Error("Archive reason is required");
+  const contractor = await getContractorById(contractorId);
+  if (!contractor) throw new Error("Contractor not found");
   assertArchiveWorkspace(input.actor, contractor);
 
+  if (contractor.archived === true || String(contractor.status ?? "").toLowerCase() === "archived") {
+    return contractor as Record<string, unknown> & { id: string };
+  }
+
   const archivedAt = new Date().toISOString();
-  const originalStatus = asString((contractor as Record<string, unknown>).status) ?? null;
-  const archiveReason = input.reason.trim() || "Manual contractor repository archive";
-  await updateContractorById(input.contractorId, {
+  const originalStatus = asString(contractor.status) ?? null;
+  const replacementContractorId = normalizeContractorId(input.replacementContractorId);
+  const dependencySummary = await getContractorDependencySummary(contractorId);
+  if (dependencySummary.activeAssignmentCount > 0 && input.confirmActiveAssignments !== true) throw new Error("Active assignments require explicit confirmation");
+  const lifecycle = {
+    status: "archived",
+    archivedAt,
+    archivedByUid: input.actor.uid,
+    archivedByEmail: input.actor.email ?? null,
+    archiveReason,
+    replacementContractorId,
+  };
+  await updateContractorById(contractorId, {
     archived: true,
+    status: "archived",
     archivedAt,
     archivedBy: input.actor.uid,
+    archivedByUid: input.actor.uid,
     archivedByEmail: input.actor.email ?? null,
     archiveReason,
     originalStatus,
+    replacementContractorId,
+    contractorLifecycle: lifecycle,
   });
 
   await recordAuditLog({
     userId: input.actor.uid,
     action: "CONTRACTOR_ARCHIVED",
     entityType: "contractor",
-    entityId: input.contractorId,
-    metadata: { reason: archiveReason, originalStatus, archivedAt },
+    entityId: contractorId,
+    metadata: {
+      contractorId,
+      contractorName: getContractorDisplayName(contractor),
+      previousStatus: originalStatus,
+      newStatus: "archived",
+      reason: archiveReason,
+      replacementContractorId,
+      actorUid: input.actor.uid,
+      actorEmail: input.actor.email ?? null,
+      archivedAt,
+      dependencySummary,
+    },
   });
 
-  return (await getContractorById(input.contractorId)) as Record<string, unknown> & { id: string };
+  return (await getContractorById(contractorId)) as Record<string, unknown> & { id: string };
 }
 
 export async function restoreContractorById(input: {
@@ -564,29 +655,57 @@ export async function restoreContractorById(input: {
   reason?: string;
 }): Promise<Record<string, unknown> & { id: string }> {
   assertAdminArchiveActor(input.actor);
-  const contractor = await getContractorById(input.contractorId);
-  if (!contractor) {
-    throw new Error("Contractor not found");
-  }
+  const contractorId = normalizeContractorId(input.contractorId);
+  if (!contractorId) throw new Error("Malformed contractor ID");
+  const contractor = await getContractorById(contractorId);
+  if (!contractor) throw new Error("Contractor not found");
   assertArchiveWorkspace(input.actor, contractor);
+
+  if (contractor.archived !== true && String(contractor.status ?? "").toLowerCase() !== "archived") {
+    return contractor as Record<string, unknown> & { id: string };
+  }
 
   const restoredAt = new Date().toISOString();
   const restoreReason = input.reason?.trim() || "Manual contractor repository restore";
-  await updateContractorById(input.contractorId, {
+  const previousStatus = asString(contractor.status) ?? "archived";
+  const originalStatus = asString(contractor.originalStatus);
+  const restoredStatus = originalStatus && originalStatus.toLowerCase() !== "archived" ? originalStatus : "pending";
+  const replacementContractorId = normalizeContractorId(contractor.replacementContractorId);
+  await updateContractorById(contractorId, {
     archived: false,
+    status: restoredStatus,
     restoredAt,
     restoredBy: input.actor.uid,
+    restoredByUid: input.actor.uid,
     restoredByEmail: input.actor.email ?? null,
     restoreReason,
+    contractorLifecycle: {
+      status: restoredStatus,
+      restoredAt,
+      restoredByUid: input.actor.uid,
+      restoredByEmail: input.actor.email ?? null,
+      restoreReason,
+      replacementContractorId,
+    },
   });
 
   await recordAuditLog({
     userId: input.actor.uid,
     action: "CONTRACTOR_RESTORED",
     entityType: "contractor",
-    entityId: input.contractorId,
-    metadata: { reason: restoreReason, restoredAt },
+    entityId: contractorId,
+    metadata: {
+      contractorId,
+      contractorName: getContractorDisplayName(contractor),
+      previousStatus,
+      newStatus: restoredStatus,
+      reason: restoreReason,
+      replacementContractorId,
+      actorUid: input.actor.uid,
+      actorEmail: input.actor.email ?? null,
+      restoredAt,
+    },
   });
 
-  return (await getContractorById(input.contractorId)) as Record<string, unknown> & { id: string };
+  return (await getContractorById(contractorId)) as Record<string, unknown> & { id: string };
 }

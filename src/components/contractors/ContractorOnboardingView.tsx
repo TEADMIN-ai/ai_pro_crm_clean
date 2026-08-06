@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import ContractorOpportunityWorkspace from "@/components/contractor-opportunities/ContractorOpportunityWorkspace";
 import ContractorBusinessIdCard from "@/components/contractors/ContractorBusinessIdCard";
+import ContractorLifecycleControls from "@/components/contractors/ContractorLifecycleControls";
 import SarsTcsVerificationCard from "@/components/contractors/SarsTcsVerificationCard";
 import UploadDocumentModal from "@/components/modals/UploadDocumentModal";
 import { useAuth } from "@/context/AuthContext";
@@ -28,6 +29,7 @@ import type { ContractorTimelineItem } from "@/types/intelligenceCenter";
 
 type ContractorRecord = {
   id?: string;
+  archived?: boolean | null;
   contractorId?: string;
   name?: string | null;
   companyName?: string | null;
@@ -351,7 +353,7 @@ export default function ContractorOnboardingView({ contractorId }: Props) {
 
     let cancelled = false;
 
-    setLoading(true);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadOnboarding()
       .catch((loadError: unknown) => {
         if (!cancelled) {
@@ -563,6 +565,9 @@ export default function ContractorOnboardingView({ contractorId }: Props) {
 
         {payload.lastAction ? <LastActionBanner action={payload.lastAction} /> : null}
 
+
+
+        <ContractorLifecycleControls contractorId={contractorId} contractorName={companyName} status={payload.contractor.status} archived={payload.contractor.archived === true} role={role} onComplete={loadOnboarding} />
 
         <ExecutiveContractorProfile
           contractor={payload.contractor}
