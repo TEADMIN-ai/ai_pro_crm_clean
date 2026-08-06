@@ -20,6 +20,21 @@ const PRIMARY_ACTIONS: OpportunityActionKey[] = [
 ];
 
 function fieldValue(value: string | null | undefined) { return value ?? ""; }
+const REQUIREMENT_LABELS: Record<string, string> = {
+  csdRequirement: "CSD registration",
+  taxRequirement: "Tax compliance",
+  bbbeeRequirement: "B-BBEE evidence",
+  coidaRequirement: "COIDA / Letter of Good Standing",
+  bankingRequirement: "Bank confirmation",
+  boqPricingSchedulePresent: "BOQ / pricing schedule",
+  signatureRequired: "Required signatures",
+};
+
+export function formatOpportunityRequirementLabel(key: string): string {
+  return REQUIREMENT_LABELS[key] ?? key.replace(/([a-z])([A-Z])/g, "$1 $2").replace(/[_-]+/g, " ").split(" ").filter(Boolean).map((word) => word.charAt(0).toUpperCase() + word.slice(1)).join(" ");
+}
+
+
 function formatDate(value: string | null) {
   if (!value) return "Not captured";
   const date = new Date(value);
@@ -231,7 +246,7 @@ export default function OpportunityExecutionPanel({ dealId, state, matches }: Pr
         </div>
         <div className="mt-4 flex flex-wrap gap-4 text-sm">
           {(["csdRequirement", "taxRequirement", "bbbeeRequirement", "coidaRequirement", "bankingRequirement", "boqPricingSchedulePresent", "signatureRequired"] as const).map((key) => (
-            <label key={key} className="flex items-center gap-2"><input type="checkbox" checked={Boolean(requirements[key])} onChange={(event) => setRequirement(key, event.target.checked)} />{key}</label>
+            <label key={key} className="flex items-center gap-2"><input type="checkbox" checked={Boolean(requirements[key])} onChange={(event) => setRequirement(key, event.target.checked)} />{formatOpportunityRequirementLabel(key)}</label>
           ))}
         </div>
         <div className="mt-4"><EnterpriseActionButton disabled={pending || state.currentPhase !== "REQUIREMENTS_REVIEW"} onClick={() => submit("review_requirements", { requirements })} variant="success">Complete Requirements Review</EnterpriseActionButton></div>
