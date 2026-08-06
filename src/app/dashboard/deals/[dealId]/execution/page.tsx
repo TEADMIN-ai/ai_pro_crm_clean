@@ -3,6 +3,7 @@ import OpportunityExecutionPanel from "@/components/opportunity-register/Opportu
 import ProcurementExecutionProjectionPanel from "@/components/opportunity-register/ProcurementExecutionProjectionPanel";
 import { EnterpriseCard, EnterpriseEmptyState, EnterpriseKpiCard, EnterprisePanel, EnterpriseStatusBadge } from "@/components/ui/EnterpriseUI";
 import { getOpportunityExecutionView } from "@/server/services/opportunityExecutionService";
+import { requireAuthorizedUserFromSession } from "@/lib/server/authz";
 
 function asText(value: unknown, fallback = "Not captured") {
   return typeof value === "string" && value.trim() ? value.trim() : fallback;
@@ -25,7 +26,8 @@ export default async function DealExecutionPage({ params }: { params: Promise<{ 
   const { dealId } = await params;
   let view: Awaited<ReturnType<typeof getOpportunityExecutionView>>;
   try {
-    view = await getOpportunityExecutionView(dealId);
+    const actor = await requireAuthorizedUserFromSession();
+    view = await getOpportunityExecutionView(dealId, actor);
   } catch {
     return <main data-module="dashboard" className="tex-shell"><EnterpriseEmptyState title="Execution workspace unavailable" detail="The canonical deal record could not be loaded." /></main>;
   }

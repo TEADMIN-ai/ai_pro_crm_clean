@@ -5,6 +5,7 @@ import { ensureContractorAuthLinkage } from '@/lib/contractors/contractorAuthLin
 import type { UserRole } from '@/lib/auth/roleUtils';
 import { isVehicleFinanceRole, isVehicleFinanceStaffRole } from '@/lib/auth/roleUtils';
 import { requireAuth } from '@/lib/server/requireAuth';
+import { verifySession } from '@/lib/server/verifySession';
 import { resolveCapabilities } from '@/lib/capabilities/capabilityResolver';
 import type { CapabilityKey } from '@/lib/capabilities/capabilityTypes';
 
@@ -126,6 +127,28 @@ export async function requireAuthorizedUser(request: NextRequest): Promise<Autho
     console.error('Authorization failed', error);
     throw new AuthorizationError('unauthorized', 401);
   }
+}
+export async function requireAuthorizedUserFromSession(): Promise<AuthorizedUser> {
+  const decoded = await verifySession();
+  if (!decoded) {
+    throw new AuthorizationError('unauthorized', 401);
+  }
+
+  const resolved = await resolveAuthorizedIdentity({
+    uid: decoded.uid,
+    email: typeof decoded.email === 'string' ? decoded.email : undefined,
+    role: decoded.role,
+    contractorId: decoded.contractorId,
+  });
+
+  return {
+    uid: resolved.uid,
+    email: resolved.email,
+    role: resolved.role,
+    contractorId: resolved.contractorId,
+    workspaceId: resolved.workspaceId,
+    capabilities: resolved.capabilities,
+  };
 }
 export function canAccessContractor(user: AuthorizedUser, contractorId: string): boolean {
   if (user.role === 'admin' || user.role === 'manager' || user.role === 'staff') {

@@ -6,6 +6,7 @@ import {
 } from "@/components/ui/EnterpriseUI";
 import OpportunityWorkspaceView from "@/components/opportunity-register/OpportunityWorkspaceView";
 import { getOpportunityExecutionView } from "@/server/services/opportunityExecutionService";
+import { requireAuthorizedUserFromSession } from "@/lib/server/authz";
 import { getOpportunityRegisterRecordById, mapDealToOpportunityRegisterRecord } from "@/components/opportunity-register/opportunityRegisterData";
 
 export default async function OpportunityRegisterDetailPage({
@@ -20,7 +21,8 @@ export default async function OpportunityRegisterDetailPage({
   }
   let view: Awaited<ReturnType<typeof getOpportunityExecutionView>> | null = null;
   try {
-    view = await getOpportunityExecutionView(opportunityId);
+    const actor = await requireAuthorizedUserFromSession();
+    view = await getOpportunityExecutionView(opportunityId, actor);
   } catch {
     view = null;
   }

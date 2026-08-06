@@ -2,6 +2,7 @@ import Link from "next/link";
 import TenderPricingWorkspace from "@/components/tender-pricing/TenderPricingWorkspace";
 import { EnterpriseCard, EnterpriseEmptyState, EnterpriseStatusBadge } from "@/components/ui/EnterpriseUI";
 import { getOpportunityExecutionView } from "@/server/services/opportunityExecutionService";
+import { requireAuthorizedUserFromSession } from "@/lib/server/authz";
 
 function asText(value: unknown, fallback = "Not captured") {
   return typeof value === "string" && value.trim() ? value.trim() : fallback;
@@ -15,7 +16,8 @@ export default async function DealTenderPricingPage({ params }: { params: Promis
   const { dealId } = await params;
   let view: Awaited<ReturnType<typeof getOpportunityExecutionView>>;
   try {
-    view = await getOpportunityExecutionView(dealId);
+    const actor = await requireAuthorizedUserFromSession();
+    view = await getOpportunityExecutionView(dealId, actor);
   } catch {
     return (
       <main data-module="dashboard" className="tex-shell">
