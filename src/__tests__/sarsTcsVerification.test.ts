@@ -7,8 +7,8 @@ const fullPin = "AB12345678";
 function provided(previous?: SarsTcsVerificationRecord | null) {
   return createProvidedPinRecord({ workspaceId: "workspace-a", contractorId: "contractor-a", taxReferenceNumber: "9876543210", registeredTaxpayerName: "Torque Empire (Pty) Ltd", registrationNumber: "2020/123456/07", tcsPin: fullPin, actorUid: "contractor-uid", actorName: "Contractor", consentConfirmed: true, previous });
 }
-function verified(status: SarsTcsVerificationRecord["verificationStatus"] = "VERIFIED_COMPLIANT", current = provided()) {
-  return recordSarsVerificationResult({ current, status, source: "SARS_SOQS", verifiedAt: "2026-07-01T08:00:00.000Z", verifiedByUid: "staff-uid", verifiedByName: "Staff User", taxpayerNameMatch: status === "DETAILS_MISMATCH" ? "MISMATCH" : "MATCH", taxReferenceMatch: status === "DETAILS_MISMATCH" ? "MISMATCH" : "MATCH", registrationNumberMatch: "MATCH", contractorIdentityMatch: status === "DETAILS_MISMATCH" ? "MISMATCH" : "MATCH", mismatchReasons: status === "DETAILS_MISMATCH" ? ["SARS name differs from contractor profile"] : [], verificationReference: "SOQS-1", notes: "Checked against SARS SOQS", evidence: { hash: "sha256:evidence" }, policy: { maxAgeDays: 30, requireBeforeFinalSubmission: true } });
+function verified(status: SarsTcsVerificationRecord["verificationStatus"] = "VERIFIED_COMPLIANT", current = provided(), verifiedAt = "2026-07-01T08:00:00.000Z") {
+  return recordSarsVerificationResult({ current, status, source: "SARS_SOQS", verifiedAt, verifiedByUid: "staff-uid", verifiedByName: "Staff User", taxpayerNameMatch: status === "DETAILS_MISMATCH" ? "MISMATCH" : "MATCH", taxReferenceMatch: status === "DETAILS_MISMATCH" ? "MISMATCH" : "MATCH", registrationNumberMatch: "MATCH", contractorIdentityMatch: status === "DETAILS_MISMATCH" ? "MISMATCH" : "MATCH", mismatchReasons: status === "DETAILS_MISMATCH" ? ["SARS name differs from contractor profile"] : [], verificationReference: "SOQS-1", notes: "Checked against SARS SOQS", evidence: { hash: "sha256:evidence" }, policy: { maxAgeDays: 30, requireBeforeFinalSubmission: true } });
 }
 describe("SARS TCS verification domain", () => {
   it("protects contractor-provided PINs and masks normal responses", () => {
@@ -184,7 +184,7 @@ describe("SARS TCS Firestore sanitization", () => {
 
 describe("SARS TCS procurement and submission integration", () => {
   it("adds the canonical SARS result to procurement execution", () => {
-    const deal = dealWithSars(verified());
+    const deal = dealWithSars(verified("VERIFIED_COMPLIANT", provided(), new Date().toISOString()));
     const state = buildOpportunityExecutionState({ deal, contractor });
     const projection = buildProcurementExecutionProjection({ deal, state, remediationRequests: state.remediationRequests });
     expect(projection.sarsVerificationStatus).toBe("VERIFIED_COMPLIANT");

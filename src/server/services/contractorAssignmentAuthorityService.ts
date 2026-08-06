@@ -233,7 +233,7 @@ export async function evaluateContractorAssignmentAuthority(input: {
   const requirements = extractOpportunityRequirements(deal);
   const compliance = evaluateOpportunityCompliance(requirements, currentContractor, dealWorkspaceId);
   const blockers = [
-    ...(isArchivedContractor(contractor) ? ["Contractor is archived"] : []),
+    ...(isArchivedContractor(contractor) ? ["Contractor is archived and cannot receive new assignments."] : []),
     ...(isActiveContractor(contractor) ? [] : ["Contractor is not active"]),
     ...(!dealWorkspaceId ? ["Deal workspace is unresolved"] : []),
     ...(!contractorWs ? ["Contractor workspace is unresolved"] : []),

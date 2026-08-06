@@ -66,7 +66,7 @@ describe("contractor assignment authority service", () => {
     ["unresolved identity", seed({ contractor: contractor({ legalName: null, companyName: contractorId }) }), actor, "Contractor identity is unresolved"],
     ["unresolved workspace", seed({ contractor: contractor({ workspaceId: null }) }), actor, "Contractor workspace is unresolved"],
     ["workspace mismatch", seed({ contractor: contractor({ workspaceId: "workspace-b" }) }), actor, "Contractor workspace does not match deal workspace"],
-    ["archived contractor", seed({ contractor: contractor({ archived: true }) }), actor, "Contractor is archived"],
+    ["archived contractor", seed({ contractor: contractor({ archived: true }) }), actor, "Contractor is archived and cannot receive new assignments."],
     ["stale readiness", seed({ contractor: contractor({ decisionLogicVersion: "old" }) }), actor, "Stored readiness/compliance summary has missing or outdated logic version"],
     ["assignmentAllowed false", seed({ documents: docs({ taxClearance: { verified: false, verifiedAt: null, status: "uploaded" } }) }), actor, "Canonical repository assignment authority is not ALLOWED"],
     ["missing document", seed({ documents: { ...docs(), bbbee: undefined as unknown as R } as Record<string, R> }), actor, "bbbee document is missing or unverified"],

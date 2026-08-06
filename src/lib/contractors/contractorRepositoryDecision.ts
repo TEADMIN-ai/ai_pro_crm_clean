@@ -10,6 +10,7 @@ export type ContractorIdentityMatchStatus = "MATCH" | "CONFLICT" | "UNRESOLVED";
 export type BusinessIdentifierStatus = "VALID" | "INVALID" | "UNRESOLVED";
 
 export type ContractorRepositoryDecision = {
+  archived: boolean;
   documentCompletenessScore: number;
   documentReviewStatus: ContractorDecisionStatus;
   externalVerificationStatus: string;
@@ -40,8 +41,9 @@ export type ContractorRepositoryDecision = {
 };
 
 export function getContractorRepositoryStatusLabel(
-  decision: Pick<ContractorRepositoryDecision, "readinessDecisionStatus" | "identityStatus" | "stale">,
+  decision: Pick<ContractorRepositoryDecision, "archived" | "readinessDecisionStatus" | "identityStatus" | "stale">,
 ): string {
+  if (decision.archived) return "Archived / Assignment blocked";
   if (decision.readinessDecisionStatus === "READY") return "Approved / Compliant";
   if (decision.identityStatus === "CONFLICT") return "Blocked / Identity conflict";
   if (decision.identityStatus === "UNRESOLVED") return "Blocked / Identity unresolved";
@@ -170,6 +172,7 @@ export function buildContractorRepositoryDecision(input: {
   evaluatedAt?: string;
 }): ContractorRepositoryDecision {
   const evaluatedAt = input.evaluatedAt ?? new Date().toISOString();
+  const archived = input.contractor.archived === true || str(input.contractor.status)?.toLowerCase() === "archived";
   const summary = calculateContractorCompliance(input.documents);
   const identity = resolveIdentityMatch(input.contractor);
   const sarsRecord = normalizeSarsTcsRecord(input.contractor.sarsTcsSummary);
@@ -196,6 +199,7 @@ export function buildContractorRepositoryDecision(input: {
   const documentReviewStatus: ContractorDecisionStatus =
     summary.docsMissing > 0 || summary.expiredDocumentCount > 0 ? "BLOCKED" : "VALID";
   const blockingReasons = Array.from(new Set([
+    ...(archived ? ["Contractor is archived and cannot receive new assignments."] : []),
     ...identity.blockers,
     ...sarsProjection.sarsVerificationBlockers,
     ...(csdValidationStatus !== "VALID" ? ["CSD supplier number is not verified as valid"] : []),
@@ -206,15 +210,17 @@ export function buildContractorRepositoryDecision(input: {
   ]));
   const stale = staleReasons.length > 0;
   const compliant =
+    !archived &&
     blockingReasons.length === 0 &&
     identity.identityStatus === "VERIFIED" &&
     documentReviewStatus === "VALID" &&
     sarsProjection.sarsVerificationStatus === "VERIFIED_COMPLIANT" &&
     sarsProjection.evidenceAvailable &&
     csdValidationStatus === "VALID";
-  const readinessDecisionStatus = compliant ? "READY" : identity.identityStatus === "UNRESOLVED" ? "UNRESOLVED" : stale ? "STALE" : "BLOCKED";
+  const readinessDecisionStatus = archived ? "BLOCKED" : compliant ? "READY" : identity.identityStatus === "UNRESOLVED" ? "UNRESOLVED" : stale ? "STALE" : "BLOCKED";
 
   return {
+    archived,
     documentCompletenessScore: summary.readinessScore,
     documentReviewStatus,
     externalVerificationStatus: sarsProjection.sarsVerificationStatus,

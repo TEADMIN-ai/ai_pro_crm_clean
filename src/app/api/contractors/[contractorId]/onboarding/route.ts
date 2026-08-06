@@ -45,6 +45,13 @@ function toIsoDate(value: unknown): string | null {
   return null;
 }
 
+function containsContractorReference(value: unknown, contractorId: string): boolean {
+  if (typeof value === "string") return value === contractorId || value === `contractors/${contractorId}`;
+  if (Array.isArray(value)) return value.some((item) => containsContractorReference(item, contractorId));
+  if (value && typeof value === "object") return Object.values(value as Record<string, unknown>).some((item) => containsContractorReference(item, contractorId));
+  return false;
+}
+
 function normalizeVisibleNote(id: string, data: Record<string, unknown>, contractorRole: boolean) {
   const contractorVisible = data.contractorVisible === true;
   if (contractorRole && !contractorVisible) {
@@ -124,6 +131,7 @@ export async function GET(
     const canonicalDecision = buildContractorOnboardingDecisionView({ contractor, documents });
     const lastAction = contractorRole ? null : buildLastAction(timeline);
 
+    const historicalDealCount = deals.filter((deal) => containsContractorReference(deal, canonicalContractorId)).length;
     const linkedDeals = deals
       .filter((deal) => deal.contractorId === canonicalContractorId)
       .map((deal) => ({
@@ -158,6 +166,7 @@ export async function GET(
         timeline,
         lastAction,
         linkedDeals,
+        historicalDealCount,
         acknowledgement,
         signaturePayload,
         viewer: {

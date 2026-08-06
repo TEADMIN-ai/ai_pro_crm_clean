@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { validateCsdSupplierNumber } from "@/lib/contractors/contractorRepositoryDecision";
 
 export type ContractorBusinessIdCardProps = {
   contractorId: string;
@@ -23,6 +24,8 @@ export type ContractorBusinessIdCardProps = {
   canApproveOnboarding?: boolean;
   onApproveOnboarding?: () => void;
   approveDisabledReason?: string | null;
+  archived?: boolean;
+  historicalReadinessScore?: number | null;
 };
 
 function formatDate(value?: string | number | null): string {
@@ -89,13 +92,18 @@ export default function ContractorBusinessIdCard({
   canApproveOnboarding,
   onApproveOnboarding,
   approveDisabledReason,
+  archived = false,
+  historicalReadinessScore,
 }: ContractorBusinessIdCardProps) {
   const router = useRouter();
   const targetHref = href ?? `/dashboard/contractors/${encodeURIComponent(contractorId)}`;
-  const displayStatus = overallStatus?.trim() || status?.trim() || "Onboarding";
+  const isArchived = archived || status?.trim().toLowerCase() === "archived";
+  const displayStatus = isArchived ? "Archived" : overallStatus?.trim() || status?.trim() || "Onboarding";
+  const validCsdNumber = validateCsdSupplierNumber(csdNumber) === "VALID" ? csdNumber : null;
+  const displayedCsdStatus = csdNumber && !validCsdNumber ? "Invalid" : csdStatus;
   const complianceScore =
-    typeof readinessScore === "number" && Number.isFinite(readinessScore)
-      ? Math.max(0, Math.min(100, Math.round(readinessScore)))
+    typeof (isArchived ? historicalReadinessScore : readinessScore) === "number" && Number.isFinite(isArchived ? historicalReadinessScore : readinessScore)
+      ? Math.max(0, Math.min(100, Math.round((isArchived ? historicalReadinessScore : readinessScore) as number)))
       : 0;
   const approvedCount =
     typeof requiredDocsApprovedCount === "number" && Number.isFinite(requiredDocsApprovedCount)
@@ -115,6 +123,7 @@ export default function ContractorBusinessIdCard({
 
   return (
     <article className="w-full rounded-2xl border border-slate-200 bg-white p-5 text-left shadow-sm transition hover:border-sky-300 hover:shadow-md">
+      {isArchived ? <div className="mb-4 rounded-xl border-2 border-amber-300 bg-amber-50 px-4 py-3 text-sm font-bold text-amber-900">Archived - assignment eligibility BLOCKED; displayed scores are historical only.</div> : null}
       <div className="flex items-start justify-between gap-4">
         <div className="flex min-w-0 items-start gap-4">
           <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-slate-200 bg-slate-50 text-sm font-bold text-slate-700">
@@ -166,7 +175,7 @@ export default function ContractorBusinessIdCard({
           </div>
           <div>
             <dt className="font-semibold text-slate-500">CSD</dt>
-            <dd className="mt-1 font-bold text-slate-900">{formatStatusValue(csdStatus, csdNumber ? "Recorded" : "Missing")}</dd>
+            <dd className="mt-1 font-bold text-slate-900">{formatStatusValue(displayedCsdStatus, validCsdNumber ? "Recorded" : "Missing")}</dd>
           </div>
         </dl>
       </div>
@@ -178,7 +187,7 @@ export default function ContractorBusinessIdCard({
         </div>
         <div>
           <dt className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">CSD M Number</dt>
-          <dd className="mt-1 font-medium text-slate-900">{csdNumber || formatStatusValue(csdStatus)}</dd>
+          <dd className="mt-1 font-medium text-slate-900">{validCsdNumber || formatStatusValue(displayedCsdStatus)}</dd>
         </div>
         <div>
           <dt className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Onboarded</dt>

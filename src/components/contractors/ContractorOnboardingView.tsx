@@ -112,14 +112,17 @@ type LinkedDeal = {
   contractorTenderSummary?: ContractorTenderSummary | null;
 };
 
+type CanonicalDecision = { readinessScore: number | null; readinessDecisionStatus: string; complianceDecisionStatus: string; assignmentAllowed: boolean; identityMatchStatus: string; csdValidationStatus: string; archived: boolean; historicalDecision: { readinessScore: unknown; complianceStatus: unknown; }; };
 type OnboardingPayload = {
   contractor: ContractorRecord;
+  canonicalDecision?: CanonicalDecision;
   documents: ContractorDocument[];
   notes: ContractorNote[];
   commandNotes: ContractorCommandNote[];
   timeline: ContractorTimelineItem[];
   lastAction: ContractorLastAction | null;
   linkedDeals: LinkedDeal[];
+  historicalDealCount?: number;
   acknowledgement: AcknowledgementRecord | null;
   viewer: {
     role: string;
@@ -272,7 +275,7 @@ function getCompanyName(contractor: ContractorRecord): string {
   return clean(contractor.companyName) || clean(contractor.name) || "Contractor";
 }
 
-function buildReadinessSummary(documents: ContractorDocument[], contractor: ContractorRecord) {
+function buildReadinessSummary(documents: ContractorDocument[], contractor: ContractorRecord, decision?: CanonicalDecision) {
   const verifiedTypes = new Set<SupportedDocumentType>();
   const missingLabels: string[] = [];
 
@@ -309,7 +312,7 @@ function buildReadinessSummary(documents: ContractorDocument[], contractor: Cont
     docsMissing,
     reviewRequiredCount,
     missingLabels,
-    canApprove: readinessScore === 100 && docsMissing === 0 && reviewRequiredCount === 0,
+    canApprove: decision ? decision.assignmentAllowed === true && decision.readinessDecisionStatus === "READY" && docsMissing === 0 && reviewRequiredCount === 0 : readinessScore === 100 && docsMissing === 0 && reviewRequiredCount === 0,
   };
 }
 
@@ -522,7 +525,7 @@ export default function ContractorOnboardingView({ contractorId }: Props) {
     contractorNotes: payload.notes,
     timeline: payload.timeline,
   });
-  const readinessSummary = buildReadinessSummary(payload.documents, payload.contractor);
+  const readinessSummary = buildReadinessSummary(payload.documents, payload.contractor, payload.canonicalDecision);
   const canApproveOnboarding = payload.viewer.isPrivileged && payload.contractor.complianceApproved !== true;
 
   return (
@@ -534,14 +537,16 @@ export default function ContractorOnboardingView({ contractorId }: Props) {
           </div>
         ) : null}
 
-        <SarsTcsVerificationCard contractorId={contractorId} canManage={payload.viewer.isPrivileged} />
+        <SarsTcsVerificationCard contractorId={contractorId} canManage={payload.viewer.isPrivileged} identityMatchStatus={payload.canonicalDecision?.identityMatchStatus} />
 
         <ContractorBusinessIdCard
           contractorId={contractorId}
           companyName={companyName}
           taxNumber={payload.contractor.taxPin ?? payload.contractor.taxNumber ?? payload.contractor.taxReferenceNumber}
-          csdNumber={payload.contractor.csdNumber ?? payload.contractor.csdMNumber ?? payload.contractor.mNumber}
+          csdNumber={payload.canonicalDecision?.csdValidationStatus === "VALID" ? (payload.contractor.csdNumber ?? payload.contractor.csdMNumber ?? payload.contractor.mNumber) : null}
           onboardedAt={payload.contractor.createdAt}
+          archived={payload.canonicalDecision?.archived === true}
+          historicalReadinessScore={typeof payload.canonicalDecision?.historicalDecision.readinessScore === "number" ? payload.canonicalDecision.historicalDecision.readinessScore : null}
           status={payload.contractor.status}
           overallStatus={payload.contractor.overallStatus}
           readinessScore={readinessSummary.readinessScore}
@@ -550,7 +555,7 @@ export default function ContractorOnboardingView({ contractorId }: Props) {
           docsMissing={readinessSummary.docsMissing}
           reviewRequiredCount={readinessSummary.reviewRequiredCount}
           taxPinStatus={payload.contractor.taxPinStatus}
-          csdStatus={payload.contractor.csdStatus}
+          csdStatus={payload.canonicalDecision?.csdValidationStatus === "VALID" ? "Verified" : payload.canonicalDecision?.csdValidationStatus === "INVALID" ? "Invalid" : "Unresolved"}
           lastDocumentUpdateAt={lastDocumentUpdateAt}
           logoUrl={payload.contractor.logoUrl ?? payload.contractor.businessLogoUrl}
           href={`/dashboard/contractors/${encodeURIComponent(contractorId)}`}
@@ -706,13 +711,14 @@ export default function ContractorOnboardingView({ contractorId }: Props) {
             </div>
 
             <ContractorOpportunityWorkspace opportunities={opportunityWorkspaces} />
+            {payload.historicalDealCount && payload.historicalDealCount !== payload.linkedDeals.length ? <p className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">Historical deal references: {payload.historicalDealCount}. Current contractor opportunity workspace items: {payload.linkedDeals.length}. Historical references remain readable and are not current assignments.</p> : null}
             <ContractorTimelinePanel timeline={payload.timeline} />
           </div>
 
           <aside className="space-y-6">
             {payload.viewer.isPrivileged ? (
               <OnboardingApprovalPanel
-                complianceApproved={payload.contractor.complianceApproved === true}
+                complianceApproved={payload.canonicalDecision?.archived !== true && payload.canonicalDecision?.complianceDecisionStatus === "VALID"}
                 readinessScore={readinessSummary.readinessScore}
                 requiredDocsApprovedCount={readinessSummary.requiredDocsApprovedCount}
                 requiredDocsTotalCount={readinessSummary.requiredDocsTotalCount}
@@ -821,11 +827,14 @@ export default function ContractorOnboardingView({ contractorId }: Props) {
 
 
 function ExecutiveContractorProfile({
-  contractor, documents, deals, timeline, readinessSummary,
+  contractor, canonicalDecision, documents, deals, timeline, readinessSummary,
 }: {
-  contractor: ContractorRecord; documents: ContractorDocument[]; deals: LinkedDeal[]; timeline: ContractorTimelineItem[]; readinessSummary: ReturnType<typeof buildReadinessSummary>;
+  contractor: ContractorRecord;
+  canonicalDecision?: CanonicalDecision; documents: ContractorDocument[]; deals: LinkedDeal[]; timeline: ContractorTimelineItem[]; readinessSummary: ReturnType<typeof buildReadinessSummary>;
 }) {
-  const complianceScore = typeof contractor.complianceScore === "number" ? contractor.complianceScore : readinessSummary.readinessScore;
+  const archived = canonicalDecision?.archived === true;
+  const historicalComplianceScore = typeof contractor.complianceScore === "number" ? contractor.complianceScore : readinessSummary.readinessScore;
+  const complianceScore = canonicalDecision?.readinessScore ?? readinessSummary.readinessScore;
   const verifiedCount = documents.filter((document) => document.verified || document.validationStatus === "PASS" || document.verificationStatus === "VERIFIED_MANUAL").length;
   const uploadedCount = documents.filter((document) => Boolean(document.fileUrl)).length;
   const expiringCount = documents.filter((document) => document.expiryAlert === "expiringSoon").length;
@@ -838,15 +847,15 @@ function ExecutiveContractorProfile({
     <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
         <div><p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Executive Contractor Profile</p><h2 className="mt-1 text-xl font-semibold text-slate-950">Performance and Readiness Overview</h2></div>
-        <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-700">Operational view</span>
+        <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-700">{archived ? "Archived / Inactive" : "Operational view"}</span>
       </div>
       <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
-        <SummaryItem label="Compliance Score" value={Math.round(complianceScore) + "%"} />
-        <SummaryItem label="Readiness Score" value={Math.round(readinessSummary.readinessScore) + "%"} />
+        <SummaryItem label={archived ? "Historical Compliance Score" : "Compliance Score"} value={Math.round(archived ? historicalComplianceScore : complianceScore) + "%"} />
+        <SummaryItem label={archived ? "Historical Readiness Score" : "Readiness Score"} value={archived ? "Not operational" : Math.round(readinessSummary.readinessScore) + "%"} />
         <SummaryItem label="Document Health" value={verifiedCount + "/" + readinessSummary.requiredDocsTotalCount + " verified; " + uploadedCount + " uploaded; " + expiringCount + " expiring; " + expiredCount + " expired"} />
         <SummaryItem label="Submission History" value={submissionHistory.length ? submissionHistory.length + " active records" : "No submissions recorded"} />
         <SummaryItem label="Tender Wins" value={tenderWins.length ? tenderWins.length + " recorded" : "No wins recorded"} />
-        <SummaryItem label="Risk Rating" value={riskRating} />
+        <SummaryItem label="Risk Rating" value={archived ? "Archived / Inactive" : riskRating} />
       </div>
       <div className="mt-5 grid grid-cols-1 gap-4 lg:grid-cols-3">
         <div className="rounded-xl border border-slate-200 bg-slate-50 p-4"><p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">AI Recommendations</p><p className="mt-2 text-sm text-slate-700">AI recommendations are not connected in this view.</p></div>

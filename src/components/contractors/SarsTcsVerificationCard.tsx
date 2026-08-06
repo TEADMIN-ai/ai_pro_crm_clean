@@ -8,7 +8,7 @@ type Payload={record:Rec|null;projection:{taxDocumentStatus:string;sarsVerificat
 function fmt(v?:string|null){if(!v)return "Not recorded";const d=new Date(v);return Number.isNaN(d.getTime())?"Not recorded":d.toLocaleString("en-ZA",{year:"numeric",month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"});}
 function cls(v?:string|null){const s=String(v??"").toUpperCase();if(s==="VERIFIED_COMPLIANT"||s==="MATCH"||s==="ACTIVE")return "border-emerald-200 bg-emerald-50 text-emerald-800";if(s.includes("MISMATCH")||s.includes("INVALID")||s.includes("EXPIRED")||s.includes("NON_COMPLIANT"))return "border-rose-200 bg-rose-50 text-rose-800";if(s.includes("PENDING")||s.includes("REVIEW")||s.includes("PROVIDED"))return "border-amber-200 bg-amber-50 text-amber-800";return "border-slate-200 bg-slate-50 text-slate-700";}
 function Field(p:{label:string;value:string}){return <div className="rounded-lg border border-slate-100 bg-slate-50 px-3 py-2"><p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">{p.label}</p><p className="mt-1 break-words text-sm font-semibold text-slate-900">{p.value||"Not recorded"}</p></div>}
-export default function SarsTcsVerificationCard({ contractorId, canManage }: { contractorId: string; canManage: boolean }) {
+export default function SarsTcsVerificationCard({ contractorId, canManage, identityMatchStatus }: { contractorId: string; canManage: boolean; identityMatchStatus?: string }) {
   const [payload, setPayload] = useState<Payload | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -27,6 +27,8 @@ export default function SarsTcsVerificationCard({ contractorId, canManage }: { c
       setLoading(false);
     }
   }
+  // The loader synchronizes the server verification snapshot after mount.
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { void load(); }, [contractorId]);
   async function post(body: Record<string, unknown>) {
     setSaving(true);
@@ -52,6 +54,7 @@ export default function SarsTcsVerificationCard({ contractorId, canManage }: { c
   }
   const record = payload?.record ?? null;
   const projection = payload?.projection;
+  const displayedIdentityMatch = identityMatchStatus ?? projection?.sarsIdentityMatch ?? record?.contractorIdentityMatch ?? "NOT_CHECKED";
   const evidenceAvailable = Boolean(projection?.evidenceAvailable || record?.verificationEvidenceDocumentId || record?.verificationEvidenceHash || record?.evidenceStoragePath);
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -67,7 +70,7 @@ export default function SarsTcsVerificationCard({ contractorId, canManage }: { c
         <Field label="Extracted TCS PIN status" value={record?.pinStatus ?? "NOT_PROVIDED"} />
         <Field label="Masked PIN" value={record?.pinMasked ?? "Not provided"} />
         <Field label="Current live SARS verification status" value={projection?.sarsVerificationStatus ?? "NOT_STARTED"} />
-        <Field label="Identity match status" value={projection?.sarsIdentityMatch ?? record?.contractorIdentityMatch ?? "NOT_CHECKED"} />
+        <Field label="Identity match status" value={displayedIdentityMatch} />
         <Field label="Verified date and time" value={fmt(projection?.sarsVerifiedAt ?? record?.verifiedAt)} />
         <Field label="Verified by" value={record?.verifiedByName ?? "Not recorded"} />
         <Field label="Verification source" value={record?.source ?? "Not recorded"} />

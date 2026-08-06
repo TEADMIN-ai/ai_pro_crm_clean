@@ -24,7 +24,7 @@ describe("contractor lifecycle authority boundary", () => {
     expect(service).toContain("CONTRACTOR_ARCHIVED");
     expect(service).toContain("CONTRACTOR_RESTORED");
     expect(authority).toContain("isArchivedContractor");
-    expect(authority).toContain("Contractor is archived");
+    expect(authority).toContain("Contractor is archived and cannot receive new assignments.");
     expect(visibility).toContain("includeArchived");
   });
 

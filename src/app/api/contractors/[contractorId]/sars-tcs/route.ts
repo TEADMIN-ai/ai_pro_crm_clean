@@ -1,11 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getFirebaseAdmin } from "@/lib/firebase/admin";
 import { AuthorizationError, assertCanAccessContractor, isPrivilegedRole, requireAuthorizedUser } from "@/lib/server/authz";
+import { resolveContractorBusinessIdentity } from "@/lib/contractors/contractorBusinessIdentity";
 import { SARS_TCS_SOQS_VERIFY_URL, buildSarsTcsProjection, createProvidedPinRecord, recordSarsVerificationResult, sanitizeSarsTcsRecord, sanitizeSarsTcsWritePayload, type SarsTcsVerificationRecord } from "@/lib/sars-tcs";
 import { resolveContractorForAccess } from "@/server/services/contractorService";
 function jsonError(message: string, status = 500) { return NextResponse.json({ error: message }, { status }); }
 function str(value: unknown): string | null { return typeof value === "string" && value.trim() ? value.trim() : null; }
 function actorName(user: { email?: string; uid: string }) { return user.email?.trim() || user.uid; }
+function canonicalIdentityMatch(contractor: Record<string, unknown>, taxpayerName: string | null): "MATCH" | "MISMATCH" | "NOT_CHECKED" {
+  const label = resolveContractorBusinessIdentity(contractor).label;
+  if (!label || !taxpayerName) return "NOT_CHECKED";
+  const normalize = (value: string) => value.toLowerCase().replace(/[^a-z0-9]+/g, "");
+  return normalize(label) === normalize(taxpayerName) ? "MATCH" : "MISMATCH";
+}
 async function loadLatestRecord(contractorId: string): Promise<SarsTcsVerificationRecord | null> {
   const snapshot = await getFirebaseAdmin().collection("contractors").doc(contractorId).collection("sarsTcsVerifications").orderBy("version", "desc").limit(1).get();
   const first = snapshot.docs[0];
@@ -53,7 +60,8 @@ export async function POST(request: NextRequest, context: { params: Promise<{ co
     if (!previous) return jsonError("A TCS PIN must be provided before verification can be recorded", 409);
     if (action === "record_verification" || action === "mark_mismatch") {
       const status = action === "mark_mismatch" ? "DETAILS_MISMATCH" : str(body.verificationStatus) ?? "REVIEW_REQUIRED";
-      const record = recordSarsVerificationResult({ current: previous, status: status as SarsTcsVerificationRecord["verificationStatus"], source: (str(body.source) ?? "SARS_SOQS") as SarsTcsVerificationRecord["source"], verifiedAt: str(body.verifiedAt) ?? new Date().toISOString(), verifiedByUid: user.uid, verifiedByName: actorName(user), taxpayerNameMatch: (str(body.taxpayerNameMatch) ?? "NOT_CHECKED") as SarsTcsVerificationRecord["taxpayerNameMatch"], taxReferenceMatch: (str(body.taxReferenceMatch) ?? "NOT_CHECKED") as SarsTcsVerificationRecord["taxReferenceMatch"], registrationNumberMatch: (str(body.registrationNumberMatch) ?? previous.registrationNumberMatch) as SarsTcsVerificationRecord["registrationNumberMatch"], contractorIdentityMatch: (str(body.contractorIdentityMatch) ?? "NOT_CHECKED") as SarsTcsVerificationRecord["contractorIdentityMatch"], mismatchReasons: Array.isArray(body.mismatchReasons) ? body.mismatchReasons.filter((item): item is string => typeof item === "string") : [], verificationReference: str(body.verificationReference), notes: str(body.notes), evidence: { documentId: str(body.verificationEvidenceDocumentId), hash: str(body.verificationEvidenceHash), storagePath: str(body.evidenceStoragePath), fileName: str(body.evidenceFileName), uploadedAt: str(body.evidenceUploadedAt) } });
+      const derivedIdentityMatch = canonicalIdentityMatch(resolved.contractor, previous.registeredTaxpayerName ?? null);
+      const record = recordSarsVerificationResult({ current: previous, status: status as SarsTcsVerificationRecord["verificationStatus"], source: (str(body.source) ?? "SARS_SOQS") as SarsTcsVerificationRecord["source"], verifiedAt: str(body.verifiedAt) ?? new Date().toISOString(), verifiedByUid: user.uid, verifiedByName: actorName(user), taxpayerNameMatch: derivedIdentityMatch, taxReferenceMatch: (str(body.taxReferenceMatch) ?? "NOT_CHECKED") as SarsTcsVerificationRecord["taxReferenceMatch"], registrationNumberMatch: (str(body.registrationNumberMatch) ?? previous.registrationNumberMatch) as SarsTcsVerificationRecord["registrationNumberMatch"], contractorIdentityMatch: derivedIdentityMatch, mismatchReasons: Array.from(new Set([...(Array.isArray(body.mismatchReasons) ? body.mismatchReasons.filter((item): item is string => typeof item === "string") : []), ...(derivedIdentityMatch === "MISMATCH" ? ["Taxpayer name does not match contractor business identity"] : [])])), verificationReference: str(body.verificationReference), notes: str(body.notes), evidence: { documentId: str(body.verificationEvidenceDocumentId), hash: str(body.verificationEvidenceHash), storagePath: str(body.evidenceStoragePath), fileName: str(body.evidenceFileName), uploadedAt: str(body.evidenceUploadedAt) } });
       await saveCurrentRecord(record, null);
       return NextResponse.json({ record: sanitizeSarsTcsRecord(record), projection: buildSarsTcsProjection({ record, route: "/dashboard/contractors/" + encodeURIComponent(resolved.contractorId), requiresLiveVerification: true }) });
     }
