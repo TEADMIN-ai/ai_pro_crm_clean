@@ -125,6 +125,10 @@ export interface HygieneCollection {
   manifestId: string;
   evidencePhotoIds: string[];
   clientSignatureStatus: string;
+  clientSignatureId?: string | null;
+  clientSignatureStoragePath?: string | null;
+  clientSignatureFileUrl?: string | null;
+  clientSignatureCapturedAt?: string | null;
   notes: string;
   workflowSteps: HygieneWorkflowStep[];
   completedSteps?: string[];
@@ -193,6 +197,7 @@ export interface HygieneSignature {
   representativePosition: string;
   signatureDataUrl?: string;
   signatureFileUrl: string | null;
+  signatureStoragePath?: string | null;
   capturedBy: string;
   capturedAt: string;
 }

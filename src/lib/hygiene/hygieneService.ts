@@ -346,7 +346,7 @@ function getEventTypeForStep(stepId: ReturnType<typeof getDriverWorkflowActionSt
     case "evidence-photos-captured":
       return "evidence_photos_captured";
     case "customer-signature":
-      return "customer_signature_captured";
+      return null;
     case "waste-loaded":
       return "waste_loaded";
     case "disposal-facility-confirmation":
@@ -666,8 +666,13 @@ export async function recordHygieneJobEvent(
     }
   }
 
-  if (event.eventType === "signature_captured" || event.eventType === "customer_signature_captured") {
+  if (event.eventType === "signature_captured") {
+    const signatureId = typeof event.metadata.signatureId === "string" ? event.metadata.signatureId : null;
     collectionPatch.clientSignatureStatus = "Signature captured";
+    collectionPatch.clientSignatureId = signatureId;
+    collectionPatch.clientSignatureStoragePath = typeof event.metadata.signatureStoragePath === "string" ? event.metadata.signatureStoragePath : null;
+    collectionPatch.clientSignatureFileUrl = typeof event.metadata.signatureFileUrl === "string" ? event.metadata.signatureFileUrl : null;
+    collectionPatch.clientSignatureCapturedAt = event.timestamp;
   }
 
   if (event.eventType === "job_completed") {
@@ -741,6 +746,10 @@ export async function createHygieneSignature(
   await getFirebaseAdmin().collection(HYGIENE_COLLECTIONS.collections).doc(signature.collectionId).set(
     sanitizeFirestoreData({
       clientSignatureStatus: "Signature captured",
+      clientSignatureId: signature.signatureId,
+      clientSignatureStoragePath: signature.signatureStoragePath ?? null,
+      clientSignatureFileUrl: signature.signatureFileUrl,
+      clientSignatureCapturedAt: signature.capturedAt,
       updatedAtServer: FieldValue.serverTimestamp(),
     }),
     { merge: true }
@@ -757,6 +766,8 @@ export async function createHygieneSignature(
       representativeName: signature.representativeName,
       representativePosition: signature.representativePosition,
       signatureId: signature.signatureId,
+      signatureStoragePath: signature.signatureStoragePath ?? null,
+      signatureFileUrl: signature.signatureFileUrl,
       ...(input.metadata ?? {}),
       audit: {
         previousStatus: collection.status,
@@ -869,6 +880,10 @@ export async function upsertHygieneCollection(user: AuthorizedUser, input: Parti
     manifestId: input.manifestId || "Pending",
     evidencePhotoIds: input.evidencePhotoIds || [],
     clientSignatureStatus: input.clientSignatureStatus || "Pending",
+    clientSignatureId: input.clientSignatureId ?? null,
+    clientSignatureStoragePath: input.clientSignatureStoragePath ?? null,
+    clientSignatureFileUrl: input.clientSignatureFileUrl ?? null,
+    clientSignatureCapturedAt: input.clientSignatureCapturedAt ?? null,
     notes: input.notes || "Operational collection update.",
     workflowSteps: input.workflowSteps || [],
     backupVehicleUsed: input.backupVehicleUsed,
@@ -1044,6 +1059,31 @@ export async function generateHygieneMonthlyReport(user: AuthorizedUser, period:
   return report;
 }
 
+async function verifyPersistedCollectionSignature(collection: HygieneCollection): Promise<HygieneSignature> {
+  if (!collection.clientSignatureId) {
+    throw new HygieneWorkflowError("Cannot complete job without persisted customer signature evidence.", 409, "hygiene_workflow_missing_persisted_signature");
+  }
+
+  const snapshot = await getFirebaseAdmin().collection(HYGIENE_COLLECTIONS.signatures).doc(collection.clientSignatureId).get();
+  if (!snapshot.exists) {
+    throw new HygieneWorkflowError("Cannot complete job because persisted signature evidence cannot be found.", 409, "hygiene_workflow_signature_evidence_not_found");
+  }
+
+  const signature = validateHygieneSignature(snapshot.data());
+  if (signature.collectionId !== collection.collectionId) {
+    throw new HygieneWorkflowError("Cannot complete job because signature evidence is linked to a different collection.", 409, "hygiene_workflow_signature_collection_mismatch");
+  }
+
+  if (!signature.signatureStoragePath && !signature.signatureFileUrl) {
+    throw new HygieneWorkflowError("Cannot complete job because signature evidence has no durable file reference.", 409, "hygiene_workflow_signature_file_missing");
+  }
+
+  if (collection.clientSignatureStoragePath && signature.signatureStoragePath && collection.clientSignatureStoragePath !== signature.signatureStoragePath) {
+    throw new HygieneWorkflowError("Cannot complete job because signature storage reference does not match the collection.", 409, "hygiene_workflow_signature_reference_mismatch");
+  }
+
+  return signature;
+}
 export async function completeHygieneDriverAction(user: AuthorizedUser, input: {
   collectionId: string;
   action: string;
@@ -1072,6 +1112,9 @@ export async function completeHygieneDriverAction(user: AuthorizedUser, input: {
 
   const workflowStepId = getDriverWorkflowActionStepId(normalizedAction);
   if (!workflowStepId) throw new HygieneWorkflowError("Unsupported hygiene driver action.", 400, "hygiene_action_invalid");
+  if (workflowStepId === "customer-signature") {
+    throw new HygieneWorkflowError("Customer signature must be captured through the signed evidence workflow.", 409, "hygiene_signature_evidence_required");
+  }
 
   const snapshot = deriveDriverWorkflowSnapshot(collection);
   const expectedStep = DRIVER_COLLECTION_WORKFLOW_STEPS[snapshot.completedSteps.length]?.stepId ?? "job-completed";
@@ -1090,9 +1133,7 @@ export async function completeHygieneDriverAction(user: AuthorizedUser, input: {
     if (typeof collection.binCountConfirmed !== "number" && typeof metadata.binCount !== "number" && !overrideReason) {
       throw new HygieneWorkflowError("Cannot complete job without bin count.", 409, "hygiene_workflow_missing_bin_count");
     }
-    if (collection.clientSignatureStatus !== "Signature captured" && !overrideReason) {
-      throw new HygieneWorkflowError("Cannot complete job without signature unless admin override reason is provided.", 409, "hygiene_workflow_missing_signature");
-    }
+    await verifyPersistedCollectionSignature(collection);
     if (overrideReason) {
       await updateCollectionPatch(collection.collectionId, { adminOverrideReason: overrideReason });
     }

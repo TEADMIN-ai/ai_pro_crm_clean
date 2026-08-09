@@ -253,6 +253,10 @@ export function validateHygieneCollection(input: unknown): HygieneCollection {
     completedAt: optionalString(record, "completedAt"),
     manifestId: requireString(record, "manifestId"),
     evidencePhotoIds: requireStringArray(record, "evidencePhotoIds"),
+    clientSignatureId: optionalString(record, "clientSignatureId"),
+    clientSignatureStoragePath: optionalString(record, "clientSignatureStoragePath"),
+    clientSignatureFileUrl: optionalString(record, "clientSignatureFileUrl"),
+    clientSignatureCapturedAt: optionalString(record, "clientSignatureCapturedAt"),
     assignedUserIds: Array.isArray(record.assignedUserIds) ? requireStringArray(record, "assignedUserIds") : undefined,
     clientSignatureStatus: requireString(record, "clientSignatureStatus"),
     notes: requireString(record, "notes"),
@@ -306,6 +310,7 @@ export function validateHygieneSignature(input: unknown): HygieneSignature {
     representativePosition: requireString(record, "representativePosition"),
     signatureDataUrl: optionalString(record, "signatureDataUrl") ?? undefined,
     signatureFileUrl: optionalString(record, "signatureFileUrl"),
+    signatureStoragePath: optionalString(record, "signatureStoragePath"),
     capturedBy: requireString(record, "capturedBy"),
     capturedAt: requireString(record, "capturedAt"),
   };

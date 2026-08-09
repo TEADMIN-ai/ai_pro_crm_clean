@@ -259,6 +259,8 @@ export default function HygieneMobileDriverClient({
   const [busy, setBusy] = useState<string | null>(null);
   const [signatureName, setSignatureName] = useState("");
   const [signaturePosition, setSignaturePosition] = useState("");
+  const [signatureDrawn, setSignatureDrawn] = useState(false);
+  const [signatureStrokeCount, setSignatureStrokeCount] = useState(0);
   const [binCount, setBinCount] = useState("0");
   const [adminOverrideReason, setAdminOverrideReason] = useState("");
   const signatureCanvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -266,12 +268,16 @@ export default function HygieneMobileDriverClient({
 
   const selectedCollection = useMemo(() => {
     if (!data) return null;
-    return data.collections.find((collection) => collection.collectionId === collectionId) ?? data.collections[0] ?? null;
-  }, [collectionId, data]);
+    if (collectionId) return data.collections.find((collection) => collection.collectionId === collectionId) ?? null;
+    return view === "jobs" ? data.collections[0] ?? null : null;
+  }, [collectionId, data, view]);
 
   const selectedManifest = useMemo(() => getManifest(data?.manifests ?? [], selectedCollection), [data?.manifests, selectedCollection]);
   const selectedSnapshot = selectedCollection ? deriveDriverWorkflowSnapshot(selectedCollection) : null;
   const currentStep = selectedSnapshot ? DRIVER_COLLECTION_WORKFLOW_STEPS[selectedSnapshot.currentStepIndex] : null;
+  const activeCollectionQuery = selectedCollection ? "?collectionId=" + encodeURIComponent(selectedCollection.collectionId) : "";
+  const signatureHref = "/dashboard/hygiene/signatures" + activeCollectionQuery;
+  const disposalHref = "/dashboard/hygiene/disposal" + activeCollectionQuery;
 
   async function loadJobs() {
     setError(null);
@@ -400,6 +406,8 @@ export default function HygieneMobileDriverClient({
     context.strokeStyle = teosDesignTokens.color.neutral[950];
     context.lineTo(event.clientX - rect.left, event.clientY - rect.top);
     context.stroke();
+    setSignatureDrawn(true);
+    setSignatureStrokeCount((count) => count + 1);
   }
 
   function startSignature(event: PointerEvent<HTMLCanvasElement>) {
@@ -416,12 +424,18 @@ export default function HygieneMobileDriverClient({
     const canvas = signatureCanvasRef.current;
     const context = canvas?.getContext("2d");
     if (canvas && context) context.clearRect(0, 0, canvas.width, canvas.height);
+    setSignatureDrawn(false);
+    setSignatureStrokeCount(0);
   }
 
   async function submitSignature() {
     const canvas = signatureCanvasRef.current;
-    if (!canvas || !signatureName.trim() || !signaturePosition.trim()) {
-      setError("Representative name, position and signature are required.");
+    if (!selectedCollection) {
+      setError("Open a specific assigned job before capturing a customer signature.");
+      return;
+    }
+    if (!canvas || !signatureName.trim() || !signaturePosition.trim() || !signatureDrawn || signatureStrokeCount <= 0) {
+      setError("Representative name, position and a drawn signature are required.");
       return;
     }
     if (!navigator.onLine) {
@@ -435,6 +449,8 @@ export default function HygieneMobileDriverClient({
         representativeName: signatureName.trim(),
         representativePosition: signaturePosition.trim(),
         signatureDataUrl: canvas.toDataURL("image/png"),
+        signatureDrawn,
+        signatureStrokeCount,
       },
       "Capture signature"
     );
@@ -495,8 +511,8 @@ export default function HygieneMobileDriverClient({
           {[
             ["Jobs", "/dashboard/hygiene/jobs"],
             ["Vehicle", "/dashboard/hygiene/vehicles"],
-            ["Signatures", "/dashboard/hygiene/signatures"],
-            ["Disposal", "/dashboard/hygiene/disposal"],
+            ["Signatures", signatureHref],
+            ["Disposal", disposalHref],
           ].map(([label, href]) => {
             const active =
               (view === "jobs" && label === "Jobs") ||
@@ -563,6 +579,8 @@ export default function HygieneMobileDriverClient({
         </section>
       ) : null}
 
+      {view !== "jobs" && !selectedCollection ? <div className="rounded-xl border border-[color:var(--hygiene-danger)] bg-red-50 p-4 text-sm font-bold text-red-950">Open a specific assigned job before capturing evidence for this workflow.</div> : null}
+
       {view !== "jobs" && selectedCollection ? (
         <section className="grid gap-4">
           <div className="rounded-xl border border-slate-300 bg-white p-5 shadow-sm">
@@ -591,7 +609,7 @@ export default function HygieneMobileDriverClient({
                     <input className="hidden" type="file" accept="image/*" capture="environment" onChange={(event) => void uploadPhoto(event, "Completion Photo")} />
                   </label>
                 ) : currentStep?.stepId === "customer-signature" ? (
-                  <Link className="min-h-12 rounded-xl border border-[color:var(--hygiene-primary)] bg-[color:var(--hygiene-primary)] px-4 py-3 text-center text-sm font-black text-white shadow-sm focus:outline-none focus:ring-4 focus:ring-blue-300" href="/dashboard/hygiene/signatures">Capture Customer Signature</Link>
+                  <Link className="min-h-12 rounded-xl border border-[color:var(--hygiene-primary)] bg-[color:var(--hygiene-primary)] px-4 py-3 text-center text-sm font-black text-white shadow-sm focus:outline-none focus:ring-4 focus:ring-blue-300" href={signatureHref}>Capture Customer Signature</Link>
                 ) : currentStep?.stepId === "bin-serviced" ? (
                   <div className="grid gap-2">
                     <label className="grid gap-1 text-sm font-black text-slate-950">

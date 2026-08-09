@@ -1,8 +1,10 @@
 import { GET, POST } from "@/app/api/hygiene/jobs/route";
+import { getFirebaseStorageBucket } from "@/lib/firebase/admin";
 import { HygieneWorkflowError } from "@/lib/hygiene/hygieneService";
 import { AuthorizationError, requireAuthorizedUser } from "@/lib/server/authz";
 import {
   completeHygieneDriverAction,
+  createHygieneSignature,
   getHygieneMobileJobs,
 } from "@/lib/hygiene/hygieneService";
 
@@ -139,5 +141,58 @@ describe("/api/hygiene/jobs", () => {
 
     expect(response.status).toBe(401);
     expect(payload.error).toBe("unauthorized");
+  });
+});
+
+describe("/api/hygiene/jobs signature authority", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    jest.spyOn(console, "warn").mockImplementation(() => undefined);
+    jest.spyOn(console, "error").mockImplementation(() => undefined);
+    (requireAuthorizedUser as jest.Mock).mockResolvedValue(user);
+  });
+  afterEach(() => { jest.restoreAllMocks(); });
+  it("blocks blank signature capture before Storage upload", async () => {
+    const response = await POST(jsonRequest({ action: "signature", collectionId: "TE-COL-1", representativeName: "Customer Rep", representativePosition: "Manager", signatureDataUrl: "data:image/png;base64,c2lnbmF0dXJl", signatureDrawn: false, signatureStrokeCount: 0 }));
+    const payload = await response.json();
+    expect(response.status).toBe(400);
+    expect(payload.code).toBe("hygiene_signature_blank");
+    expect(getFirebaseStorageBucket).not.toHaveBeenCalled();
+    expect(createHygieneSignature).not.toHaveBeenCalled();
+  });
+});
+
+describe("/api/hygiene/jobs signature negative paths", () => {
+  const signedPayload = { action: "signature", collectionId: "TE-COL-1", representativeName: "Customer Rep", representativePosition: "Manager", signatureDataUrl: "data:image/png;base64,c2lnbmF0dXJl", signatureDrawn: true, signatureStrokeCount: 2 };
+  beforeEach(() => { jest.clearAllMocks(); jest.spyOn(console, "warn").mockImplementation(() => undefined); jest.spyOn(console, "error").mockImplementation(() => undefined); (requireAuthorizedUser as jest.Mock).mockResolvedValue(user); });
+  afterEach(() => { jest.restoreAllMocks(); });
+  it("rejects missing collectionId", async () => {
+    const response = await POST(jsonRequest({ ...signedPayload, collectionId: undefined }));
+    const payload = await response.json();
+    expect(response.status).toBe(400); expect(payload.code).toBe("hygiene_request_invalid"); expect(createHygieneSignature).not.toHaveBeenCalled();
+  });
+  it("rejects mismatched collection context before upload", async () => {
+    (getHygieneMobileJobs as jest.Mock).mockResolvedValue({ collections: [{ collectionId: "TE-COL-2", clientId: "TE-CLI-1", siteId: "TE-SIT-1", manifestId: "Pending" }] });
+    const response = await POST(jsonRequest(signedPayload));
+    expect(response.status).toBe(403);
+    expect(getFirebaseStorageBucket).not.toHaveBeenCalled();
+    expect(createHygieneSignature).not.toHaveBeenCalled();
+  });
+  it("leaves collection unsigned when Storage upload fails", async () => {
+    const save = jest.fn().mockRejectedValue(new Error("storage down"));
+    (getFirebaseStorageBucket as jest.Mock).mockReturnValue({ file: jest.fn().mockReturnValue({ save, getSignedUrl: jest.fn() }) });
+    (getHygieneMobileJobs as jest.Mock).mockResolvedValue({ collections: [{ collectionId: "TE-COL-1", clientId: "TE-CLI-1", siteId: "TE-SIT-1", manifestId: "Pending" }] });
+    const response = await POST(jsonRequest(signedPayload));
+    expect(response.status).toBe(500);
+    expect(createHygieneSignature).not.toHaveBeenCalled();
+  });
+  it("leaves collection unsigned when hygieneSignatures persistence fails", async () => {
+    (getFirebaseStorageBucket as jest.Mock).mockReturnValue({ file: jest.fn().mockReturnValue({ save: jest.fn().mockResolvedValue(undefined), getSignedUrl: jest.fn().mockResolvedValue(["https://storage.example/signature.png"]) }) });
+    (getHygieneMobileJobs as jest.Mock).mockResolvedValue({ collections: [{ collectionId: "TE-COL-1", clientId: "TE-CLI-1", siteId: "TE-SIT-1", manifestId: "Pending" }] });
+    (createHygieneSignature as jest.Mock).mockRejectedValue(new HygieneWorkflowError("signature persistence failed", 409, "hygiene_signature_persist_failed"));
+    const response = await POST(jsonRequest(signedPayload));
+    const payload = await response.json();
+    expect(response.status).toBe(409);
+    expect(payload.code).toBe("hygiene_signature_persist_failed");
   });
 });

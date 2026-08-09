@@ -51,6 +51,8 @@ type JobPayload = {
   representativeName?: string;
   representativePosition?: string;
   signatureDataUrl?: string;
+  signatureDrawn?: boolean;
+  signatureStrokeCount?: number;
 };
 
 type HygieneJobsRequestContext = {
@@ -114,6 +116,13 @@ function requireString(value: unknown, label: string): string {
   return value.trim();
 }
 
+function requireDrawnSignature(body: JobPayload): void {
+  const strokeCount = typeof body.signatureStrokeCount === "number" ? body.signatureStrokeCount : 0;
+  if (body.signatureDrawn !== true || strokeCount <= 0) {
+    throw new HygieneWorkflowError("A drawn customer signature is required.", 400, "hygiene_signature_blank");
+  }
+}
+
 function decodeDataUrl(dataUrl: string): { buffer: Buffer; contentType: string } {
   const match = dataUrl.match(/^data:([^;]+);base64,(.+)$/);
   if (!match) {
@@ -132,7 +141,7 @@ async function uploadSignature(input: {
   siteId: string;
   collectionId: string;
   signatureId: string;
-}): Promise<string> {
+}): Promise<{ signedUrl: string; storagePath: string }> {
   const { buffer, contentType } = decodeDataUrl(input.dataUrl);
   const storagePath = `hygiene/signatures/${input.clientId}/${input.collectionId}/${input.signatureId}.png`;
   const bucketFile = getFirebaseStorageBucket().file(storagePath);
@@ -153,7 +162,7 @@ async function uploadSignature(input: {
     expires: "2036-01-01",
   });
 
-  return signedUrl;
+  return { signedUrl, storagePath };
 }
 
 export async function GET(request: NextRequest) {
@@ -194,13 +203,14 @@ export async function POST(request: NextRequest) {
       const representativeName = requireString(body.representativeName, "representativeName");
       const representativePosition = requireString(body.representativePosition, "representativePosition");
       const signatureDataUrl = requireString(body.signatureDataUrl, "signatureDataUrl");
+      requireDrawnSignature(body);
       const jobs = await getHygieneMobileJobs(user);
       const collection = jobs.collections.find((item) => item.collectionId === collectionId);
       if (!collection) {
         throw new AuthorizationError("This hygiene collection is not assigned to the current user.", 403);
       }
 
-      const signatureFileUrl = await uploadSignature({
+      const uploadedSignature = await uploadSignature({
         dataUrl: signatureDataUrl,
         clientId: collection.clientId,
         siteId: collection.siteId,
@@ -217,7 +227,8 @@ export async function POST(request: NextRequest) {
         representativeName,
         representativePosition,
         signatureDataUrl: undefined,
-        signatureFileUrl,
+        signatureFileUrl: uploadedSignature.signedUrl,
+        signatureStoragePath: uploadedSignature.storagePath,
         metadata: {
           latitude: typeof body.latitude === "number" ? body.latitude : null,
           longitude: typeof body.longitude === "number" ? body.longitude : null,
@@ -228,6 +239,8 @@ export async function POST(request: NextRequest) {
             accuracy: typeof body.gpsAccuracy === "number" ? body.gpsAccuracy : null,
           },
           deviceInfo: body.deviceInfo && typeof body.deviceInfo === "object" ? body.deviceInfo : {},
+          signatureStoragePath: uploadedSignature.storagePath,
+          signatureFileUrl: uploadedSignature.signedUrl,
         },
       });
 
