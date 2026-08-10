@@ -1,5 +1,7 @@
 import type { EnterpriseTone } from "@/components/ui/EnterpriseUI";
+import { resolveOpportunityClientReference } from "@/lib/master-data/referenceAdapters";
 import type { Deal } from "@/types/deal";
+import type { CanonicalReferenceResolution } from "@/types/masterData";
 
 export type OpportunityRegisterStatus = "ready" | "closingSoon" | "submitted" | "atRisk" | "awarded";
 
@@ -38,6 +40,7 @@ export type OpportunityRegisterRecord = {
   coordinator: string;
   riskNote: string;
   contractors: string[];
+  clientMasterDataReference: CanonicalReferenceResolution;
   timeline: OpportunityRegisterTimelineItem[];
   municipalityBreakdown: OpportunityRegisterBreakdownItem[];
   departmentBreakdown: OpportunityRegisterBreakdownItem[];
@@ -63,6 +66,7 @@ function formatDateOnly(value: unknown): string {
 export function mapDealToOpportunityRegisterRecord(deal: Deal): OpportunityRegisterRecord {
   const source = deal as Deal & Record<string, unknown>;
   const tenderAnalysis = deal.tenderAnalysis;
+  const clientMasterDataReference = resolveOpportunityClientReference(source);
   const client = typeof source.clientName === "string" && source.clientName.trim() ? source.clientName.trim() : tenderAnalysis?.issuingAuthority ?? deal.contractorName ?? "Unknown client";
   const municipality = typeof source.municipalityName === "string" && source.municipalityName.trim() ? source.municipalityName.trim() : tenderAnalysis?.location ?? "Unknown municipality";
   const department = typeof source.department === "string" && source.department.trim() ? source.department.trim() : "Unassigned department";
@@ -90,6 +94,7 @@ export function mapDealToOpportunityRegisterRecord(deal: Deal): OpportunityRegis
     coordinator: typeof source.createdByEmail === "string" ? source.createdByEmail : "Torque Empire operations",
     riskNote: deal.riskLevel ? "Risk level: " + deal.riskLevel : "Initial opportunity intake created.",
     contractors: assignedContractorName ? [assignedContractorName] : [],
+    clientMasterDataReference,
     timeline: [{ label: "Opportunity created", detail: "Record created in the canonical deals collection.", date: formatDateOnly(deal.createdAt), tone: "success" }],
     municipalityBreakdown: [{ label: municipality, value: "Primary", tone: "info" }],
     departmentBreakdown: [{ label: department, value: "Primary", tone: "info" }],
