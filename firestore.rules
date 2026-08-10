@@ -166,6 +166,46 @@ service cloud.firestore {
       allow create, update, delete: if false;
     }
 
+    match /masterClients/{docId} {
+      allow read: if isSignedIn() && isPrivileged();
+      allow create, update, delete: if false;
+    }
+
+    match /masterSuppliers/{docId} {
+      allow read: if isSignedIn() && isPrivileged();
+      allow create, update, delete: if false;
+    }
+
+    match /masterSites/{docId} {
+      allow read: if isSignedIn() && isPrivileged();
+      allow create, update, delete: if false;
+    }
+
+    match /masterItems/{docId} {
+      allow read: if isSignedIn() && isPrivileged();
+      allow create, update, delete: if false;
+    }
+
+    match /masterSources/{docId} {
+      allow read: if isSignedIn() && isPrivileged();
+      allow create, update, delete: if false;
+    }
+
+    match /masterDocuments/{docId} {
+      allow read: if isSignedIn() && isPrivileged();
+      allow create, update, delete: if false;
+    }
+
+    match /masterEmployees/{docId} {
+      allow read: if isSignedIn() && isPrivileged();
+      allow create, update, delete: if false;
+    }
+
+    match /masterDataAuditEvents/{docId} {
+      allow read: if isSignedIn() && isPrivileged();
+      allow create, update, delete: if false;
+    }
+
     match /hygieneClients/{docId} {
       allow read: if isSignedIn() && isHygieneInternal();
       allow create, update, delete: if isSignedIn() && isHygieneAdmin();

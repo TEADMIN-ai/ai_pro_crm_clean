@@ -12,6 +12,14 @@ type SourceRecord = {
   nameOnlyMatch?: boolean;
 };
 
+export type QsSupplierMigrationRecord = {
+  supplierId?: string | null;
+  supplierName?: string | null;
+  companyRegistrationNumber?: string | null;
+  sourceType?: "canonical_match" | "source_only" | "seed_demo_test" | "conflicting" | "unknown";
+  matchedMasterSupplierId?: string | null;
+};
+
 export function categoriseMasterDataMigrationRecord(record: SourceRecord): MasterDataMigrationProposal {
   if (record.hasConflict) {
     return {
@@ -80,4 +88,25 @@ export function categoriseMasterDataMigrationRecord(record: SourceRecord): Maste
 
 export function buildPhase1MigrationProposal(records: SourceRecord[]): MasterDataMigrationProposal[] {
   return records.map(categoriseMasterDataMigrationRecord);
+}
+
+
+export function categoriseQsSupplierProfile(record: QsSupplierMigrationRecord): MasterDataMigrationProposal {
+  const reference = record.supplierId || record.supplierName || "unknown-qs-supplier";
+  if (record.sourceType === "conflicting") {
+    return { source: "qsSuppliers", recordReference: reference, entityType: "supplier", category: "conflicting", proposedCanonicalId: null, reason: "QS supplier profile has conflicting identity evidence." };
+  }
+  if (record.sourceType === "seed_demo_test") {
+    return { source: "qsSuppliers", recordReference: reference, entityType: "supplier", category: "seed_demo_test", proposedCanonicalId: null, reason: "QS supplier profile is seed/demo/test and cannot become operational truth." };
+  }
+  if (record.matchedMasterSupplierId || record.sourceType === "canonical_match") {
+    return { source: "qsSuppliers", recordReference: reference, entityType: "supplier", category: "canonical_match", proposedCanonicalId: record.matchedMasterSupplierId ?? record.supplierId ?? null, reason: "QS supplier profile can map to an existing Master Supplier after verification." };
+  }
+  if (record.sourceType === "source_only" || (!record.companyRegistrationNumber && record.supplierName)) {
+    return { source: "qsSuppliers", recordReference: reference, entityType: "supplier", category: "source_only", proposedCanonicalId: null, reason: "QS supplier profile is usable as a source reference only until genuine supplier identity evidence exists." };
+  }
+  if (record.companyRegistrationNumber) {
+    return { source: "qsSuppliers", recordReference: reference, entityType: "supplier", category: "safely_mappable", proposedCanonicalId: record.supplierId ?? null, reason: "QS supplier profile has registration evidence but needs controlled Master Supplier verification." };
+  }
+  return { source: "qsSuppliers", recordReference: reference, entityType: "supplier", category: "review_required", proposedCanonicalId: null, reason: "QS supplier profile has insufficient evidence for automatic mapping." };
 }

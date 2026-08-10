@@ -84,8 +84,12 @@ export type SupplierQuote = {
   dealId: string;
   contractorId: string;
   contractorName: string;
-  supplierId: string;
+  supplierId: string | null;
+  sourceId?: string | null;
   supplierName: string;
+  supplierResolutionStatus?: "RESOLVED_VERIFIED" | "CREATED_PENDING_REVIEW" | "REVIEW_REQUIRED" | "SOURCE_ONLY" | "BLOCKED";
+  supplierResolutionReason?: string | null;
+  masterDocumentId?: string | null;
   supplierRegistrationNumber?: string | null;
   supplierContactName?: string | null;
   supplierEmail?: string | null;
@@ -124,7 +128,8 @@ export type SupplierQuote = {
 
 export type SupplierQuoteComparisonRow = {
   quoteId: string;
-  supplierId: string;
+  supplierId: string | null;
+  sourceId?: string | null;
   supplierName: string;
   quoteTotal: number;
   vat: number;
@@ -149,7 +154,7 @@ export type SupplierQuoteComparison = {
   rows: SupplierQuoteComparisonRow[];
   recommendedSupplier?: {
     quoteId: string;
-    supplierId: string;
+    supplierId: string | null;
     supplierName: string;
     reason: string;
   } | null;
@@ -161,7 +166,7 @@ export type SupplierQuotePricingHandoff = {
   dealId: string;
   contractorId: string;
   contractorName: string;
-  supplierId: string;
+  supplierId: string | null;
   supplierName: string;
   currency: string;
   subtotal: number;

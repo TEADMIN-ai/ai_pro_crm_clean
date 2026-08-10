@@ -2,3 +2,7 @@ export * from "./migrationProposal";
 export * from "./policy";
 export * from "./referenceAdapters";
 export * from "./service";
+export * from "./apiPayload";
+export * from "./firestoreRepository";
+export * from "./itemResolution";
+export * from "./supplierResolution";

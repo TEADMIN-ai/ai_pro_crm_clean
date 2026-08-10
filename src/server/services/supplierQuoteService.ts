@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { Timestamp } from "firebase-admin/firestore";
 import { getFirebaseAdmin, getFirebaseStorageBucket } from "@/lib/firebase/admin";
+import { FirestoreMasterDataRepository, actorFromAuthorizedUser, createCanonicalMasterDataEntity, resolveSupplierForQuote } from "@/lib/master-data";
 import { createSupplierProfile, listSupplierProfiles } from "@/lib/qs/supplier-intelligence";
 import {
   SUPPLIER_QUOTE_AUDIT_COLLECTION,
@@ -21,6 +22,7 @@ import {
 } from "@/lib/supplier-quotes/supplierQuoteModel";
 import { extractTextFromPdfDetailed } from "@/lib/pdf/extractTextFromPdf";
 import type { AuthorizedUser } from "@/lib/server/authz";
+import type { CanonicalDocumentReference, MasterDataEvidenceReference, SupplierResolutionResult } from "@/types/masterData";
 import type { QSSupplierProfile, QsProvince } from "@/types/qs";
 import type {
   SupplierQuote,
@@ -170,22 +172,15 @@ async function writeAuditEvent(input: {
   ]);
 }
 
-export async function findOrCreateSupplierIdentity(
-  input: SupplierIdentityInput & { actorUid: string },
-): Promise<QSSupplierProfile> {
-  if (input.supplierId) {
-    const supplier = (await listSupplierProfiles(500)).find((candidate) => candidate.supplierId === input.supplierId);
-    if (supplier) return supplier;
-  }
-
+async function ensureQsSupplierCompatibilityProfile(input: SupplierIdentityInput & { actorUid: string; supplierId: string; status: SupplierResolutionResult["status"] }): Promise<QSSupplierProfile | null> {
   const suppliers = await listSupplierProfiles(500);
-  const existing = suppliers.find((supplier) => supplierMatches(input, supplier));
+  const existing = suppliers.find((supplier) => supplier.supplierId === input.supplierId || supplierMatches(input, supplier));
   if (existing) return existing;
 
   const timestamp = nowIso();
   const score = numberScore();
   return createSupplierProfile({
-    supplierId: "",
+    supplierId: input.supplierId,
     supplierName: input.supplierName,
     tradingName: null,
     companyRegistrationNumber: input.supplierRegistrationNumber ?? null,
@@ -214,7 +209,7 @@ export async function findOrCreateSupplierIdentity(
     referralCommissionEnabled: false,
     referralCommissionPercentage: null,
     featuredPlacementEnabled: false,
-    status: "pendingReview",
+    status: input.status === "RESOLVED_VERIFIED" ? "active" : "pendingReview",
     version: 1,
     createdAt: timestamp,
     updatedAt: timestamp,
@@ -223,6 +218,93 @@ export async function findOrCreateSupplierIdentity(
     createdByUid: input.actorUid,
     updatedByUid: input.actorUid,
   });
+}
+
+async function resolveSupplierIdentityForQuote(input: SupplierIdentityInput & {
+  actor: AuthorizedUser;
+  workspaceId: string;
+  quoteId: string;
+  evidence: MasterDataEvidenceReference[];
+}): Promise<SupplierResolutionResult> {
+  const repository = new FirestoreMasterDataRepository();
+  const result = await resolveSupplierForQuote({
+    actor: actorFromAuthorizedUser(input.actor, input.workspaceId),
+    repository,
+    supplier: {
+      workspaceId: input.workspaceId,
+      supplierId: input.supplierId,
+      supplierName: input.supplierName,
+      legalName: input.supplierName,
+      registrationNumber: input.supplierRegistrationNumber,
+      contactPerson: input.supplierContactName,
+      email: input.supplierEmail,
+      phone: input.supplierPhone,
+      evidenceReferences: input.evidence,
+      quoteId: input.quoteId,
+    },
+  });
+  if (result.supplierId) {
+    await ensureQsSupplierCompatibilityProfile({ ...input, actorUid: input.actor.uid, supplierId: result.supplierId, status: result.status });
+  }
+  return result;
+}
+
+async function persistSupplierQuoteDocumentReference(input: {
+  actor: AuthorizedUser;
+  workspaceId: string;
+  quoteId: string;
+  supplierId: string | null;
+  storagePath: string | null;
+  sourceFileName: string | null;
+  quotationDate?: string | null;
+  validityDate?: string | null;
+}): Promise<string | null> {
+  if (!input.storagePath && !input.sourceFileName) return null;
+  const now = nowIso();
+  const documentId = input.quoteId ? `MDOC-${input.quoteId}` : `MDOC-${randomUUID()}`;
+  const document: CanonicalDocumentReference = {
+    entityType: "document",
+    documentId,
+    canonicalId: documentId,
+    documentType: "SUPPLIER_QUOTE",
+    linkedEntityType: input.supplierId ? "supplier" : "source",
+    linkedEntityId: input.supplierId ?? input.quoteId,
+    displayName: input.sourceFileName ?? documentId,
+    legalName: null,
+    tradingName: null,
+    externalIdentifiers: [{ system: "supplier_quote", value: input.quoteId, status: "active" }],
+    workspaceId: input.workspaceId,
+    organisationId: null,
+    status: "active",
+    provenance: "OPERATIONAL_VERIFIED",
+    verificationStatus: "PENDING_REVIEW",
+    reviewStatus: "REVIEW_REQUIRED",
+    sourceEvidence: [{ storagePath: input.storagePath, filename: input.sourceFileName, issueDate: input.quotationDate ?? null, expiryDate: input.validityDate ?? null }],
+    notes: "Supplier quote evidence reference created during server-authoritative quote intake.",
+    createdAt: now,
+    updatedAt: now,
+    createdBy: input.actor.uid,
+    updatedBy: input.actor.uid,
+    sourcePath: null,
+    storagePath: input.storagePath,
+    filename: input.sourceFileName,
+    issueDate: input.quotationDate ?? null,
+    expiryDate: input.validityDate ?? null,
+    uploadedBy: input.actor.uid,
+    uploadedAt: now,
+    hash: null,
+  };
+  await createCanonicalMasterDataEntity({
+    actor: actorFromAuthorizedUser(input.actor, input.workspaceId),
+    repository: new FirestoreMasterDataRepository(),
+    entity: document,
+    reason: "Supplier quote intake registered document evidence.",
+    now,
+  }).catch((error) => {
+    if (error && typeof error === "object" && "code" in error && error.code === "CANONICAL_ID_DUPLICATE") return null;
+    throw error;
+  });
+  return documentId;
 }
 
 async function persistUpload(input: UploadSupplierQuoteInput, quoteId: string): Promise<{ storagePath: string | null; sourceFileName: string | null }> {
@@ -298,10 +380,28 @@ export async function uploadSupplierQuote(input: UploadSupplierQuoteInput, actor
   const contractorName = input.contractorName ?? asString(assignment.contractorName) ?? asString(deal.contractorName) ?? TORQUE_EMPIRE_CONTRACTOR_NAME;
   if (!contractorId) throw Object.assign(new Error("Assigned contractor is required before supplier quote upload."), { status: 400 });
 
-  const supplier = await findOrCreateSupplierIdentity({ ...input, actorUid: actor.uid });
   const quoteId = randomUUID();
   const uploaded = await persistUpload({ ...input, workspaceId }, quoteId);
   const extracted = await runExtraction(input, uploaded.storagePath);
+  const evidence: MasterDataEvidenceReference[] = [{
+    storagePath: uploaded.storagePath,
+    filename: uploaded.sourceFileName,
+    issueDate: input.quotationDate ?? extracted.extraction.quotationDate.value,
+    expiryDate: input.validityDate ?? extracted.extraction.validityDate.value,
+    provenance: "OPERATIONAL_VERIFIED",
+    verificationStatus: "PENDING_REVIEW",
+  }];
+  const supplier = await resolveSupplierIdentityForQuote({ ...input, actor, workspaceId, quoteId, evidence });
+  const masterDocumentId = await persistSupplierQuoteDocumentReference({
+    actor,
+    workspaceId,
+    quoteId,
+    supplierId: supplier.supplierId,
+    storagePath: uploaded.storagePath,
+    sourceFileName: uploaded.sourceFileName,
+    quotationDate: input.quotationDate ?? extracted.extraction.quotationDate.value,
+    validityDate: input.validityDate ?? extracted.extraction.validityDate.value,
+  });
   const subtotal = parseMoney(input.subtotal);
   const vat = parseMoney(input.vat ?? extracted.extraction.vat.value);
   const deliveryCost = parseMoney(input.deliveryCost ?? extracted.extraction.deliveryCost.value);
@@ -311,7 +411,7 @@ export async function uploadSupplierQuote(input: UploadSupplierQuoteInput, actor
   const duplicateKey = buildDuplicateKey({
     workspaceId,
     dealId: input.dealId,
-    supplierId: supplier.supplierId,
+    supplierId: supplier.supplierId ?? supplier.sourceId ?? "UNRESOLVED_SUPPLIER_SOURCE",
     quotationNumber: input.quotationNumber ?? extracted.extraction.quotationNumber.value,
     sourceFileName: uploaded.sourceFileName,
     total,
@@ -334,11 +434,15 @@ export async function uploadSupplierQuote(input: UploadSupplierQuoteInput, actor
     contractorId,
     contractorName,
     supplierId: supplier.supplierId,
-    supplierName: input.supplierName || supplier.supplierName,
-    supplierRegistrationNumber: input.supplierRegistrationNumber ?? supplier.companyRegistrationNumber ?? null,
-    supplierContactName: input.supplierContactName ?? supplier.contactPerson ?? null,
-    supplierEmail: input.supplierEmail ?? supplier.email ?? null,
-    supplierPhone: input.supplierPhone ?? supplier.phone ?? null,
+    sourceId: supplier.sourceId,
+    supplierName: input.supplierName || supplier.supplierName || "Unresolved supplier source",
+    supplierResolutionStatus: supplier.status,
+    supplierResolutionReason: supplier.reason,
+    masterDocumentId,
+    supplierRegistrationNumber: input.supplierRegistrationNumber ?? null,
+    supplierContactName: input.supplierContactName ?? null,
+    supplierEmail: input.supplierEmail ?? null,
+    supplierPhone: input.supplierPhone ?? null,
     quotationNumber: input.quotationNumber ?? extracted.extraction.quotationNumber.value,
     quotationDate: input.quotationDate ?? extracted.extraction.quotationDate.value,
     validityDate: input.validityDate ?? extracted.extraction.validityDate.value,
@@ -388,7 +492,7 @@ export async function uploadSupplierQuote(input: UploadSupplierQuoteInput, actor
   quote.reviewStatus = input.fileBuffer ? "IN_REVIEW" : "PENDING";
 
   await getFirebaseAdmin().collection(SUPPLIER_QUOTE_COLLECTION).doc(quote.id).set(quote);
-  await writeAuditEvent({ quoteId: quote.id, dealId: quote.dealId, workspaceId, actorUid: actor.uid, action: "SUPPLIER_QUOTE_UPLOADED", metadata: { supplierId: supplier.supplierId } });
+  await writeAuditEvent({ quoteId: quote.id, dealId: quote.dealId, workspaceId, actorUid: actor.uid, action: "SUPPLIER_QUOTE_UPLOADED", metadata: { supplierId: supplier.supplierId, sourceId: supplier.sourceId, supplierResolutionStatus: supplier.status, masterDocumentId } });
   const quotes = await listQuotesByDeal(input.dealId);
   const required = await listRequiredLineItems(deal);
   await updateExecutionWorkspaceStatus(deal, buildExecutionStatus([...quotes, quote], required));

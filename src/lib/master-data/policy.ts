@@ -117,6 +117,13 @@ export function sourceCategoryCanCreateSupplier(category: SourceRegistryCategory
 
 export function assertSourceDoesNotBecomeSupplier(source: CanonicalSourceRegistryEntry): void {
   if (source.entityType !== "source") return;
+  const raw = source as CanonicalSourceRegistryEntry & { supplierId?: unknown; Supplier_ID?: unknown };
+  if (typeof raw.supplierId === "string" && raw.supplierId.trim()) {
+    throw new MasterDataPolicyError("SOURCE_CANNOT_PROMOTE_SUPPLIER", "Source_ID must not be promoted into Supplier_ID.", 409);
+  }
+  if (typeof raw.Supplier_ID === "string" && raw.Supplier_ID.trim()) {
+    throw new MasterDataPolicyError("SOURCE_CANNOT_PROMOTE_SUPPLIER", "Source_ID must not be promoted into Supplier_ID.", 409);
+  }
   if (!source.sourceId.trim()) {
     throw new MasterDataPolicyError("SOURCE_ID_REQUIRED", "Source_ID is required for Source Registry entries.", 400);
   }

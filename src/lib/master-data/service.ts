@@ -113,7 +113,7 @@ export async function updateCanonicalMasterDataEntity(input: {
   if (next.entityType === "source") assertSourceDoesNotBecomeSupplier(next);
 
   const auditEvent = buildAuditEvent({
-    action: input.patch.verificationStatus ? "verification" : input.patch.status === "archived" ? "archive" : "update",
+    action: auditActionForPatch(input.patch),
     actor: input.actor,
     entity: next,
     previousState: previous,
@@ -126,6 +126,13 @@ export async function updateCanonicalMasterDataEntity(input: {
   await input.repository.save(next);
   await input.repository.writeAuditEvent(auditEvent);
   return { entity: next, auditEvent, policyVersion: MASTER_DATA_POLICY_VERSION };
+}
+
+function auditActionForPatch(patch: Partial<CanonicalMasterEntity>): MasterDataAuditEvent["action"] {
+  if (patch.status === "archived" || patch.verificationStatus === "ARCHIVED" || patch.reviewStatus === "ARCHIVED") return "archive";
+  if (patch.verificationStatus === "REJECTED") return "rejection";
+  if (patch.verificationStatus) return "verification";
+  return "update";
 }
 
 export function buildAuditEvent(input: {

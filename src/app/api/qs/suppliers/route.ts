@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { assertQsInternalAccess } from "@/lib/qs/apiAuth";
+import { FirestoreMasterDataRepository, actorFromAuthorizedUser, resolveSupplierForQuote } from "@/lib/master-data";
 import { createSupplierProfile, listSupplierProfiles } from "@/lib/qs/supplier-intelligence";
 import { AuthorizationError, requireAuthorizedUser } from "@/lib/server/authz";
 import type { QSSupplierProfile, QsProvince } from "@/types/qs";
@@ -38,9 +39,36 @@ export async function POST(request: NextRequest) {
     const user = await requireAuthorizedUser(request);
     assertQsInternalAccess(user);
 
-    const body = (await request.json()) as Partial<QSSupplierProfile>;
+    const body = (await request.json()) as Partial<QSSupplierProfile> & { workspaceId?: string | null };
     const supplierName = typeof body.supplierName === "string" ? body.supplierName.trim() : "";
     if (!supplierName) return jsonError("Supplier name is required.", 400);
+
+    const workspaceId = typeof body.workspaceId === "string" && body.workspaceId.trim() ? body.workspaceId.trim() : user.workspaceId;
+    if (!workspaceId) return jsonError("workspaceId is required for canonical supplier creation.", 400);
+    if (user.workspaceId && user.workspaceId !== workspaceId) return jsonError("Cross-workspace access rejected.", 403);
+
+    const supplierResolution = await resolveSupplierForQuote({
+      actor: actorFromAuthorizedUser(user, workspaceId),
+      repository: new FirestoreMasterDataRepository(),
+      supplier: {
+        workspaceId,
+        supplierId: typeof body.supplierId === "string" ? body.supplierId.trim() : "",
+        supplierName,
+        legalName: typeof body.supplierName === "string" ? body.supplierName.trim() : supplierName,
+        tradingName: body.tradingName ?? null,
+        registrationNumber: body.companyRegistrationNumber ?? null,
+        vatNumber: body.vatNumber ?? null,
+        contactPerson: body.contactPerson ?? null,
+        email: body.email ?? null,
+        phone: body.phone ?? null,
+        regionCoverage: (Array.isArray(body.deliveryAreas) ? body.deliveryAreas : ["National"]) as string[],
+        paymentTerms: body.paymentTerms ?? null,
+        evidenceReferences: [],
+      },
+    });
+    if (!supplierResolution.supplierId) {
+      return jsonError(`Master Supplier resolution required before QS supplier profile creation: ${supplierResolution.reason}`, 409);
+    }
 
     const timestamp = new Date().toISOString();
     const qualityScore = numberScore(body.qualityScore);
@@ -51,7 +79,7 @@ export async function POST(request: NextRequest) {
     const overallSupplierScore = Math.round((qualityScore + reliabilityScore + deliveryScore + priceCompetitivenessScore + stockAvailabilityScore) / 5);
 
     const supplier = await createSupplierProfile({
-      supplierId: typeof body.supplierId === "string" ? body.supplierId.trim() : "",
+      supplierId: supplierResolution.supplierId,
       supplierName,
       tradingName: body.tradingName ?? null,
       companyRegistrationNumber: body.companyRegistrationNumber ?? null,
@@ -90,7 +118,7 @@ export async function POST(request: NextRequest) {
       updatedByUid: user.uid,
     });
 
-    return NextResponse.json({ supplier }, { status: 201 });
+    return NextResponse.json({ supplier, supplierResolution }, { status: 201 });
   } catch (error) {
     if (error instanceof AuthorizationError) return jsonError(error.message, error.status);
     console.error("[QS_SUPPLIER_CREATE_FAILED]", error);

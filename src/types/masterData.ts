@@ -222,9 +222,38 @@ export type CanonicalReferenceResolution = {
   verificationStatus: MasterDataVerificationStatus;
 };
 
+export type SupplierResolutionStatus =
+  | "RESOLVED_VERIFIED"
+  | "CREATED_PENDING_REVIEW"
+  | "REVIEW_REQUIRED"
+  | "SOURCE_ONLY"
+  | "BLOCKED";
+
+export type SupplierResolutionResult = {
+  status: SupplierResolutionStatus;
+  supplierId: string | null;
+  sourceId: string | null;
+  supplierName: string | null;
+  reviewStatus: MasterDataReviewStatus;
+  verificationStatus: MasterDataVerificationStatus;
+  reason: string;
+  evidenceReferences: MasterDataEvidenceReference[];
+};
+
+export type ItemResolutionStatus = "RESOLVED" | "REVIEW_REQUIRED" | "UNRESOLVED" | "BLOCKED";
+
+export type ItemResolutionResult = {
+  status: ItemResolutionStatus;
+  itemId: string | null;
+  sourceReference: string | null;
+  reason: string;
+};
+
 export type MigrationCategory =
   | "already_canonical"
   | "safely_mappable"
+  | "canonical_match"
+  | "source_only"
   | "review_required"
   | "seed_demo_test"
   | "legacy_alias"
