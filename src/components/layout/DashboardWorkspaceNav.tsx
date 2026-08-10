@@ -12,7 +12,7 @@ type GovernanceNavBadge = {
 };
 
 type DashboardNavItem = {
-  key: "overview" | "opportunityRegister" | "submissionProfiles" | "submissionReview" | "deals" | "contractors" | "qs" | "hygiene" | "vehicleFinance" | "inventory" | "listings" | "applications" | "customers" | "reports" | "tenderRequests" | "intelligence" | "governance" | "settings";
+  key: "overview" | "masterDataReview" | "opportunityRegister" | "submissionProfiles" | "submissionReview" | "deals" | "contractors" | "qs" | "hygiene" | "vehicleFinance" | "inventory" | "listings" | "applications" | "customers" | "reports" | "tenderRequests" | "intelligence" | "governance" | "settings";
   href: string;
   label: string;
   match: (pathname: string) => boolean;
@@ -84,6 +84,12 @@ const DASHBOARD_NAV_ITEMS: DashboardNavItem[] = [
     href: "/dashboard/intelligence",
     label: "Intelligence",
     match: (pathname) => pathname.startsWith("/dashboard/intelligence"),
+  },
+  {
+    key: "masterDataReview",
+    href: "/dashboard/master-data-review",
+    label: "Master Data",
+    match: (pathname) => pathname.startsWith("/dashboard/master-data-review"),
   },
   {
     key: "governance",
@@ -198,6 +204,7 @@ function DashboardNavIcon({ itemKey, active }: { itemKey: DashboardNavItem["key"
           <path d="M7.5 8h5M8.25 11h3.5M8.25 13.5h2.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
         </svg>
       );
+    case "masterDataReview":
     case "governance":
       return (
         <svg viewBox="0 0 20 20" fill="none" className={"h-4 w-4 " + iconClassName} aria-hidden="true">
