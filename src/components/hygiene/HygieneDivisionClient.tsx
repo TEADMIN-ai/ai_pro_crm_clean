@@ -366,31 +366,19 @@ function metricTone(status: ReturnType<typeof buildHygieneAtAGlance>[number]["st
 }
 
 function EvidenceMedia({ photo }: { photo: HygieneEvidencePhoto }) {
-  if (/\.pdf(\?|$)/i.test(photo.fileUrl)) {
-    return (
-      <div className="mb-4 flex h-36 items-center justify-center rounded-lg border border-white/10 bg-slate-950/60 text-sm font-bold text-slate-200">
-        Document evidence
-      </div>
-    );
-  }
-
-  return (
-    // eslint-disable-next-line @next/next/no-img-element
-    <img
-      src={photo.fileUrl}
-      alt={photo.category + " evidence for collection " + photo.collectionId}
-      loading="lazy"
-      className="mb-4 h-36 w-full rounded-lg border border-white/10 object-cover"
-    />
-  );
+  const reference = photo.storagePath ?? photo.fileUrl;
+  const label = /\.pdf(\?|$)/i.test(reference) ? "Document evidence" : "Evidence media";
+  return <div className="mb-4 flex h-36 items-center justify-center rounded-lg border border-white/10 bg-slate-950/60 px-4 text-center text-sm font-bold text-slate-200">{label}</div>;
 }
 
 function VerifiedEvidenceGallery({
   data,
   siteById,
+  onOpenEvidence,
 }: {
   data: HygieneDashboardData;
   siteById: Map<string, string>;
+  onOpenEvidence: (photo: HygieneEvidencePhoto) => void;
 }) {
   const evidenceItems = buildVerifiedEvidenceGallery(data);
 
@@ -408,12 +396,11 @@ function VerifiedEvidenceGallery({
       ) : (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {evidenceItems.map((item) => (
-            <a
+            <button
               key={item.photo.photoId}
-              href={item.photo.fileUrl}
-              target="_blank"
-              rel="noreferrer"
-              className="rounded-xl border border-[color:var(--hygiene-border)] bg-slate-950/35 p-4 shadow-sm transition hover:bg-slate-950/45 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-200"
+              type="button"
+              onClick={() => onOpenEvidence(item.photo)}
+              className="rounded-xl border border-[color:var(--hygiene-border)] bg-slate-950/35 p-4 text-left shadow-sm transition hover:bg-slate-950/45 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-200"
             >
               <EvidenceMedia photo={item.photo} />
               <div className="flex items-start justify-between gap-3">
@@ -433,7 +420,7 @@ function VerifiedEvidenceGallery({
                   </div>
                 ))}
               </dl>
-            </a>
+            </button>
           ))}
         </div>
       )}
@@ -661,6 +648,25 @@ export default function HygieneDivisionClient({ view }: { view: HygieneView }) {
 
   async function postJobAction(collectionId: string, action: string, successMessage: string, extra: Record<string, unknown> = {}) {
     await postJson(API_ROUTES.HYGIENE_JOBS, { collectionId, action, ...extra }, successMessage);
+  }
+
+  async function openHygieneEvidence(kind: "photo" | "signature" | "compliance", recordId: string, collectionId?: string) {
+    setMutationStatus("Requesting evidence access...");
+    setError(null);
+    try {
+      const params = new URLSearchParams({ kind, recordId });
+      if (collectionId) params.set("collectionId", collectionId);
+      const response = await authFetch(API_ROUTES.HYGIENE_EVIDENCE_ACCESS + "?" + params.toString());
+      const payload = (await response.json().catch(() => ({}))) as { accessUrl?: string; error?: string; reviewStatus?: string; classification?: string };
+      if (!response.ok || !payload.accessUrl) {
+        const reviewLabel = payload.reviewStatus === "REVIEW_REQUIRED" ? " Legacy evidence requires review." : "";
+        throw new Error((payload.error ?? "Evidence unavailable.") + reviewLabel);
+      }
+      window.open(payload.accessUrl, "_blank", "noopener,noreferrer");
+      setMutationStatus("Evidence access opened.");
+    } catch (accessError) {
+      setMutationStatus(accessError instanceof Error ? accessError.message : "Evidence access failed.");
+    }
   }
 
   function openModal(kind: ModalKind, title: string, defaults?: unknown) {
@@ -1115,7 +1121,7 @@ export default function HygieneDivisionClient({ view }: { view: HygieneView }) {
             ))}
           </section>
 
-          <VerifiedEvidenceGallery data={data} siteById={siteById} />
+          <VerifiedEvidenceGallery data={data} siteById={siteById} onOpenEvidence={(photo) => void openHygieneEvidence("photo", photo.photoId, photo.collectionId)} />
 
           <ServiceWorkflowSequence />
 
@@ -1462,7 +1468,7 @@ export default function HygieneDivisionClient({ view }: { view: HygieneView }) {
             ) : (
               <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
                 {data.evidencePhotos.map((photo) => (
-                  <a key={photo.photoId} href={photo.fileUrl} target="_blank" rel="noreferrer" className="rounded-xl border border-[color:var(--hygiene-border)] bg-slate-950/35 p-4 shadow-sm transition hover:bg-slate-950/45">
+                  <button key={photo.photoId} type="button" onClick={() => void openHygieneEvidence("photo", photo.photoId, photo.collectionId)} className="rounded-xl border border-[color:var(--hygiene-border)] bg-slate-950/35 p-4 text-left shadow-sm transition hover:bg-slate-950/45">
                     <EvidenceMedia photo={photo} />
                     <div className="flex items-start justify-between gap-3">
                       <PrimaryCell title={photo.category} subtitle={photo.photoId} />
@@ -1479,7 +1485,7 @@ export default function HygieneDivisionClient({ view }: { view: HygieneView }) {
                       </div>
                     </dl>
                     <p className="mt-3 line-clamp-2 text-xs font-medium leading-5 text-slate-300">{photo.notes}</p>
-                  </a>
+                  </button>
                 ))}
               </div>
             )}
@@ -1501,7 +1507,7 @@ export default function HygieneDivisionClient({ view }: { view: HygieneView }) {
               document.registrationNumber,
               document.owner,
               formatDate(document.expiryDate),
-              document.fileUrl ? <a key="file" className="text-teal-100 hover:text-white" href={document.fileUrl}>Open file</a> : "Not uploaded",
+              (document.storagePath || document.fileUrl) ? <SmallAction key="file" onClick={() => void openHygieneEvidence("compliance", document.documentId)}>Open file</SmallAction> : "Not uploaded",
               <StatusBadge key="status" value={document.status} />,
               <div key="actions" className="flex flex-wrap gap-2">
                 {canManage ? <SmallAction onClick={() => openModal("compliance", "Edit Document", document)}>Edit</SmallAction> : null}
@@ -1509,7 +1515,7 @@ export default function HygieneDivisionClient({ view }: { view: HygieneView }) {
                 {canManage ? <SmallAction variant="success" onClick={() => void postJson(API_ROUTES.HYGIENE_COMPLIANCE, { ...document, status: "Compliance Green" }, "Document verified.")}>Mark Verified</SmallAction> : null}
                 {canManage ? <SmallAction variant="warning" onClick={() => void postJson(API_ROUTES.HYGIENE_COMPLIANCE, { ...document, status: "Pending" }, "Document marked pending.")}>Mark Pending</SmallAction> : null}
                 {canManage ? <SmallAction variant="danger" onClick={() => void postJson(API_ROUTES.HYGIENE_COMPLIANCE, { ...document, status: "Compliance Expired" }, "Document marked expired.")}>Mark Expired</SmallAction> : null}
-                {document.fileUrl ? <a className={smallLinkClass} href={document.fileUrl}>Download File</a> : null}
+                {(document.storagePath || document.fileUrl) ? <SmallAction onClick={() => void openHygieneEvidence("compliance", document.documentId)}>Open File</SmallAction> : null}
               </div>,
             ])} />
           </Panel>

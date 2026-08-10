@@ -77,3 +77,33 @@ export function isExpectedHygieneCollectionEvidencePath(input: {
   return input.path.startsWith(`hygiene/evidence/${input.clientId}/${input.collectionId}/`) ||
     input.path.startsWith(`hygiene/signatures/${input.clientId}/${input.collectionId}/`);
 }
+
+export type EvidenceStorageReferenceClassification =
+  | "DOCUMENT_REFERENCE"
+  | "DURABLE_STORAGE_PATH"
+  | "LEGACY_SIGNED_URL"
+  | "UNRESOLVED_LEGACY_REFERENCE";
+
+export type EvidenceStorageReferenceDecision = {
+  classification: EvidenceStorageReferenceClassification;
+  storagePath: string | null;
+  reviewStatus: "ACCESS_READY" | "REVIEW_REQUIRED";
+  reason: string;
+};
+
+export function classifyEvidenceStorageReference(input: { storagePath?: unknown; fileUrl?: unknown; documentId?: unknown; allowedPrefixes?: readonly string[]; }): EvidenceStorageReferenceDecision {
+  const storagePath = normalizeStorageObjectPath(input.storagePath);
+  if (storagePath) {
+    const decision = evaluateGovernedStoragePath(storagePath, input.allowedPrefixes);
+    return { classification: "DURABLE_STORAGE_PATH", storagePath: decision.allowed ? decision.normalizedPath : null, reviewStatus: decision.allowed ? "ACCESS_READY" : "REVIEW_REQUIRED", reason: decision.reason };
+  }
+  const documentId = typeof input.documentId === "string" && input.documentId.trim() ? input.documentId.trim() : null;
+  if (documentId) return { classification: "DOCUMENT_REFERENCE", storagePath: null, reviewStatus: "REVIEW_REQUIRED", reason: "DocumentReference exists but no durable storage path is present." };
+  const fileUrl = normalizeStorageObjectPath(input.fileUrl);
+  if (!fileUrl) return { classification: "UNRESOLVED_LEGACY_REFERENCE", storagePath: null, reviewStatus: "REVIEW_REQUIRED", reason: "No evidence storage reference is present." };
+  if (/^[a-z][a-z0-9+.-]*:\/\//i.test(fileUrl) || /^gs:\/\//i.test(fileUrl)) {
+    return { classification: "LEGACY_SIGNED_URL", storagePath: null, reviewStatus: "REVIEW_REQUIRED", reason: "Legacy signed URL is historical metadata and requires review before governed access." };
+  }
+  const decision = evaluateGovernedStoragePath(fileUrl, input.allowedPrefixes);
+  return { classification: decision.allowed ? "DURABLE_STORAGE_PATH" : "UNRESOLVED_LEGACY_REFERENCE", storagePath: decision.allowed ? decision.normalizedPath : null, reviewStatus: decision.allowed ? "ACCESS_READY" : "REVIEW_REQUIRED", reason: decision.reason };
+}

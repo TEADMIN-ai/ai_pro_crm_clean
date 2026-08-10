@@ -3,6 +3,7 @@ import { getFirebaseAdmin, getFirebaseStorageBucket } from "@/lib/firebase/admin
 import { HYGIENE_COLLECTIONS, assertHygieneInternalAccess } from "@/lib/hygiene/hygieneService";
 import {
   EVIDENCE_SIGNED_URL_TTL_MS,
+  classifyEvidenceStorageReference,
   evaluateGovernedStoragePath,
   expectedHygieneSignaturePath,
   isExpectedHygieneCollectionEvidencePath,
@@ -50,8 +51,9 @@ async function resolveSignature(recordId: string, collectionId: string) {
   if (signature.collectionId !== collection.collectionId || signature.clientId !== collection.clientId || signature.siteId !== collection.siteId) {
     return { error: "Hygiene signature relationship does not match the requested collection.", status: 403 as const };
   }
-  const storagePath = clean(signature.signatureStoragePath);
-  if (!storagePath) return { error: "Hygiene signature has no durable storage reference.", status: 404 as const };
+  const reference = classifyEvidenceStorageReference({ storagePath: signature.signatureStoragePath, fileUrl: signature.signatureFileUrl, allowedPrefixes: ["hygiene/signatures/"] });
+  if (reference.reviewStatus === "REVIEW_REQUIRED" || !reference.storagePath) return { error: reference.reason, status: 409 as const, classification: reference.classification };
+  const storagePath = reference.storagePath;
   if (storagePath !== expectedHygieneSignaturePath({ clientId: collection.clientId, collectionId: collection.collectionId, signatureId: signature.signatureId })) {
     return { error: "Hygiene signature storage path does not match the collection relationship.", status: 403 as const };
   }
@@ -73,8 +75,9 @@ async function resolvePhoto(recordId: string, collectionId: string) {
   if (photo.collectionId !== collection.collectionId || photo.clientId !== collection.clientId || photo.siteId !== collection.siteId) {
     return { error: "Hygiene photo relationship does not match the requested collection.", status: 403 as const };
   }
-  const storagePath = clean(photo.storagePath) || clean(photo.fileUrl);
-  if (!storagePath) return { error: "Hygiene photo has no durable storage reference.", status: 404 as const };
+  const reference = classifyEvidenceStorageReference({ storagePath: photo.storagePath, fileUrl: photo.fileUrl, allowedPrefixes: ["hygiene/evidence/"] });
+  if (reference.reviewStatus === "REVIEW_REQUIRED" || !reference.storagePath) return { error: reference.reason, status: 409 as const, classification: reference.classification };
+  const storagePath = reference.storagePath;
   return {
     record: photo,
     collection,
@@ -87,8 +90,9 @@ async function resolvePhoto(recordId: string, collectionId: string) {
 async function resolveCompliance(recordId: string) {
   const document = await loadRecord<HygieneComplianceDocument>(HYGIENE_COLLECTIONS.complianceDocuments, recordId);
   if (!document) return { error: "Hygiene compliance document not found.", status: 404 as const };
-  const storagePath = clean(document.storagePath);
-  if (!storagePath) return { error: "Hygiene compliance document has no durable storage reference.", status: 404 as const };
+  const reference = classifyEvidenceStorageReference({ storagePath: document.storagePath, fileUrl: document.fileUrl, documentId: document.documentId, allowedPrefixes: ["hygiene/compliance/"] });
+  if (reference.reviewStatus === "REVIEW_REQUIRED" || !reference.storagePath) return { error: reference.reason, status: 409 as const, classification: reference.classification };
+  const storagePath = reference.storagePath;
   return {
     record: document,
     collection: null,
@@ -117,7 +121,7 @@ export async function GET(request: NextRequest) {
       : evidenceKind === "photo"
         ? await resolvePhoto(recordId, collectionId)
         : await resolveCompliance(recordId);
-    if ("error" in resolved) return jsonError(resolved.error, resolved.status);
+    if ("error" in resolved) return NextResponse.json({ error: resolved.error, reviewStatus: resolved.status === 409 ? "REVIEW_REQUIRED" : undefined, classification: "classification" in resolved ? resolved.classification : undefined }, { status: resolved.status });
 
     const pathDecision = evaluateGovernedStoragePath(resolved.storagePath, ["hygiene/signatures/", "hygiene/evidence/", "hygiene/compliance/"]);
     if (!pathDecision.allowed || !pathDecision.normalizedPath) return jsonError(pathDecision.reason, 403);

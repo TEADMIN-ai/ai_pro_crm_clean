@@ -110,3 +110,32 @@ export function categoriseQsSupplierProfile(record: QsSupplierMigrationRecord): 
   }
   return { source: "qsSuppliers", recordReference: reference, entityType: "supplier", category: "review_required", proposedCanonicalId: null, reason: "QS supplier profile has insufficient evidence for automatic mapping." };
 }
+
+export type HygieneEvidenceMigrationCategory = "already_governed" | "storage_path_recoverable" | "legacy_signed_url_recoverable" | "relationship_review_required" | "missing_evidence" | "conflicting";
+
+export type HygieneEvidenceMigrationRecord = {
+  recordReference: string;
+  storagePath?: string | null;
+  fileUrl?: string | null;
+  documentId?: string | null;
+  hasTrustedRelationship?: boolean;
+  hasConflict?: boolean;
+};
+
+export function categoriseHistoricalHygieneEvidence(record: HygieneEvidenceMigrationRecord): {
+  recordReference: string;
+  category: HygieneEvidenceMigrationCategory;
+  proposedDocumentId: string | null;
+  reason: string;
+} {
+  const proposedDocumentId = record.documentId ?? null;
+  const hasUrl = Boolean(record.fileUrl?.trim());
+  const hasStoragePath = Boolean(record.storagePath?.trim());
+  const looksLikeLegacyUrl = typeof record.fileUrl === "string" && /^[a-z][a-z0-9+.-]*:\/\//i.test(record.fileUrl.trim());
+  if (record.hasConflict) return { recordReference: record.recordReference, category: "conflicting", proposedDocumentId, reason: "Conflicting Hygiene evidence relationships require manual review before DocumentReference creation." };
+  if (hasStoragePath && record.documentId && record.hasTrustedRelationship) return { recordReference: record.recordReference, category: "already_governed", proposedDocumentId, reason: "Evidence already has durable storage path, document identity and trusted relationship metadata." };
+  if (hasStoragePath && record.hasTrustedRelationship) return { recordReference: record.recordReference, category: "storage_path_recoverable", proposedDocumentId, reason: "Durable storage path and relationship metadata can support future DocumentReference creation." };
+  if (looksLikeLegacyUrl && record.hasTrustedRelationship) return { recordReference: record.recordReference, category: "legacy_signed_url_recoverable", proposedDocumentId, reason: "Legacy URL is preserved but requires storage-object recovery before governed DocumentReference migration." };
+  if (hasUrl || hasStoragePath) return { recordReference: record.recordReference, category: "relationship_review_required", proposedDocumentId, reason: "Evidence reference exists but trusted collection/client/site relationship is incomplete or unverified." };
+  return { recordReference: record.recordReference, category: "missing_evidence", proposedDocumentId, reason: "No historical Hygiene evidence file reference exists to migrate." };
+}
