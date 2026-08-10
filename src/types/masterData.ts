@@ -15,6 +15,33 @@ export type MasterDataVerificationStatus = "PENDING_REVIEW" | "VERIFIED" | "REJE
 export type MasterDataReviewStatus = "READY_FOR_USE" | "REVIEW_REQUIRED" | "BLOCKED" | "ARCHIVED";
 export type MasterDataRecordStatus = "active" | "archived";
 
+export type MasterDataEvidenceStatus =
+  | "PRESENT"
+  | "MISSING"
+  | "EXPIRED"
+  | "REJECTED"
+  | "HISTORICAL_ONLY"
+  | "PENDING_REVIEW"
+  | "VERIFIED";
+
+export type MasterDataEvidencePurpose =
+  | "SUPPLIER_IDENTITY"
+  | "CURRENT_QS_PRICING"
+  | "HISTORICAL_PRICE"
+  | "SUPPLIER_QUOTE_REVIEW"
+  | "CONTRACTOR_COMPLIANCE"
+  | "HYGIENE_COLLECTION_ACKNOWLEDGEMENT"
+  | "HYGIENE_DISPOSAL_PROOF"
+  | "FINANCE_TRANSACTION_SUPPORT"
+  | "RFQ_SOURCE"
+  | "GENERAL_REFERENCE";
+
+export type MasterDataLinkedBusinessReference = {
+  referenceType: string;
+  referenceId: string;
+  relationship: string;
+};
+
 export type MasterDataEntityType =
   | "client"
   | "contractor"
@@ -40,7 +67,10 @@ export type MasterDataAuditAction =
   | "verification"
   | "rejection"
   | "duplicate_resolution"
-  | "alias_linkage";
+  | "alias_linkage"
+  | "evidence_access"
+  | "evidence_review"
+  | "evidence_historical_only";
 
 export type MasterDataActor = {
   uid: string;
@@ -59,6 +89,8 @@ export type MasterDataEvidenceReference = {
   expiryDate?: string | null;
   verificationStatus?: MasterDataVerificationStatus;
   provenance?: MasterDataProvenance;
+  evidenceStatus?: MasterDataEvidenceStatus;
+  evidencePurposes?: MasterDataEvidencePurpose[];
 };
 
 export type MasterDataExternalIdentifier = {
@@ -180,11 +212,22 @@ export type CanonicalDocumentReference = CanonicalMasterEntityBase & {
   sourcePath?: string | null;
   storagePath?: string | null;
   filename?: string | null;
+  contentType?: string | null;
   issueDate?: string | null;
   expiryDate?: string | null;
+  documentDate?: string | null;
+  evidenceStatus?: MasterDataEvidenceStatus;
+  evidencePurposes?: MasterDataEvidencePurpose[];
   uploadedBy?: string | null;
   uploadedAt?: string | null;
+  verifiedBy?: string | null;
+  verifiedAt?: string | null;
+  rejectedBy?: string | null;
+  rejectedAt?: string | null;
+  rejectionReason?: string | null;
   hash?: string | null;
+  sourceSystem?: string | null;
+  linkedBusinessReferences?: MasterDataLinkedBusinessReference[];
 };
 
 export type CanonicalMasterEntity =

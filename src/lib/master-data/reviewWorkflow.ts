@@ -1,3 +1,4 @@
+import { adaptSupplierQuoteEvidence, evidenceReferenceFromDocument } from "@/lib/master-data/evidenceAuthority";
 import { buildAuditEvent, updateCanonicalMasterDataEntity, type MasterDataRepository } from "@/lib/master-data/service";
 import { detectDuplicateDecision, normalizeDisplayNameKey, normalizeIdentityKey } from "@/lib/master-data/policy";
 import type {
@@ -31,6 +32,7 @@ export type MasterDataReviewRecord = {
   linkedDocumentIds: string[];
   linkedSourceId: string | null;
   currentPricingEligibility: "ELIGIBLE" | "NO_UPDATED_QUOTE_REQUIRED" | "UNKNOWN";
+  evidencePurposeSummary: string[];
 };
 
 export type MasterDataDuplicateCandidate = {
@@ -201,6 +203,7 @@ function projectReviewRecord(
     linkedDocumentIds: linkedDocuments.map((doc) => doc.documentId),
     linkedSourceId: entity.entityType === "supplier" ? (entity as CanonicalSupplier).linkedSourceId ?? null : entity.entityType === "source" ? entity.canonicalId : null,
     currentPricingEligibility: currentPricingEligibility(evidence, today),
+    evidencePurposeSummary: linkedDocuments.flatMap((doc) => purposeSummaryForDocument(doc, today)),
   };
 }
 
@@ -261,17 +264,18 @@ function conflictingFields(left: CanonicalMasterEntity, right: CanonicalMasterEn
 }
 
 function documentEvidence(document: CanonicalDocumentReference): MasterDataEvidenceReference {
-  return {
-    documentId: document.documentId,
-    sourcePath: document.sourcePath,
-    storagePath: document.storagePath,
-    filename: document.filename,
-    issueDate: document.issueDate,
-    expiryDate: document.expiryDate,
-    hash: document.hash,
-    verificationStatus: document.verificationStatus,
-    provenance: document.provenance,
-  };
+  return evidenceReferenceFromDocument(document);
+}
+
+function purposeSummaryForDocument(document: CanonicalDocumentReference, today: Date): string[] {
+  if (document.documentType === "SUPPLIER_QUOTE") {
+    const quote = adaptSupplierQuoteEvidence(document, today);
+    return [
+      "supplier identity: " + quote.identityAuthority.status,
+      "current QS pricing: " + quote.currentPricingAuthority.status,
+    ];
+  }
+  return (document.evidencePurposes ?? []).map((purpose) => purpose + ": " + (document.evidenceStatus ?? document.verificationStatus));
 }
 
 function currentPricingEligibility(evidence: MasterDataEvidenceReference[], today: Date): MasterDataReviewRecord["currentPricingEligibility"] {

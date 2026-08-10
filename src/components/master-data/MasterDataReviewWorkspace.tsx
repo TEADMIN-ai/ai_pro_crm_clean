@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Badge from "@/components/ui/Badge";
 import { authFetch } from "@/lib/client/authFetch";
 import type { MasterDataDuplicateCandidate, MasterDataReviewQueueKey, MasterDataReviewQueueSummary, MasterDataReviewRecord } from "@/lib/master-data/reviewWorkflow";
-import type { CanonicalItem, CanonicalSupplier } from "@/types/masterData";
+import type { CanonicalItem, CanonicalSupplier, MasterDataEvidenceReference, MasterDataEvidencePurpose } from "@/types/masterData";
 
 const QUEUES: Array<{ key: MasterDataReviewQueueKey; label: string }> = [
   { key: "pendingSuppliers", label: "Pending Suppliers" },
@@ -74,6 +74,38 @@ export default function MasterDataReviewWorkspace({ workspaceId }: { workspaceId
     await load();
   }
 
+  async function openEvidence(evidence: MasterDataEvidenceReference) {
+    if (!evidence.documentId) return;
+    setAction({ pending: true, message: null, error: null });
+    const response = await authFetch(`/api/master-data/evidence/${encodeURIComponent(evidence.documentId)}/access?workspaceId=${encodeURIComponent(workspaceId)}`, { cache: "no-store" });
+    const payload = await response.json().catch(() => null) as { accessUrl?: string | null; accessMode?: string; error?: string } | null;
+    if (!response.ok) {
+      setAction({ pending: false, message: null, error: payload?.error ?? "Evidence access failed." });
+      return;
+    }
+    if (payload?.accessUrl) window.open(payload.accessUrl, "_blank", "noopener,noreferrer");
+    setAction({ pending: false, message: payload?.accessMode === "metadata_only" ? "Evidence metadata is available; no secure file URL exists for this reference." : "Evidence access issued.", error: null });
+  }
+
+  async function runEvidenceAction(evidence: MasterDataEvidenceReference, kind: "verify" | "reject" | "historical_only" | "review_required") {
+    if (!evidence.documentId) return;
+    setAction({ pending: true, message: null, error: null });
+    const purpose = (evidence.evidencePurposes?.[0] ?? "GENERAL_REFERENCE") as MasterDataEvidencePurpose;
+    const endpoint = "/api/master-data/evidence/" + encodeURIComponent(evidence.documentId) + "/review";
+    const response = await authFetch(endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ workspaceId, action: kind, purpose, reason: "Staff evidence review action: " + kind }),
+    });
+    const payload = await response.json().catch(() => null) as { error?: string } | null;
+    if (!response.ok) {
+      setAction({ pending: false, message: null, error: payload?.error ?? "Evidence review action failed." });
+      return;
+    }
+    setAction({ pending: false, message: "Evidence review action recorded.", error: null });
+    await load();
+  }
+
   async function resolveDuplicate(duplicate: MasterDataDuplicateCandidate, outcome: "same_entity" | "different_entities" | "review_required", survivorId?: string) {
     setAction({ pending: true, message: null, error: null });
     const response = await authFetch("/api/master-data/duplicates/resolve", {
@@ -136,7 +168,7 @@ export default function MasterDataReviewWorkspace({ workspaceId }: { workspaceId
       ) : (
         <section className="grid gap-3">
           {visibleRecords.map((record) => (
-            <ReviewRecordCard key={`${record.entity.entityType}:${record.entity.canonicalId}`} record={record} pending={action.pending} onAction={runEntityAction} />
+            <ReviewRecordCard key={`${record.entity.entityType}:${record.entity.canonicalId}`} record={record} pending={action.pending} onAction={runEntityAction} onEvidenceAccess={openEvidence} onEvidenceAction={runEvidenceAction} />
           ))}
           {!visibleRecords.length ? <p className="rounded-md border border-slate-200 bg-white p-6 text-sm text-slate-600">No records in this queue.</p> : null}
         </section>
@@ -149,10 +181,12 @@ function isReviewQueueSummary(value: unknown): value is MasterDataReviewQueueSum
   return Boolean(value && typeof value === "object" && "counts" in value && "records" in value && "duplicateCandidates" in value);
 }
 
-function ReviewRecordCard({ record, pending, onAction }: {
+function ReviewRecordCard({ record, pending, onAction, onEvidenceAccess, onEvidenceAction }: {
   record: MasterDataReviewRecord;
   pending: boolean;
   onAction: (record: MasterDataReviewRecord, kind: "verify" | "reject" | "archive" | "review_required") => Promise<void>;
+  onEvidenceAccess: (evidence: MasterDataEvidenceReference) => Promise<void>;
+  onEvidenceAction: (evidence: MasterDataEvidenceReference, kind: "verify" | "reject" | "historical_only" | "review_required") => Promise<void>;
 }) {
   const supplier = record.entity.entityType === "supplier" ? record.entity as CanonicalSupplier : null;
   const item = record.entity.entityType === "item" ? record.entity as CanonicalItem : null;
@@ -180,6 +214,11 @@ function ReviewRecordCard({ record, pending, onAction }: {
         {supplier ? <Detail label="Contact" value={[supplier.contactPerson, supplier.email, supplier.phone].filter(Boolean).join(" · ") || "-"} /> : null}
         {item ? <Detail label="Item identity" value={`${item.itemCode} · ${item.unit}`} /> : null}
       </dl>
+      {record.evidencePurposeSummary.length ? (
+        <div className="flex flex-wrap gap-2">
+          {record.evidencePurposeSummary.map((summary) => <Badge key={summary} tone={summary.includes("BLOCKED") ? "danger" : summary.includes("REVIEW_REQUIRED") ? "warning" : "info"}>{summary}</Badge>)}
+        </div>
+      ) : null}
       <div className="grid gap-2 text-sm">
         <p className="font-semibold text-slate-800">Evidence</p>
         {record.evidenceReferences.length ? record.evidenceReferences.map((evidence, index) => (
@@ -187,6 +226,16 @@ function ReviewRecordCard({ record, pending, onAction }: {
             <p className="font-medium text-slate-900">{evidence.documentId ?? evidence.filename ?? "Evidence reference"}</p>
             <p className="text-slate-600">{evidence.sourcePath ?? evidence.storagePath ?? "Path not captured"}</p>
             <p className="text-xs text-slate-500">Issue {evidence.issueDate ?? "-"} · Expiry {evidence.expiryDate ?? "-"}</p>
+            <p className="text-xs text-slate-500">Status {evidence.evidenceStatus ?? evidence.verificationStatus ?? "UNREVIEWED"} / Purpose {(evidence.evidencePurposes ?? ["GENERAL_REFERENCE"]).join(", ")}</p>
+            {evidence.documentId ? (
+              <div className="mt-2 flex flex-wrap gap-2">
+                <button disabled={pending} onClick={() => void onEvidenceAccess(evidence)} className="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs font-semibold text-slate-700 disabled:opacity-50">View Evidence</button>
+                <button disabled={pending} onClick={() => void onEvidenceAction(evidence, "verify")} className="rounded-md border border-emerald-300 bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-800 disabled:opacity-50">Verify Evidence</button>
+                <button disabled={pending} onClick={() => void onEvidenceAction(evidence, "reject")} className="rounded-md border border-rose-300 bg-rose-50 px-2 py-1 text-xs font-semibold text-rose-800 disabled:opacity-50">Reject Evidence</button>
+                <button disabled={pending} onClick={() => void onEvidenceAction(evidence, "historical_only")} className="rounded-md border border-amber-300 bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-800 disabled:opacity-50">Historical Only</button>
+                <button disabled={pending} onClick={() => void onEvidenceAction(evidence, "review_required")} className="rounded-md border border-slate-300 px-2 py-1 text-xs font-semibold text-slate-700 disabled:opacity-50">Review Required</button>
+              </div>
+            ) : null}
           </div>
         )) : <p className="text-slate-600">No evidence linked.</p>}
       </div>
