@@ -1,146 +1,44 @@
 import { NextRequest, NextResponse } from "next/server";
-import { FieldValue } from "firebase-admin/firestore";
-import { getFirebaseAdmin } from "@/lib/firebase/admin";
-import { normalizeDocsMissingCount, resolveTenderLockStatusFromScore } from "@/lib/compliance/contractorCompliance";
-import { makeDealAuditEvent } from "@/lib/deals/recordDealAudit";
-import { canSubmit } from "@/lib/permissions/tierRules";
-import { validateTenderSubmission } from "@/lib/tender/tenderLock";
-import { recalculateContractorCompliance } from "@/lib/server/recalculateContractorCompliance";
-import { AuthorizationError, assertCanAccessContractor, requireAuthorizedUser } from "@/lib/server/authz";
-import { submitDealTender } from "@/server/services/dealService";
-
-function getNumber(value: unknown): number {
-  return typeof value === "number" && Number.isFinite(value) ? value : 0;
-}
+import { AuthorizationError, requireAuthorizedUser } from "@/lib/server/authz";
+import { applyOpportunityExecutionAction } from "@/server/services/opportunityExecutionService";
 
 export async function POST(req: NextRequest) {
   try {
     const user = await requireAuthorizedUser(req);
-    const db = getFirebaseAdmin();
+    if (user.role === "guest") {
+      throw new AuthorizationError("unauthorized", 403);
+    }
 
     const body = (await req.json()) as Record<string, unknown>;
     const dealId = typeof body.dealId === "string" ? body.dealId.trim() : "";
 
     if (!dealId) {
-      return NextResponse.json(
-        { error: "Missing dealId" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Missing dealId" }, { status: 400 });
     }
 
-    const dealRef = db.collection("deals").doc(dealId);
-    const dealSnapshot = await dealRef.get();
+    const submission =
+      body.submission && typeof body.submission === "object"
+        ? (body.submission as Record<string, unknown>)
+        : body;
 
-    if (!dealSnapshot.exists) {
-      return NextResponse.json({ error: "Deal not found" }, { status: 404 });
-    }
-
-    const deal = dealSnapshot.data() as Record<string, unknown>;
-    const contractorId =
-      typeof deal.contractorId === "string"
-        ? deal.contractorId
-        : typeof deal.companyId === "string"
-          ? deal.companyId
-          : "";
-    if (user.role === "guest") {
-      throw new AuthorizationError("unauthorized", 403);
-    }
-    if (user.role === "contractor") {
-      assertCanAccessContractor(user, contractorId);
-    }
-
-    const contractorRef = contractorId ? db.collection("contractors").doc(contractorId) : null;
-    const contractorSnapshot = contractorRef ? await contractorRef.get() : null;
-    const contractor = (contractorSnapshot?.data() ?? null) as
-      | { submissionsUsed?: number; submissionsLimit?: number }
-      | null;
-
-    if (contractor && !canSubmit(contractor)) {
-      return NextResponse.json(
-        { error: "Submission limit reached" },
-        { status: 403 }
-      );
-    }
-
-    const compliance = contractorId
-      ? await recalculateContractorCompliance(db, contractorId)
-      : {
-          readinessScore: getNumber(deal.readinessScore),
-          docsMissing: normalizeDocsMissingCount(deal.docsMissing),
-          tenderLockStatus: resolveTenderLockStatusFromScore(getNumber(deal.readinessScore)),
-          isTenderLocked: true,
-          readinessUpdatedAt: new Date().toISOString(),
-        };
-    const score = compliance.readinessScore;
-    const docsMissing = compliance.docsMissing;
-    const tenderLockStatus = compliance.tenderLockStatus;
-    const result = validateTenderSubmission(score, docsMissing);
-
-    if (!result.allowed) {
-      const auditEntry = makeDealAuditEvent({
-        type: "updated",
-        actor: {
-          uid: user.uid,
-          email: user.email ?? null,
-          role: user.role,
-        },
-        meta: {
-          message: "Tender submission blocked by TenderLock",
-          tenderLockReason: result.reason,
-          readinessScore: score,
-          docsMissing,
-          tenderLockStatus,
-        },
-      });
-
-      await dealRef.update({
-        readinessScore: score,
-        docsMissing,
-        tenderLockStatus,
-        isTenderLocked: true,
-        auditTrail: FieldValue.arrayUnion(auditEntry),
-        updatedAt: new Date(),
-      });
-
-      return NextResponse.json(
-        {
-          error: "Tender blocked",
-          reason: result.reason,
-        },
-        { status: 403 }
-      );
-    }
-
-    await submitDealTender({
+    const result = await applyOpportunityExecutionAction({
       dealId,
-      score,
-      docsMissing,
-      tenderLockStatus,
-      userUid: user.uid,
+      action: "record_submission",
+      actor: user,
+      submission,
     });
 
-    if (contractorRef) {
-      await contractorRef.update({
-        submissionsUsed: FieldValue.increment(1),
-        updatedAt: new Date().toISOString(),
-      });
-    }
-
-    return NextResponse.json({
-      success: true,
-      tenderLockStatus,
-      reason: result.reason,
-    });
+    return NextResponse.json({ success: true, result });
   } catch (error) {
     if (error instanceof AuthorizationError) {
       return NextResponse.json({ error: error.message }, { status: error.status });
     }
 
-    console.error("DEAL SUBMIT ERROR:", error);
-    return NextResponse.json(
-      { error: "Failed to update deal" },
-      { status: 500 }
-    );
+    const status = typeof (error as { status?: unknown }).status === "number" ? (error as { status: number }).status : 500;
+    const message = error instanceof Error ? error.message : "Failed to update deal";
+    if (status >= 500) {
+      console.error("DEAL SUBMIT ERROR:", error);
+    }
+    return NextResponse.json({ error: message }, { status });
   }
 }
-

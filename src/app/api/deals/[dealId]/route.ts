@@ -7,6 +7,14 @@ import {
 } from "@/lib/server/authz";
 import { getDealAnalyticsState, getDealById } from "@/server/services/dealService";
 import { getFirebaseAdmin } from "@/lib/firebase/admin";
+import {
+  ProcurementStateAuthorityError,
+  assertDealWorkspaceAccess,
+  assertNoGovernedProcurementMutation,
+  buildSafeDealMetadataPatch,
+  currentDealStateLabel,
+  recordProcurementTransitionAudit,
+} from "@/lib/procurement/procurementStateAuthority";
 
 export async function GET(
   request: NextRequest,
@@ -46,16 +54,40 @@ export async function PATCH(
     const actor = await requireAuthorizedUser(req);
     assertPrivilegedRole(actor);
 
-    const { status } = await req.json();
-
-    if (!["approved", "rejected", "submitted"].includes(status)) {
-      return NextResponse.json({ error: "Invalid status" }, { status: 400 });
+    const { dealId } = await context.params;
+    const dealSnapshot = await db.collection("deals").doc(dealId).get();
+    if (!dealSnapshot.exists) {
+      return NextResponse.json({ error: "Deal not found" }, { status: 404 });
     }
 
-    const { dealId } = await context.params;
+    const deal = { id: dealSnapshot.id, ...(dealSnapshot.data() ?? {}) } as Record<string, unknown> & { id: string };
+    await assertDealWorkspaceAccess(actor, deal);
+
+    const body = (await req.json()) as Record<string, unknown>;
+    try {
+      assertNoGovernedProcurementMutation(body);
+    } catch (error) {
+      if (error instanceof ProcurementStateAuthorityError) {
+        await recordProcurementTransitionAudit({
+          actor,
+          workspaceId: typeof deal.workspaceId === "string" ? deal.workspaceId : null,
+          dealId,
+          action: "legacy_bypass_rejected",
+          priorState: currentDealStateLabel(deal),
+          requestedState: typeof body.status === "string" ? body.status : typeof body.stage === "string" ? body.stage : null,
+          reason: error.message,
+        });
+      }
+      throw error;
+    }
+
+    const patch = buildSafeDealMetadataPatch(body);
+    if (Object.keys(patch).length === 0) {
+      return NextResponse.json({ error: "No safe editable deal metadata supplied" }, { status: 400 });
+    }
 
     await db.collection("deals").doc(dealId).update({
-      status,
+      ...patch,
       updatedAt: Date.now(),
     });
 
@@ -63,6 +95,12 @@ export async function PATCH(
   } catch (err) {
     if (err instanceof AuthorizationError) {
       return NextResponse.json({ error: err.message }, { status: err.status });
+    }
+    if (err instanceof ProcurementStateAuthorityError) {
+      return NextResponse.json(
+        { error: err.message, transitionAuthority: "/api/opportunity-register/{dealId}/execution" },
+        { status: err.status },
+      );
     }
 
     console.error("PATCH DEAL ERROR:", err);

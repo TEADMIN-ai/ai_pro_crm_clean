@@ -1,7 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getFirebaseAdmin } from "@/lib/firebase/admin";
 import { AuthorizationError, assertOperationalRole, requireAuthorizedUser } from "@/lib/server/authz";
-import { updateDealStageForRole } from "@/server/services/dealService";
 import { normalizeDealStage } from "@/lib/deals/normalizeDealStage";
+import {
+  GOVERNED_PROCUREMENT_STATES,
+  assertDealWorkspaceAccess,
+  currentDealStateLabel,
+  recordProcurementTransitionAudit,
+} from "@/lib/procurement/procurementStateAuthority";
+import { updateDealStageForRole } from "@/server/services/dealService";
 
 export async function PATCH(
   request: NextRequest,
@@ -27,6 +34,34 @@ export async function PATCH(
 
     if (nextStage !== requestedStage) {
       return NextResponse.json({ error: "Invalid stage" }, { status: 400 });
+    }
+
+    const db = getFirebaseAdmin();
+    const dealSnapshot = await db.collection("deals").doc(dealId).get();
+    if (!dealSnapshot.exists) {
+      return NextResponse.json({ error: "Deal not found" }, { status: 404 });
+    }
+
+    const deal = { id: dealSnapshot.id, ...(dealSnapshot.data() ?? {}) } as Record<string, unknown> & { id: string };
+    await assertDealWorkspaceAccess(actor, deal);
+
+    if (GOVERNED_PROCUREMENT_STATES.has(nextStage.toLowerCase())) {
+      await recordProcurementTransitionAudit({
+        actor,
+        workspaceId: typeof deal.workspaceId === "string" ? deal.workspaceId : null,
+        dealId,
+        action: "legacy_bypass_rejected",
+        priorState: currentDealStateLabel(deal),
+        requestedState: nextStage,
+        reason: "Governed procurement stages must use the opportunity execution authority.",
+      });
+      return NextResponse.json(
+        {
+          error: "Governed procurement stages must use the opportunity execution authority.",
+          transitionAuthority: `/api/opportunity-register/${dealId}/execution`,
+        },
+        { status: 409 },
+      );
     }
 
     await updateDealStageForRole({

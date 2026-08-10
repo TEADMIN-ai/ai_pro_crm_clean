@@ -7,6 +7,7 @@ import { buildOpportunityExecutionState, extractOpportunityRequirements, matchCo
 import { buildProcurementExecutionProjection } from "@/lib/opportunities/procurementExecutionProjection";
 import { getDealContractorReference } from "@/lib/deals/contractorReference";
 import { assertAssignmentAllowed, evaluateContractorAssignmentAuthority } from "@/server/services/contractorAssignmentAuthorityService";
+import { currentDealStateLabel, normalizeSubmissionEvidence, recordProcurementTransitionAudit } from "@/lib/procurement/procurementStateAuthority";
 
 type ActionInput = { dealId: string; action: string; actor: AuthorizedUser; contractorId?: string; requirements?: Partial<OpportunityRequirementReview>; submission?: Record<string, unknown> };
 function asString(value: unknown): string | null { return typeof value === "string" && value.trim() ? value.trim() : null; }
@@ -98,8 +99,54 @@ export async function applyOpportunityExecutionAction(input: ActionInput) {
   const current = currentView.state.currentPhase;
   const target = targetPhaseForAction(input.action, deal);
   if (!target) throw Object.assign(new Error("Unknown opportunity action"), { status: 400 });
+  await recordProcurementTransitionAudit({
+    actor: input.actor,
+    workspaceId: asString(deal.workspaceId),
+    dealId: input.dealId,
+    action: "transition_requested",
+    priorState: currentDealStateLabel(deal),
+    requestedState: target,
+    reason: input.action,
+  });
   const transition = validateOpportunityTransition(current, target);
-  if (transition.ok === false) throw Object.assign(new Error(transition.message), { status: transition.status });
+  if (transition.ok === false) {
+    await recordProcurementTransitionAudit({
+      actor: input.actor,
+      workspaceId: asString(deal.workspaceId),
+      dealId: input.dealId,
+      action: "transition_rejected",
+      priorState: currentDealStateLabel(deal),
+      requestedState: target,
+      reason: transition.message,
+    });
+    throw Object.assign(new Error(transition.message), { status: transition.status });
+  }
+  let submissionEvidence: ReturnType<typeof normalizeSubmissionEvidence> | null = null;
+  if (input.action === "record_submission") {
+    submissionEvidence = normalizeSubmissionEvidence(input.submission);
+    if (!submissionEvidence.valid) {
+      await recordProcurementTransitionAudit({
+        actor: input.actor,
+        workspaceId: asString(deal.workspaceId),
+        dealId: input.dealId,
+        action: "transition_rejected",
+        priorState: currentDealStateLabel(deal),
+        requestedState: target,
+        reason: submissionEvidence.reason,
+        evidenceReferences: submissionEvidence.evidenceReferences,
+      });
+      throw Object.assign(new Error(submissionEvidence.reason ?? "Submission evidence is required"), { status: 409 });
+    }
+    await recordProcurementTransitionAudit({
+      actor: input.actor,
+      workspaceId: asString(deal.workspaceId),
+      dealId: input.dealId,
+      action: "submission_evidence_accepted",
+      priorState: currentDealStateLabel(deal),
+      requestedState: target,
+      evidenceReferences: submissionEvidence.evidenceReferences,
+    });
+  }
   const now = new Date();
   const patch: Record<string, unknown> = { updatedAt: now, workflowStatus: target };
   const existingExecution = asRecord(deal.opportunityExecution);
@@ -137,7 +184,7 @@ export async function applyOpportunityExecutionAction(input: ActionInput) {
   if (input.action === "contractor_approval") execution.contractorApprovalComplete = true;
   if (input.action === "generate_tender_pack") { execution.tenderPackGenerated = true; execution.tenderPackValidated = true; }
   if (input.action === "mark_ready_for_submission") execution.readyForSubmission = true;
-  if (input.action === "record_submission") { execution.submitted = true; execution.submission = input.submission ?? {}; patch.status = "submitted"; patch.stage = "submitted"; patch.tenderSubmittedAt = now; patch.tenderSubmittedBy = input.actor.uid; }
+  if (input.action === "record_submission") { execution.submitted = true; execution.submission = { ...(input.submission ?? {}), evidenceReferences: submissionEvidence?.evidenceReferences ?? {} }; patch.status = "submitted"; patch.stage = "submitted"; patch.tenderSubmittedAt = now; patch.tenderSubmittedBy = input.actor.uid; }
   if (input.action === "assign_contractor") {
     const assignment = asRecord(patch.contractorAssignment);
     const executionWorkspaceId = asString(assignment.executionWorkspaceId) ?? `exec-${input.dealId}`;
@@ -183,7 +230,17 @@ export async function applyOpportunityExecutionAction(input: ActionInput) {
     await db.collection("deals").doc(input.dealId).collection("activity").add(activityPayload);
     await db.collection("auditLogs").add(auditPayload);
   }
+  await recordProcurementTransitionAudit({
+    actor: input.actor,
+    workspaceId: asString(deal.workspaceId),
+    dealId: input.dealId,
+    action: "transition_granted",
+    priorState: currentDealStateLabel(deal),
+    requestedState: target,
+    resultingState: target,
+    reason: input.action,
+    evidenceReferences: submissionEvidence?.evidenceReferences ?? {},
+  });
   const nextView = await getOpportunityExecutionView(input.dealId, input.actor);
   return { ...nextView, redirectTo: input.action === "assign_contractor" ? `/dashboard/deals/${input.dealId}/execution` : undefined };
 }
-

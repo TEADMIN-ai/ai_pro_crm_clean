@@ -188,14 +188,15 @@ export async function POST(request: NextRequest) {
     }
 
     const value = normalizeEstimatedValue(enrichedDraft.estimatedValue);
+    const contractorAssignmentCandidate = enrichedDraft.assignedContractorId.trim() || null;
     const payload = {
       opportunityDraftId: idempotencyKey,
       type: "opportunity",
       source: "opportunity-register-upload",
       title: enrichedDraft.opportunityTitle.trim(),
       name: enrichedDraft.opportunityTitle.trim(),
-      companyId: enrichedDraft.assignedContractorId.trim() || "unassigned",
-      contractorId: enrichedDraft.assignedContractorId.trim() || null,
+      companyId: "unassigned",
+      contractorId: null,
       contractorName: null,
       status: "draft",
       stage: "lead",
@@ -225,6 +226,14 @@ export async function POST(request: NextRequest) {
         uploadedDocuments,
         extractionMetadata,
         createdFrom: "opportunity-register-upload",
+        contractorAssignmentCandidate: contractorAssignmentCandidate
+          ? {
+              contractorReference: contractorAssignmentCandidate,
+              source: "opportunity_intake_draft",
+              authoritative: false,
+              reviewStatus: "REVIEW_REQUIRED",
+            }
+          : null,
       },
       tenderAnalysis: {
         issuingAuthority: enrichedDraft.clientName.trim() || null,
