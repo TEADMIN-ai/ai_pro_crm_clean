@@ -35,15 +35,18 @@ service firebase.storage {
     }
 
     match /hygiene/evidence/{clientId}/{collectionId}/{allPaths=**} {
-      allow read, write: if isHygieneInternal();
+      allow read: if false;
+      allow write: if isHygieneInternal();
     }
 
     match /hygiene/signatures/{clientId}/{collectionId}/{allPaths=**} {
-      allow read, write: if isHygieneInternal();
+      allow read: if false;
+      allow write: if isHygieneInternal();
     }
 
     match /hygiene/compliance/{documentId}/{allPaths=**} {
-      allow read, write: if isHygieneInternal();
+      allow read: if false;
+      allow write: if isHygieneInternal();
     }
 
     match /{allPaths=**} {

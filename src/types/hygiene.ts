@@ -240,6 +240,7 @@ export interface HygieneEvidencePhoto {
   uploadedBy: string;
   uploadedAt: string;
   fileUrl: string;
+  storagePath?: string | null;
   timestampFromImage: string | null;
   notes: string;
 }

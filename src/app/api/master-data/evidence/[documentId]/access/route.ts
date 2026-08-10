@@ -4,13 +4,12 @@ import { actorFromAuthorizedUser } from "@/lib/master-data/apiPayload";
 import { FirestoreMasterDataRepository } from "@/lib/master-data/firestoreRepository";
 import { assertDocumentRelationship, EvidenceAuthorityError, evidenceReferenceFromDocument } from "@/lib/master-data/evidenceAuthority";
 import { buildAuditEvent } from "@/lib/master-data/service";
+import { EVIDENCE_SIGNED_URL_TTL_MS, evaluateGovernedStoragePath } from "@/lib/master-data/storagePathPolicy";
 import { AuthorizationError, assertPrivilegedRole, requireAuthorizedUser } from "@/lib/server/authz";
 import type { CanonicalDocumentReference } from "@/types/masterData";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-const EVIDENCE_ACCESS_TTL_MS = 5 * 60 * 1000;
 
 type RouteContext = {
   params: Promise<{ documentId: string }>;
@@ -22,13 +21,6 @@ function jsonError(message: string, status: number) {
 
 function clean(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
-}
-
-function isSafeStoragePath(value: string): boolean {
-  return Boolean(value) &&
-    !value.startsWith("/") &&
-    value.split("/").every((segment) => segment.length > 0 && segment !== "." && segment !== "..") &&
-    !/^https?:\/\//i.test(value);
 }
 
 export async function GET(request: NextRequest, context: RouteContext) {
@@ -48,15 +40,16 @@ export async function GET(request: NextRequest, context: RouteContext) {
     assertDocumentRelationship(document);
 
     const storagePath = clean(document.storagePath);
-    const expiresAt = new Date(Date.now() + EVIDENCE_ACCESS_TTL_MS).toISOString();
+    const expiresAt = new Date(Date.now() + EVIDENCE_SIGNED_URL_TTL_MS).toISOString();
     let accessUrl: string | null = null;
     let accessMode: "signed_url" | "metadata_only" = "metadata_only";
     if (storagePath) {
-      if (!isSafeStoragePath(storagePath)) return jsonError("Evidence storage path is invalid.", 403);
-      const file = getFirebaseStorageBucket().file(storagePath);
+      const pathDecision = evaluateGovernedStoragePath(storagePath);
+      if (!pathDecision.allowed || !pathDecision.normalizedPath) return jsonError(pathDecision.reason, 403);
+      const file = getFirebaseStorageBucket().file(pathDecision.normalizedPath);
       const [exists] = await file.exists();
       if (!exists) return jsonError("Evidence storage object not found.", 404);
-      const [signedUrl] = await file.getSignedUrl({ action: "read", expires: Date.now() + EVIDENCE_ACCESS_TTL_MS });
+      const [signedUrl] = await file.getSignedUrl({ action: "read", expires: Date.now() + EVIDENCE_SIGNED_URL_TTL_MS });
       accessUrl = signedUrl;
       accessMode = "signed_url";
     }

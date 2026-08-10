@@ -49,6 +49,7 @@ export const API_ROUTES = {
   ENTERPRISE_KPIS: "/api/kpis/enterprise",
   HYGIENE: "/api/hygiene",
   HYGIENE_EVIDENCE: "/api/hygiene/evidence",
+  HYGIENE_EVIDENCE_ACCESS: "/api/hygiene/evidence/access",
   HYGIENE_JOBS: "/api/hygiene/jobs",
   HYGIENE_MANIFESTS: "/api/hygiene/manifests",
   HYGIENE_ASSETS: "/api/hygiene/assets",

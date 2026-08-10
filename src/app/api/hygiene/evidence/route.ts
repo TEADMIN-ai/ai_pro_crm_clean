@@ -71,10 +71,6 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    const [signedUrl] = await bucketFile.getSignedUrl({
-      action: "read",
-      expires: "2036-01-01",
-    });
 
     const record = await createHygieneEvidencePhoto(user, {
       photoId,
@@ -85,7 +81,8 @@ export async function POST(request: NextRequest) {
       category: category as HygienePhotoCategory,
       uploadedBy: user.email ?? user.uid,
       uploadedAt: new Date().toISOString(),
-      fileUrl: signedUrl,
+      fileUrl: storagePath,
+      storagePath,
       timestampFromImage: null,
       notes,
       metadata: {

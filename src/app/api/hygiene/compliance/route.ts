@@ -19,7 +19,7 @@ function formString(formData: FormData, key: string, fallback = ""): string {
   return typeof value === "string" && value.trim() ? value.trim() : fallback;
 }
 
-async function uploadFile(file: File, documentId: string): Promise<{ fileUrl: string; storagePath: string }> {
+async function uploadFile(file: File, documentId: string): Promise<{ fileUrl: string | null; storagePath: string }> {
   const safeFileName = file.name.replace(/[^a-zA-Z0-9._-]+/g, "_");
   const storagePath = `hygiene/compliance/${documentId}/${Date.now()}-${safeFileName}`;
   const bucketFile = getFirebaseStorageBucket().file(storagePath);
@@ -28,8 +28,7 @@ async function uploadFile(file: File, documentId: string): Promise<{ fileUrl: st
     resumable: false,
     metadata: { metadata: { documentId } },
   });
-  const [fileUrl] = await bucketFile.getSignedUrl({ action: "read", expires: "2036-01-01" });
-  return { fileUrl, storagePath };
+  return { fileUrl: null, storagePath };
 }
 
 export async function POST(request: NextRequest) {

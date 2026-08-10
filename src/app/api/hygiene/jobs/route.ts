@@ -1,6 +1,7 @@
 import { randomUUID } from "crypto";
 import { NextResponse, type NextRequest } from "next/server";
 import { getFirebaseStorageBucket } from "@/lib/firebase/admin";
+import { expectedHygieneSignaturePath } from "@/lib/master-data/storagePathPolicy";
 import { completeHygieneDriverAction, createHygieneSignature, generateHygieneManifest, getHygieneMobileJobs, HygieneWorkflowError } from "@/lib/hygiene/hygieneService";
 import { AuthorizationError, requireAuthorizedUser } from "@/lib/server/authz";
 
@@ -141,9 +142,13 @@ async function uploadSignature(input: {
   siteId: string;
   collectionId: string;
   signatureId: string;
-}): Promise<{ signedUrl: string; storagePath: string }> {
+}): Promise<{ storagePath: string }> {
   const { buffer, contentType } = decodeDataUrl(input.dataUrl);
-  const storagePath = `hygiene/signatures/${input.clientId}/${input.collectionId}/${input.signatureId}.png`;
+  const storagePath = expectedHygieneSignaturePath({
+    clientId: input.clientId,
+    collectionId: input.collectionId,
+    signatureId: input.signatureId,
+  });
   const bucketFile = getFirebaseStorageBucket().file(storagePath);
   await bucketFile.save(buffer, {
     contentType,
@@ -157,12 +162,7 @@ async function uploadSignature(input: {
     },
   });
 
-  const [signedUrl] = await bucketFile.getSignedUrl({
-    action: "read",
-    expires: "2036-01-01",
-  });
-
-  return { signedUrl, storagePath };
+  return { storagePath };
 }
 
 export async function GET(request: NextRequest) {
@@ -227,7 +227,7 @@ export async function POST(request: NextRequest) {
         representativeName,
         representativePosition,
         signatureDataUrl: undefined,
-        signatureFileUrl: uploadedSignature.signedUrl,
+        signatureFileUrl: null,
         signatureStoragePath: uploadedSignature.storagePath,
         metadata: {
           latitude: typeof body.latitude === "number" ? body.latitude : null,
@@ -240,7 +240,7 @@ export async function POST(request: NextRequest) {
           },
           deviceInfo: body.deviceInfo && typeof body.deviceInfo === "object" ? body.deviceInfo : {},
           signatureStoragePath: uploadedSignature.storagePath,
-          signatureFileUrl: uploadedSignature.signedUrl,
+          signatureFileUrl: null,
         },
       });
 

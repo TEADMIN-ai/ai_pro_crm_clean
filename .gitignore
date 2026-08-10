@@ -59,3 +59,8 @@ styles/
 exports/
 export/
 temporary-exports/
+
+# Keep source routes under src/app/api/hygiene/evidence trackable.
+!src/app/api/hygiene/evidence/
+!src/app/api/hygiene/evidence/access/
+!src/app/api/hygiene/evidence/access/route.ts

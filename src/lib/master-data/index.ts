@@ -8,3 +8,4 @@ export * from "./itemResolution";
 export * from "./supplierResolution";
 export * from "./reviewWorkflow";
 export * from "./evidenceAuthority";
+export * from "./storagePathPolicy";

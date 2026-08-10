@@ -358,6 +358,7 @@ export function validateHygieneEvidencePhoto(input: unknown): HygieneEvidencePho
     uploadedBy: requireString(record, "uploadedBy"),
     uploadedAt: requireString(record, "uploadedAt"),
     fileUrl: requireString(record, "fileUrl"),
+    storagePath: optionalString(record, "storagePath"),
     timestampFromImage: optionalString(record, "timestampFromImage"),
     notes: requireString(record, "notes"),
   };
