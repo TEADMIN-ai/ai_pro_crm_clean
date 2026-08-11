@@ -600,8 +600,9 @@ export async function sendApprovedSupplierQuoteToPricing(quoteId: string, actor:
   const timestamp = nowIso();
   await getFirebaseAdmin().collection("deals").doc(handoff.dealId).collection("pricingSources").doc(quoteId).set({
     ...handoff,
-    sourceType: "APPROVED_SUPPLIER_QUOTE",
-    locked: true,
+    sourceType: "PROVISIONAL_REVIEW_ONLY",
+    authorityStatus: "REQUIRES_VERIFIED_COST_LINE",
+    locked: false,
     createdBy: actor.uid,
     createdAt: timestamp,
     updatedAt: timestamp,

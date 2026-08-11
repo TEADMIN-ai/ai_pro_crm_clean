@@ -4,6 +4,8 @@ import { getFirebaseAdmin } from "@/lib/firebase/admin";
 import { AuthorizationError, assertPrivilegedRole, requireAuthorizedUser } from "@/lib/server/authz";
 import { generateMergedPack, getMergedPackTemplateIds } from "@/lib/pdf/mergeTenderPack";
 import { persistTenderPackPdf } from "@/server/services/tenderPackService";
+import { assertApprovedClientQuote } from "@/server/services/commercialAuthorityService";
+import { registerTenderPackDocument } from "@/server/services/tenderPackCommercialAuthorityService";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -14,6 +16,7 @@ export async function GET(request: NextRequest) {
     const user = await requireAuthorizedUser(request);
     assertPrivilegedRole(user);
     const dealId = request.nextUrl.searchParams.get("dealId")?.trim() ?? "";
+    const clientQuoteId = request.nextUrl.searchParams.get("clientQuoteId")?.trim() ?? "";
 
     if (!dealId) {
       throw new Error("Missing dealId");
@@ -28,6 +31,8 @@ export async function GET(request: NextRequest) {
       id: dealSnapshot.id,
       ...(dealSnapshot.data() ?? {}),
     } as Record<string, unknown> & { id: string };
+
+    await assertApprovedClientQuote({ opportunityId: deal.id, clientQuoteId, actor: user });
 
     const contractorId =
       typeof deal.contractorId === "string" && deal.contractorId.trim().length > 0
@@ -70,6 +75,8 @@ export async function GET(request: NextRequest) {
       },
     });
 
+    const tenderPackDocumentId = await registerTenderPackDocument({ packId: persistedPack.packId, opportunityId: deal.id, workspaceId: typeof deal.workspaceId === "string" ? deal.workspaceId : null, clientQuoteId, storagePath: persistedPack.storagePath, filename: persistedPack.fileName, actor: user });
+
     return new NextResponse(Buffer.from(pdfBytes), {
       status: 200,
       headers: {
@@ -77,6 +84,7 @@ export async function GET(request: NextRequest) {
         "Content-Disposition": `attachment; filename=${deal.id}-tender-pack.pdf`,
         "X-Tender-Pack-Id": persistedPack.packId,
         "X-Tender-Pack-Url": persistedPack.downloadURL,
+        "X-Tender-Pack-Document-Id": tenderPackDocumentId,
       },
     });
   } catch (error) {

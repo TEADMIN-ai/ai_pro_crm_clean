@@ -8,6 +8,7 @@ import { buildProcurementExecutionProjection } from "@/lib/opportunities/procure
 import { getDealContractorReference } from "@/lib/deals/contractorReference";
 import { assertAssignmentAllowed, evaluateContractorAssignmentAuthority } from "@/server/services/contractorAssignmentAuthorityService";
 import { currentDealStateLabel, normalizeSubmissionEvidence, recordProcurementTransitionAudit } from "@/lib/procurement/procurementStateAuthority";
+import { assertApprovedClientQuote } from "@/server/services/commercialAuthorityService";
 
 type ActionInput = { dealId: string; action: string; actor: AuthorizedUser; contractorId?: string; requirements?: Partial<OpportunityRequirementReview>; submission?: Record<string, unknown> };
 function asString(value: unknown): string | null { return typeof value === "string" && value.trim() ? value.trim() : null; }
@@ -123,6 +124,13 @@ export async function applyOpportunityExecutionAction(input: ActionInput) {
   }
   let submissionEvidence: ReturnType<typeof normalizeSubmissionEvidence> | null = null;
   if (input.action === "record_submission") {
+    const clientQuoteId = asString(input.submission?.clientQuoteId);
+    const tenderPackDocumentId = asString(input.submission?.tenderPackDocumentId);
+    const submissionEvidenceDocumentId = asString(input.submission?.submissionEvidenceDocumentId);
+    if (!clientQuoteId || !tenderPackDocumentId || !submissionEvidenceDocumentId) {
+      throw Object.assign(new Error("Approved Client Quote, persisted Tender Pack Document_ID, and submission evidence Document_ID are required"), { status: 409, code: "COMMERCIAL_SUBMISSION_EVIDENCE_REQUIRED" });
+    }
+    await assertApprovedClientQuote({ opportunityId: input.dealId, clientQuoteId, actor: input.actor });
     submissionEvidence = normalizeSubmissionEvidence(input.submission);
     if (!submissionEvidence.valid) {
       await recordProcurementTransitionAudit({
@@ -146,6 +154,11 @@ export async function applyOpportunityExecutionAction(input: ActionInput) {
       requestedState: target,
       evidenceReferences: submissionEvidence.evidenceReferences,
     });
+  }
+  if (submissionEvidence) {
+    submissionEvidence.evidenceReferences.clientQuoteId = asString(input.submission?.clientQuoteId) ?? "";
+    submissionEvidence.evidenceReferences.tenderPackDocumentId = asString(input.submission?.tenderPackDocumentId) ?? "";
+    submissionEvidence.evidenceReferences.submissionEvidenceDocumentId = asString(input.submission?.submissionEvidenceDocumentId) ?? "";
   }
   const now = new Date();
   const patch: Record<string, unknown> = { updatedAt: now, workflowStatus: target };

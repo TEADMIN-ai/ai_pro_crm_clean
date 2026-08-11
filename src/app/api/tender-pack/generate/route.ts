@@ -8,6 +8,8 @@ import { recalculateContractorCompliance } from "@/lib/server/recalculateContrac
 import { persistTenderPackPdf } from "@/server/services/tenderPackService";
 import { getTenderPackRequest, markTenderPackRequestGenerated } from "@/server/services/tenderPackRequestService";
 import { recordAuditLog } from "@/server/services/auditLogService";
+import { assertApprovedClientQuote } from "@/server/services/commercialAuthorityService";
+import { registerTenderPackDocument } from "@/server/services/tenderPackCommercialAuthorityService";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -67,6 +69,8 @@ export async function POST(request: NextRequest) {
       id: dealSnapshot.id,
       ...(dealSnapshot.data() ?? {}),
     } as Record<string, unknown> & { id: string };
+
+    await assertApprovedClientQuote({ opportunityId: deal.id, clientQuoteId: (body as GenerateBody & { clientQuoteId?: string }).clientQuoteId, actor: user });
 
     const contractorId =
       typeof deal.contractorId === "string" && deal.contractorId.trim().length > 0
@@ -220,6 +224,8 @@ export async function POST(request: NextRequest) {
       },
     });
 
+    const tenderPackDocumentId = await registerTenderPackDocument({ packId: persistedPack.packId, opportunityId: deal.id, workspaceId: typeof deal.workspaceId === "string" ? deal.workspaceId : null, clientQuoteId: (body as GenerateBody & { clientQuoteId?: string }).clientQuoteId as string, storagePath: persistedPack.storagePath, filename: persistedPack.fileName, actor: user });
+
     if (tenderPackRequest) {
       await markTenderPackRequestGenerated({
         requestId: tenderPackRequest.id,
@@ -244,6 +250,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       base64: Buffer.from(pdfBytes).toString("base64"),
+      tenderPackDocumentId,
       packId: persistedPack.packId,
       downloadURL: persistedPack.downloadURL,
       missingFields: [],
