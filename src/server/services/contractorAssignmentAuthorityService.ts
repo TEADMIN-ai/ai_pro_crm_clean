@@ -14,6 +14,7 @@ import {
 } from "@/lib/opportunities/opportunityExecution";
 import { isPrivilegedRole, type AuthorizedUser } from "@/lib/server/authz";
 import type { ContractorDocument } from "@/types/document";
+import { evaluateContractorReadiness } from "@/lib/contractors/governedContractorResolution";
 
 type AnyRecord = Record<string, unknown>;
 
@@ -96,9 +97,10 @@ function stripLegacyDocumentEvidence(contractor: AnyRecord): AnyRecord & { id: s
   return next;
 }
 
-function normalizeDocument(docId: string, contractorId: string, data: AnyRecord): ContractorDocument {
+function normalizeDocument(docId: string, contractorId: string, data: AnyRecord): ContractorDocument & { documentId?: string } {
   return {
     id: docId,
+    documentId: asString(data.documentId) ?? asString(data.Document_ID),
     contractorId: asString(data.contractorId) ?? contractorId,
     documentName: asString(data.documentName) ?? asString(data.fileName),
     documentType: asString(data.documentType) ?? asString(data.docType) ?? asString(data.complianceType),
@@ -227,6 +229,11 @@ export async function evaluateContractorAssignmentAuthority(input: {
   const repositoryDecision = buildContractorRepositoryDecision({ contractor: { ...contractor, sarsTcsSummary: sarsRecord ?? null }, documents });
   const sarsProjection = buildSarsTcsProjection({ record: sarsRecord, requiresLiveVerification: true });
   const currentContractor = { ...contractor, documents, sarsTcsSummary: sarsRecord ?? null };
+  const governedReadiness = evaluateContractorReadiness({
+    evidence: documents.map((document) => ({ complianceType: (document.documentType ?? document.docType) === "taxClearance" ? "SARS_TCS" : (document.documentType ?? document.docType) === "bbbee" ? "B-BBEE" : (document.documentType ?? document.docType) === "bankConfirmation" ? "BANK_CONFIRMATION" : document.documentType ?? document.docType, documentId: (document as ContractorDocument & { documentId?: string }).documentId, verificationStatus: document.verificationStatus, currentStatus: document.status, issueDate: document.createdAt, expiryDate: document.expiresAt })),
+    requiredTypes: readinessRequirements(deal),
+    csdMaxAgeDays: csdFreshnessDays(deal),
+  });
   const state = buildOpportunityExecutionState({ deal, contractor: currentContractor });
   const targetPhase = input.targetPhase ?? "COMPLIANCE_REVIEW";
   const transition = validateOpportunityTransition(state.currentPhase, targetPhase);
@@ -243,6 +250,7 @@ export async function evaluateContractorAssignmentAuthority(input: {
     ...(repositoryDecision.logicVersion === CONTRACTOR_REPOSITORY_DECISION_LOGIC_VERSION ? [] : ["Contractor readiness decision logic version is not current"]),
     ...(repositoryDecision.stale ? repositoryDecision.staleReasons : []),
     ...repositoryDecision.blockingReasons,
+    ...governedReadiness.blockers,
     ...(sarsProjection.evidenceAvailable ? [] : ["SARS TCS supporting evidence is missing"]),
     ...(state.currentPhase === "MATCHING_REQUIRED" || idempotentReplay ? [] : [`Deal phase is ${state.currentPhase}, not MATCHING_REQUIRED`]),
     ...(transition.ok === false ? [transition.message] : []),
@@ -271,4 +279,13 @@ export async function evaluateContractorAssignmentAuthority(input: {
 
 export function assertAssignmentAllowed(decision: ContractorAssignmentAuthorityDecision): void {
   if (decision.status !== "ALLOWED") throw new ContractorAssignmentAuthorityError(decision);
+}
+function readinessRequirements(deal: AnyRecord): string[] {
+  const requirements = asRecord(asRecord(deal.opportunityExecution).requirements ?? deal.requirementsReview);
+  return ["CIPC", "CSD", "SARS_TCS", ...(requirements.bbbeeRequirement ? ["B-BBEE"] : []), ...(requirements.coidaRequirement ? ["COIDA"] : []), ...(requirements.bankingRequirement ? ["BANK_CONFIRMATION"] : [])];
+}
+function csdFreshnessDays(deal: AnyRecord): number | null {
+  const requirements = asRecord(asRecord(deal.opportunityExecution).requirements ?? deal.requirementsReview);
+  const value = requirements.csdMaxAgeDays ?? requirements.csdEvidenceMaxAgeDays;
+  return typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : null;
 }

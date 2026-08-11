@@ -156,7 +156,12 @@ export async function applyOpportunityExecutionAction(input: ActionInput) {
   if (input.action === "find_matching_contractors") execution.matchingCompleted = true;
   if (input.action === "assign_contractor") {
     if (!input.contractorId) throw Object.assign(new Error("contractorId is required"), { status: 400 });
+    await db.collection("deals").doc(input.dealId).set({ candidateContractorId: input.contractorId, contractorResolutionStatus: "REVIEW_REQUIRED", contractorAssignmentRequest: { requestedBy: input.actor.uid, requestedAt: now.toISOString(), candidateContractorId: input.contractorId } }, { merge: true });
+    await recordProcurementTransitionAudit({ actor: input.actor, workspaceId: asString(deal.workspaceId), dealId: input.dealId, action: "transition_requested", priorState: currentDealStateLabel(deal), requestedState: "CONTRACTOR_ASSIGNMENT", reason: "Contractor assignment requested; candidate remains non-authoritative", evidenceReferences: { candidateContractorId: input.contractorId } });
     const authority = await evaluateContractorAssignmentAuthority({ dealId: input.dealId, contractorReference: input.contractorId, actor: input.actor, targetPhase: target, deal });
+    if (authority.status !== "ALLOWED") {
+      await recordProcurementTransitionAudit({ actor: input.actor, workspaceId: asString(deal.workspaceId), dealId: input.dealId, action: "transition_rejected", priorState: currentDealStateLabel(deal), requestedState: "CONTRACTOR_ASSIGNMENT", reason: authority.blockers.join("; "), evidenceReferences: { contractorId: authority.contractorId, blockers: authority.blockers } });
+    }
     assertAssignmentAllowed(authority);
     const canonicalContractorId = authority.contractorId as string;
     const canonicalContractorName = authority.contractor ? getContractorBusinessName(authority.contractor) : canonicalContractorId;
