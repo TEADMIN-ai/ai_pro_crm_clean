@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { getFirebaseAdmin } from "@/lib/firebase/admin";
 import { AuthorizationError, assertPrivilegedRole, requireAuthorizedUser } from "@/lib/server/authz";
+import { assertDealWorkspaceAccess } from "@/lib/procurement/procurementStateAuthority";
 import { generateMergedPack, getMergedPackTemplateIds } from "@/lib/pdf/mergeTenderPack";
 import { persistTenderPackPdf } from "@/server/services/tenderPackService";
 import { assertApprovedClientQuote } from "@/server/services/commercialAuthorityService";
@@ -9,6 +10,15 @@ import { registerTenderPackDocument } from "@/server/services/tenderPackCommerci
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+function getAssignedContractorId(deal: Record<string, unknown>): string {
+  const assignment = deal.contractorAssignment;
+  if (assignment && typeof assignment === "object" && !Array.isArray(assignment)) {
+    const value = (assignment as Record<string, unknown>).contractorId;
+    if (typeof value === "string" && value.trim()) return value.trim();
+  }
+  return typeof deal.contractorId === "string" ? deal.contractorId.trim() : "";
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -18,64 +28,56 @@ export async function GET(request: NextRequest) {
     const dealId = request.nextUrl.searchParams.get("dealId")?.trim() ?? "";
     const clientQuoteId = request.nextUrl.searchParams.get("clientQuoteId")?.trim() ?? "";
 
-    if (!dealId) {
-      throw new Error("Missing dealId");
-    }
+    if (!dealId) throw new Error("Missing dealId");
+    if (!clientQuoteId) throw new Error("Missing clientQuoteId");
 
     const dealSnapshot = await db.collection("deals").doc(dealId).get();
-    if (!dealSnapshot.exists) {
-      throw new Error("Deal not found");
-    }
+    if (!dealSnapshot.exists) throw new Error("Deal not found");
 
-    const deal = {
-      id: dealSnapshot.id,
-      ...(dealSnapshot.data() ?? {}),
-    } as Record<string, unknown> & { id: string };
+    const deal = { id: dealSnapshot.id, ...(dealSnapshot.data() ?? {}) } as Record<string, unknown> & { id: string };
+    await assertDealWorkspaceAccess(user, deal);
+
+    const workspaceId = typeof deal.workspaceId === "string" ? deal.workspaceId.trim() : "";
+    if (!workspaceId) throw new Error("Deal workspaceId is required for governed tender pack generation");
 
     await assertApprovedClientQuote({ opportunityId: deal.id, clientQuoteId, actor: user });
 
-    const contractorId =
-      typeof deal.contractorId === "string" && deal.contractorId.trim().length > 0
-        ? deal.contractorId.trim()
-        : "";
-
-    if (!contractorId) {
-      throw new Error("Missing deal or contractor data");
-    }
+    const contractorId = getAssignedContractorId(deal);
+    if (!contractorId) throw new Error("Missing authoritative contractor assignment");
 
     const contractorSnapshot = await db.collection("contractors").doc(contractorId).get();
-    if (!contractorSnapshot.exists) {
-      throw new Error("Missing deal or contractor data");
-    }
+    if (!contractorSnapshot.exists) throw new Error("Missing deal or contractor data");
 
-    const contractor = {
-      id: contractorSnapshot.id,
-      ...(contractorSnapshot.data() ?? {}),
-    } as Record<string, unknown> & { id: string };
+    const contractor = { id: contractorSnapshot.id, ...(contractorSnapshot.data() ?? {}) } as Record<string, unknown> & { id: string };
 
-    console.log("GENERATING PACK FOR:", {
-      dealId: deal.id,
-      contractorId: contractor.id,
-    });
+    console.log("GENERATING PACK FOR:", { dealId: deal.id, contractorId: contractor.id });
 
     const templateIds = getMergedPackTemplateIds(deal);
     const pdfBytes = await generateMergedPack(deal, contractor);
 
     const persistedPack = await persistTenderPackPdf({
       createdBy: user.uid,
+      dealId: deal.id,
+      opportunityId: deal.id,
+      workspaceId,
       contractorId: contractor.id,
+      clientQuoteId,
       templateKey: templateIds.join("-"),
       pdfBytes,
       missingFields: [],
       warnings: [],
-      fieldMapUsed: {
-        dealId: deal.id,
-        contractorId: contractor.id,
-        templateIds: templateIds.join(","),
-      },
+      fieldMapUsed: { dealId: deal.id, contractorId: contractor.id, clientQuoteId, templateIds: templateIds.join(",") },
     });
 
-    const tenderPackDocumentId = await registerTenderPackDocument({ packId: persistedPack.packId, opportunityId: deal.id, workspaceId: typeof deal.workspaceId === "string" ? deal.workspaceId : null, clientQuoteId, storagePath: persistedPack.storagePath, filename: persistedPack.fileName, actor: user });
+    const tenderPackDocumentId = await registerTenderPackDocument({
+      packId: persistedPack.packId,
+      opportunityId: deal.id,
+      workspaceId,
+      clientQuoteId,
+      storagePath: persistedPack.storagePath,
+      filename: persistedPack.fileName,
+      actor: user,
+    });
 
     return new NextResponse(Buffer.from(pdfBytes), {
       status: 200,
@@ -88,16 +90,8 @@ export async function GET(request: NextRequest) {
       },
     });
   } catch (error) {
-    if (error instanceof AuthorizationError) {
-      return NextResponse.json({ error: error.message }, { status: error.status });
-    }
-
+    if (error instanceof AuthorizationError) return NextResponse.json({ error: error.message }, { status: error.status });
     console.error("Tender pack generation failed:", error);
-    return NextResponse.json(
-      {
-        error: error instanceof Error ? error.message : "Tender pack generation failed",
-      },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Tender pack generation failed" }, { status: 500 });
   }
 }
