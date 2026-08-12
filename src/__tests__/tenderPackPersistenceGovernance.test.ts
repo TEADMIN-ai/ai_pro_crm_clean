@@ -98,7 +98,15 @@ describe("tender pack persistence governance", () => {
       [field]: value,
     };
 
-    await expect(persistTenderPackPdf(input)).rejects.toThrow(/required/);
+    let thrown: unknown = null;
+    try {
+      await persistTenderPackPdf(input);
+    } catch (error) {
+      thrown = error;
+    }
+
+    expect(thrown).toBeInstanceOf(Error);
+    expect((thrown as Error).message).toMatch(/required/);
     expect(mockSave).not.toHaveBeenCalled();
     expect(mockAdd).not.toHaveBeenCalled();
   });
