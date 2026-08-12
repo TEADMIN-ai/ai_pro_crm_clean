@@ -1,4 +1,3 @@
-import admin from "firebase-admin";
 import { FieldValue } from "firebase-admin/firestore";
 
 import { getFirebaseAdmin, getFirebaseStorageBucket } from "@/lib/firebase/admin";
@@ -29,6 +28,10 @@ export type PersistLegacyTenderPackInput = PersistArtifactBase & {
 
 export type PersistGenericTenderPackInput = PersistArtifactBase;
 
+type LegacyCompatibilityInput = PersistArtifactBase & {
+  fieldMapUsed: Record<string, string> & { dealId: string };
+};
+
 type CreateTenderPackRecordInput = {
   storagePath: string;
   downloadURL: string;
@@ -57,9 +60,7 @@ const DEFAULT_TENDER_PACK_ARTIFACT_RETENTION_MS = 1000 * 60 * 60 * 24 * 7;
 
 function requireCanonicalId(value: string, field: string): string {
   const normalized = value.trim();
-  if (!normalized) {
-    throw new Error(`${field} is required for governed tender pack persistence`);
-  }
+  if (!normalized) throw new Error(`${field} is required for governed tender pack persistence`);
   return normalized;
 }
 
@@ -69,11 +70,19 @@ function optionalId(value: string | null | undefined): string | null {
   return normalized || null;
 }
 
+function isGovernedInput(input: PersistTenderPackInput | LegacyCompatibilityInput): input is PersistTenderPackInput {
+  return (
+    typeof (input as Partial<PersistTenderPackInput>).dealId === "string" &&
+    typeof (input as Partial<PersistTenderPackInput>).opportunityId === "string" &&
+    typeof (input as Partial<PersistTenderPackInput>).workspaceId === "string" &&
+    typeof (input as Partial<PersistTenderPackInput>).clientQuoteId === "string"
+  );
+}
+
 async function normalizePdfBuffer(pdfBytes: PdfBytes): Promise<Buffer> {
   if (Buffer.isBuffer(pdfBytes)) return pdfBytes;
   if (pdfBytes instanceof Uint8Array) return Buffer.from(pdfBytes);
   if (pdfBytes instanceof ArrayBuffer) return Buffer.from(pdfBytes);
-
   const blob = pdfBytes instanceof Blob ? pdfBytes : new Blob([pdfBytes], { type: "application/pdf" });
   return Buffer.from(await blob.arrayBuffer());
 }
@@ -107,8 +116,7 @@ async function persistArtifact(input: PersistArtifactBase & {
       : ["generic", contractorId];
   const storagePath = `tenderPacks/${ownershipSegments.join("/")}/${fileName}`;
   const pdfBuffer = await normalizePdfBuffer(input.pdfBytes);
-  const bucket = getFirebaseStorageBucket();
-  const file = bucket.file(storagePath);
+  const file = getFirebaseStorageBucket().file(storagePath);
 
   const metadata: Record<string, string> = {
     contractorId,
@@ -129,10 +137,7 @@ async function persistArtifact(input: PersistArtifactBase & {
 
   await file.save(pdfBuffer, {
     contentType: "application/pdf",
-    metadata: {
-      cacheControl: "private, max-age=300",
-      metadata,
-    },
+    metadata: { cacheControl: "private, max-age=300", metadata },
   });
 
   const [downloadURL] = await file.getSignedUrl({
@@ -181,7 +186,17 @@ async function persistArtifact(input: PersistArtifactBase & {
   };
 }
 
-export async function persistTenderPackPdf(input: PersistTenderPackInput) {
+export function persistTenderPackPdf(input: PersistTenderPackInput): ReturnType<typeof persistArtifact>;
+/** @deprecated Legacy dashboard compatibility only. New procurement callers must supply canonical governed ownership. */
+export function persistTenderPackPdf(input: LegacyCompatibilityInput): ReturnType<typeof persistArtifact>;
+export function persistTenderPackPdf(input: PersistTenderPackInput | LegacyCompatibilityInput) {
+  if (!isGovernedInput(input)) {
+    return persistLegacyTenderPackPdf({
+      ...input,
+      dealId: requireCanonicalId(input.fieldMapUsed.dealId, "dealId"),
+    });
+  }
+
   const dealId = requireCanonicalId(input.dealId, "dealId");
   const opportunityId = requireCanonicalId(input.opportunityId, "opportunityId");
   const workspaceId = requireCanonicalId(input.workspaceId, "workspaceId");
