@@ -121,3 +121,28 @@ describe("opportunity execution workflow", () => {
   });
 
 });
+
+test("CIDB Not Required remains not applicable and does not create matching blockers", () => {
+  const deal = { ...baseDeal, opportunityExecution: { requirementsReviewed: true, requirements: { reviewed: true, cidbRequirement: "Not Required" } } };
+  const requirements = extractOpportunityRequirements(deal);
+  const compliance = evaluateOpportunityCompliance(requirements, validContractor);
+  const cidbDetail = compliance.details.find((detail) => detail.key === "cidb");
+  const state = buildOpportunityExecutionState({ deal, contractor: validContractor });
+  const match = matchContractorsForOpportunity({ deal, contractors: [validContractor] })[0];
+
+  expect(requirements.cidbRequirement).toBeNull();
+  expect(cidbDetail).toMatchObject({ required: false, status: "NOT_APPLICABLE", reason: "CIDB is not required for this opportunity" });
+  expect(state.complianceChecks.find((check) => check.key === "cidb")).toMatchObject({ required: false, status: "NOT_APPLICABLE", blocker: null });
+  expect(match.missingDocuments).not.toContain("CIDB document not found");
+  expect(match.blockingReasons).not.toContain("CIDB document not found");
+});
+
+test("genuine CIDB grade remains required", () => {
+  const deal = { ...baseDeal, opportunityExecution: { requirementsReviewed: true, requirements: { reviewed: true, cidbRequirement: "2CE" } } };
+  const requirements = extractOpportunityRequirements(deal);
+  const compliance = evaluateOpportunityCompliance(requirements, validContractor);
+  const cidbDetail = compliance.details.find((detail) => detail.key === "cidb");
+
+  expect(requirements.cidbRequirement).toBe("2CE");
+  expect(cidbDetail).toMatchObject({ required: true, status: "MISSING", reason: "CIDB document not found" });
+});

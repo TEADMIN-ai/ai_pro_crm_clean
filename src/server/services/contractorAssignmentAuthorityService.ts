@@ -230,7 +230,7 @@ export async function evaluateContractorAssignmentAuthority(input: {
   const sarsProjection = buildSarsTcsProjection({ record: sarsRecord, requiresLiveVerification: true });
   const currentContractor = { ...contractor, documents, sarsTcsSummary: sarsRecord ?? null };
   const governedReadiness = evaluateContractorReadiness({
-    evidence: documents.map((document) => ({ complianceType: (document.documentType ?? document.docType) === "taxClearance" ? "SARS_TCS" : (document.documentType ?? document.docType) === "bbbee" ? "B-BBEE" : (document.documentType ?? document.docType) === "bankConfirmation" ? "BANK_CONFIRMATION" : document.documentType ?? document.docType, documentId: (document as ContractorDocument & { documentId?: string }).documentId, verificationStatus: document.verificationStatus, currentStatus: document.status, issueDate: document.createdAt, expiryDate: document.expiresAt })),
+    evidence: documents.map((document) => ({ complianceType: (document.documentType ?? document.docType) === "taxClearance" ? "SARS_TCS" : (document.documentType ?? document.docType) === "bbbee" ? "B-BBEE" : (document.documentType ?? document.docType) === "bankConfirmation" ? "BANK_CONFIRMATION" : document.documentType ?? document.docType, documentId: (document as ContractorDocument & { documentId?: string }).documentId ?? document.id, verificationStatus: document.verificationStatus, currentStatus: document.status, issueDate: document.createdAt, expiryDate: document.expiresAt })),
     requiredTypes: readinessRequirements(deal),
     csdMaxAgeDays: csdFreshnessDays(deal),
   });

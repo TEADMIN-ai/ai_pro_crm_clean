@@ -168,6 +168,13 @@ function arr(value: unknown): string[] {
 function pct(value: unknown): number { return typeof value === "number" && Number.isFinite(value) ? Math.max(0, Math.min(100, Math.round(value))) : 0; }
 function textHas(text: string, token: string): boolean { return Boolean(token.trim()) && text.toLowerCase().includes(token.toLowerCase()); }
 function normalize(value: unknown): string { return str(value)?.toLowerCase() ?? ""; }
+export function normalizeCidbRequirement(value: unknown): string | null {
+  const raw = str(value);
+  if (!raw) return null;
+  const normalized = raw.toLowerCase().replace(/[^a-z0-9]+/g, "");
+  if (["notrequired", "na", "none", "notapplicable"].includes(normalized)) return null;
+  return raw;
+}
 function docName(doc: AnyRecord): string { return [doc.documentType, doc.name, doc.fileName, doc.title, doc.category].map(str).filter(Boolean).join(" "); }
 function allDocs(source: AnyRecord): AnyRecord[] {
   const intake = rec(source.opportunityIntake);
@@ -222,7 +229,7 @@ export function extractOpportunityRequirements(deal: Deal | AnyRecord): Opportun
     submissionMethod: str(existing.submissionMethod) ?? str(source.submissionMethod) ?? (textHas(blob, "portal") ? "portal" : textHas(blob, "email") ? "email" : null),
     serviceCategory: str(existing.serviceCategory) ?? str(source.category) ?? str(draft.category),
     location: str(existing.location) ?? str(analysis.location) ?? str(source.province) ?? str(source.municipalityName),
-    cidbRequirement: str(existing.cidbRequirement) ?? required.find((item) => /cidb/i.test(item)) ?? null,
+    cidbRequirement: normalizeCidbRequirement(str(existing.cidbRequirement) ?? required.find((item) => /cidb/i.test(item))),
     csdRequirement: typeof existing.csdRequirement === "boolean" ? existing.csdRequirement : textHas(blob, "csd"),
     taxRequirement: typeof existing.taxRequirement === "boolean" ? existing.taxRequirement : textHas(blob, "tax") || textHas(blob, "sars"),
     sarsVerificationRequired: requiresLiveSarsVerification(existing),
@@ -251,7 +258,7 @@ function opportunityRequirementInputs(requirements: OpportunityRequirementReview
     { key: "csd", name: "CSD", required: requirements.csdRequirement, validKeys: ["csdValid", "csdVerified", "hasCsd", "csdNumber", "csdStatus"], tokens: ["csd", "central supplier database"] },
     { key: "bbbee", name: "B-BBEE", required: requirements.bbbeeRequirement, validKeys: ["bbbeeValid", "bbbeeVerified", "hasBbbee", "bbbeeStatus"], tokens: ["bbbee", "b-bbee", "bee"] },
     { key: "coida", name: "COIDA", required: requirements.coidaRequirement, validKeys: ["coidaValid", "coidaVerified", "hasCoida", "coidaStatus"], tokens: ["coida", "compensation fund"] },
-    { key: "cidb", name: "CIDB", required: Boolean(requirements.cidbRequirement), validKeys: ["cidbValid", "cidbVerified", "hasCidb", "cidbStatus"], tokens: ["cidb"] },
+    { key: "cidb", name: "CIDB", required: normalizeCidbRequirement(requirements.cidbRequirement) !== null, validKeys: ["cidbValid", "cidbVerified", "hasCidb", "cidbStatus"], tokens: ["cidb"] },
     { key: "banking", name: "Banking", required: requirements.bankingRequirement, validKeys: ["bankingValid", "bankVerified", "bankConfirmationValid", "bankStatus"], tokens: ["bank", "banking", "bank confirmation"] },
     { key: "tenderSpecific", name: "Tender-specific documents", required: tenderSpecificRequired, validKeys: requirements.compulsoryReturnables.map((item) => item.replace(/\s+/g, "")), tokens: requirements.compulsoryReturnables.filter((item) => !/tax|bbbee|b-bbee|coida|csd|cidb|bank/i.test(item)) },
   ];
@@ -292,7 +299,7 @@ export function buildComplianceChecks(requirements: OpportunityRequirementReview
     check("csd", "CSD", requirements.csdRequirement, ["csdValid", "csdVerified", "hasCsd", "csdNumber", "csdStatus"], ["csd"]),
     check("bbbee", "B-BBEE", requirements.bbbeeRequirement, ["bbbeeValid", "bbbeeVerified", "hasBbbee", "bbbeeStatus"], ["bbbee", "b-bbee"]),
     check("coida", "COIDA", requirements.coidaRequirement, ["coidaValid", "coidaVerified", "hasCoida", "coidaStatus"], ["coida"]),
-    check("cidb", "CIDB", Boolean(requirements.cidbRequirement), ["cidbValid", "cidbVerified", "hasCidb", "cidbStatus"], ["cidb"]),
+    check("cidb", "CIDB", normalizeCidbRequirement(requirements.cidbRequirement) !== null, ["cidbValid", "cidbVerified", "hasCidb", "cidbStatus"], ["cidb"]),
     check("banking", "Banking", requirements.bankingRequirement, ["bankingValid", "bankVerified", "bankConfirmationValid", "bankStatus"], ["bank", "banking"]),
   ];
   checks.push({
@@ -610,7 +617,8 @@ function isMockContractor(contractor: AnyRecord): boolean {
 export function matchContractorsForOpportunity(input: { deal: Deal | AnyRecord; contractors: Array<AnyRecord & { id: string }> }): ContractorMatchResult[] {
   const requirements = extractOpportunityRequirements(input.deal);
   const dealWorkspaceId = str(rec(input.deal).workspaceId);
-  const sourceText = [requirements.serviceCategory, requirements.location, requirements.cidbRequirement].filter(Boolean).join(" ");
+  const normalizedCidbRequirement = normalizeCidbRequirement(requirements.cidbRequirement);
+  const sourceText = [requirements.serviceCategory, requirements.location, normalizedCidbRequirement].filter(Boolean).join(" ");
   return input.contractors.filter((contractor) => !isMockContractor(contractor)).map((contractor) => {
     const capabilities = arr(contractor.capabilities ?? contractor.serviceCategories ?? contractor.services ?? contractor.categories);
     const regions = arr(contractor.provinces ?? contractor.serviceAreas ?? contractor.regions);
@@ -624,7 +632,7 @@ export function matchContractorsForOpportunity(input: { deal: Deal | AnyRecord; 
     const eligible = blockingReasons.length === 0;
     const capabilityScore = capabilities.length === 0 ? 8 : capabilities.some((item) => textHas(sourceText, item) || textHas(item, requirements.serviceCategory ?? "")) ? 30 : 0;
     const regionScore = !requirements.location || regions.length === 0 ? 10 : regions.some((item) => textHas(requirements.location ?? "", item) || textHas(item, requirements.location ?? "")) ? 20 : 0;
-    const cidbScore = !requirements.cidbRequirement ? 10 : arr(contractor.cidbGradings ?? contractor.cidbRequirements).some((item) => textHas(item, requirements.cidbRequirement ?? "")) ? 20 : -10;
+    const cidbScore = !normalizedCidbRequirement ? 10 : arr(contractor.cidbGradings ?? contractor.cidbRequirements).some((item) => textHas(item, normalizedCidbRequirement)) ? 20 : -10;
     const complianceScore = compliance.status === "VALID" ? 20 : ["UNVERIFIED", "UNCLASSIFIED", "DUPLICATE", "REQUIRES_MANUAL_REVIEW"].includes(compliance.status) ? 8 : -15;
     const matchScore = eligible ? Math.max(0, Math.min(100, capabilityScore + regionScore + cidbScore + complianceScore + Math.round(generalCompliance * 0.2))) : 0;
     const validRequirementsCount = compliance.details.filter((detail) => detail.status === "VALID").length;

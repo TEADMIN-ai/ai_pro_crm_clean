@@ -82,3 +82,27 @@ describe("contractor assignment authority service", () => {
     expect(database.writes).toEqual([]);
   });
 });
+
+describe("contractor assignment canonical evidence ids", () => {
+  beforeEach(() => { jest.useFakeTimers(); jest.setSystemTime(new Date("2026-07-17T10:00:00.000Z")); getFirebaseAdmin.mockReset(); });
+  afterEach(() => jest.useRealTimers());
+
+  test("accepts canonical CIPC subcollection record id when explicit documentId is absent", async () => {
+    const database = seed({ documents: docs({ cipc: { documentId: null } }) });
+    const decision = await evalDecision(database);
+
+    expect(decision.blockers).not.toContain("CIPC_EVIDENCE_MISSING");
+    expect(decision.status).toBe("ALLOWED");
+  });
+
+  test("rejects legacy embedded CIPC evidence when canonical subcollection evidence is missing", async () => {
+    const database = seed({
+      contractor: contractor({ documentVault: [doc("cipc"), doc("taxClearance")] }),
+      documents: { ...docs(), cipc: undefined as unknown as R } as Record<string, R>,
+    });
+    const decision = await evalDecision(database);
+
+    expect(decision.status).toBe("BLOCKED");
+    expect(decision.blockers).toContain("CIPC_EVIDENCE_MISSING");
+  });
+});
