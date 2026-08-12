@@ -106,3 +106,119 @@ describe("contractor assignment canonical evidence ids", () => {
     expect(decision.blockers).toContain("CIPC_EVIDENCE_MISSING");
   });
 });
+
+const originalEnvForStagingSimulation = { ...process.env };
+function useVerifiedStagingSimulationEnv() {
+  process.env.VERCEL_ENV = "preview";
+  process.env.FIREBASE_PROJECT_ID = "torque-empire-teos-staging";
+  process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID = "torque-empire-teos-staging";
+}
+function useProductionSimulationEnv() {
+  process.env.VERCEL_ENV = "production";
+  process.env.FIREBASE_PROJECT_ID = "torque-empire-ai-pro-crm";
+  process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID = "torque-empire-ai-pro-crm";
+}
+function restoreSimulationEnv() {
+  process.env.VERCEL_ENV = originalEnvForStagingSimulation.VERCEL_ENV;
+  process.env.FIREBASE_PROJECT_ID = originalEnvForStagingSimulation.FIREBASE_PROJECT_ID;
+  process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID = originalEnvForStagingSimulation.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
+}
+function simulatedSars() {
+  return sars({ simulation: true, simulationEnvironment: "staging", verificationSource: "TEOS_STAGING_SIMULATION", evidenceAuthority: "STAGING_TEST_ONLY", externalVerificationPerformed: false, usableForProduction: false, testOnly: true, source: "TEOS_STAGING_SIMULATION", verificationEvidenceDocumentId: "staging-sars-tcs-simulation-evidence", verificationEvidenceHash: "hash", evidenceStoragePath: "contractors/c1/staging-sars-tcs-simulation" });
+}
+function simulatedDocuments() {
+  return docs({ csd: { documentId: "staging-csd-simulation", simulation: true, simulationEnvironment: "staging", verificationSource: "TEOS_STAGING_SIMULATION", evidenceAuthority: "STAGING_TEST_ONLY", externalVerificationPerformed: false, usableForProduction: false, testOnly: true } });
+}
+
+describe("contractor assignment staging simulation governance", () => {
+  beforeEach(() => { jest.useFakeTimers(); jest.setSystemTime(new Date("2026-07-17T10:00:00.000Z")); getFirebaseAdmin.mockReset(); });
+  afterEach(() => { restoreSimulationEnv(); jest.useRealTimers(); });
+
+  test("allows assignment through normal authority when verified staging simulated CSD and SARS evidence satisfy governed requirements", async () => {
+    useVerifiedStagingSimulationEnv();
+    const decision = await evalDecision(seed({ contractor: contractor({ csdNumber: "MAAA9999999", sarsTcsSummary: simulatedSars() }), documents: simulatedDocuments(), sars: simulatedSars() }));
+    expect(decision.status).toBe("ALLOWED");
+  });
+
+  test("remove SARS simulation keeps assignment blocked", async () => {
+    useVerifiedStagingSimulationEnv();
+    const decision = await evalDecision(seed({ contractor: contractor({ csdNumber: "MAAA9999999", sarsTcsSummary: null }), documents: simulatedDocuments(), sars: null }));
+    expect(decision.status).toBe("BLOCKED");
+    expect(decision.blockers).toContain("SARS TCS supporting evidence is missing");
+  });
+
+  test("remove CSD simulation keeps assignment blocked", async () => {
+    useVerifiedStagingSimulationEnv();
+    const documentSet = docs();
+    delete (documentSet as Record<string, unknown>).csd;
+    const decision = await evalDecision(seed({ contractor: contractor({ csdNumber: "MAAA9999999", sarsTcsSummary: simulatedSars() }), documents: documentSet, sars: simulatedSars() }));
+    expect(decision.status).toBe("BLOCKED");
+    expect(decision.blockers).toContain("CSD_EVIDENCE_MISSING");
+  });
+
+  test("same simulated records evaluated as production are blocked", async () => {
+    useProductionSimulationEnv();
+    const decision = await evalDecision(seed({ contractor: contractor({ csdNumber: "MAAA9999999", sarsTcsSummary: simulatedSars() }), documents: simulatedDocuments(), sars: simulatedSars() }));
+    expect(decision.status).toBe("BLOCKED");
+    expect(decision.blockers.join(" ")).toContain("Simulated staging SARS TCS evidence is not valid outside verified staging");
+  });
+});
+
+describe("contractor assignment stale evidence after staging simulation", () => {
+  beforeEach(() => { jest.useFakeTimers(); jest.setSystemTime(new Date("2026-07-17T10:00:00.000Z")); getFirebaseAdmin.mockReset(); });
+  afterEach(() => { restoreSimulationEnv(); jest.useRealTimers(); });
+
+  test("blocks when simulated CSD evidence is newer than the stored canonical decision", async () => {
+    useVerifiedStagingSimulationEnv();
+    const evidence = simulatedDocuments();
+    (evidence.csd as R).updatedAt = "2026-07-17T09:59:30.000Z";
+    const decision = await evalDecision(seed({ contractor: contractor({ csdNumber: "MAAA9999999", sarsTcsSummary: simulatedSars() }), documents: evidence, sars: simulatedSars() }));
+    expect(decision.status).toBe("BLOCKED");
+    expect(decision.blockers).toContain("Evidence is newer than stored readiness/compliance summary");
+  });
+
+  test("blocks when simulated SARS evidence is newer than the stored canonical decision", async () => {
+    useVerifiedStagingSimulationEnv();
+    const freshSars = simulatedSars();
+    freshSars.updatedAt = "2026-07-17T09:59:30.000Z";
+    const decision = await evalDecision(seed({ contractor: contractor({ csdNumber: "MAAA9999999", sarsTcsSummary: freshSars }), documents: simulatedDocuments(), sars: freshSars }));
+    expect(decision.status).toBe("BLOCKED");
+    expect(decision.blockers).toContain("Evidence is newer than stored readiness/compliance summary");
+  });
+
+  test("allows after staging recomputation persists a current canonical decision", async () => {
+    useVerifiedStagingSimulationEnv();
+    const evidence = simulatedDocuments();
+    (evidence.csd as R).updatedAt = "2026-07-17T09:59:30.000Z";
+    const freshSars = simulatedSars();
+    freshSars.updatedAt = "2026-07-17T09:59:30.000Z";
+    const recomputedContractor = contractor({
+      csdNumber: "MAAA9999999",
+      sarsTcsSummary: freshSars,
+      decisionEvaluatedAt: "2026-07-17T09:59:45.000Z",
+      readinessUpdatedAt: "2026-07-17T09:59:45.000Z",
+      updatedAt: "2026-07-17T09:59:45.000Z",
+    });
+    const decision = await evalDecision(seed({ contractor: recomputedContractor, documents: evidence, sars: freshSars }));
+    expect(decision.status).toBe("ALLOWED");
+    expect(decision.blockers).toEqual([]);
+  });
+
+  test("returns stale blocker when evidence changes again after recomputation", async () => {
+    useVerifiedStagingSimulationEnv();
+    const evidence = simulatedDocuments();
+    (evidence.csd as R).updatedAt = "2026-07-17T09:59:50.000Z";
+    const freshSars = simulatedSars();
+    freshSars.updatedAt = "2026-07-17T09:59:30.000Z";
+    const recomputedContractor = contractor({
+      csdNumber: "MAAA9999999",
+      sarsTcsSummary: freshSars,
+      decisionEvaluatedAt: "2026-07-17T09:59:45.000Z",
+      readinessUpdatedAt: "2026-07-17T09:59:45.000Z",
+      updatedAt: "2026-07-17T09:59:45.000Z",
+    });
+    const decision = await evalDecision(seed({ contractor: recomputedContractor, documents: evidence, sars: freshSars }));
+    expect(decision.status).toBe("BLOCKED");
+    expect(decision.blockers).toContain("Evidence is newer than stored readiness/compliance summary");
+  });
+});

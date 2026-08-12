@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { authFetch } from "@/lib/client/authFetch";
 
 type Rec={pinMasked?:string|null;pinStatus?:string|null;taxReferenceNumber?:string|null;registeredTaxpayerName?:string|null;verificationStatus?:string|null;source?:string|null;verifiedAt?:string|null;verifiedByName?:string|null;recheckDueAt?:string|null;contractorIdentityMatch?:string|null;verificationEvidenceDocumentId?:string|null;verificationEvidenceHash?:string|null;evidenceStoragePath?:string|null};
-type Payload={record:Rec|null;projection:{taxDocumentStatus:string;sarsVerificationStatus:string;sarsVerifiedAt:string|null;sarsRecheckDueAt:string|null;sarsIdentityMatch:string;sarsVerificationBlockers:string[];evidenceAvailable:boolean};officialLinks:{soqs:string}};
+type Payload={record:Rec|null;projection:{taxDocumentStatus:string;sarsVerificationStatus:string;sarsVerifiedAt:string|null;sarsRecheckDueAt:string|null;sarsIdentityMatch:string;sarsVerificationBlockers:string[];evidenceAvailable:boolean;simulationNotice?:string|null};officialLinks:{soqs:string}};
 function fmt(v?:string|null){if(!v)return "Not recorded";const d=new Date(v);return Number.isNaN(d.getTime())?"Not recorded":d.toLocaleString("en-ZA",{year:"numeric",month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"});}
 function cls(v?:string|null){const s=String(v??"").toUpperCase();if(s==="VERIFIED_COMPLIANT"||s==="MATCH"||s==="ACTIVE")return "border-emerald-200 bg-emerald-50 text-emerald-800";if(s.includes("MISMATCH")||s.includes("INVALID")||s.includes("EXPIRED")||s.includes("NON_COMPLIANT"))return "border-rose-200 bg-rose-50 text-rose-800";if(s.includes("PENDING")||s.includes("REVIEW")||s.includes("PROVIDED"))return "border-amber-200 bg-amber-50 text-amber-800";return "border-slate-200 bg-slate-50 text-slate-700";}
 function Field(p:{label:string;value:string}){return <div className="rounded-lg border border-slate-100 bg-slate-50 px-3 py-2"><p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">{p.label}</p><p className="mt-1 break-words text-sm font-semibold text-slate-900">{p.value||"Not recorded"}</p></div>}
@@ -69,7 +69,7 @@ export default function SarsTcsVerificationCard({ contractorId, canManage, ident
         <Field label="Extracted tax reference" value={record?.taxReferenceNumber ?? "Not recorded"} />
         <Field label="Extracted TCS PIN status" value={record?.pinStatus ?? "NOT_PROVIDED"} />
         <Field label="Masked PIN" value={record?.pinMasked ?? "Not provided"} />
-        <Field label="Current live SARS verification status" value={projection?.sarsVerificationStatus ?? "NOT_STARTED"} />
+        <Field label={record?.source === "TEOS_STAGING_SIMULATION" ? "Staging simulated SARS status" : "Current live SARS verification status"} value={record?.source === "TEOS_STAGING_SIMULATION" ? `SIMULATED_STAGING / ${projection?.sarsVerificationStatus ?? "NOT_STARTED"}` : projection?.sarsVerificationStatus ?? "NOT_STARTED"} />
         <Field label="Identity match status" value={displayedIdentityMatch} />
         <Field label="Verified date and time" value={fmt(projection?.sarsVerifiedAt ?? record?.verifiedAt)} />
         <Field label="Verified by" value={record?.verifiedByName ?? "Not recorded"} />
@@ -78,6 +78,7 @@ export default function SarsTcsVerificationCard({ contractorId, canManage, ident
         <Field label="Evidence availability" value={evidenceAvailable ? "Available" : "Not attached"} />
         <Field label="Taxpayer name" value={record?.registeredTaxpayerName ?? "Not recorded"} />
       </div>
+      {projection?.simulationNotice ? <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-900">{projection.simulationNotice}</div> : null}
       {projection?.sarsVerificationBlockers?.length ? <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">{projection.sarsVerificationBlockers.join("; ")}</div> : null}
       <div className="mt-5 flex flex-wrap gap-2">
         <button type="button" onClick={capturePin} disabled={saving} className="rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-xs font-semibold text-sky-700 hover:bg-sky-100 disabled:opacity-60">Capture or replace TCS PIN</button>

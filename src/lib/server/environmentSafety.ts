@@ -1,5 +1,5 @@
 export const TEOS_PRODUCTION_FIREBASE_PROJECT_ID = "torque-empire-ai-pro-crm";
-export const TEOS_STAGING_FIREBASE_PROJECT_ID = "torque-empire-ai-pro-crm-staging";
+export const TEOS_STAGING_FIREBASE_PROJECT_ID = "torque-empire-teos-staging";
 export const TEOS_DEVELOPMENT_PRODUCTION_FIREBASE_OVERRIDE = "TEOS_ALLOW_DEVELOPMENT_PRODUCTION_FIREBASE";
 export const TEOS_TEST_CONTEXT_FLAG = "TEOS_ENVIRONMENT_SAFETY_TEST_CONTEXT";
 

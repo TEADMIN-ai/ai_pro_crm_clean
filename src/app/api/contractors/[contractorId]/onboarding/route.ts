@@ -13,6 +13,7 @@ import {
 } from "@/server/services/contractorAcknowledgementService";
 import { listContractorDocuments, resolveContractorForAccess } from "@/server/services/contractorService";
 import { buildContractorOnboardingDecisionView } from "@/lib/contractors/contractorOnboardingDecisionView";
+import { isStagingSimulationAllowed, STAGING_SIMULATION_MESSAGE } from "@/lib/server/stagingSimulationSafety";
 import {
   buildContractorOperationalTimeline,
   buildLastAction,
@@ -169,6 +170,10 @@ export async function GET(
         historicalDealCount,
         acknowledgement,
         signaturePayload,
+        stagingSimulation: {
+          available: isPrivilegedRole(user.role) && isStagingSimulationAllowed(),
+          message: STAGING_SIMULATION_MESSAGE,
+        },
         viewer: {
           role: user.role,
           contractorId: user.contractorId ?? null,

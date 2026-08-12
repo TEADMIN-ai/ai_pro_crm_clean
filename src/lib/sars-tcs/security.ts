@@ -168,15 +168,18 @@ function isStale(record: SarsTcsVerificationRecord | null, now = new Date()): bo
 function hasMismatch(record: SarsTcsVerificationRecord | null): boolean {
   return Boolean(record && (record.taxpayerNameMatch === "MISMATCH" || record.taxReferenceMatch === "MISMATCH" || record.registrationNumberMatch === "MISMATCH" || record.contractorIdentityMatch === "MISMATCH"));
 }
-export function buildSarsTcsProjection(input: { record?: SarsTcsVerificationRecord | null; taxDocumentStatus?: string | null; route?: string | null; requiresLiveVerification?: boolean; policy?: SarsTcsRecheckPolicy; now?: Date }): SarsTcsProjection {
+export function buildSarsTcsProjection(input: { record?: SarsTcsVerificationRecord | null; taxDocumentStatus?: string | null; route?: string | null; requiresLiveVerification?: boolean; policy?: SarsTcsRecheckPolicy; now?: Date; allowStagingSimulation?: boolean }): SarsTcsProjection {
   const record = input.record ?? null;
   const route = input.route ?? (record?.contractorId ? "/dashboard/contractors/" + encodeURIComponent(record.contractorId) : null);
   const stale = isStale(record, input.now ?? new Date());
   const requiresLiveVerification = input.requiresLiveVerification === true;
   const mismatch = hasMismatch(record) || record?.verificationStatus === 'DETAILS_MISMATCH';
+  const simulatedRecord = Boolean(record && ((record as SarsTcsVerificationRecord & { simulation?: boolean; testOnly?: boolean; verificationSource?: string }).simulation === true || (record as SarsTcsVerificationRecord & { simulation?: boolean; testOnly?: boolean; verificationSource?: string }).testOnly === true || (record as SarsTcsVerificationRecord & { simulation?: boolean; testOnly?: boolean; verificationSource?: string }).verificationSource === "TEOS_STAGING_SIMULATION" || record.source === "TEOS_STAGING_SIMULATION"));
+  const simulationAllowed = input.allowStagingSimulation === true;
   const requiredBlockers: string[] = [];
   const adverseBlockers: string[] = [];
   const flags: SarsTcsRiskFlag[] = [];
+  if (simulatedRecord && !simulationAllowed) requiredBlockers.push("Simulated staging SARS TCS evidence is not valid outside verified staging");
   if (!record || record.pinStatus === 'NOT_PROVIDED') requiredBlockers.push('Active SARS TCS PIN is missing');
   if (record?.verificationStatus === 'PENDING' || record?.verificationStatus === 'NOT_STARTED') requiredBlockers.push('SARS TCS PIN has not been verified live');
   if (record?.verificationStatus === 'REVIEW_REQUIRED') requiredBlockers.push('SARS TCS verification requires review');
@@ -192,5 +195,5 @@ export function buildSarsTcsProjection(input: { record?: SarsTcsVerificationReco
   if (record?.verificationStatus === "VERIFIED_COMPLIANT" && !record.verificationEvidenceDocumentId && !record.verificationEvidenceHash) flags.push("EVIDENCE_MISSING");
   const blockers = requiresLiveVerification ? [...requiredBlockers, ...adverseBlockers] : adverseBlockers;
   const next = !record || record.pinStatus === "NOT_PROVIDED" ? "REQUEST_TCS_PIN" : record.verificationStatus === "INVALID_PIN" || record.pinStatus === "INVALID" ? "REQUEST_TCS_PIN" : record.verificationStatus === "EXPIRED" || record.pinStatus === "EXPIRED" || record.pinStatus === "CANCELLED" ? "REQUEST_TCS_PIN" : record.verificationStatus === "PENDING" || record.verificationStatus === "NOT_STARTED" ? "VERIFY_TCS_WITH_SARS" : mismatch ? "RESOLVE_TAX_IDENTITY_MISMATCH" : record.verificationStatus === "VERIFIED_NON_COMPLIANT" ? "REQUEST_TAX_REMEDIATION" : stale ? "REVERIFY_TCS" : "TAX_VERIFICATION_COMPLETE";
-  return { taxDocumentStatus: input.taxDocumentStatus ?? "unknown", sarsVerificationStatus: record?.verificationStatus ?? "NOT_STARTED", sarsVerifiedAt: record?.verifiedAt ?? null, sarsRecheckDueAt: record?.recheckDueAt ?? null, sarsIdentityMatch: record?.contractorIdentityMatch ?? "NOT_CHECKED", sarsVerificationBlockers: Array.from(new Set(blockers)), sarsVerificationRoute: route, sarsNextAction: next, sarsRiskFlags: Array.from(new Set(flags)), verifiedByName: record?.verifiedByName ?? null, source: record?.source ?? null, evidenceAvailable: Boolean(record?.verificationEvidenceDocumentId || record?.verificationEvidenceHash || record?.evidenceStoragePath) };
+  return { taxDocumentStatus: input.taxDocumentStatus ?? "unknown", sarsVerificationStatus: record?.verificationStatus ?? "NOT_STARTED", sarsVerifiedAt: record?.verifiedAt ?? null, sarsRecheckDueAt: record?.recheckDueAt ?? null, sarsIdentityMatch: record?.contractorIdentityMatch ?? "NOT_CHECKED", sarsVerificationBlockers: Array.from(new Set(blockers)), sarsVerificationRoute: route, sarsNextAction: next, sarsRiskFlags: Array.from(new Set(flags)), verifiedByName: record?.verifiedByName ?? null, source: record?.source ?? null, evidenceAvailable: Boolean(record?.verificationEvidenceDocumentId || record?.verificationEvidenceHash || record?.evidenceStoragePath) && (!simulatedRecord || simulationAllowed), simulationNotice: simulatedRecord ? "Simulated staging verification - no external authority contacted." : null };
 }

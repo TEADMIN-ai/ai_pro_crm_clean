@@ -170,6 +170,7 @@ export function buildContractorRepositoryDecision(input: {
   contractor: Record<string, unknown>;
   documents: ContractorDocument[];
   evaluatedAt?: string;
+  allowStagingSimulation?: boolean;
 }): ContractorRepositoryDecision {
   const evaluatedAt = input.evaluatedAt ?? new Date().toISOString();
   const archived = input.contractor.archived === true || str(input.contractor.status)?.toLowerCase() === "archived";
@@ -182,6 +183,7 @@ export function buildContractorRepositoryDecision(input: {
     taxDocumentStatus,
     requiresLiveVerification: true,
     now: new Date(evaluatedAt),
+    allowStagingSimulation: input.allowStagingSimulation === true,
   });
   const csdValue = str(input.contractor.csdNumber) ?? str(input.contractor.csdMNumber) ?? str(input.contractor.mNumber);
   const registrationValue = str(input.contractor.companyRegistrationNumber) ?? str(input.contractor.registrationNumber);

@@ -124,6 +124,10 @@ type OnboardingPayload = {
   linkedDeals: LinkedDeal[];
   historicalDealCount?: number;
   acknowledgement: AcknowledgementRecord | null;
+  stagingSimulation?: {
+    available: boolean;
+    message: string;
+  };
   viewer: {
     role: string;
     contractorId?: string | null;
@@ -354,6 +358,8 @@ export default function ContractorOnboardingView({ contractorId }: Props) {
   const [savingNote, setSavingNote] = useState(false);
   const [activeDocumentSectionKey, setActiveDocumentSectionKey] = useState(DOCUMENT_GROUPS[0].key);
   const [approvingOnboarding, setApprovingOnboarding] = useState(false);
+  const [stagingSimulationMessage, setStagingSimulationMessage] = useState<string | null>(null);
+  const [stagingSimulationBusy, setStagingSimulationBusy] = useState<string | null>(null);
 
   async function loadOnboarding() {
     const response = await authFetch(API_ROUTES.CONTRACTOR_ONBOARDING(contractorId), {
@@ -503,6 +509,28 @@ export default function ContractorOnboardingView({ contractorId }: Props) {
       setError(approvalError instanceof Error ? approvalError.message : "Unable to approve onboarding.");
     } finally {
       setApprovingOnboarding(false);
+    }
+  }
+
+  async function runStagingSimulation(action: "simulate_csd" | "simulate_sars_tcs") {
+    if (stagingSimulationBusy) return;
+    setStagingSimulationBusy(action);
+    setError(null);
+    setStagingSimulationMessage(null);
+    try {
+      const response = await authFetch(`/api/contractors/${encodeURIComponent(contractorId)}/staging-simulation`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify({ action }),
+      });
+      const result = (await response.json().catch(() => null)) as { error?: string; message?: string } | null;
+      if (!response.ok) throw new Error(result?.error ?? "Staging simulation failed.");
+      setStagingSimulationMessage(result?.message ?? "Simulated staging verification - no external authority contacted.");
+      await loadOnboarding();
+    } catch (simulationError) {
+      setError(simulationError instanceof Error ? simulationError.message : "Staging simulation failed.");
+    } finally {
+      setStagingSimulationBusy(null);
     }
   }
 
@@ -735,6 +763,14 @@ export default function ContractorOnboardingView({ contractorId }: Props) {
           </div>
 
           <aside className="space-y-6">
+            {payload.stagingSimulation?.available ? (
+              <StagingSimulationPanel
+                busyAction={stagingSimulationBusy}
+                message={stagingSimulationMessage ?? payload.stagingSimulation.message}
+                onSimulateCsd={() => runStagingSimulation("simulate_csd")}
+                onSimulateSars={() => runStagingSimulation("simulate_sars_tcs")}
+              />
+            ) : null}
             {payload.viewer.isPrivileged ? (
               <OnboardingApprovalPanel
                 onboardingLifecycleApproved={isOnboardingLifecycleApproved(payload.contractor)}
@@ -886,6 +922,33 @@ function ExecutiveContractorProfile({
   );
 }
 
+function StagingSimulationPanel(props: {
+  busyAction: string | null;
+  message: string;
+  onSimulateCsd: () => void;
+  onSimulateSars: () => void;
+}) {
+  return (
+    <div className="rounded-2xl border border-amber-300 bg-amber-50 p-5 shadow-sm">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-xs font-black uppercase tracking-[0.16em] text-amber-800">STAGING TEST CONTROLS</p>
+          <h2 className="mt-1 text-lg font-semibold text-slate-950">STAGING ONLY Verification Simulation</h2>
+        </div>
+        <span className="rounded-full border border-amber-300 bg-white px-3 py-1 text-xs font-black text-amber-800">STAGING ONLY</span>
+      </div>
+      <p className="mt-3 text-sm font-semibold text-amber-950">{props.message}</p>
+      <div className="mt-4 grid gap-2">
+        <button type="button" onClick={props.onSimulateCsd} disabled={Boolean(props.busyAction)} className="rounded-xl border border-amber-300 bg-white px-4 py-3 text-sm font-bold text-amber-900 hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60">
+          {props.busyAction === "simulate_csd" ? "Simulating CSD..." : "STAGING ONLY - Simulate CSD Verification"}
+        </button>
+        <button type="button" onClick={props.onSimulateSars} disabled={Boolean(props.busyAction)} className="rounded-xl border border-amber-300 bg-white px-4 py-3 text-sm font-bold text-amber-900 hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60">
+          {props.busyAction === "simulate_sars_tcs" ? "Simulating SARS TCS..." : "STAGING ONLY - Simulate SARS TCS Verification"}
+        </button>
+      </div>
+    </div>
+  );
+}
 function OnboardingApprovalPanel(props: {
   onboardingLifecycleApproved: boolean;
   portfolioReady: boolean;

@@ -6,11 +6,11 @@ TEOS staging exists to verify RFQ extraction, contractor assignment, document ha
 
 ## Firebase Project
 
-Create a separate Firebase project named `torque-empire-ai-pro-crm-staging`.
+Create a separate Firebase project named `torque-empire-teos-staging`.
 
 Required separation:
 
-- Firebase project ID: `torque-empire-ai-pro-crm-staging`
+- Firebase project ID: `torque-empire-teos-staging`
 - Dedicated Firebase Auth users
 - Dedicated Firestore database
 - Dedicated Storage bucket
@@ -37,7 +37,7 @@ Do not copy production service-account credentials into staging or Preview.
 Create and handle the staging Admin credential through Firebase Console only:
 
 1. Open Firebase Console.
-2. Select project `torque-empire-ai-pro-crm-staging`.
+2. Select project `torque-empire-teos-staging`.
 3. Open Project settings.
 4. Open Service accounts.
 5. Confirm the selected project is the staging project, not production.
@@ -92,9 +92,9 @@ npx vercel env add TEOS_ENVIRONMENT preview
 Required Preview values:
 
 ```text
-NEXT_PUBLIC_FIREBASE_PROJECT_ID=torque-empire-ai-pro-crm-staging
+NEXT_PUBLIC_FIREBASE_PROJECT_ID=torque-empire-teos-staging
 NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=torque-empire-teos-staging.firebasestorage.app
-FIREBASE_PROJECT_ID=torque-empire-ai-pro-crm-staging
+FIREBASE_PROJECT_ID=torque-empire-teos-staging
 FIREBASE_STORAGE_BUCKET=torque-empire-teos-staging.firebasestorage.app
 TEOS_ENVIRONMENT=staging
 ```
@@ -148,7 +148,7 @@ Server-side Firebase use is guarded by `src/lib/server/environmentSafety.ts`.
 The guard rejects:
 
 - Preview deployments using `torque-empire-ai-pro-crm`
-- Production deployments using `torque-empire-ai-pro-crm-staging`
+- Production deployments using `torque-empire-teos-staging`
 - protected writes without server Firebase project identity
 - protected writes without deployment environment identity
 - public/Admin project ID mismatch
@@ -179,7 +179,7 @@ Never seed real client, contractor, staff, supplier, document, financial, or per
 
 Seed/reset scripts are intentionally not part of the first safety implementation. When added, they must:
 
-- target only `torque-empire-ai-pro-crm-staging`
+- target only `torque-empire-teos-staging`
 - fail if any production Firebase project ID is detected
 - print dry-run summaries before mutation
 - avoid production exports
@@ -224,7 +224,7 @@ If production credentials are found in Preview:
 
 ## Staging UAT Preparation Slice
 
-Required local env before apply/reset: FIREBASE_PROJECT_ID=torque-empire-ai-pro-crm-staging, TEOS_ENVIRONMENT=staging, FIREBASE_STORAGE_BUCKET=torque-empire-teos-staging.firebasestorage.app, plus temporary staging Admin credential values.
+Required local env before apply/reset: FIREBASE_PROJECT_ID=torque-empire-teos-staging, TEOS_ENVIRONMENT=staging, FIREBASE_STORAGE_BUCKET=torque-empire-teos-staging.firebasestorage.app, plus temporary staging Admin credential values.
 
 Set TEOS_STAGING_ADMIN_PASSWORD and TEOS_STAGING_STAFF_PASSWORD only as temporary local environment variables. Do not commit or print them.
 

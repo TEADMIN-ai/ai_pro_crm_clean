@@ -15,6 +15,7 @@ import {
 import { isPrivilegedRole, type AuthorizedUser } from "@/lib/server/authz";
 import type { ContractorDocument } from "@/types/document";
 import { evaluateContractorReadiness } from "@/lib/contractors/governedContractorResolution";
+import { isStagingSimulationAllowed, isStagingSimulationRecord } from "@/lib/server/stagingSimulationSafety";
 
 type AnyRecord = Record<string, unknown>;
 
@@ -226,11 +227,12 @@ export async function evaluateContractorAssignmentAuthority(input: {
   ]);
   void executionWorkspaceSnapshot;
   void submissionReviewSnapshot;
-  const repositoryDecision = buildContractorRepositoryDecision({ contractor: { ...contractor, sarsTcsSummary: sarsRecord ?? null }, documents });
-  const sarsProjection = buildSarsTcsProjection({ record: sarsRecord, requiresLiveVerification: true });
+  const allowStagingSimulation = isStagingSimulationAllowed();
+  const repositoryDecision = buildContractorRepositoryDecision({ contractor: { ...contractor, sarsTcsSummary: sarsRecord ?? null }, documents, allowStagingSimulation });
+  const sarsProjection = buildSarsTcsProjection({ record: sarsRecord, requiresLiveVerification: true, allowStagingSimulation });
   const currentContractor = { ...contractor, documents, sarsTcsSummary: sarsRecord ?? null };
   const governedReadiness = evaluateContractorReadiness({
-    evidence: documents.map((document) => ({ complianceType: (document.documentType ?? document.docType) === "taxClearance" ? "SARS_TCS" : (document.documentType ?? document.docType) === "bbbee" ? "B-BBEE" : (document.documentType ?? document.docType) === "bankConfirmation" ? "BANK_CONFIRMATION" : document.documentType ?? document.docType, documentId: (document as ContractorDocument & { documentId?: string }).documentId ?? document.id, verificationStatus: document.verificationStatus, currentStatus: document.status, issueDate: document.createdAt, expiryDate: document.expiresAt })),
+    evidence: documents.map((document) => ({ complianceType: (document.documentType ?? document.docType) === "taxClearance" ? "SARS_TCS" : (document.documentType ?? document.docType) === "bbbee" ? "B-BBEE" : (document.documentType ?? document.docType) === "bankConfirmation" ? "BANK_CONFIRMATION" : document.documentType ?? document.docType, documentId: (document as ContractorDocument & { documentId?: string }).documentId ?? document.id, verificationStatus: isStagingSimulationRecord(document) && !allowStagingSimulation ? "SIMULATION_REJECTED" : document.verificationStatus, currentStatus: isStagingSimulationRecord(document) && !allowStagingSimulation ? "simulation_rejected" : document.status, issueDate: document.createdAt, expiryDate: document.expiresAt })),
     requiredTypes: readinessRequirements(deal),
     csdMaxAgeDays: csdFreshnessDays(deal),
   });

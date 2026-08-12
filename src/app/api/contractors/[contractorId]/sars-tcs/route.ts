@@ -4,6 +4,7 @@ import { AuthorizationError, assertCanAccessContractor, isPrivilegedRole, requir
 import { resolveContractorBusinessIdentity } from "@/lib/contractors/contractorBusinessIdentity";
 import { SARS_TCS_SOQS_VERIFY_URL, buildSarsTcsProjection, createProvidedPinRecord, recordSarsVerificationResult, sanitizeSarsTcsRecord, sanitizeSarsTcsWritePayload, type SarsTcsVerificationRecord } from "@/lib/sars-tcs";
 import { resolveContractorForAccess } from "@/server/services/contractorService";
+import { isStagingSimulationAllowed, STAGING_SIMULATION_SOURCE } from "@/lib/server/stagingSimulationSafety";
 function jsonError(message: string, status = 500) { return NextResponse.json({ error: message }, { status }); }
 function str(value: unknown): string | null { return typeof value === "string" && value.trim() ? value.trim() : null; }
 function actorName(user: { email?: string; uid: string }) { return user.email?.trim() || user.uid; }
@@ -33,7 +34,7 @@ export async function GET(request: NextRequest, context: { params: Promise<{ con
     if (resolved.ok === false) return jsonError("Contractor not found", resolved.failureReason === "cross_workspace" || resolved.failureReason === "unauthorized_contractor" ? 403 : 404);
     assertCanAccessContractor(user, resolved.contractorId);
     const record = await loadLatestRecord(resolved.contractorId);
-    const projection = buildSarsTcsProjection({ record, taxDocumentStatus: str(resolved.contractor.taxPinStatus) ?? "unknown", route: "/dashboard/contractors/" + encodeURIComponent(resolved.contractorId), requiresLiveVerification: true });
+    const projection = buildSarsTcsProjection({ record, taxDocumentStatus: str(resolved.contractor.taxPinStatus) ?? "unknown", route: "/dashboard/contractors/" + encodeURIComponent(resolved.contractorId), requiresLiveVerification: true, allowStagingSimulation: isStagingSimulationAllowed() });
     return NextResponse.json({ record: sanitizeSarsTcsRecord(record), projection, officialLinks: { soqs: SARS_TCS_SOQS_VERIFY_URL } });
   } catch (error) {
     if (error instanceof AuthorizationError) return jsonError(error.message, error.status);
@@ -47,6 +48,9 @@ export async function POST(request: NextRequest, context: { params: Promise<{ co
     const { contractorId } = await context.params;
     const body = (await request.json().catch(() => ({}))) as Record<string, unknown>;
     const action = str(body.action);
+    if (body.simulation === true || str(body.source) === STAGING_SIMULATION_SOURCE || str(body.verificationSource) === STAGING_SIMULATION_SOURCE) {
+      return jsonError("Use the staging-only simulation endpoint for simulated verification records", 403);
+    }
     const resolved = await resolveContractorForAccess({ contractorReference: contractorId, actor: user, logContext: "api.contractors.sars-tcs.mutate" });
     if (resolved.ok === false) return jsonError("Contractor not found", resolved.failureReason === "cross_workspace" || resolved.failureReason === "unauthorized_contractor" ? 403 : 404);
     assertCanAccessContractor(user, resolved.contractorId);
@@ -54,7 +58,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ co
     if (action === "provide_pin") {
       const record = createProvidedPinRecord({ workspaceId: str(resolved.contractor.workspaceId) ?? "default", contractorId: resolved.contractorId, opportunityId: str(body.opportunityId), taxReferenceNumber: str(body.taxReferenceNumber) ?? str(resolved.contractor.taxReferenceNumber) ?? str(resolved.contractor.taxNumber) ?? "", registeredTaxpayerName: str(body.registeredTaxpayerName) ?? str(resolved.contractor.companyName) ?? "", registrationNumber: str(body.registrationNumber) ?? str(resolved.contractor.registrationNumber), tcsPin: String(body.tcsPin ?? ""), actorUid: user.uid, actorName: actorName(user), consentConfirmed: body.consentConfirmed === true, consentEvidenceId: str(body.consentEvidenceId), previous });
       await saveCurrentRecord(record, previous, "PIN replaced or supplied");
-      return NextResponse.json({ record: sanitizeSarsTcsRecord(record), projection: buildSarsTcsProjection({ record, route: "/dashboard/contractors/" + encodeURIComponent(resolved.contractorId), requiresLiveVerification: true }) });
+      return NextResponse.json({ record: sanitizeSarsTcsRecord(record), projection: buildSarsTcsProjection({ record, route: "/dashboard/contractors/" + encodeURIComponent(resolved.contractorId), requiresLiveVerification: true, allowStagingSimulation: isStagingSimulationAllowed() }) });
     }
     if (!isPrivilegedRole(user.role)) return jsonError("Contractors may provide a PIN but may not mark themselves SARS verified", 403);
     if (!previous) return jsonError("A TCS PIN must be provided before verification can be recorded", 409);
@@ -63,7 +67,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ co
       const derivedIdentityMatch = canonicalIdentityMatch(resolved.contractor, previous.registeredTaxpayerName ?? null);
       const record = recordSarsVerificationResult({ current: previous, status: status as SarsTcsVerificationRecord["verificationStatus"], source: (str(body.source) ?? "SARS_SOQS") as SarsTcsVerificationRecord["source"], verifiedAt: str(body.verifiedAt) ?? new Date().toISOString(), verifiedByUid: user.uid, verifiedByName: actorName(user), taxpayerNameMatch: derivedIdentityMatch, taxReferenceMatch: (str(body.taxReferenceMatch) ?? "NOT_CHECKED") as SarsTcsVerificationRecord["taxReferenceMatch"], registrationNumberMatch: (str(body.registrationNumberMatch) ?? previous.registrationNumberMatch) as SarsTcsVerificationRecord["registrationNumberMatch"], contractorIdentityMatch: derivedIdentityMatch, mismatchReasons: Array.from(new Set([...(Array.isArray(body.mismatchReasons) ? body.mismatchReasons.filter((item): item is string => typeof item === "string") : []), ...(derivedIdentityMatch === "MISMATCH" ? ["Taxpayer name does not match contractor business identity"] : [])])), verificationReference: str(body.verificationReference), notes: str(body.notes), evidence: { documentId: str(body.verificationEvidenceDocumentId), hash: str(body.verificationEvidenceHash), storagePath: str(body.evidenceStoragePath), fileName: str(body.evidenceFileName), uploadedAt: str(body.evidenceUploadedAt) } });
       await saveCurrentRecord(record, null);
-      return NextResponse.json({ record: sanitizeSarsTcsRecord(record), projection: buildSarsTcsProjection({ record, route: "/dashboard/contractors/" + encodeURIComponent(resolved.contractorId), requiresLiveVerification: true }) });
+      return NextResponse.json({ record: sanitizeSarsTcsRecord(record), projection: buildSarsTcsProjection({ record, route: "/dashboard/contractors/" + encodeURIComponent(resolved.contractorId), requiresLiveVerification: true, allowStagingSimulation: isStagingSimulationAllowed() }) });
     }
     if (action === "request_updated_pin") {
       await getFirebaseAdmin().collection("contractors").doc(resolved.contractorId).collection("sarsTcsRequests").add({ type: "REQUEST_UPDATED_PIN", requestedBy: user.uid, requestedAt: new Date().toISOString(), reason: str(body.reason) ?? "Updated SARS TCS PIN required" });
