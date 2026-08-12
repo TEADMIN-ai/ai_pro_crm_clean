@@ -392,6 +392,9 @@ export async function uploadSupplierQuote(input: UploadSupplierQuoteInput, actor
     verificationStatus: "PENDING_REVIEW",
   }];
   const supplier = await resolveSupplierIdentityForQuote({ ...input, actor, workspaceId, quoteId, evidence });
+  if (supplier.status === "REVIEW_REQUIRED" && !supplier.supplierId && /ambiguous|name-only/i.test(supplier.reason)) {
+    throw Object.assign(new Error(supplier.reason), { status: 409 });
+  }
   const masterDocumentId = await persistSupplierQuoteDocumentReference({
     actor,
     workspaceId,
@@ -620,4 +623,3 @@ export async function flagExpiredSupplierQuotes(dealId: string, actor: Authorize
   }, { merge: true })));
   return expired.map((quote) => ({ ...quote, workflowStatus: "EXPIRED" }));
 }
-

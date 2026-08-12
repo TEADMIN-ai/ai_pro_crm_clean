@@ -82,6 +82,25 @@ export class FirestoreMasterDataRepository {
       snapshot.docs.forEach((doc) => candidates.set(doc.id, doc.data() as CanonicalMasterEntity));
     }
 
+    const normalizedExactValues = {
+      registrationNumber: normalizeIdentityKey(lookup.registrationNumber),
+      email: normalizeIdentityKey(lookup.email),
+      phone: normalizeIdentityKey(lookup.phone),
+    };
+    if (normalizedExactValues.registrationNumber || normalizedExactValues.email || normalizedExactValues.phone) {
+      const workspaceRecords = await this.listByEntityType(entityType, workspaceId);
+      workspaceRecords.forEach((entity) => {
+        const record = entity as CanonicalMasterEntity & { registrationNumber?: unknown; email?: unknown; phone?: unknown };
+        if (
+          (normalizedExactValues.registrationNumber && normalizeIdentityKey(record.registrationNumber) === normalizedExactValues.registrationNumber) ||
+          (normalizedExactValues.email && normalizeIdentityKey(record.email) === normalizedExactValues.email) ||
+          (normalizedExactValues.phone && normalizeIdentityKey(record.phone) === normalizedExactValues.phone)
+        ) {
+          candidates.set(entity.canonicalId, entity);
+        }
+      });
+    }
+
     const all = candidates.size > 0 ? Array.from(candidates.values()) : await this.listByEntityType(entityType, workspaceId);
     const nameKeys = [normalizeIdentityKey(lookup.legalName), normalizeIdentityKey(lookup.tradingName)].filter(Boolean);
     if (!nameKeys.length) return all;

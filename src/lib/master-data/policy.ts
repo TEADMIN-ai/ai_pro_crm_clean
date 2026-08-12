@@ -152,7 +152,8 @@ export function detectDuplicateDecision(input: {
 
   const draftName = normalizeDisplayNameKey(input.draft.legalName ?? input.draft.tradingName ?? input.draft.displayName);
   const registrationBackedSupplier = input.draft.entityType === "supplier" && Boolean(registration);
-  if (draftName && !registrationBackedSupplier) {
+  const supplierQuoteDocument = input.draft.entityType === "document" && input.draft.externalIdentifiers.some((identifier) => normalizeIdentityKey(identifier.system) === "supplierquote" && normalizeIdentityKey(identifier.value));
+  if (draftName && !registrationBackedSupplier && !supplierQuoteDocument) {
     const nameMatches = input.existing.filter((record) =>
       record.entityType === input.draft.entityType &&
       normalizeDisplayNameKey(record.legalName ?? record.tradingName ?? record.displayName) === draftName,

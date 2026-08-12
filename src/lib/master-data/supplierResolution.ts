@@ -86,7 +86,7 @@ function hasSupplierIdentityEvidence(input: SupplierResolutionInput): boolean {
 function isSourceOnly(input: SupplierResolutionInput): boolean {
   const category = text(input.sourceCategory)?.toLowerCase() ?? "";
   if (category.includes("benchmark") || category.includes("catalogue") || category.includes("statistical") || category.includes("index") || category.includes("market") || category.includes("software") || category.includes("process")) return true;
-  if (!hasSupplierIdentityEvidence(input) && !text(input.email) && !text(input.phone)) return true;
+  if (!text(input.supplierName) && !hasSupplierIdentityEvidence(input) && !text(input.email) && !text(input.phone)) return true;
   return false;
 }
 
