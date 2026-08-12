@@ -1,6 +1,7 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { authFetch } from "@/lib/client/authFetch";
 import type { SupplierQuote, SupplierQuoteComparison } from "@/types/supplierQuote";
 
 type Props = {
@@ -29,12 +30,12 @@ export default function SupplierQuoteWorkspace(props: Props) {
   const [state, setState] = useState<LoadState>("idle");
   const [message, setMessage] = useState<string | null>(null);
 
-  async function refresh() {
+  const refresh = useCallback(async () => {
     setState("loading");
     try {
       const [quotesResponse, comparisonResponse] = await Promise.all([
-        fetch(`/api/supplier-quotes?dealId=${encodeURIComponent(props.dealId)}`),
-        fetch(`/api/supplier-quotes?dealId=${encodeURIComponent(props.dealId)}&view=comparison`),
+        authFetch(`/api/supplier-quotes?dealId=${encodeURIComponent(props.dealId)}`),
+        authFetch(`/api/supplier-quotes?dealId=${encodeURIComponent(props.dealId)}&view=comparison`),
       ]);
       const quotesPayload = await quotesResponse.json();
       const comparisonPayload = await comparisonResponse.json();
@@ -47,11 +48,14 @@ export default function SupplierQuoteWorkspace(props: Props) {
       setState("error");
       setMessage(error instanceof Error ? error.message : "Supplier quote workspace failed to load.");
     }
-  }
+  }, [props.dealId]);
 
   useEffect(() => {
-    void refresh();
-  }, [props.dealId]);
+    const timer = window.setTimeout(() => {
+      void refresh();
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [refresh]);
 
   async function upload(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -64,7 +68,7 @@ export default function SupplierQuoteWorkspace(props: Props) {
     formData.set("contractorName", props.contractorName);
     setState("saving");
     setMessage(null);
-    const response = await fetch("/api/supplier-quotes", { method: "POST", body: formData });
+    const response = await authFetch("/api/supplier-quotes", { method: "POST", body: formData });
     const payload = await response.json();
     if (!response.ok) {
       setState("error");
@@ -78,7 +82,7 @@ export default function SupplierQuoteWorkspace(props: Props) {
 
   async function decide(quoteId: string, action: "approve" | "reject" | "request_clarification") {
     setState("saving");
-    const response = await fetch(`/api/supplier-quotes/${encodeURIComponent(quoteId)}/approval`, {
+    const response = await authFetch(`/api/supplier-quotes/${encodeURIComponent(quoteId)}/approval`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ action, note: action === "approve" ? "Approved from supplier quote workspace." : undefined }),
@@ -95,7 +99,7 @@ export default function SupplierQuoteWorkspace(props: Props) {
 
   async function sendToPricing(quoteId: string) {
     setState("saving");
-    const response = await fetch(`/api/supplier-quotes/${encodeURIComponent(quoteId)}/pricing`, { method: "POST" });
+    const response = await authFetch(`/api/supplier-quotes/${encodeURIComponent(quoteId)}/pricing`, { method: "POST" });
     const payload = await response.json();
     if (!response.ok) {
       setState("error");
@@ -180,7 +184,7 @@ export default function SupplierQuoteWorkspace(props: Props) {
             <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
               <div>
                 <h3 className="text-lg font-semibold text-[color:var(--tex-text-strong)]">{quote.supplierName}</h3>
-                <p className="mt-1 text-sm text-[color:var(--tex-text-muted)]">Quote {quote.quotationNumber ?? "number pending"} · {money(quote.total)}</p>
+                <p className="mt-1 text-sm text-[color:var(--tex-text-muted)]">Quote {quote.quotationNumber ?? "number pending"}{" \u00b7 "}{money(quote.total)}</p>
                 <p className="mt-1 text-xs text-[color:var(--tex-text-muted)]">Supplier source for {quote.contractorName}; contractor assignment remains unchanged.</p>
               </div>
               <div className="flex flex-wrap gap-2">
