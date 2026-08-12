@@ -6,6 +6,7 @@ import {
   SUPPORTED_DOCUMENT_TYPES,
   type SupportedDocumentType,
 } from "@/lib/compliance/contractorCompliance";
+import { CONTRACTOR_REPOSITORY_DECISION_LOGIC_VERSION } from "@/lib/contractors/contractorRepositoryDecision";
 import { recalculateContractorCompliance } from "@/lib/server/recalculateContractorCompliance";
 import { AuthorizationError, requireAuthorizedUser } from "@/lib/server/authz";
 
@@ -92,7 +93,9 @@ export async function POST(
           : "Onboarding";
 
       transaction.update(docRef, {
-        status: newStatus,
+        status: "active",
+        overallStatus: newStatus,
+        complianceStatus: "approved",
         complianceApproved: true,
         complianceRejected: false,
         rejectionReason: null,
@@ -104,11 +107,17 @@ export async function POST(
         newStatus,
         complianceReviewedBy: user.uid,
         complianceReviewedAt: reviewedAt,
+        readinessScore: summary.readinessScore,
+        readinessStatus: summary.tenderLockStatus,
+        readinessDecisionStatus: summary.tenderLockStatus === "READY" ? "READY" : "BLOCKED",
+        decisionEvaluatedAt: reviewedAt,
+        readinessUpdatedAt: reviewedAt,
+        decisionLogicVersion: CONTRACTOR_REPOSITORY_DECISION_LOGIC_VERSION,
         updatedAt: reviewedAt,
         auditTrail: FieldValue.arrayUnion({
           id: `${contractorId}:onboarding_approved:${Date.now()}`,
           type: "onboarding_approved",
-          message: "Contractor onboarding portfolio approved",
+          message: "Contractor onboarding portfolio approved and contractor activated",
           performedByUid: user.uid,
           performedByEmail: user.email ?? null,
           performedByRole: user.role,
@@ -116,6 +125,7 @@ export async function POST(
           previousStatus,
           newStatus,
           approvalNotes,
+          decisionLogicVersion: CONTRACTOR_REPOSITORY_DECISION_LOGIC_VERSION,
         }),
       });
 
@@ -132,6 +142,8 @@ export async function POST(
         previousStatus,
         newStatus,
         readinessScore: summary.readinessScore,
+        readinessDecisionStatus: summary.tenderLockStatus === "READY" ? "READY" : "BLOCKED",
+        decisionLogicVersion: CONTRACTOR_REPOSITORY_DECISION_LOGIC_VERSION,
         requiredDocsApprovedCount: SUPPORTED_DOCUMENT_TYPES.length - summary.docsMissing,
         requiredDocsTotalCount: SUPPORTED_DOCUMENT_TYPES.length,
         docsMissing: summary.docsMissing,
@@ -156,6 +168,7 @@ export async function POST(
       previousStatus,
       newStatus,
       readinessScore: summary.readinessScore,
+      decisionLogicVersion: CONTRACTOR_REPOSITORY_DECISION_LOGIC_VERSION,
     });
   } catch (error) {
     if (error instanceof AuthorizationError) {
