@@ -275,6 +275,24 @@ function getCompanyName(contractor: ContractorRecord): string {
   return clean(contractor.companyName) || clean(contractor.name) || "Contractor";
 }
 
+function normalizeLifecycleStatus(value: unknown): string {
+  return clean(value).toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+export function isOnboardingLifecycleState(contractor: ContractorRecord): boolean {
+  const status = normalizeLifecycleStatus(contractor.status);
+  return status === "onboarding" || status === "pendingonboarding";
+}
+
+export function isOnboardingLifecycleApproved(contractor: ContractorRecord): boolean {
+  const status = normalizeLifecycleStatus(contractor.status);
+  return status === "active" || status === "approved";
+}
+
+export function canApproveOnboardingLifecycle(contractor: ContractorRecord, viewer: Pick<OnboardingPayload["viewer"], "isPrivileged">): boolean {
+  return viewer.isPrivileged === true && contractor.archived !== true && isOnboardingLifecycleState(contractor);
+}
+
 export function buildReadinessSummary(documents: ContractorDocument[], contractor: ContractorRecord, _decision?: CanonicalDecision) {
   void _decision;
   const verifiedTypes = new Set<SupportedDocumentType>();
@@ -527,7 +545,7 @@ export default function ContractorOnboardingView({ contractorId }: Props) {
     timeline: payload.timeline,
   });
   const readinessSummary = buildReadinessSummary(payload.documents, payload.contractor, payload.canonicalDecision);
-  const canApproveOnboarding = payload.viewer.isPrivileged && payload.contractor.complianceApproved !== true;
+  const canApproveOnboarding = canApproveOnboardingLifecycle(payload.contractor, payload.viewer);
 
   return (
     <>
@@ -719,13 +737,14 @@ export default function ContractorOnboardingView({ contractorId }: Props) {
           <aside className="space-y-6">
             {payload.viewer.isPrivileged ? (
               <OnboardingApprovalPanel
-                complianceApproved={payload.canonicalDecision?.archived !== true && payload.canonicalDecision?.complianceDecisionStatus === "VALID"}
+                onboardingLifecycleApproved={isOnboardingLifecycleApproved(payload.contractor)}
                 readinessScore={readinessSummary.readinessScore}
                 requiredDocsApprovedCount={readinessSummary.requiredDocsApprovedCount}
                 requiredDocsTotalCount={readinessSummary.requiredDocsTotalCount}
                 docsMissing={readinessSummary.docsMissing}
                 reviewRequiredCount={readinessSummary.reviewRequiredCount}
                 missingLabels={readinessSummary.missingLabels}
+                portfolioReady={readinessSummary.canApprove}
                 canApprove={readinessSummary.canApprove && canApproveOnboarding}
                 approving={approvingOnboarding}
                 onApprove={approveOnboardingPortfolio}
@@ -868,7 +887,8 @@ function ExecutiveContractorProfile({
 }
 
 function OnboardingApprovalPanel(props: {
-  complianceApproved: boolean;
+  onboardingLifecycleApproved: boolean;
+  portfolioReady: boolean;
   readinessScore: number;
   requiredDocsApprovedCount: number;
   requiredDocsTotalCount: number;
@@ -892,17 +912,17 @@ function OnboardingApprovalPanel(props: {
         <div>
           <h2 className="text-lg font-semibold text-slate-950">Onboarding Approval</h2>
           <p className="mt-1 text-sm text-slate-600">
-            Approval is based on verified required documents.
+            Onboarding approval is based on lifecycle state and verified required documents.
           </p>
         </div>
         <span className={`rounded-full border px-3 py-1 text-xs font-semibold ${
-          props.complianceApproved
+          props.onboardingLifecycleApproved
             ? "border-emerald-200 bg-emerald-50 text-emerald-700"
             : props.canApprove
               ? "border-sky-200 bg-sky-50 text-sky-700"
               : "border-amber-200 bg-amber-50 text-amber-800"
         }`}>
-          {props.complianceApproved ? "Approved / Compliant" : props.canApprove ? "Pending Review" : "Review Required"}
+          {props.onboardingLifecycleApproved ? "Onboarding Approved" : props.canApprove ? "Ready for approval" : props.portfolioReady ? "Lifecycle unavailable" : "Review Required"}
         </span>
       </div>
 
@@ -930,7 +950,7 @@ function OnboardingApprovalPanel(props: {
         </dl>
       </div>
 
-      {!props.complianceApproved && !props.canApprove ? (
+      {!props.onboardingLifecycleApproved && !props.portfolioReady ? (
         <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
           <p className="font-semibold">Approval blocked</p>
           <p className="mt-1">{blockerText}</p>
@@ -940,10 +960,10 @@ function OnboardingApprovalPanel(props: {
       <button
         type="button"
         onClick={props.onApprove}
-        disabled={props.complianceApproved || !props.canApprove || props.approving}
+        disabled={!props.canApprove || props.approving}
         className="mt-4 w-full rounded-xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-600"
       >
-        {props.complianceApproved ? "Onboarding Approved" : props.approving ? "Approving..." : "Approve Onboarding Portfolio"}
+        {props.onboardingLifecycleApproved ? "Onboarding Approved" : props.approving ? "Approving..." : "Approve Onboarding Portfolio"}
       </button>
     </div>
   );
