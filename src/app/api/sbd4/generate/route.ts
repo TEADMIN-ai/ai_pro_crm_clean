@@ -5,7 +5,7 @@ import { PDFDocument, StandardFonts } from "pdf-lib";
 import { assertCanAccessContractor, AuthorizationError, requireAuthorizedUser } from "@/lib/server/authz";
 import { SBD4_FIELD_MAP } from "@/lib/pdf/maps/SBD4";
 import { writeToField } from "@/lib/pdf/writeToField";
-import { persistTenderPackPdf } from "@/server/services/tenderPackService";
+import { persistGenericTenderPackPdf } from "@/server/services/tenderPackService";
 
 type SBD4RequestBody = {
   contractorId?: string;
@@ -30,20 +30,14 @@ function parseDirectors(body: SBD4RequestBody): DirectorRow[] {
   const source = clean(body.directors) || clean(body.directorNames);
   const registrationNumber = clean(body.companyRegistrationNumber);
 
-  if (!source) {
-    return [];
-  }
+  if (!source) return [];
 
   return source
     .split(/[\n,;|]+/)
     .map((item) => item.trim())
     .filter(Boolean)
     .slice(0, SBD4_FIELD_MAP.directors.length)
-    .map((name) => ({
-      name,
-      id: registrationNumber,
-      entity: clean(body.companyName),
-    }));
+    .map((name) => ({ name, id: registrationNumber, entity: clean(body.companyName) }));
 }
 
 export async function POST(request: NextRequest) {
@@ -52,10 +46,7 @@ export async function POST(request: NextRequest) {
     const body = (await request.json()) as SBD4RequestBody;
     const contractorId = clean(body.contractorId);
 
-    if (!contractorId) {
-      return NextResponse.json({ error: "Missing contractorId" }, { status: 400 });
-    }
-
+    if (!contractorId) return NextResponse.json({ error: "Missing contractorId" }, { status: 400 });
     assertCanAccessContractor(user, contractorId);
 
     const templatePath = path.join(process.cwd(), "public", "templates", "SBD4.pdf");
@@ -66,45 +57,15 @@ export async function POST(request: NextRequest) {
     const firstPage = pdfDoc.getPage(0);
     const declarationPage = pdfDoc.getPage(1);
     const signaturePage = pdfDoc.getPage(2);
-
-    if (!firstPage || !declarationPage || !signaturePage) {
-      throw new Error("SBD4 template is missing required pages");
-    }
+    if (!firstPage || !declarationPage || !signaturePage) throw new Error("SBD4 template is missing required pages");
 
     const directors = parseDirectors(body);
-
     SBD4_FIELD_MAP.directors.forEach((row, index) => {
       const director = directors[index];
-      if (!director) {
-        return;
-      }
-
-      writeToField(firstPage, director.name || "-", {
-        x: row.name.x,
-        y: row.name.y,
-        maxWidth: row.name.width,
-        lineHeight: row.name.height,
-        font,
-        size: 9,
-      });
-
-      writeToField(firstPage, director.id || "-", {
-        x: row.id.x,
-        y: row.id.y,
-        maxWidth: row.id.width,
-        lineHeight: row.id.height,
-        font,
-        size: 9,
-      });
-
-      writeToField(firstPage, director.entity || "-", {
-        x: row.entity.x,
-        y: row.entity.y,
-        maxWidth: row.entity.width,
-        lineHeight: row.entity.height,
-        font,
-        size: 9,
-      });
+      if (!director) return;
+      writeToField(firstPage, director.name || "-", { x: row.name.x, y: row.name.y, maxWidth: row.name.width, lineHeight: row.name.height, font, size: 9 });
+      writeToField(firstPage, director.id || "-", { x: row.id.x, y: row.id.y, maxWidth: row.id.width, lineHeight: row.id.height, font, size: 9 });
+      writeToField(firstPage, director.entity || "-", { x: row.entity.x, y: row.entity.y, maxWidth: row.entity.width, lineHeight: row.entity.height, font, size: 9 });
     });
 
     writeToField(declarationPage, "X", {
@@ -136,7 +97,7 @@ export async function POST(request: NextRequest) {
 
     const pdfBytes = await pdfDoc.save();
     const responseBody = Buffer.from(pdfBytes);
-    await persistTenderPackPdf({
+    await persistGenericTenderPackPdf({
       contractorId,
       createdBy: user.uid,
       templateKey: "sbd4",
@@ -152,16 +113,10 @@ export async function POST(request: NextRequest) {
 
     return new NextResponse(responseBody, {
       status: 200,
-      headers: {
-        "Content-Type": "application/pdf",
-        "Content-Disposition": 'attachment; filename="SBD4.pdf"',
-      },
+      headers: { "Content-Type": "application/pdf", "Content-Disposition": 'attachment; filename="SBD4.pdf"' },
     });
   } catch (error) {
-    if (error instanceof AuthorizationError) {
-      return NextResponse.json({ error: error.message }, { status: error.status });
-    }
-
+    if (error instanceof AuthorizationError) return NextResponse.json({ error: error.message }, { status: error.status });
     console.error("SBD4 generation failed:", error);
     return NextResponse.json({ error: "Failed to generate SBD4" }, { status: 500 });
   }
