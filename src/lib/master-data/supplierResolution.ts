@@ -157,6 +157,7 @@ export async function resolveSupplierForQuote(input: {
     : await input.repository.listByEntityType("supplier", supplier.workspaceId);
 
   const exact = lookup.filter((candidate) => isExactSupplierMatch(candidate, supplier));
+  const registrationBackedIntake = Boolean(normalizeIdentityKey(supplier.registrationNumber));
   if (exact.length === 1) {
     return {
       status: exact[0].verificationStatus === "VERIFIED" ? "RESOLVED_VERIFIED" : "REVIEW_REQUIRED",
@@ -169,7 +170,7 @@ export async function resolveSupplierForQuote(input: {
       evidenceReferences: supplier.evidenceReferences ?? [],
     };
   }
-  if (exact.length > 1 || lookup.length > 1) {
+  if (exact.length > 1 || (!registrationBackedIntake && lookup.length > 1)) {
     return {
       status: "REVIEW_REQUIRED",
       supplierId: null,

@@ -341,3 +341,96 @@ describe("TEOS Master Data Foundation Phase 2", () => {
     })).rejects.toBeInstanceOf(MasterDataPolicyError);
   });
 });
+
+describe("supplier identity resolution precedence", () => {
+  test("registration number takes precedence over name-only ambiguity and creates a governed supplier candidate", async () => {
+    const repository = new MemoryMasterDataRepository([
+      supplier({ canonicalId: "TE-SUP-STAGING-OLD", supplierId: "TE-SUP-STAGING-OLD", displayName: "TEOS Staging Supply Co", legalName: "TEOS Staging Supply Co", tradingName: "TEOS Staging Supply Co", registrationNumber: "2025/111111/07" }),
+      supplier({ canonicalId: "TE-SUP-STAGING-OLDER", supplierId: "TE-SUP-STAGING-OLDER", displayName: "TEOS Staging Supply Co", legalName: "TEOS Staging Supply Co", tradingName: "TEOS Staging Supply Co", registrationNumber: "2025/222222/07" }),
+    ]);
+
+    const result = await resolveSupplierForQuote({
+      actor,
+      repository,
+      supplier: {
+        workspaceId: "workspace-a",
+        supplierName: "TEOS Staging Supply Co",
+        legalName: "TEOS Staging Supply Co",
+        registrationNumber: "2026/999999/07",
+        email: "staging-supplier@example.test",
+        evidenceReferences: jceEvidence(),
+        quoteId: "STG-SQ-001",
+      },
+      now,
+    });
+
+    expect(result.status).toBe("CREATED_PENDING_REVIEW");
+    expect(result.supplierId).toBe("TE-SUP-TEOS-STAGING-SUPPLY-CO-2026-999999-07");
+    expect(repository.records).toHaveLength(3);
+  });
+
+  test("exact registration number reuses the canonical supplier", async () => {
+    const repository = new MemoryMasterDataRepository([supplier({ canonicalId: "TE-SUP-STAGING", supplierId: "TE-SUP-STAGING", displayName: "TEOS Staging Supply Co", legalName: "TEOS Staging Supply Co", registrationNumber: "2026/999999/07", verificationStatus: "VERIFIED", reviewStatus: "READY_FOR_USE" })]);
+    const result = await resolveSupplierForQuote({
+      actor,
+      repository,
+      supplier: { workspaceId: "workspace-a", supplierName: "TEOS Staging Supply Co", registrationNumber: "2026/999999/07", evidenceReferences: jceEvidence() },
+      now,
+    });
+
+    expect(result).toMatchObject({ status: "RESOLVED_VERIFIED", supplierId: "TE-SUP-STAGING" });
+    expect(repository.records).toHaveLength(1);
+  });
+
+  test("same name with different registration number does not auto-merge", async () => {
+    const repository = new MemoryMasterDataRepository([supplier({ canonicalId: "TE-SUP-STAGING-EXISTING", supplierId: "TE-SUP-STAGING-EXISTING", displayName: "TEOS Staging Supply Co", legalName: "TEOS Staging Supply Co", registrationNumber: "2025/111111/07" })]);
+    const result = await resolveSupplierForQuote({
+      actor,
+      repository,
+      supplier: { workspaceId: "workspace-a", supplierName: "TEOS Staging Supply Co", registrationNumber: "2026/999999/07", evidenceReferences: jceEvidence() },
+      now,
+    });
+
+    expect(result.status).toBe("CREATED_PENDING_REVIEW");
+    expect(result.supplierId).not.toBe("TE-SUP-STAGING-EXISTING");
+    expect(repository.records.map((record) => record.canonicalId)).toContain("TE-SUP-STAGING-EXISTING");
+  });
+
+  test("name-only ambiguous supplier matching remains fail-closed", async () => {
+    const repository = new MemoryMasterDataRepository([
+      supplier({ canonicalId: "TE-SUP-NAME-A", supplierId: "TE-SUP-NAME-A", displayName: "TEOS Staging Supply Co", legalName: "TEOS Staging Supply Co", tradingName: "TEOS Staging Supply Co", registrationNumber: "2025/111111/07" }),
+      supplier({ canonicalId: "TE-SUP-NAME-B", supplierId: "TE-SUP-NAME-B", displayName: "TEOS Staging Supply Co", legalName: "TEOS Staging Supply Co", tradingName: "TEOS Staging Supply Co", registrationNumber: "2025/222222/07" }),
+    ]);
+    const result = await resolveSupplierForQuote({
+      actor,
+      repository,
+      supplier: { workspaceId: "workspace-a", supplierName: "TEOS Staging Supply Co", email: null, phone: null, evidenceReferences: jceEvidence() },
+      now,
+    });
+
+    expect(result).toMatchObject({ status: "REVIEW_REQUIRED", supplierId: null });
+    expect(repository.records).toHaveLength(2);
+  });
+
+  test("supplier quote intake can keep the canonical supplierId after registration-backed resolution", async () => {
+    const repository = new MemoryMasterDataRepository();
+    const result = await resolveSupplierForQuote({
+      actor,
+      repository,
+      supplier: { workspaceId: "workspace-a", supplierName: "TEOS Staging Supply Co", registrationNumber: "2026/999999/07", email: "staging-supplier@example.test", evidenceReferences: jceEvidence(), quoteId: "STG-SQ-001" },
+      now,
+    });
+    const quoteLike = { supplierId: result.supplierId, supplierResolutionStatus: result.status };
+
+    expect(quoteLike).toEqual({ supplierId: "TE-SUP-TEOS-STAGING-SUPPLY-CO-2026-999999-07", supplierResolutionStatus: "CREATED_PENDING_REVIEW" });
+  });
+
+  test("workspace ownership remains enforced for supplier creation", async () => {
+    await expect(resolveSupplierForQuote({
+      actor: { ...actor, workspaceId: "workspace-b" },
+      repository: new MemoryMasterDataRepository(),
+      supplier: { workspaceId: "workspace-a", supplierName: "TEOS Staging Supply Co", registrationNumber: "2026/999999/07", evidenceReferences: jceEvidence() },
+      now,
+    })).rejects.toBeInstanceOf(AuthorizationError);
+  });
+});
