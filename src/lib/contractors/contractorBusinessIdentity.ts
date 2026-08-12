@@ -57,6 +57,14 @@ function unsafeReason(value: string, input: ContractorBusinessIdentityInput, con
   const emails = [input.email, input.contactEmail];
   if (nset([...emails, ...emails.map(local)]).has(normalized)) return "Business identity is derived from email evidence";
   if (nset([input.contractorId, input.id, input.uid, input.authUid, input.userId, ...(context.technicalIds ?? [])]).has(normalized)) return "Business identity is derived from a technical identifier";
+  const explicitBusinessEvidence = nset([
+    input.legalName,
+    input.tradingName,
+    input.registeredBusinessName,
+    input.businessName,
+    input.companyName,
+  ]);
+  if (explicitBusinessEvidence.has(normalized)) return null;
   const fullName = [cleanContractorIdentityText(input.firstName), cleanContractorIdentityText(input.lastName)].filter(Boolean).join(" ");
   if (nset([input.name, input.displayName, input.firstName, input.lastName, fullName, ...(context.personalValues ?? [])]).has(normalized)) return "Business identity is derived from personal profile evidence";
   return null;
