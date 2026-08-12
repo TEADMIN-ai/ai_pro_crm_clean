@@ -275,7 +275,8 @@ function getCompanyName(contractor: ContractorRecord): string {
   return clean(contractor.companyName) || clean(contractor.name) || "Contractor";
 }
 
-function buildReadinessSummary(documents: ContractorDocument[], contractor: ContractorRecord, decision?: CanonicalDecision) {
+export function buildReadinessSummary(documents: ContractorDocument[], contractor: ContractorRecord, _decision?: CanonicalDecision) {
+  void _decision;
   const verifiedTypes = new Set<SupportedDocumentType>();
   const missingLabels: string[] = [];
 
@@ -312,7 +313,7 @@ function buildReadinessSummary(documents: ContractorDocument[], contractor: Cont
     docsMissing,
     reviewRequiredCount,
     missingLabels,
-    canApprove: decision ? decision.assignmentAllowed === true && decision.readinessDecisionStatus === "READY" && docsMissing === 0 && reviewRequiredCount === 0 : readinessScore === 100 && docsMissing === 0 && reviewRequiredCount === 0,
+    canApprove: readinessScore === 100 && docsMissing === 0 && reviewRequiredCount === 0,
   };
 }
 
