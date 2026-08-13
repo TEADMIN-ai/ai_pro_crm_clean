@@ -126,6 +126,7 @@ function build(overrides: Parameters<typeof buildTenderPricingWorkspace>[0] exte
     supplierQuotes: [quote()],
     createdBy: "staff-1",
     now: "2026-07-17T10:00:00.000Z",
+    today: new Date("2026-07-17"),
     ...overrides,
   });
 }

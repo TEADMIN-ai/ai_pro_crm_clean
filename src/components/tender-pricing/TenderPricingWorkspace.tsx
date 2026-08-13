@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { authFetch } from "@/lib/client/authFetch";
 import type { TenderPricingWorkspace as TenderPricingWorkspaceModel } from "@/types/tenderPricing";
 
 type Props = {
@@ -32,10 +33,10 @@ export default function TenderPricingWorkspace(props: Props) {
   const [state, setState] = useState<LoadState>("idle");
   const [message, setMessage] = useState<string | null>(null);
 
-  async function refresh() {
+  const refresh = useCallback(async () => {
     setState("loading");
     try {
-      const response = await fetch(`/api/tender-pricing?dealId=${encodeURIComponent(props.dealId)}`);
+      const response = await authFetch(`/api/tender-pricing?dealId=${encodeURIComponent(props.dealId)}`);
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error ?? "Tender pricing could not be loaded.");
       setPricing(payload.pricing ?? null);
@@ -44,16 +45,18 @@ export default function TenderPricingWorkspace(props: Props) {
       setState("error");
       setMessage(error instanceof Error ? error.message : "Tender pricing failed to load.");
     }
-  }
-
-  useEffect(() => {
-    void refresh();
   }, [props.dealId]);
 
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      void refresh();
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [refresh]);
   async function startMapping() {
     setState("saving");
     setMessage(null);
-    const response = await fetch("/api/tender-pricing", {
+    const response = await authFetch("/api/tender-pricing", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
@@ -79,7 +82,7 @@ export default function TenderPricingWorkspace(props: Props) {
     if (!pricing) return;
     setState("saving");
     setMessage(null);
-    const response = await fetch(`/api/tender-pricing/${encodeURIComponent(pricing.id)}`, {
+    const response = await authFetch(`/api/tender-pricing/${encodeURIComponent(pricing.id)}`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ action: actionName, ...body }),
@@ -99,7 +102,7 @@ export default function TenderPricingWorkspace(props: Props) {
     if (!pricing) return;
     const line = pricing.lineItems.find((item) => item.priceSource === "UNPRICED") ?? pricing.lineItems[0];
     if (!line) return;
-    const response = await fetch(`/api/tender-pricing/${encodeURIComponent(pricing.id)}`, {
+    const response = await authFetch(`/api/tender-pricing/${encodeURIComponent(pricing.id)}`, {
       method: "PATCH",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
