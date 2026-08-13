@@ -75,7 +75,18 @@ export default function TenderPricingWorkspace(props: Props) {
     }
     setPricing(payload.pricing);
     setState("idle");
-    setMessage("Tender pricing workspace created from approved supplier quote sources.");
+    const nextPricing = payload.pricing as TenderPricingWorkspaceModel;
+    const mappedLineCount = nextPricing.lineItems.filter(
+      (line) => line.mapping?.supplierQuoteId && line.priceSource !== "UNPRICED",
+    ).length;
+    const approvedQuoteCount = nextPricing.approvedSupplierQuoteIds.length;
+    setMessage(
+      mappedLineCount > 0
+        ? "Tender pricing workspace created from approved supplier quote sources."
+        : approvedQuoteCount > 0
+          ? "Tender pricing workspace created. BOQ items require supplier-source mapping or manual pricing before validation can pass."
+          : "Tender pricing workspace created. No usable approved supplier quote lines are available for automatic mapping.",
+    );
   }
 
   async function action(actionName: string, body: Record<string, unknown> = {}) {
@@ -250,4 +261,3 @@ export default function TenderPricingWorkspace(props: Props) {
     </section>
   );
 }
-

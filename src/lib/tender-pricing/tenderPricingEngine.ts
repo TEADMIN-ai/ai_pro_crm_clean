@@ -51,7 +51,7 @@ export function normalizeTenderPricingText(value: string | null | undefined): st
 }
 
 function tokens(value: string): Set<string> {
-  return new Set(normalizeTenderPricingText(value).split(" ").filter((token) => token.length > 2));
+  return new Set(normalizeTenderPricingText(value).split(" ").filter((token) => token.length >= 2));
 }
 
 function similarity(left: string, right: string): number {
@@ -191,7 +191,7 @@ export function mapSupplierQuotesToTenderLines(input: {
       conversionReason: best.scored.conversionReason,
       supplierUnitCost: best.line.unitPrice,
       priceSource: "APPROVED_SUPPLIER_QUOTE",
-      reviewStatus: requiresReview ? "REVIEW_REQUIRED" : "AUTO_MATCHED",
+      reviewStatus: requiresReview ? "REVIEW_REQUIRED" : "MATCHED",
     });
   }
 
@@ -264,7 +264,7 @@ function riskFlags(args: {
   if (args.grossMarginPercentage > 0 && args.grossMarginPercentage < pct(args.rules.minimumMarginPercentage)) flags.push("LOW_MARGIN");
   if (args.supplierQuote && isExpired(args.supplierQuote.validityDate, args.today)) flags.push("EXPIRED_SUPPLIER_QUOTE");
   if (args.mapping?.unitConversion === 0) flags.push("UNIT_MISMATCH", "UNSUPPORTED_CONVERSION");
-  if (args.mapping && args.mapping.matchConfidence < LOW_CONFIDENCE_THRESHOLD && args.mapping.reviewStatus !== "APPROVED") flags.push("LOW_CONFIDENCE_MAPPING");
+  if (args.mapping && args.mapping.reviewStatus === "REVIEW_REQUIRED" && args.mapping.matchConfidence < LOW_CONFIDENCE_THRESHOLD) flags.push("LOW_CONFIDENCE_MAPPING");
   if (args.supplierQuote?.extraction.exclusions.value?.length) flags.push("QUOTE_EXCLUSIONS");
   if (args.priceSource === "MANUAL_ENTRY" && !args.manualReason) flags.push("MANUAL_REASON_REQUIRED");
   if (args.priceSource === "PROVISIONAL" && !args.provisionalApprovedBy) flags.push("PROVISIONAL_APPROVAL_REQUIRED", "PROVISIONAL_PRICING");
@@ -285,7 +285,7 @@ export function calculateTenderPricingLine(args: {
   today?: Date;
 }): TenderPricingLineItem {
   const manual = args.manualPrice;
-  const hasApprovedMapping = args.mapping && ["AUTO_MATCHED", "APPROVED", "MANUAL_MAPPING"].includes(args.mapping.reviewStatus) && args.mapping.unitConversion !== 0;
+  const hasApprovedMapping = args.mapping && ["MATCHED", "AUTO_MATCHED", "APPROVED", "MANUAL_MAPPING"].includes(args.mapping.reviewStatus) && args.mapping.unitConversion !== 0;
   const source: TenderPricingSource | "UNPRICED" = manual?.provisional ? "PROVISIONAL" : manual ? "MANUAL_ENTRY" : hasApprovedMapping ? "APPROVED_SUPPLIER_QUOTE" : "UNPRICED";
   const supplierUnitCost = source === "APPROVED_SUPPLIER_QUOTE" ? args.mapping?.supplierUnitCost ?? args.supplierLine?.unitPrice ?? 0 : manual?.unitPrice ?? 0;
   const sourceCost = roundMoney(supplierUnitCost * args.tenderLine.quantity);

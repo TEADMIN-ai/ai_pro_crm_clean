@@ -20,6 +20,7 @@ export type TenderPricingStatus =
 
 export type TenderPricingMappingStatus =
   | "AUTO_MATCHED"
+  | "MATCHED"
   | "REVIEW_REQUIRED"
   | "APPROVED"
   | "REJECTED"

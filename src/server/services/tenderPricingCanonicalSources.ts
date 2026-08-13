@@ -17,13 +17,24 @@ export function isApprovedTenderIntelligence(intelligence: TenderIntelligence | 
   return Boolean(intelligence && intelligence.analysisStatus === "APPROVED" && intelligence.reviewStatus === "APPROVED");
 }
 
+export function normalizeTenderLineDescription(description: string, itemNumber?: string | null): string {
+  const trimmed = description.trim();
+  const number = String(itemNumber ?? "").trim();
+  if (number) {
+    const escaped = number.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    return trimmed.replace(new RegExp("^\\s*(?:" + escaped + "\\s+){1,2}", "i"), "").trim();
+  }
+  return trimmed.replace(/^(\d+)\s+\1\s+/, "").trim();
+}
+
 function tenderLineFromApprovedIntelligenceLine(line: TenderExtractedLineItem): TenderPricingTenderLineItem | null {
   if (line.reviewStatus !== "APPROVED") return null;
+  const description = normalizeTenderLineDescription(line.description, line.itemNumber);
   return {
     id: line.id,
     itemCode: asString(line.itemNumber),
-    description: line.description,
-    normalizedDescription: line.description,
+    description,
+    normalizedDescription: description,
     quantity: typeof line.quantity === "number" && Number.isFinite(line.quantity) && line.quantity > 0 ? line.quantity : 1,
     unit: asString(line.unit) ?? "item",
     specification: line.specification,
@@ -32,7 +43,6 @@ function tenderLineFromApprovedIntelligenceLine(line: TenderExtractedLineItem): 
     sourceDocumentId: line.sourceDocumentId,
   };
 }
-
 function mostCommonDocumentId(documentIds: string[]): string | null {
   const counts = new Map<string, number>();
   for (const documentId of documentIds) counts.set(documentId, (counts.get(documentId) ?? 0) + 1);
