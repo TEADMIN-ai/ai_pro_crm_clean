@@ -13,6 +13,7 @@ import type {
   TenderPricingTableCandidate,
 } from "@/types/tenderIntelligence";
 import type { AuthorizedUser } from "@/lib/server/authz";
+import { resolveTenderIntelligenceSourceDocument } from "@/server/services/tenderPricingCanonicalSources";
 
 const COLLECTION = "tenderIntelligence";
 
@@ -283,12 +284,16 @@ export async function approveTenderIntelligence(dealId: string, actor: Authorize
   };
   await getFirebaseAdmin().collection(COLLECTION).doc(next.id).set(next, { merge: true });
   const handoff = await persistExecutionHandoff(next);
+  const sourcePricingDocument = resolveTenderIntelligenceSourceDocument(next);
   await getFirebaseAdmin().collection("deals").doc(dealId).collection("pricingSources").doc(next.id).set({
     sourceType: "APPROVED_TENDER_INTELLIGENCE",
     tenderIntelligenceId: next.id,
     dealId,
     workspaceId: next.workspaceId,
     pricingClassification: next.boqClassification,
+    sourcePricingDocumentId: sourcePricingDocument.id,
+    sourcePricingDocumentPath: sourcePricingDocument.storagePath,
+    sourcePricingDocumentName: sourcePricingDocument.name,
     lineItems: next.extractedLineItems.filter((item) => item.reviewStatus === "APPROVED"),
     locked: true,
     createdBy: actor.uid,

@@ -17,6 +17,7 @@ import type {
   TenderPricingTenderLineItem,
   TenderPricingWorkspace,
 } from "@/types/tenderPricing";
+import { isApprovedTenderIntelligence, loadCanonicalTenderPricingSources, type CanonicalTenderPricingSources } from "@/server/services/tenderPricingCanonicalSources";
 
 const TENDER_PRICING_COLLECTION = "tenderPricingWorkspaces";
 const TENDER_PRICING_AUDIT_COLLECTION = "tenderPricingAuditEvents";
@@ -135,15 +136,17 @@ function buildInputFromDeal(args: {
   actor: AuthorizedUser;
   body?: Record<string, unknown>;
   tenderLineItems?: TenderPricingTenderLineItem[];
+  canonicalSources?: CanonicalTenderPricingSources;
 }): Omit<TenderPricingBuildInput, "supplierQuotes" | "createdBy"> {
   const assignment = asRecord(args.deal.contractorAssignment);
   const execution = asRecord(args.deal.opportunityExecution);
   const intelligence = asRecord(args.deal.tenderIntelligence);
+  const canonicalIntelligence = args.canonicalSources?.intelligence ?? null;
   const workspaceId = asString(args.body?.workspaceId) ?? asString(args.deal.workspaceId) ?? "";
   const contractorId = asString(args.body?.contractorId) ?? asString(assignment.contractorId) ?? asString(execution.contractorId) ?? asString(args.deal.contractorId) ?? "torque-empire";
   const contractorName = asString(args.body?.contractorName) ?? asString(assignment.contractorName) ?? asString(args.deal.contractorName) ?? TORQUE_EMPIRE_CONTRACTOR_NAME;
-  const sourcePricingDocumentId = asString(args.body?.sourcePricingDocumentId) ?? asString(intelligence.sourcePricingDocumentId ?? intelligence.pricingScheduleDocumentId);
-  const sourcePricingDocumentPath = asString(args.body?.sourcePricingDocumentPath) ?? asString(intelligence.sourcePricingDocumentPath ?? intelligence.pricingScheduleDocumentPath);
+  const sourcePricingDocumentId = asString(args.body?.sourcePricingDocumentId) ?? args.canonicalSources?.sourcePricingDocumentId ?? asString(intelligence.sourcePricingDocumentId ?? intelligence.pricingScheduleDocumentId);
+  const sourcePricingDocumentPath = asString(args.body?.sourcePricingDocumentPath) ?? args.canonicalSources?.sourcePricingDocumentPath ?? asString(intelligence.sourcePricingDocumentPath ?? intelligence.pricingScheduleDocumentPath);
   return {
     id: asString(args.body?.id) ?? `tender-pricing-${args.deal.id}-r1`,
     workspaceId,
@@ -151,9 +154,9 @@ function buildInputFromDeal(args: {
     dealId: args.deal.id,
     contractorId,
     contractorName,
-    tenderIntelligenceId: asString(args.body?.tenderIntelligenceId) ?? asString(intelligence.id ?? intelligence.tenderIntelligenceId),
-    tenderIntelligenceApproved: args.body?.tenderIntelligenceApproved === true || intelligence.approvalStatus === "APPROVED" || intelligence.status === "APPROVED" || execution.tenderIntelligenceApproved === true,
-    tenderLineItems: extractTenderLines(args.deal, args.tenderLineItems),
+    tenderIntelligenceId: asString(args.body?.tenderIntelligenceId) ?? canonicalIntelligence?.id ?? asString(intelligence.id ?? intelligence.tenderIntelligenceId),
+    tenderIntelligenceApproved: args.body?.tenderIntelligenceApproved === true || isApprovedTenderIntelligence(canonicalIntelligence) || intelligence.approvalStatus === "APPROVED" || intelligence.status === "APPROVED" || execution.tenderIntelligenceApproved === true,
+    tenderLineItems: extractTenderLines(args.deal, args.tenderLineItems ?? args.canonicalSources?.tenderLineItems),
     sourcePricingDocumentRequired: args.body?.sourcePricingDocumentRequired !== false,
     sourcePricingDocumentId,
     sourcePricingDocumentPath,
@@ -183,11 +186,13 @@ export async function startTenderPricingWorkspace(input: { dealId: string; actor
   const deal = await loadDeal(input.dealId);
   await assertWorkspaceAccess(input.actor, asString(deal.workspaceId));
   const supplierQuotes = await listSupplierQuotesForDeal(input.dealId, input.actor);
-  const buildInput = buildInputFromDeal({ deal, actor: input.actor, body: input.body });
+  const canonicalSources = await loadCanonicalTenderPricingSources(input.dealId);
+  const existing = await getTenderPricingWorkspaceForDeal(input.dealId, input.actor);
+  const buildInput = buildInputFromDeal({ deal, actor: input.actor, body: { ...input.body, id: existing?.id }, canonicalSources });
   const workspace = buildTenderPricingWorkspace({
     ...buildInput,
     supplierQuotes,
-    createdBy: input.actor.uid,
+    createdBy: existing?.createdBy ?? input.actor.uid,
   });
   await persistPricing(workspace);
   await writeAudit({ pricingId: workspace.id, dealId: workspace.dealId, workspaceId: workspace.workspaceId, actorUid: input.actor.uid, action: "TENDER_PRICING_STARTED", metadata: { blockers: workspace.blockers } });
@@ -209,7 +214,8 @@ export async function updateTenderPricingWorkspace(input: { pricingId: string; a
   }
   const deal = await loadDeal(current.dealId);
   const supplierQuotes = await listSupplierQuotesForDeal(current.dealId, input.actor);
-  const buildInput = buildInputFromDeal({ deal, actor: input.actor, body: { ...input.body, id: current.id } });
+  const canonicalSources = await loadCanonicalTenderPricingSources(current.dealId);
+  const buildInput = buildInputFromDeal({ deal, actor: input.actor, body: { ...input.body, id: current.id }, canonicalSources });
   const rebuilt = buildTenderPricingWorkspace({ ...buildInput, supplierQuotes, createdBy: current.createdBy, now: nowIso() });
   await persistPricing(rebuilt);
   await writeAudit({ pricingId: rebuilt.id, dealId: rebuilt.dealId, workspaceId: rebuilt.workspaceId, actorUid: input.actor.uid, action: "TENDER_PRICING_UPDATED" });
