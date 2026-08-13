@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { authFetch } from "@/lib/client/authFetch";
 import type {
   TenderExtractedLineItem,
   TenderIntelligence,
@@ -42,11 +43,11 @@ export default function TenderIntelligenceWorkspace({ dealId }: Props) {
   const [state, setState] = useState<LoadState>("idle");
   const [message, setMessage] = useState<string | null>(null);
 
-  async function refresh() {
+  const refresh = useCallback(async () => {
     setState("loading");
     setMessage(null);
     try {
-      const response = await fetch(`/api/tender-intelligence/${encodeURIComponent(dealId)}`);
+      const response = await authFetch(`/api/tender-intelligence/${encodeURIComponent(dealId)}`);
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error ?? "Tender intelligence could not be loaded.");
       setIntelligence(payload.intelligence ?? null);
@@ -55,19 +56,21 @@ export default function TenderIntelligenceWorkspace({ dealId }: Props) {
       setState("error");
       setMessage(error instanceof Error ? error.message : "Tender intelligence failed to load.");
     }
-  }
-
-  useEffect(() => {
-    void refresh();
   }, [dealId]);
 
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      void refresh();
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [refresh]);
   async function startAnalysis(refreshAfterAmendment = false) {
     setState("saving");
     setMessage(null);
     const endpoint = refreshAfterAmendment
       ? `/api/tender-intelligence/${encodeURIComponent(dealId)}/refresh`
       : `/api/tender-intelligence/${encodeURIComponent(dealId)}`;
-    const response = await fetch(endpoint, { method: "POST" });
+    const response = await authFetch(endpoint, { method: "POST" });
     const payload = await response.json();
     if (!response.ok) {
       setState("error");
@@ -81,7 +84,7 @@ export default function TenderIntelligenceWorkspace({ dealId }: Props) {
 
   async function updateReview(body: Record<string, unknown>) {
     setState("saving");
-    const response = await fetch(`/api/tender-intelligence/${encodeURIComponent(dealId)}/review`, {
+    const response = await authFetch(`/api/tender-intelligence/${encodeURIComponent(dealId)}/review`, {
       method: "PATCH",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(body),
@@ -99,7 +102,7 @@ export default function TenderIntelligenceWorkspace({ dealId }: Props) {
 
   async function approve() {
     setState("saving");
-    const response = await fetch(`/api/tender-intelligence/${encodeURIComponent(dealId)}/approve`, { method: "POST" });
+    const response = await authFetch(`/api/tender-intelligence/${encodeURIComponent(dealId)}/approve`, { method: "POST" });
     const payload = await response.json();
     if (!response.ok) {
       setState("error");
@@ -113,7 +116,7 @@ export default function TenderIntelligenceWorkspace({ dealId }: Props) {
 
   async function reject() {
     setState("saving");
-    const response = await fetch(`/api/tender-intelligence/${encodeURIComponent(dealId)}/reject`, {
+    const response = await authFetch(`/api/tender-intelligence/${encodeURIComponent(dealId)}/reject`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ reason: "Rejected from tender intelligence workspace." }),
