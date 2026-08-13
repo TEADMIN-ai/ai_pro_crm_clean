@@ -36,6 +36,24 @@ type Row = Record<string, unknown>;
 type Store = Record<string, Map<string, Row>>;
 type Filter = { field: string; value: unknown };
 
+function findUndefinedPath(value: unknown, path = "data"): string | null {
+  if (value === undefined) return path;
+  if (Array.isArray(value)) {
+    for (let index = 0; index < value.length; index += 1) {
+      const result = findUndefinedPath(value[index], path + "." + index);
+      if (result) return result;
+    }
+    return null;
+  }
+  if (value && typeof value === "object") {
+    for (const [key, entry] of Object.entries(value as Record<string, unknown>)) {
+      const result = findUndefinedPath(entry, path + "." + key);
+      if (result) return result;
+    }
+  }
+  return null;
+}
+
 const now = "2026-08-13T08:00:00.000Z";
 
 function createMockFirestore() {
@@ -53,6 +71,8 @@ function createMockFirestore() {
           return { id: docId, exists: Boolean(data), data: () => data };
         },
         async set(data: Row, options?: { merge?: boolean }) {
+          const undefinedPath = findUndefinedPath(data);
+          if (undefinedPath) throw new Error(`Cannot use undefined as a Firestore value at ${undefinedPath}`);
           store[path] ??= new Map();
           const previous = store[path].get(docId) ?? {};
           store[path].set(docId, options?.merge ? { ...previous, ...data } : data);
@@ -210,7 +230,8 @@ function multipart(overrides: Record<string, string | null | undefined> = {}) {
     supplierEmail: "staging-supplier@example.test",
     quotationNumber: "STG-SQ-001",
     sourceFileName: "staging-supplier.pdf",
-    total: "100",
+    validityDate: "2026-08-31",
+    total: "30500",
     ...overrides,
   };
   Object.entries(values).forEach(([key, value]) => {
@@ -303,5 +324,50 @@ describe("supplier quote multipart supplier identity resolution", () => {
     expect(response.status).toBe(403);
     expect(payload.error).toBe("Cross-workspace access rejected");
     expect(mockDb._store.masterSuppliers).toBeUndefined();
+  });
+});
+
+describe("supplier quote multipart persistence normalization", () => {
+  beforeEach(() => {
+    mockDb = createMockFirestore();
+    mockRequireAuthorizedUser.mockReset();
+    mockRequireAuthorizedUser.mockResolvedValue(staff());
+    seedBase();
+  });
+
+  it("uploads the staging multipart field set without quotationDate or undefined Firestore fields", async () => {
+    const response = await postSupplierQuote(multipart({
+      quotationDate: null,
+      paymentTerms: null,
+      deliveryPeriod: null,
+      supplierPhone: null,
+      supplierContactName: null,
+      uploadedDocumentId: null,
+      storagePath: null,
+    }));
+    const payload = await response.json();
+
+    expect(response.status).toBe(201);
+    expect(payload.error).toBeUndefined();
+    expect(payload.quote.quotationDate).toBeNull();
+    expect(payload.quote.validityDate).toBe("2026-08-31");
+    expect(payload.quote.total).toBe(30500);
+    expect(findUndefinedPath(payload.quote)).toBeNull();
+    const persisted = Array.from(mockDb._store.supplierQuotes.values())[0];
+    expect(findUndefinedPath(persisted)).toBeNull();
+    expect(persisted.quotationDate).toBeNull();
+    expect(persisted.supplierRegistrationNumber).toBe("2026/999999/07");
+    expect(persisted.supplierEmail).toBe("staging-supplier@example.test");
+  });
+
+  it("persists a supplied quotationDate without replacing it", async () => {
+    const response = await postSupplierQuote(multipart({ quotationDate: "2026-08-13", quotationNumber: "STG-SQ-002" }));
+    const payload = await response.json();
+
+    expect(response.status).toBe(201);
+    expect(payload.quote.quotationDate).toBe("2026-08-13");
+    const persisted = Array.from(mockDb._store.supplierQuotes.values())[0];
+    expect(persisted.quotationDate).toBe("2026-08-13");
+    expect(findUndefinedPath(persisted)).toBeNull();
   });
 });

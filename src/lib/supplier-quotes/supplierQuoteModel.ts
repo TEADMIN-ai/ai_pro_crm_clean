@@ -36,6 +36,18 @@ export function parseMoney(value: string | number | null | undefined): number {
   return Number.isFinite(parsed) ? Math.round(parsed * 100) / 100 : 0;
 }
 
+export function omitUndefinedProperties<T>(value: T): T {
+  if (Array.isArray(value)) {
+    return value.map((item) => omitUndefinedProperties(item)) as T;
+  }
+  if (!value || typeof value !== "object") return value;
+  const cleaned = Object.entries(value as Record<string, unknown>).reduce<Record<string, unknown>>((acc, [key, entry]) => {
+    if (entry !== undefined) acc[key] = omitUndefinedProperties(entry);
+    return acc;
+  }, {});
+  return cleaned as T;
+}
+
 export function confidenceValue<T>(
   value: T | null,
   confidence: number,
@@ -155,6 +167,7 @@ export function applyManualCorrections(
   actorUid: string,
   timestamp = nowIso(),
 ): SupplierQuote {
+  const definedCorrections = omitUndefinedProperties(corrections);
   const markManual = <T>(field: SupplierQuoteExtractedValue<T>, value: T | null): SupplierQuoteExtractedValue<T> => ({
     ...field,
     value,
@@ -163,20 +176,20 @@ export function applyManualCorrections(
   });
   const extraction = { ...quote.extraction };
 
-  if (corrections.supplierName !== undefined) extraction.supplierName = markManual(extraction.supplierName, corrections.supplierName);
-  if (corrections.quotationNumber !== undefined) extraction.quotationNumber = markManual(extraction.quotationNumber, corrections.quotationNumber);
-  if (corrections.quotationDate !== undefined) extraction.quotationDate = markManual(extraction.quotationDate, corrections.quotationDate);
-  if (corrections.validityDate !== undefined) extraction.validityDate = markManual(extraction.validityDate, corrections.validityDate);
-  if (corrections.vat !== undefined) extraction.vat = markManual(extraction.vat, corrections.vat);
-  if (corrections.deliveryCost !== undefined) extraction.deliveryCost = markManual(extraction.deliveryCost, corrections.deliveryCost);
-  if (corrections.deliveryPeriod !== undefined) extraction.deliveryPeriod = markManual(extraction.deliveryPeriod, corrections.deliveryPeriod);
-  if (corrections.paymentTerms !== undefined) extraction.paymentTerms = markManual(extraction.paymentTerms, corrections.paymentTerms);
+  if (definedCorrections.supplierName !== undefined) extraction.supplierName = markManual(extraction.supplierName, definedCorrections.supplierName);
+  if (definedCorrections.quotationNumber !== undefined) extraction.quotationNumber = markManual(extraction.quotationNumber, definedCorrections.quotationNumber);
+  if (definedCorrections.quotationDate !== undefined) extraction.quotationDate = markManual(extraction.quotationDate, definedCorrections.quotationDate);
+  if (definedCorrections.validityDate !== undefined) extraction.validityDate = markManual(extraction.validityDate, definedCorrections.validityDate);
+  if (definedCorrections.vat !== undefined) extraction.vat = markManual(extraction.vat, definedCorrections.vat);
+  if (definedCorrections.deliveryCost !== undefined) extraction.deliveryCost = markManual(extraction.deliveryCost, definedCorrections.deliveryCost);
+  if (definedCorrections.deliveryPeriod !== undefined) extraction.deliveryPeriod = markManual(extraction.deliveryPeriod, definedCorrections.deliveryPeriod);
+  if (definedCorrections.paymentTerms !== undefined) extraction.paymentTerms = markManual(extraction.paymentTerms, definedCorrections.paymentTerms);
 
   return {
     ...quote,
-    ...corrections,
+    ...definedCorrections,
     extraction,
-    lineItems: corrections.lineItems ?? quote.lineItems,
+    lineItems: definedCorrections.lineItems ?? quote.lineItems,
     reviewStatus: "REVIEWED",
     workflowStatus: "EXTRACTED",
     updatedAt: timestamp,

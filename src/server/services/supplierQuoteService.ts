@@ -17,6 +17,7 @@ import {
   extractSupplierQuoteFromText,
   normalizeIdentifier,
   normalizeSupplierName,
+  omitUndefinedProperties,
   nowIso,
   parseMoney,
 } from "@/lib/supplier-quotes/supplierQuoteModel";
@@ -82,6 +83,38 @@ function asString(value: unknown): string | null {
 
 function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" ? value as Record<string, unknown> : {};
+}
+
+function normalizeSupplierQuoteForPersistence(quote: SupplierQuote): SupplierQuote {
+  return omitUndefinedProperties({
+    ...quote,
+    supplierId: quote.supplierId ?? null,
+    sourceId: quote.sourceId ?? null,
+    supplierResolutionReason: quote.supplierResolutionReason ?? null,
+    masterDocumentId: quote.masterDocumentId ?? null,
+    supplierRegistrationNumber: quote.supplierRegistrationNumber ?? null,
+    supplierContactName: quote.supplierContactName ?? null,
+    supplierEmail: quote.supplierEmail ?? null,
+    supplierPhone: quote.supplierPhone ?? null,
+    quotationNumber: quote.quotationNumber ?? null,
+    quotationDate: quote.quotationDate ?? null,
+    validityDate: quote.validityDate ?? null,
+    subtotal: quote.subtotal ?? 0,
+    vat: quote.vat ?? 0,
+    total: quote.total ?? 0,
+    deliveryCost: quote.deliveryCost ?? 0,
+    deliveryPeriod: quote.deliveryPeriod ?? null,
+    paymentTerms: quote.paymentTerms ?? null,
+    uploadedDocumentId: quote.uploadedDocumentId ?? null,
+    storagePath: quote.storagePath ?? null,
+    sourceFileName: quote.sourceFileName ?? null,
+    approvedBy: quote.approvedBy ?? null,
+    approvedAt: quote.approvedAt ?? null,
+    approvalNote: quote.approvalNote ?? null,
+    rejectionReason: quote.rejectionReason ?? null,
+    clarificationRequest: quote.clarificationRequest ?? null,
+    supersedesQuoteId: quote.supersedesQuoteId ?? null,
+  });
 }
 
 function supplierMatches(input: SupplierIdentityInput, supplier: QSSupplierProfile): boolean {
@@ -157,7 +190,7 @@ async function writeAuditEvent(input: {
     actorUid: input.actorUid,
     action: input.action,
     note: input.note ?? null,
-    metadata: input.metadata ?? {},
+    metadata: omitUndefinedProperties(input.metadata ?? {}),
     createdAt: nowIso(),
   };
   await Promise.all([
@@ -383,11 +416,13 @@ export async function uploadSupplierQuote(input: UploadSupplierQuoteInput, actor
   const quoteId = randomUUID();
   const uploaded = await persistUpload({ ...input, workspaceId }, quoteId);
   const extracted = await runExtraction(input, uploaded.storagePath);
+  const quotationDate = input.quotationDate ?? extracted.extraction.quotationDate.value ?? null;
+  const validityDate = input.validityDate ?? extracted.extraction.validityDate.value ?? null;
   const evidence: MasterDataEvidenceReference[] = [{
     storagePath: uploaded.storagePath,
     filename: uploaded.sourceFileName,
-    issueDate: input.quotationDate ?? extracted.extraction.quotationDate.value,
-    expiryDate: input.validityDate ?? extracted.extraction.validityDate.value,
+    issueDate: quotationDate,
+    expiryDate: validityDate,
     provenance: "OPERATIONAL_VERIFIED",
     verificationStatus: "PENDING_REVIEW",
   }];
@@ -402,8 +437,8 @@ export async function uploadSupplierQuote(input: UploadSupplierQuoteInput, actor
     supplierId: supplier.supplierId,
     storagePath: uploaded.storagePath,
     sourceFileName: uploaded.sourceFileName,
-    quotationDate: input.quotationDate ?? extracted.extraction.quotationDate.value,
-    validityDate: input.validityDate ?? extracted.extraction.validityDate.value,
+    quotationDate,
+    validityDate,
   });
   const subtotal = parseMoney(input.subtotal);
   const vat = parseMoney(input.vat ?? extracted.extraction.vat.value);
@@ -447,8 +482,8 @@ export async function uploadSupplierQuote(input: UploadSupplierQuoteInput, actor
     supplierEmail: input.supplierEmail ?? null,
     supplierPhone: input.supplierPhone ?? null,
     quotationNumber: input.quotationNumber ?? extracted.extraction.quotationNumber.value,
-    quotationDate: input.quotationDate ?? extracted.extraction.quotationDate.value,
-    validityDate: input.validityDate ?? extracted.extraction.validityDate.value,
+    quotationDate,
+    validityDate,
     currency: input.currency ?? "ZAR",
     subtotal: subtotal || Math.max(0, total - vat - deliveryCost),
     vat,
@@ -494,6 +529,7 @@ export async function uploadSupplierQuote(input: UploadSupplierQuoteInput, actor
   quote.workflowStatus = input.fileBuffer ? "REVIEW_REQUIRED" : "UPLOADED";
   quote.reviewStatus = input.fileBuffer ? "IN_REVIEW" : "PENDING";
 
+  quote = normalizeSupplierQuoteForPersistence(quote);
   await getFirebaseAdmin().collection(SUPPLIER_QUOTE_COLLECTION).doc(quote.id).set(quote);
   await writeAuditEvent({ quoteId: quote.id, dealId: quote.dealId, workspaceId, actorUid: actor.uid, action: "SUPPLIER_QUOTE_UPLOADED", metadata: { supplierId: supplier.supplierId, sourceId: supplier.sourceId, supplierResolutionStatus: supplier.status, masterDocumentId } });
   const quotes = await listQuotesByDeal(input.dealId);
