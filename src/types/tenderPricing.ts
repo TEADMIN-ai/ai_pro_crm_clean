@@ -278,6 +278,8 @@ export type TenderPricingWorkspace = {
 
 export type TenderPricingSourceValidationInput = {
   workspaceId: string;
+  opportunityId?: string;
+  dealId?: string;
   contractorId: string;
   contractorName: string;
   tenderIntelligenceApproved: boolean;

@@ -73,6 +73,22 @@ function isExpired(value: string | null | undefined, today = new Date()): boolea
   return date.getTime() < new Date(today.toDateString()).getTime();
 }
 
+function isHistoricalSupplierQuote(quote: SupplierQuote): boolean {
+  return quote.approvalStatus === 'REJECTED' || quote.workflowStatus === 'REJECTED' || quote.workflowStatus === 'SUPERSEDED';
+}
+
+export function getEligibleSupplierQuotes(input: TenderPricingBuildInput): SupplierQuote[] {
+  return input.supplierQuotes.filter((quote) => {
+    if (isHistoricalSupplierQuote(quote)) return false;
+    if (quote.approvalStatus !== "APPROVED" && quote.approvalStatus !== "LOCKED") return false;
+    if (quote.workspaceId !== input.workspaceId) return false;
+    if (input.dealId && quote.dealId !== input.dealId) return false;
+    if (input.opportunityId && quote.opportunityId !== input.opportunityId) return false;
+    if (isExpired(quote.validityDate, input.today)) return false;
+    return quote.lineItems.length > 0;
+  });
+}
+
 function blocker(code: string, message: string, severity: TenderPricingBlocker["severity"] = "BLOCKER", extra: Partial<TenderPricingBlocker> = {}): TenderPricingBlocker {
   return { code, message, severity, ...extra };
 }
@@ -85,7 +101,9 @@ export function validateTenderPricingSources(input: TenderPricingSourceValidatio
     blockers.push(blocker("CONTRACTOR_NOT_TORQUE_EMPIRE", "Torque Empire (Pty) Ltd must be the bidding contractor before tender pricing can start."));
   }
 
-  if (!input.supplierQuotes.length) {
+  const currentQuotes = input.supplierQuotes.filter((quote) => !isHistoricalSupplierQuote(quote));
+
+  if (!currentQuotes.length) {
     blockers.push(blocker("APPROVED_SUPPLIER_QUOTES_REQUIRED", "At least one approved supplier quote is required."));
   }
 
@@ -109,15 +127,12 @@ export function validateTenderPricingSources(input: TenderPricingSourceValidatio
     blockers.push(blocker("SOURCE_PRICING_DOCUMENT_REQUIRED", "The source pricing schedule document is required for AI fill."));
   }
 
-  for (const quote of input.supplierQuotes) {
+  for (const quote of currentQuotes) {
     if (quote.workspaceId !== input.workspaceId) {
       blockers.push(blocker("QUOTE_WORKSPACE_MISMATCH", `Supplier quote ${quote.id} belongs to a different workspace.`, "BLOCKER", { supplierQuoteId: quote.id }));
     }
     if (quote.approvalStatus !== "APPROVED" && quote.approvalStatus !== "LOCKED") {
       blockers.push(blocker("QUOTE_NOT_APPROVED", `Supplier quote ${quote.id} is not approved.`, "BLOCKER", { supplierQuoteId: quote.id }));
-    }
-    if (quote.approvalStatus === "REJECTED" || quote.workflowStatus === "REJECTED" || quote.workflowStatus === "SUPERSEDED") {
-      blockers.push(blocker("QUOTE_REJECTED_OR_SUPERSEDED", `Supplier quote ${quote.id} is rejected or superseded.`, "BLOCKER", { supplierQuoteId: quote.id }));
     }
     if (isExpired(quote.validityDate, input.today)) {
       blockers.push(blocker("QUOTE_EXPIRED", `Supplier quote ${quote.id} has expired.`, "BLOCKER", { supplierQuoteId: quote.id }));
@@ -392,7 +407,7 @@ export function buildTenderPricingWorkspace(input: TenderPricingBuildInput): Ten
   const now = input.now ?? new Date().toISOString();
   const rules = { ...DEFAULT_TENDER_PRICING_RULES, ...(input.rules ?? {}) };
   const sourceBlockers = validateTenderPricingSources(input);
-  const approvedQuotes = input.supplierQuotes.filter((quote) => quote.approvalStatus === "APPROVED" || quote.approvalStatus === "LOCKED");
+  const approvedQuotes = getEligibleSupplierQuotes(input);
   const mappings = mapSupplierQuotesToTenderLines({ tenderLineItems: input.tenderLineItems, supplierQuotes: approvedQuotes, manualMappings: input.manualMappings });
   const quoteById = new Map(approvedQuotes.map((quote) => [quote.id, quote]));
   const manualByLine = new Map((input.manualPrices ?? []).map((price) => [price.tenderLineItemId, price]));

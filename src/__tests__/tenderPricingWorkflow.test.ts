@@ -1,4 +1,4 @@
-import {
+﻿import {
   approveTenderPricing,
   buildPricingScheduleFillEvidence,
   buildTenderPricingHandoff,
@@ -166,7 +166,8 @@ describe("tender pricing workflow", () => {
 
   test("rejected quote rejected", () => {
     const workspace = build({ supplierQuotes: [quote({ approvalStatus: "REJECTED", workflowStatus: "REJECTED" })] });
-    expect(workspace.blockers.map((item) => item.code)).toContain("QUOTE_NOT_APPROVED");
+    expect(workspace.approvedSupplierQuoteIds).toEqual([]);
+    expect(workspace.blockers.map((item) => item.code)).toContain("APPROVED_SUPPLIER_QUOTES_REQUIRED");
   });
 
   test("low-confidence mapping requires review", () => {
@@ -343,5 +344,22 @@ describe("tender pricing workflow", () => {
     const serialized = JSON.stringify(build()).toLowerCase();
     expect(serialized).not.toContain("mock");
     expect(serialized).not.toContain("demo");
+  });
+
+  test("rebuild keeps only current eligible quotes and preserves rejected history", () => {
+    const approved = quote({ id: "quote-a" });
+    const rejected = quote({ id: "quote-b", approvalStatus: "REJECTED", workflowStatus: "REJECTED" });
+    const workspace = build({ supplierQuotes: [approved, rejected] });
+    expect(workspace.approvedSupplierQuoteIds).toEqual(["quote-a"]);
+    expect(workspace.lineItems[0].mapping?.supplierQuoteId).toBe("quote-a");
+    expect(workspace.blockers.some((item) => item.supplierQuoteId === "quote-b")).toBe(false);
+    expect(rejected.id).toBe("quote-b");
+  });
+
+  test("all rejected quotes remain fail-closed", () => {
+    const rejected = quote({ id: "quote-b", approvalStatus: "REJECTED", workflowStatus: "REJECTED" });
+    const workspace = build({ supplierQuotes: [rejected] });
+    expect(workspace.approvedSupplierQuoteIds).toEqual([]);
+    expect(workspace.blockers.map((item) => item.code)).toContain("APPROVED_SUPPLIER_QUOTES_REQUIRED");
   });
 });
