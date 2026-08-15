@@ -151,10 +151,12 @@ function lineItemsRequired(requirements: OpportunityRequirementReview, intellige
   return requirements.boqPricingSchedulePresent || ["EMBEDDED_BOQ", "EMBEDDED_PRICING_SCHEDULE", "RATE_SCHEDULE", "SEPARATE_BOQ_DOCUMENT", "PRICING_REQUIRED_BUT_TEMPLATE_NOT_FOUND"].includes(classification ?? "");
 }
 
-function approvedQuoteIdsFrom(deal: AnyRecord, execution: AnyRecord): string[] {
+function approvedQuoteIdsFrom(deal: AnyRecord, execution: AnyRecord, pricing: AnyRecord): string[] {
   const quotes = arr<AnyRecord>(deal.supplierQuotes ?? execution.supplierQuotes);
   const fromQuotes = quotes.filter((quote) => ["APPROVED", "LOCKED"].includes(String(quote.approvalStatus ?? "").toUpperCase())).map((quote) => str(quote.id)).filter(Boolean) as string[];
-  return Array.from(new Set([...fromQuotes, ...arr<string>(execution.approvedSupplierQuoteIds), str(execution.approvedSupplierQuoteId)].filter(Boolean) as string[]));
+  const canonicalIds = pricing.lockStatus === "LOCKED" && pricing.validationStatus === "VALIDATED" ? arr<string>(pricing.approvedSupplierQuoteIds) : [];
+  if (canonicalIds.length) return Array.from(new Set(canonicalIds));
+  return Array.from(new Set(fromQuotes));
 }
 
 function supplierQuoteIdsFrom(deal: AnyRecord, execution: AnyRecord): string[] {
@@ -225,9 +227,11 @@ export function buildProcurementExecutionProjection(input: {
   const state = input.state;
   const dueDate = state.dueDate;
   const dealId = state.dealId || String(deal.id ?? "");
+  const pricing = rec(deal.tenderPricing ?? execution.tenderPricing ?? deal.pricing);
+  const canonicalPricingComplete = pricing.lockStatus === "LOCKED" && pricing.validationStatus === "VALIDATED" && arr<AnyRecord>(pricing.lineItems).length > 0 && arr<AnyRecord>(pricing.lineItems).every((line) => Boolean(rec(line.mapping).supplierQuoteId));
   const supplierQuoteIds = supplierQuoteIdsFrom(deal, execution);
-  const approvedSupplierQuoteIds = approvedQuoteIdsFrom(deal, execution);
-  const quoteCoverage = pct(execution.lineItemCoverage ?? execution.quoteCoverage ?? (approvedSupplierQuoteIds.length ? 100 : supplierQuoteIds.length ? 50 : 0));
+  const approvedSupplierQuoteIds = approvedQuoteIdsFrom(deal, execution, pricing);
+  const quoteCoverage = canonicalPricingComplete ? 100 : pct(execution.lineItemCoverage ?? execution.quoteCoverage ?? (approvedSupplierQuoteIds.length ? 100 : supplierQuoteIds.length ? 50 : 0));
   const supplierQuoteStatus = str(execution.supplierQuotesStatus) ?? (approvedSupplierQuoteIds.length ? "APPROVED" : supplierQuoteIds.length ? "UPLOADED" : "NOT_STARTED");
   const intelligence = rec(deal.tenderIntelligence ?? execution.tenderIntelligence);
   const tenderIntelligenceId = str(intelligence.id) ?? str(execution.tenderIntelligenceId);
@@ -235,9 +239,9 @@ export function buildProcurementExecutionProjection(input: {
   const requirementsReviewStatus = str(execution.requirementsReviewStatus) ?? str(intelligence.reviewStatus) ?? (state.requirements.reviewed ? "APPROVED" : "PENDING");
   const pricingClassification = str(execution.pricingClassification) ?? str(intelligence.boqClassification) ?? str(intelligence.pricingClassification) ?? (state.pricingRequired ? "MANUAL_REVIEW_REQUIRED" : "NO_PRICING_REQUIRED");
   const extractedLineItemCount = arr(intelligence.extractedLineItems ?? execution.tenderLineItems).length || pct(execution.extractedLineItemCount);
-  const pricing = rec(deal.tenderPricing ?? execution.tenderPricing ?? deal.pricing);
+
   const tenderPricingId = str(pricing.id) ?? str(execution.tenderPricingId);
-  const pricingStatus = str(execution.pricingStatus) ?? str(pricing.pricingStatus) ?? "NOT_STARTED";
+  const pricingStatus = str(pricing.pricingStatus) ?? str(execution.pricingStatus) ?? "NOT_STARTED";
   const pricingApproved = bool(execution.pricingApproved) || ["APPROVED", "LOCKED", "VALIDATED"].includes(pricingStatus.toUpperCase()) || bool(pricing.pricingApproved);
   const pricingDocumentId = str(execution.pricingDocumentId) ?? str(pricing.pricingDocumentId) ?? str(rec(pricing.documentFillEvidence).pricedDocumentId);
   const totalTenderValue = Number(execution.totalTenderValue ?? pricing.total ?? 0) || 0;

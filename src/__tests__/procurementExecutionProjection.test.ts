@@ -300,4 +300,12 @@ describe("canonical procurement execution projection", () => {
     expect(projection.assignmentAllowed).toBe(true);
     expect(projection.eligible).toBe(true);
   });
+
+  it("clears stale pricing blockers from locked canonical pricing", () => {
+    const projection = projectionFor({ ...baseDeal, opportunityExecution: { ...baseDeal.opportunityExecution, pricingStatus: "REVIEW_REQUIRED", pricingApproved: false, lineItemCoverage: 50, approvedSupplierQuoteIds: [] }, tenderPricing: { ...baseDeal.tenderPricing, pricingStatus: "LOCKED", lockStatus: "LOCKED", validationStatus: "VALIDATED", approvedSupplierQuoteIds: ["quote-a"], lineItems: [{ mapping: { supplierQuoteId: "quote-a" } }], blockers: [] } });
+    expect(projection.quoteCoverage).toBe(100);
+    expect(projection.quoteBlockers).toEqual([]);
+    expect(projection.pricingBlockers).toEqual([]);
+    expect(projection.pricingStatus).toBe("LOCKED");
+  });
 });

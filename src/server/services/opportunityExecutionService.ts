@@ -25,6 +25,12 @@ async function loadDealRecord(dealId: string) {
   if (!snapshot.exists) throw Object.assign(new Error("Opportunity not found"), { status: 404 });
   return { id: snapshot.id, ...(snapshot.data() ?? {}) } as Record<string, unknown> & { id: string };
 }
+async function loadCanonicalTenderPricing(dealId: string): Promise<Record<string, unknown> | null> {
+  const snapshot = await getFirebaseAdmin().collection("tenderPricingWorkspaces").where("dealId", "==", dealId).limit(1).get();
+  if (snapshot.empty) return null;
+  return { id: snapshot.docs[0].id, ...(snapshot.docs[0].data() ?? {}) };
+}
+
 function contractorReferenceFromDeal(deal: Record<string, unknown>): string | null {
   const reference = getDealContractorReference(deal);
   return reference.status === "reference_present" ? reference.value : null;
@@ -45,7 +51,9 @@ export async function getOpportunityExecutionView(dealId: string, actor?: Author
   const resolved = contractorReference ? await resolveContractorReference({ reference: contractorReference, expectedWorkspaceId: asString(deal.workspaceId), actor, dealId, logContext: "opportunity_execution_view" }) : null;
   const contractor = resolved?.ok && !isArchivedContractor(resolved.contractor) ? resolved.contractor : null;
   const state = buildOpportunityExecutionState({ deal, contractor: contractor as Record<string, unknown> | null });
-  const projection = buildProcurementExecutionProjection({ deal: { ...deal, sarsTcsSummary: contractor ? (contractor as Record<string, unknown>).sarsTcsSummary : null }, state, remediationRequests: state.remediationRequests });
+  const canonicalPricing = await loadCanonicalTenderPricing(dealId);
+  const projectionDeal = { ...deal, ...(canonicalPricing ? { tenderPricing: canonicalPricing } : {}), sarsTcsSummary: contractor ? (contractor as Record<string, unknown>).sarsTcsSummary : null };
+  const projection = buildProcurementExecutionProjection({ deal: projectionDeal, state, remediationRequests: state.remediationRequests });
   const baseMatches = matchContractorsForOpportunity({ deal, contractors: await listContractors({ workspaceId: asString(deal.workspaceId), actorRole: actor?.role ?? null }) as Array<Record<string, unknown> & { id: string }> });
   const matches: ContractorMatchResult[] = actor
     ? await Promise.all(baseMatches.map(async (match) => {
