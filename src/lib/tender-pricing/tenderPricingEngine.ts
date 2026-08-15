@@ -624,9 +624,26 @@ export function validateTenderPricingWorkspace(workspace: TenderPricingWorkspace
   return blockers;
 }
 
+function hasCurrentApproval(workspace: TenderPricingWorkspace, role: "staff" | "manager" | "director"): boolean {
+  return workspace.approvals.some((approval) => approval.revision === workspace.revision && approval.role === role && Boolean(approval.approvedBy && approval.approvedAt));
+}
+
+function hasRequiredPricingApproval(workspace: TenderPricingWorkspace): boolean {
+  if (!hasCurrentApproval(workspace, "staff") || !hasCurrentApproval(workspace, "manager")) return false;
+  const directorRequired = workspace.managementApprovalStatus === "DIRECTOR_REQUIRED";
+  return !directorRequired || hasCurrentApproval(workspace, "director");
+}
+
+function hasValidatedPricedDocument(workspace: TenderPricingWorkspace): boolean {
+  const filled = workspace.documentFillStatus === "DOCUMENT_FILLED" || workspace.documentFillStatus === "APPROVED";
+  return filled && workspace.validationStatus === "VALIDATED" && Boolean(workspace.documentFillEvidence?.pricedDocumentId) && (workspace.documentFillEvidence?.validationIssues.length ?? 0) === 0;
+}
+
 export function lockTenderPricing(workspace: TenderPricingWorkspace, actorUid: string, now = new Date().toISOString()): TenderPricingWorkspace {
+  if (workspace.lockStatus === "LOCKED") return workspace;
+  if (!hasRequiredPricingApproval(workspace)) throw new Error("Staff and manager pricing approval is required before locking.");
+  if (!hasValidatedPricedDocument(workspace)) throw new Error("A validated priced document is required before locking.");
   const blockers = validateTenderPricingWorkspace(workspace);
-  if (workspace.pricingStatus !== "APPROVED") throw new Error("Pricing must be approved before locking.");
   if (blockers.some((item) => item.severity === "BLOCKER")) throw new Error("Validation blockers prevent pricing lock.");
   return {
     ...workspace,

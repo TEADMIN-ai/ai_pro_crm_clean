@@ -267,11 +267,23 @@ describe("tender pricing workflow", () => {
   test("pricing approval locks revision", () => {
     const staff = approveTenderPricing(build(), { uid: "staff-1", role: "staff" });
     const manager = approveTenderPricing(staff, { uid: "manager-1", role: "manager" });
-    const withEvidence = { ...manager, documentFillEvidence: buildPricingScheduleFillEvidence(manager), pricingStatus: "APPROVED" as const };
+    const withEvidence = { ...manager, documentFillEvidence: buildPricingScheduleFillEvidence(manager), pricingStatus: "DOCUMENT_FILLED" as const, documentFillStatus: "DOCUMENT_FILLED" as const, validationStatus: "VALIDATED" as const };
     const locked = lockTenderPricing(withEvidence, "manager-1");
     expect(locked.lockStatus).toBe("LOCKED");
   });
 
+
+  test("missing manager approval fails closed after document generation", () => {
+    const staff = approveTenderPricing(build(), { uid: "staff-1", role: "staff" });
+    const ready = { ...staff, pricingStatus: "DOCUMENT_FILLED" as const, documentFillStatus: "DOCUMENT_FILLED" as const, validationStatus: "VALIDATED" as const, documentFillEvidence: buildPricingScheduleFillEvidence(staff) };
+    expect(() => lockTenderPricing(ready, "staff-1")).toThrow("approval is required");
+  });
+
+  test("unvalidated document fails closed", () => {
+    const base = approvedForFill();
+    const ready = { ...base, pricingStatus: "DOCUMENT_FILLED" as const, documentFillStatus: "DOCUMENT_FILLED" as const, validationStatus: "NOT_STARTED" as const, documentFillEvidence: buildPricingScheduleFillEvidence(base) };
+    expect(() => lockTenderPricing(ready, "manager-1")).toThrow("validated priced document");
+  });
   test("approved change creates a new revision", () => {
     const locked = { ...build(), lockStatus: "LOCKED" as const };
     const revised = createTenderPricingRevision(locked, { changedBy: "staff-1", reason: "Supplier update", newTotal: 200, newMargin: 20 });
@@ -363,3 +375,10 @@ describe("tender pricing workflow", () => {
     expect(workspace.blockers.map((item) => item.code)).toContain("APPROVED_SUPPLIER_QUOTES_REQUIRED");
   });
 });
+  test("lock rejects blockers and preserves locked idempotence", () => {
+    const base = approvedForFill();
+    const ready = { ...base, pricingStatus: "DOCUMENT_FILLED" as const, documentFillStatus: "DOCUMENT_FILLED" as const, validationStatus: "VALIDATED" as const, documentFillEvidence: buildPricingScheduleFillEvidence(base), blockers: [{ code: "TEST_BLOCKER", message: "Compulsory blocker", severity: "BLOCKER" as const }] };
+    expect(() => lockTenderPricing(ready, "manager-1")).toThrow("Validation blockers");
+    const locked = { ...base, lockStatus: "LOCKED" as const };
+    expect(lockTenderPricing(locked, "manager-1")).toBe(locked);
+  });
