@@ -1,6 +1,6 @@
 
 import { buildOpportunityExecutionState } from "@/lib/opportunities/opportunityExecution";
-import { buildProcurementExecutionProjection } from "@/lib/opportunities/procurementExecutionProjection";
+import { buildProcurementExecutionProjection, hasGovernedLockedPricing } from "@/lib/opportunities/procurementExecutionProjection";
 
 export type SubmissionReviewAccessRole="admin"|"manager"|"staff"|"contractor"|string;
 export type SubmissionReviewSectionKey="overview"|"compliance"|"documents"|"boqPricing"|"reviewApproval"|"tenderPack"|"submission";
@@ -37,8 +37,13 @@ const r=rec(input.review),d=rec(input.deal),c=rec(input.contractor);
 if(isMockSubmissionReviewData(r)||isMockSubmissionReviewData(d)||isMockSubmissionReviewData(c))throw new Error("Submission review mock data is not allowed");
 const executionState=buildOpportunityExecutionState({deal:Object.keys(d).length?d:r,contractor:Object.keys(c).length?c:null});
 const projection=buildProcurementExecutionProjection({deal:{...(Object.keys(d).length?d:r),sarsTcsSummary:c.sarsTcsSummary??d.sarsTcsSummary??r.sarsTcsSummary},state:executionState,remediationRequests:executionState.remediationRequests});
+const governedLockedPricing=hasGovernedLockedPricing((Object.keys(d).length?d:r).tenderPricing);
+const pricingBlockerMessages=new Set(["No approved supplier quote","Supplier quote coverage is incomplete","Required pricing must be complete","Pricing calculations are incomplete."]);
+const storedBlockers=arr(r.blockers);
+const projectionBlockers=projection.blockers.map((item)=>item.problem);
+const base=governedLockedPricing?Array.from(new Set([...storedBlockers.filter((item)=>!pricingBlockerMessages.has(item)),...projectionBlockers])):(storedBlockers.length?storedBlockers:projectionBlockers);
 const dealId=str(r.dealId)??str(d.id)??str(r.id)??projection.dealId??"unknown",opportunityId=str(r.opportunityId)??projection.opportunityId??dealId,contractorId=str(r.contractorId)??projection.contractorId;
-const archived=isArchivedSubmissionReviewContractor(c),projectionBlockers=projection.blockers.map((item)=>item.problem),base=arr(r.blockers).length?arr(r.blockers):projectionBlockers,blockers=archived?["Assigned contractor is archived",...base]:base;
+const archived=isArchivedSubmissionReviewContractor(c),blockers=archived?["Assigned contractor is archived",...base]:base;
 const current=stat(r.currentWorkflowPhase??r.currentPhase??r.phase??projection.currentPhase,"COMPLIANCE_REVIEW");
 const next=str(r.nextAction)??projection.nextAction.label??(blockers.length?"Resolve submission review blockers":"Continue submission review"),assigned=str(r.assignedOwner??r.owner)??projection.assignedOwner??owner("overview",r);
 const section=(key:SubmissionReviewSectionKey,label:string,s:string,rx:RegExp,ev:string[],na:string):SubmissionReviewSection=>({key,label,status:s,blockers:blockers.filter((b)=>rx.test(b)),evidence:ev,owner:owner(key,r),nextAction:na});

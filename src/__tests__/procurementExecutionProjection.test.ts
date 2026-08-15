@@ -302,7 +302,7 @@ describe("canonical procurement execution projection", () => {
   });
 
   it("clears stale pricing blockers from locked canonical pricing", () => {
-    const projection = projectionFor({ ...baseDeal, opportunityExecution: { ...baseDeal.opportunityExecution, pricingStatus: "REVIEW_REQUIRED", pricingApproved: false, lineItemCoverage: 50, approvedSupplierQuoteIds: [] }, tenderPricing: { ...baseDeal.tenderPricing, pricingStatus: "LOCKED", lockStatus: "LOCKED", validationStatus: "VALIDATED", approvedSupplierQuoteIds: ["quote-a"], lineItems: [{ mapping: { supplierQuoteId: "quote-a" } }], blockers: [] } });
+    const projection = projectionFor({ ...baseDeal, opportunityExecution: { ...baseDeal.opportunityExecution, pricingStatus: "REVIEW_REQUIRED", pricingApproved: false, lineItemCoverage: 50, approvedSupplierQuoteIds: [] }, tenderPricing: { ...baseDeal.tenderPricing, pricingStatus: "LOCKED", lockStatus: "LOCKED", validationStatus: "VALIDATED", approvedSupplierQuoteIds: ["quote-a"], lineItems: [{ mapping: { supplierQuoteId: "quote-a" } }], blockers: [], pricingDocumentId: "priced-doc", revision: 1, managementApprovalStatus: "MANAGER_APPROVED", approvals: [{ revision: 1, role: "staff", approvedBy: "staff", approvedAt: "now" }, { revision: 1, role: "manager", approvedBy: "manager", approvedAt: "now" }], submissionReviewHandoff: { pricingApproved: true, workflowTransition: "DOCUMENT_PREPARATION" } } });
     expect(projection.quoteCoverage).toBe(100);
     expect(projection.quoteBlockers).toEqual([]);
     expect(projection.pricingBlockers).toEqual([]);

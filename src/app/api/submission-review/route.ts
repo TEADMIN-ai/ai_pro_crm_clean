@@ -19,10 +19,13 @@ async function toView(review:Data,actor:AuthorizedUser,workspaceId:string|null){
 if(isMockSubmissionReviewData(review))return null;
 const dealId=asString(review.dealId)??asString(review.id),contractorId=asString(review.contractorId);
 const deal=dealId?await doc("deals",dealId):null,contractor=contractorId?await doc("contractors",contractorId):null;
+const pricingSnapshot=dealId?await getFirebaseAdmin().collection("tenderPricingWorkspaces").where("dealId","==",dealId).limit(1).get():null;
+const canonicalPricing=pricingSnapshot&&!pricingSnapshot.empty?{id:pricingSnapshot.docs[0].id,...(pricingSnapshot.docs[0].data()??{})}:null;
+const dealWithCanonicalPricing=deal&&canonicalPricing?{...deal,tenderPricing:canonicalPricing}:deal;
 if(contractor&&!isContractorVisibleToWorkspace(contractor,{workspaceId:workspaceId??asString(review.workspaceId)??asString(asRecord(deal).workspaceId),actorRole:actor.role}).visible)return null;
 const access=canAccessSubmissionReview({actor:{role:actor.role,contractorId:actor.contractorId,workspaceId},review,contractor});
 if(!access.ok){const failure=access as {status:number;reason:string};throw Object.assign(new Error(failure.reason),{status:failure.status});}
-return buildSubmissionReviewView({review,deal,contractor,activity:dealId?await activity(dealId):[]});
+return buildSubmissionReviewView({review,deal:dealWithCanonicalPricing,contractor,activity:dealId?await activity(dealId):[]});
 }
 export async function GET(request:NextRequest){
 try{const actor=await requireAuthorizedUser(request);const workspaceId=await actorWorkspace(actor);const dealId=request.nextUrl.searchParams.get("dealId")?.trim();

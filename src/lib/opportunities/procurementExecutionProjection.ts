@@ -159,6 +159,8 @@ function approvedQuoteIdsFrom(deal: AnyRecord, execution: AnyRecord, pricing: An
   return Array.from(new Set(fromQuotes));
 }
 
+export function hasGovernedLockedPricing(value: unknown): boolean { const pricing = rec(value); const approvals = arr<AnyRecord>(pricing.approvals); const currentApproval = (role: string) => approvals.some((approval) => approval.revision === pricing.revision && approval.role === role && Boolean(approval.approvedBy && approval.approvedAt)); const directorRequired = pricing.managementApprovalStatus === "DIRECTOR_REQUIRED"; const pricedDocumentId = str(pricing.pricingDocumentId) ?? str(rec(pricing.documentFillEvidence).pricedDocumentId); const lines = arr<AnyRecord>(pricing.lineItems); const completeLines = lines.length > 0 && lines.every((line) => Boolean(rec(line.mapping).supplierQuoteId)); const blockers = arr<AnyRecord>(pricing.blockers).filter((item) => String(item.severity ?? "BLOCKER").toUpperCase() === "BLOCKER"); const handoff = rec(pricing.submissionReviewHandoff); return pricing.lockStatus === "LOCKED" && pricing.validationStatus === "VALIDATED" && Boolean(pricedDocumentId) && completeLines && currentApproval("staff") && currentApproval("manager") && (!directorRequired || currentApproval("director")) && blockers.length === 0 && handoff.pricingApproved === true && handoff.workflowTransition === "DOCUMENT_PREPARATION"; }
+
 function supplierQuoteIdsFrom(deal: AnyRecord, execution: AnyRecord): string[] {
   const quotes = arr<AnyRecord>(deal.supplierQuotes ?? execution.supplierQuotes);
   return Array.from(new Set([...quotes.map((quote) => str(quote.id)), ...arr<string>(execution.supplierQuoteIds)].filter(Boolean) as string[]));
@@ -228,7 +230,7 @@ export function buildProcurementExecutionProjection(input: {
   const dueDate = state.dueDate;
   const dealId = state.dealId || String(deal.id ?? "");
   const pricing = rec(deal.tenderPricing ?? execution.tenderPricing ?? deal.pricing);
-  const canonicalPricingComplete = pricing.lockStatus === "LOCKED" && pricing.validationStatus === "VALIDATED" && arr<AnyRecord>(pricing.lineItems).length > 0 && arr<AnyRecord>(pricing.lineItems).every((line) => Boolean(rec(line.mapping).supplierQuoteId));
+  const canonicalPricingComplete = hasGovernedLockedPricing(pricing);
   const supplierQuoteIds = supplierQuoteIdsFrom(deal, execution);
   const approvedSupplierQuoteIds = approvedQuoteIdsFrom(deal, execution, pricing);
   const quoteCoverage = canonicalPricingComplete ? 100 : pct(execution.lineItemCoverage ?? execution.quoteCoverage ?? (approvedSupplierQuoteIds.length ? 100 : supplierQuoteIds.length ? 50 : 0));
