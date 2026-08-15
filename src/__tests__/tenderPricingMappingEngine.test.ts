@@ -54,4 +54,31 @@ describe("tender pricing mapping engine", () => {
     expect(normalizeTenderLineDescription("3 3 Disposable nitrile gloves, box of 100", "3")).toBe("Disposable nitrile gloves, box of 100");
     expect(normalizeTenderLineDescription("1 1 A4 copy paper, 80gsm", "1")).toBe("A4 copy paper, 80gsm");
   });
+
+
+  test("missing quantity on a fixed-quantity line remains blocked", () => {
+    const workspace = build({ tenderLineItems: [line({ quantity: null })] });
+    expect(workspace.blockers.map((item) => item.code)).toContain("TENDER_LINE_QUANTITY_REQUIRED");
+    expect(workspace.lineItems[0].priceSource).toBe("APPROVED_SUPPLIER_QUOTE");
+  });
+
+  test("reviewed unit-rate line maps by evidence without quantity matching", () => {
+    const workspace = build({ tenderLineItems: [line({ quantity: null, quantityMode: "UNIT_RATE_ONLY", sourcePage: 38, description: "A4 copy paper 80gsm box of 5 reams" })] });
+    const priced = workspace.lineItems[0];
+    expect(priced.mapping?.reviewStatus).toBe("MATCHED");
+    expect(priced.sourceCost).toBe(125);
+    expect(priced.tenderUnitPrice).toBeGreaterThan(125);
+    expect(priced.tenderLineTotal).toBeNull();
+    expect(workspace.pricingAggregationMode).toBe("UNIT_RATE_ONLY");
+    expect(workspace.totalSupplierCost).toBeNull();
+    expect(workspace.total).toBeNull();
+  });
+
+
+  test("mixed fixed and unit-rate schedules do not expose a fabricated aggregate", () => {
+    const workspace = build({ tenderLineItems: [line(), line({ id: "line-2", itemCode: "WATER", description: "Branded Still Water 330 ml Bottle", quantity: null, quantityMode: "UNIT_RATE_ONLY", unit: "each", sourcePage: 38 })] });
+    expect(workspace.pricingAggregationMode).toBe("MIXED");
+    expect(workspace.totalSupplierCost).toBeNull();
+    expect(workspace.total).toBeNull();
+  });
 });

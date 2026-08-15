@@ -97,6 +97,14 @@ export function validateTenderPricingSources(input: TenderPricingSourceValidatio
     blockers.push(blocker("TENDER_LINE_ITEMS_REQUIRED", "Approved BOQ or pricing schedule line items are required."));
   }
 
+  for (const line of input.tenderLineItems) {
+    if (line.quantityMode === "UNIT_RATE_ONLY") {
+      if (line.quantity !== null || !line.unit || !line.sourcePage || line.sourcePage < 1) blockers.push(blocker("UNIT_RATE_EVIDENCE_REQUIRED", "Unit-rate source evidence is incomplete.", "BLOCKER", { tenderLineItemId: line.id }));
+    } else if (typeof line.quantity !== "number" || !Number.isFinite(line.quantity) || line.quantity <= 0) {
+      blockers.push(blocker("TENDER_LINE_QUANTITY_REQUIRED", "A positive tender quantity is required.", "BLOCKER", { tenderLineItemId: line.id }));
+    }
+  }
+
   if (input.sourcePricingDocumentRequired && (!input.sourcePricingDocumentId || !input.sourcePricingDocumentPath)) {
     blockers.push(blocker("SOURCE_PRICING_DOCUMENT_REQUIRED", "The source pricing schedule document is required for AI fill."));
   }
@@ -128,14 +136,15 @@ function scoreQuoteLine(tenderLine: TenderPricingTenderLineItem, quote: Supplier
   const skuScore = supplierLine.supplierSku && normalizeTenderPricingText(tenderLine.description).includes(normalizeTenderPricingText(supplierLine.supplierSku)) ? 0.1 : 0;
   const unitMatch = sameUnit(tenderLine.unit, supplierLine.unit);
   const unitScore = unitMatch ? 0.18 : 0;
+  const unitRateOnly = tenderLine.quantityMode === "UNIT_RATE_ONLY";
   const quantityDelta = Math.abs((supplierLine.quantity || 0) - (tenderLine.quantity || 0));
-  const quantityScore = tenderLine.quantity > 0 ? Math.max(0, 0.12 - (quantityDelta / tenderLine.quantity) * 0.12) : 0;
+  const quantityScore = !unitRateOnly && tenderLine.quantity && tenderLine.quantity > 0 ? Math.max(0, 0.12 - (quantityDelta / tenderLine.quantity) * 0.12) : 0;
   const specScore = tenderLine.specification && similarity(tenderLine.specification, supplierLine.sourceDescription) > 0.35 ? 0.08 : 0;
   const score = Math.min(1, descriptionScore * 0.5 + codeScore + skuScore + unitScore + quantityScore + specScore);
   return {
     score,
     reason: `Matched on description ${pct(descriptionScore)}%, unit ${unitMatch ? "match" : "mismatch"}, item code/SKU evidence ${pct(codeScore + skuScore)}%.`,
-    quantityConversion: supplierLine.quantity > 0 ? tenderLine.quantity / supplierLine.quantity : 1,
+    quantityConversion: !unitRateOnly && supplierLine.quantity > 0 && tenderLine.quantity ? tenderLine.quantity / supplierLine.quantity : 1,
     unitConversion: unitMatch ? 1 : 0,
     conversionReason: unitMatch ? "Tender unit and supplier unit match." : "Unit mismatch requires staff-approved conversion.",
   };
@@ -213,7 +222,7 @@ export function compareTenderSupplierOptions(tenderLine: TenderPricingTenderLine
       supplierLineItemId: line.id,
       supplier: quote.supplierName,
       unitCost: line.unitPrice,
-      totalCost: roundMoney(line.unitPrice * tenderLine.quantity),
+      totalCost: tenderLine.quantityMode === "UNIT_RATE_ONLY" ? line.unitPrice : roundMoney(line.unitPrice * (tenderLine.quantity ?? 0)),
       quoteValidity: quote.validityDate ?? null,
       stockDeliveryPeriod: quote.deliveryPeriod ?? null,
       paymentTerms: quote.paymentTerms ?? null,
@@ -287,18 +296,20 @@ export function calculateTenderPricingLine(args: {
   const manual = args.manualPrice;
   const hasApprovedMapping = args.mapping && ["MATCHED", "AUTO_MATCHED", "APPROVED", "MANUAL_MAPPING"].includes(args.mapping.reviewStatus) && args.mapping.unitConversion !== 0;
   const source: TenderPricingSource | "UNPRICED" = manual?.provisional ? "PROVISIONAL" : manual ? "MANUAL_ENTRY" : hasApprovedMapping ? "APPROVED_SUPPLIER_QUOTE" : "UNPRICED";
+  const unitRateOnly = args.tenderLine.quantityMode === "UNIT_RATE_ONLY";
+  const quantityMultiplier = unitRateOnly ? 1 : args.tenderLine.quantity ?? 0;
   const supplierUnitCost = source === "APPROVED_SUPPLIER_QUOTE" ? args.mapping?.supplierUnitCost ?? args.supplierLine?.unitPrice ?? 0 : manual?.unitPrice ?? 0;
-  const sourceCost = roundMoney(supplierUnitCost * args.tenderLine.quantity);
+  const sourceCost = roundMoney(supplierUnitCost * quantityMultiplier);
   const delivery = roundMoney((args.supplierQuote?.deliveryCost ?? 0) / Math.max(1, args.supplierQuote?.lineItems.length ?? 1));
   const handling = roundMoney(sourceCost * args.rules.handlingPercentage);
-  const labour = roundMoney((args.rules.labourRatePerUnit ?? 0) * args.tenderLine.quantity);
+  const labour = roundMoney((args.rules.labourRatePerUnit ?? 0) * quantityMultiplier);
   const overhead = roundMoney((sourceCost + delivery + handling + labour) * args.rules.overheadPercentage);
   const risk = roundMoney((sourceCost + delivery + handling + labour + overhead) * args.rules.riskPercentage);
   const contingency = roundMoney((sourceCost + delivery + handling + labour + overhead + risk) * args.rules.contingencyPercentage);
   const costBase = roundMoney(sourceCost + delivery + handling + labour + overhead + risk + contingency);
   const profit = roundMoney(costBase * args.rules.marginPercentage);
   const subtotal = source === "UNPRICED" ? 0 : roundMoney(costBase + profit);
-  const vat = roundMoney(subtotal * args.rules.vatRate);
+  const vat = unitRateOnly ? 0 : roundMoney(subtotal * args.rules.vatRate);
   const grossProfit = roundMoney(subtotal - costBase);
   const grossMarginPercentage = subtotal !== 0 ? pct(grossProfit / Math.abs(subtotal)) : 0;
   const flags = riskFlags({
@@ -330,8 +341,8 @@ export function calculateTenderPricingLine(args: {
     contingency,
     profitMargin: profit,
     vatTreatment: "EXCLUSIVE",
-    tenderUnitPrice: args.tenderLine.quantity > 0 ? roundMoney(subtotal / args.tenderLine.quantity) : subtotal,
-    tenderLineTotal: subtotal,
+    tenderUnitPrice: unitRateOnly ? subtotal : args.tenderLine.quantity && args.tenderLine.quantity > 0 ? roundMoney(subtotal / args.tenderLine.quantity) : subtotal,
+    tenderLineTotal: unitRateOnly ? null : subtotal,
     grossProfit,
     grossMarginPercentage,
     priceSource: source,
@@ -402,14 +413,17 @@ export function buildTenderPricingWorkspace(input: TenderPricingBuildInput): Ten
   });
   const lineLevelBlockers = lines.flatMap(lineBlockers);
   const blockers = [...sourceBlockers, ...lineLevelBlockers];
-  const subtotal = roundMoney(lines.reduce((sum, line) => sum + line.tenderLineTotal, 0));
-  const vat = roundMoney(lines.reduce((sum, line) => sum + line.calculationEvidence.vat, 0));
-  const total = roundMoney(subtotal + vat);
-  const totalSupplierCost = roundMoney(lines.reduce((sum, line) => sum + line.sourceCost, 0));
-  const grossProfit = roundMoney(lines.reduce((sum, line) => sum + line.grossProfit, 0));
-  const grossMarginPercentage = subtotal !== 0 ? pct(grossProfit / Math.abs(subtotal)) : 0;
+  const hasUnitRateLines = lines.some((line) => line.quantityMode === "UNIT_RATE_ONLY");
+  const hasFixedQuantityLines = lines.some((line) => line.quantityMode !== "UNIT_RATE_ONLY");
+  const pricingAggregationMode = hasUnitRateLines ? hasFixedQuantityLines ? "MIXED" : "UNIT_RATE_ONLY" : "FIXED_QUANTITY";
+  const subtotal = hasUnitRateLines ? null : roundMoney(lines.reduce((sum, line) => sum + (line.tenderLineTotal ?? 0), 0));
+  const vat = hasUnitRateLines ? null : roundMoney(lines.reduce((sum, line) => sum + line.calculationEvidence.vat, 0));
+  const total = subtotal === null || vat === null ? null : roundMoney(subtotal + vat);
+  const totalSupplierCost = hasUnitRateLines ? null : roundMoney(lines.reduce((sum, line) => sum + line.sourceCost, 0));
+  const grossProfit = hasUnitRateLines ? null : roundMoney(lines.reduce((sum, line) => sum + (line.grossProfit ?? 0), 0));
+  const grossMarginPercentage = subtotal !== null && subtotal !== 0 && grossProfit !== null ? pct(grossProfit / Math.abs(subtotal)) : null;
   const pricingStatus = statusFor(blockers, lines, sourceBlockers);
-  const directorRequired = Boolean(rules.directorApprovalThreshold && total >= rules.directorApprovalThreshold);
+  const directorRequired = Boolean(rules.directorApprovalThreshold && typeof total === "number" && total >= rules.directorApprovalThreshold);
 
   return {
     id: input.id ?? `tender-pricing-${input.dealId}-r1`,
@@ -441,6 +455,7 @@ export function buildTenderPricingWorkspace(input: TenderPricingBuildInput): Ten
     contingency: roundMoney(lines.reduce((sum, line) => sum + line.contingency, 0)),
     grossProfit,
     grossMarginPercentage,
+    pricingAggregationMode,
     lineItems: lines,
     blockers,
     nextAction: blockers.length ? blockers[0].message : "Submit pricing for manager review.",
@@ -540,12 +555,12 @@ export function buildPricingScheduleFillEvidence(workspace: TenderPricingWorkspa
     .filter((line) => line.priceSource !== "UNPRICED")
     .flatMap((line) => [
       { tenderLineItemId: line.id, fieldName: `${line.id}.unitPrice`, page: line.sourcePage ?? null, value: line.tenderUnitPrice.toFixed(2), source: "approved_pricing_record" as const, confidence: 0.98 },
-      { tenderLineItemId: line.id, fieldName: `${line.id}.amount`, page: line.sourcePage ?? null, value: line.tenderLineTotal.toFixed(2), source: "approved_pricing_record" as const, confidence: 0.98 },
+      { tenderLineItemId: line.id, fieldName: `${line.id}.amount`, page: line.sourcePage ?? null, value: line.tenderLineTotal?.toFixed(2) ?? "", source: "approved_pricing_record" as const, confidence: 0.98 },
     ]);
-  fieldMappings.push(
-    { fieldName: "subtotal", page: null, value: workspace.subtotal.toFixed(2), source: "approved_pricing_record", confidence: 1 },
-    { fieldName: "vat", page: null, value: workspace.vat.toFixed(2), source: "approved_pricing_record", confidence: 1 },
-    { fieldName: "grandTotal", page: null, value: workspace.total.toFixed(2), source: "approved_pricing_record", confidence: 1 },
+  if (workspace.pricingAggregationMode === "FIXED_QUANTITY") fieldMappings.push(
+    { fieldName: "subtotal", page: null, value: workspace.subtotal?.toFixed(2) ?? "", source: "approved_pricing_record", confidence: 1 },
+    { fieldName: "vat", page: null, value: workspace.vat?.toFixed(2) ?? "", source: "approved_pricing_record", confidence: 1 },
+    { fieldName: "grandTotal", page: null, value: workspace.total?.toFixed(2) ?? "", source: "approved_pricing_record", confidence: 1 },
   );
   return {
     sourceDocumentId: workspace.sourcePricingDocumentId ?? "",
@@ -566,11 +581,17 @@ export function validateTenderPricingWorkspace(workspace: TenderPricingWorkspace
     if (line.mapping?.reviewStatus === "REVIEW_REQUIRED") blockers.push(blocker("LOW_CONFIDENCE_MAPPING_UNAPPROVED", `${line.description} has an unapproved low-confidence mapping.`, "BLOCKER", { tenderLineItemId: line.id }));
     if (line.mapping?.unitConversion === 0) blockers.push(blocker("UNIT_CONVERSION_UNAPPROVED", `${line.description} requires approved unit conversion.`, "BLOCKER", { tenderLineItemId: line.id }));
   }
-  const recalculatedSubtotal = roundMoney(workspace.lineItems.reduce((sum, line) => sum + line.tenderLineTotal, 0));
-  const recalculatedVat = roundMoney(workspace.lineItems.reduce((sum, line) => sum + line.calculationEvidence.vat, 0));
-  if (recalculatedSubtotal !== workspace.subtotal) blockers.push(blocker("SUBTOTAL_MISMATCH", "Tender subtotal does not reconcile."));
-  if (recalculatedVat !== workspace.vat) blockers.push(blocker("VAT_MISMATCH", "Tender VAT does not reconcile."));
-  if (roundMoney(workspace.subtotal + workspace.vat) !== workspace.total) blockers.push(blocker("TOTAL_MISMATCH", "Tender total does not reconcile."));
+  const hasUnitRateLines = workspace.lineItems.some((line) => line.quantityMode === "UNIT_RATE_ONLY");
+  if (hasUnitRateLines) {
+    if (workspace.subtotal !== null || workspace.vat !== null || workspace.total !== null || workspace.totalSupplierCost !== null) blockers.push(blocker("UNIT_RATE_TOTAL_NOT_APPLICABLE", "Fixed totals are not applicable to a unit-rate schedule."));
+    if (workspace.lineItems.some((line) => line.quantityMode === "UNIT_RATE_ONLY" && line.tenderLineTotal !== null)) blockers.push(blocker("UNIT_RATE_EXTENDED_TOTAL_UNSUPPORTED", "Unit-rate lines must not have an extended total."));
+  } else {
+    const recalculatedSubtotal = roundMoney(workspace.lineItems.reduce((sum, line) => sum + (line.tenderLineTotal ?? 0), 0));
+    const recalculatedVat = roundMoney(workspace.lineItems.reduce((sum, line) => sum + line.calculationEvidence.vat, 0));
+    if (recalculatedSubtotal !== workspace.subtotal) blockers.push(blocker("SUBTOTAL_MISMATCH", "Tender subtotal does not reconcile."));
+    if (recalculatedVat !== workspace.vat) blockers.push(blocker("VAT_MISMATCH", "Tender VAT does not reconcile."));
+    if (workspace.subtotal === null || workspace.vat === null || roundMoney(workspace.subtotal + workspace.vat) !== workspace.total) blockers.push(blocker("TOTAL_MISMATCH", "Tender total does not reconcile."));
+  }
   if (fillEvidence) {
     const usesApprovedPricingValues = fillEvidence.fieldMappings.some((field) => field.source === "approved_pricing_record");
     const approvalStatusCurrent = ["APPROVED", "DOCUMENT_FILLED", "VALIDATED", "LOCKED"].includes(workspace.pricingStatus) || workspace.lockStatus === "LOCKED";
@@ -621,5 +642,3 @@ export function buildTenderPricingHandoff(workspace: TenderPricingWorkspace): Te
     workflowTransition: approved && unresolved.length === 0 ? "DOCUMENT_PREPARATION" : "BLOCKED",
   };
 }
-
-

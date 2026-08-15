@@ -28,6 +28,8 @@ export type TenderLineItemReviewStatus =
   | "MERGED"
   | "NOT_APPLICABLE";
 
+export type TenderQuantityMode = "FIXED_QUANTITY" | "UNIT_RATE_ONLY";
+
 export type TenderDocumentCategory =
   | "RFQ_RFP_NOTICE"
   | "SPECIFICATION"
@@ -104,6 +106,7 @@ export type TenderExtractedLineItem = {
   description: string;
   specification: string | null;
   quantity: number | null;
+  quantityMode?: TenderQuantityMode;
   unit: string | null;
   tenderUnitPrice: number | null;
   tenderLineTotal: number | null;
@@ -204,4 +207,3 @@ export type TenderIntelligenceExecutionHandoff = {
     | "Continue to supplier quote mapping";
   tenderIntelligenceId: string;
 };
-

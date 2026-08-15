@@ -70,7 +70,7 @@ const FALSE_POSITIVE_TERMS = [
   "performance table",
 ];
 
-const UNIT_PATTERN = /\b(each|ea|no|nr|unit|m|m2|m²|m3|m³|kg|l|litre|hour|day|month|sum|lot|sqm|km|ton|tonne|bag|box)\b/i;
+const UNIT_PATTERN = /\b(each|ea|no|nr|unit|m|m2|mÂ²|m3|mÂ³|kg|l|litre|hour|day|month|sum|lot|sqm|km|ton|tonne|bag|box)\b/i;
 const MONEY_PATTERN = /(?:^|\s)(?:R\s*)?\d{1,3}(?:[ ,]\d{3})*(?:\.\d{2})?(?:\s|$)/;
 const QUANTITY_PATTERN = /\b\d+(?:[.,]\d+)?\b/;
 
@@ -270,6 +270,7 @@ export function extractLineItems(candidates: TenderPricingTableCandidate[]): Ten
       description,
       specification: null,
       quantity: toNumber(cells.quantity),
+      quantityMode: "FIXED_QUANTITY",
       unit: typeof cells.unit === "string" ? cells.unit : null,
       tenderUnitPrice: toNumber(cells.unitPrice),
       tenderLineTotal: toNumber(cells.amount),
@@ -322,4 +323,3 @@ export function fieldFromPattern(documents: DocumentText[], label: string, patte
 export function conclusion(label: string, value: string | null | undefined, evidenceItems: TenderSourceEvidence[] = []) {
   return { label, value: value?.trim() || "Not confirmed in analysed documents", evidence: evidenceItems };
 }
-

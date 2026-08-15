@@ -266,6 +266,13 @@ export async function updateTenderIntelligenceReview(dealId: string, actor: Auth
   return next;
 }
 
+export function hasValidTenderLineQuantity(item: TenderExtractedLineItem): boolean {
+  if (item.quantityMode === "UNIT_RATE_ONLY") {
+    return item.quantity === null && Boolean(item.unit) && item.sourcePage > 0 && item.manuallyCorrected === true;
+  }
+  return typeof item.quantity === "number" && Number.isFinite(item.quantity) && item.quantity > 0;
+}
+
 export async function approveTenderIntelligence(dealId: string, actor: AuthorizedUser): Promise<{ intelligence: TenderIntelligence; handoff: TenderIntelligenceExecutionHandoff }> {
   assertStaffOrAdmin(actor);
   await assertDealAccess(dealId, actor);
@@ -273,6 +280,8 @@ export async function approveTenderIntelligence(dealId: string, actor: Authorize
   if (!intelligence) throw statusError("Tender intelligence analysis not found", 404);
   const unresolved = intelligence.extractedLineItems.filter((item) => item.reviewStatus === "REVIEW_REQUIRED" || item.reviewStatus === "EXTRACTED");
   if (unresolved.length > 0) throw statusError("All extracted line items must be approved, rejected, merged, or marked not applicable before approval.", 409);
+  const invalidQuantities = intelligence.extractedLineItems.filter((item) => item.reviewStatus === "APPROVED" && !hasValidTenderLineQuantity(item));
+  if (invalidQuantities.length > 0) throw statusError("Approved tender lines must have a positive quantity or an explicitly reviewed UNIT_RATE_ONLY quantity mode.", 409);
   const now = new Date().toISOString();
   const next: TenderIntelligence = {
     ...intelligence,
@@ -332,7 +341,3 @@ export async function refreshTenderIntelligenceAfterAmendment(dealId: string, ac
 export function buildTenderDocumentHashForTests(text: string) {
   return createHash("sha256").update(text).digest("hex");
 }
-
-
-
-

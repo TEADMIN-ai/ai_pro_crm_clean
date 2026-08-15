@@ -1,6 +1,7 @@
 import { buildTenderIntelligence, type TenderDocumentTextInput } from "@/lib/tender-intelligence/analyzer";
 import { buildExecutionHandoff } from "@/lib/tender-intelligence/summaries";
 import type { TenderIntelligence } from "@/types/tenderIntelligence";
+import { hasValidTenderLineQuantity } from "@/server/services/tenderIntelligenceService";
 
 function doc(overrides: Partial<TenderDocumentTextInput> & { text: string; filename?: string; documentId?: string }): TenderDocumentTextInput {
   return {
@@ -192,10 +193,13 @@ describe("tender intelligence analyzer", () => {
     expect(result.sourceDocumentIds).toEqual(["source-doc"]);
     expect(result.sourceDocumentIds).not.toContain("demo");
   });
+
+
+  test("quantity mode distinguishes extraction failure from reviewed unit-rate absence", () => {
+    const base = analyze([doc({ text: "Pricing Schedule" })]).extractedLineItems[0] ?? {
+      id: "line-1", sourceDocumentId: "doc-1", sourcePage: 38, sourceTableIndex: 0, sourceRow: 1, itemNumber: "1", description: "Water", specification: null, quantity: null, unit: "Each", tenderUnitPrice: null, tenderLineTotal: null, vatTreatment: null, mandatoryField: true, notes: null, rawText: "Water", extractionConfidence: 1, reviewStatus: "APPROVED" as const, manuallyCorrected: true, correctedBy: "staff-1", correctedAt: "2026-08-01T00:00:00.000Z" };
+    expect(hasValidTenderLineQuantity({ ...base, quantity: null, quantityMode: "FIXED_QUANTITY", reviewStatus: "APPROVED" })).toBe(false);
+    expect(hasValidTenderLineQuantity({ ...base, quantity: null, quantityMode: "UNIT_RATE_ONLY", reviewStatus: "APPROVED", manuallyCorrected: true, sourcePage: 38, unit: "Each" })).toBe(true);
+    expect(hasValidTenderLineQuantity({ ...base, quantity: null, quantityMode: "UNIT_RATE_ONLY", reviewStatus: "APPROVED", manuallyCorrected: false, sourcePage: 38, unit: "Each" })).toBe(false);
+  });
 });
-
-
-
-
-
-

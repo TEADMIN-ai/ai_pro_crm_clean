@@ -101,7 +101,8 @@ function extractTenderLines(deal: Record<string, unknown>, override?: TenderPric
           id: `tender-line-${index + 1}`,
           itemCode: null,
           description: raw,
-          quantity: 1,
+          quantity: null,
+          quantityMode: "FIXED_QUANTITY",
           unit: "item",
           compulsory: true,
           sourcePage: null,
@@ -116,7 +117,8 @@ function extractTenderLines(deal: Record<string, unknown>, override?: TenderPric
         itemCode: asString(item.itemCode ?? item.code),
         description,
         normalizedDescription: asString(item.normalizedDescription),
-        quantity: asNumber(item.quantity) ?? 1,
+        quantity: asNumber(item.quantity),
+        quantityMode: item.quantityMode === "UNIT_RATE_ONLY" ? "UNIT_RATE_ONLY" : "FIXED_QUANTITY",
         unit: asString(item.unit ?? item.normalizedUnit) ?? "item",
         specification: asString(item.specification),
         packSize: asString(item.packSize),
@@ -318,4 +320,3 @@ export async function sendTenderPricingToSubmissionReview(input: { pricingId: st
   await writeAudit({ pricingId: next.id, dealId: next.dealId, workspaceId: next.workspaceId, actorUid: input.actor.uid, action: "TENDER_PRICING_SENT_TO_SUBMISSION_REVIEW", metadata: { workflowTransition: handoff.workflowTransition } });
   return next;
 }
-

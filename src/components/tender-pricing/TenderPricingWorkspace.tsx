@@ -131,6 +131,8 @@ export default function TenderPricingWorkspace(props: Props) {
   }
 
   const unresolved = pricing?.blockers.filter((item) => item.severity === "BLOCKER") ?? [];
+  const rateSchedule = pricing?.pricingAggregationMode !== "FIXED_QUANTITY";
+  const rateScheduleLabel = pricing?.pricingAggregationMode === "UNIT_RATE_ONLY" ? "Unit rates only" : "Mixed schedule - fixed totals unavailable";
 
   return (
     <section className="grid gap-6">
@@ -169,19 +171,19 @@ export default function TenderPricingWorkspace(props: Props) {
           <div className="grid gap-4 md:grid-cols-4">
             <div className="rounded-lg border border-[color:var(--tex-border)] bg-white p-4">
               <p className="tex-metric-label">Total supplier cost</p>
-              <p className="tex-metric-value mt-2">{money(pricing.totalSupplierCost)}</p>
+              <p className="tex-metric-value mt-2">{rateSchedule ? "Not applicable - rate schedule" : money(pricing.totalSupplierCost)}</p>
             </div>
             <div className="rounded-lg border border-[color:var(--tex-border)] bg-white p-4">
               <p className="tex-metric-label">Tender value</p>
-              <p className="tex-metric-value mt-2">{money(pricing.total)}</p>
+              <p className="tex-metric-value mt-2">{rateSchedule ? rateScheduleLabel : money(pricing.total)}</p>
             </div>
             <div className="rounded-lg border border-[color:var(--tex-border)] bg-white p-4">
               <p className="tex-metric-label">Gross profit</p>
-              <p className="tex-metric-value mt-2">{money(pricing.grossProfit)}</p>
+              <p className="tex-metric-value mt-2">{rateSchedule ? "Not fixed by tender" : money(pricing.grossProfit)}</p>
             </div>
             <div className="rounded-lg border border-[color:var(--tex-border)] bg-white p-4">
               <p className="tex-metric-label">Gross margin</p>
-              <p className="tex-metric-value mt-2">{pricing.grossMarginPercentage.toFixed(2)}%</p>
+              <p className="tex-metric-value mt-2">{rateSchedule ? "Not fixed by tender" : pricing.grossMarginPercentage?.toFixed(2) + "%"}</p>
             </div>
           </div>
 
@@ -213,10 +215,10 @@ export default function TenderPricingWorkspace(props: Props) {
                   <th className="px-4 py-3">Tender line</th>
                   <th className="px-4 py-3">Mapping</th>
                   <th className="px-4 py-3">Supplier</th>
-                  <th className="px-4 py-3">Source cost</th>
+                  <th className="px-4 py-3">{rateSchedule ? "Unit cost" : "Source cost"}</th>
                   <th className="px-4 py-3">Additions</th>
                   <th className="px-4 py-3">Margin</th>
-                  <th className="px-4 py-3">Final price</th>
+                  <th className="px-4 py-3">{rateSchedule ? "Tender unit rate" : "Final price"}</th>
                   <th className="px-4 py-3">Risk</th>
                 </tr>
               </thead>
@@ -225,14 +227,14 @@ export default function TenderPricingWorkspace(props: Props) {
                   <tr key={line.id} className="border-t border-[color:var(--tex-border)] align-top">
                     <td className="px-4 py-3">
                       <span className="font-medium">{line.description}</span>
-                      <span className="block text-xs text-[color:var(--tex-text-muted)]">{line.quantity} {line.unit}</span>
+                      <span className="block text-xs text-[color:var(--tex-text-muted)]">{line.quantityMode === "UNIT_RATE_ONLY" ? "Unit rate / " + line.unit : line.quantity + " " + line.unit}</span>
                     </td>
                     <td className="px-4 py-3"><Badge value={line.mapping?.reviewStatus ?? "UNMATCHED"} /></td>
                     <td className="px-4 py-3">{line.mapping?.supplierName || "Manual or unpriced"}</td>
                     <td className="px-4 py-3">{money(line.sourceCost)}</td>
                     <td className="px-4 py-3">{money(line.deliveryAllocation + line.handlingAllocation + line.overheadAllocation + line.riskAllowance + line.contingency)}</td>
                     <td className="px-4 py-3">{money(line.profitMargin)}</td>
-                    <td className="px-4 py-3">{money(line.tenderLineTotal)}</td>
+                    <td className="px-4 py-3">{line.quantityMode === "UNIT_RATE_ONLY" ? money(line.tenderUnitPrice) : money(line.tenderLineTotal)}</td>
                     <td className="px-4 py-3">
                       <div className="flex flex-wrap gap-1">{line.riskFlags.length ? line.riskFlags.map((flag) => <Badge key={flag} value={flag} />) : <Badge value="CLEAR" />}</div>
                     </td>

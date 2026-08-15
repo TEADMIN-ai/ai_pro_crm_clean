@@ -1,4 +1,5 @@
 import type { SupplierQuote } from "@/types/supplierQuote";
+import type { TenderQuantityMode } from "@/types/tenderIntelligence";
 
 export type TenderPricingStatus =
   | "NOT_STARTED"
@@ -32,6 +33,7 @@ export type TenderManagementApprovalStatus = "NOT_STARTED" | "MANAGER_REQUIRED" 
 export type TenderDocumentFillStatus = "NOT_STARTED" | "PREVIEW_REQUIRED" | "DOCUMENT_FILLING" | "DOCUMENT_FILLED" | "APPROVED";
 export type TenderValidationStatus = "NOT_STARTED" | "VALIDATION_FAILED" | "VALIDATED";
 export type TenderPricingLockStatus = "UNLOCKED" | "LOCKED" | "SUPERSEDED";
+export type TenderPricingAggregationMode = "FIXED_QUANTITY" | "UNIT_RATE_ONLY" | "MIXED";
 export type TenderPricingSource = "APPROVED_SUPPLIER_QUOTE" | "MANUAL_ENTRY" | "PROVISIONAL";
 export type TenderPricingRiskCode =
   | "NEGATIVE_MARGIN"
@@ -64,7 +66,8 @@ export type TenderPricingTenderLineItem = {
   itemCode?: string | null;
   description: string;
   normalizedDescription?: string | null;
-  quantity: number;
+  quantity: number | null;
+  quantityMode?: TenderQuantityMode;
   unit: string;
   specification?: string | null;
   packSize?: string | null;
@@ -143,9 +146,9 @@ export type TenderPricingLineItem = TenderPricingTenderLineItem & {
   profitMargin: number;
   vatTreatment: "EXCLUSIVE" | "INCLUSIVE" | "ZERO_RATED" | "EXEMPT";
   tenderUnitPrice: number;
-  tenderLineTotal: number;
-  grossProfit: number;
-  grossMarginPercentage: number;
+  tenderLineTotal: number | null;
+  grossProfit: number | null;
+  grossMarginPercentage: number | null;
   priceSource: TenderPricingSource | "UNPRICED";
   manualPriceReason?: string | null;
   provisionalApprovedBy?: string | null;
@@ -174,8 +177,8 @@ export type TenderPricingApproval = {
   approvedAt?: string | null;
   notes?: string | null;
   role: "staff" | "manager" | "director";
-  total: number;
-  margin: number;
+  total: number | null;
+  margin: number | null;
   revision: number;
 };
 
@@ -216,9 +219,9 @@ export type TenderPricingHandoff = {
   pricingApproved: boolean;
   pricingDocumentId?: string | null;
   pricingDocumentUrl?: string | null;
-  totalTenderValue: number;
-  grossProfit: number;
-  grossMargin: number;
+  totalTenderValue: number | null;
+  grossProfit: number | null;
+  grossMargin: number | null;
   unresolvedPricingBlockers: TenderPricingBlocker[];
   nextAction: string;
   workflowTransition: "DOCUMENT_PREPARATION" | "BLOCKED";
@@ -243,17 +246,18 @@ export type TenderPricingWorkspace = {
   validationStatus: TenderValidationStatus;
   lockStatus: TenderPricingLockStatus;
   currency: string;
-  subtotal: number;
-  vat: number;
-  total: number;
-  totalSupplierCost: number;
+  subtotal: number | null;
+  vat: number | null;
+  total: number | null;
+  totalSupplierCost: number | null;
+  pricingAggregationMode: TenderPricingAggregationMode;
   deliveryCost: number;
   handlingCost: number;
   overheadCost: number;
   riskAllowance: number;
   contingency: number;
-  grossProfit: number;
-  grossMarginPercentage: number;
+  grossProfit: number | null;
+  grossMarginPercentage: number | null;
   lineItems: TenderPricingLineItem[];
   blockers: TenderPricingBlocker[];
   nextAction: string;
