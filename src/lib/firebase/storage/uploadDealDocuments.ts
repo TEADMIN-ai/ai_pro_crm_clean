@@ -5,6 +5,7 @@ import { API_ROUTES } from "@/lib/routes";
 
 export type DocumentReviewRole = "admin" | "manager";
 export type DocumentStatus = "pending" | "approved" | "rejected";
+export type ReturnableUploadContext = { key: string; category: string; subtype?: string | null; note?: string | null };
 
 export interface DocumentRecord {
   id: string;
@@ -32,36 +33,24 @@ export async function uploadDealDocuments(
   dealId: string,
   file: File,
   _userId: string,
-  userRole: UserRole
+  userRole: UserRole,
+  returnable?: ReturnableUploadContext,
 ) {
-  if (!file.name.toLowerCase().endsWith(".pdf")) {
-    throw new Error("Only PDF files are allowed.");
-  }
-
-  if (userRole === "guest") {
-    throw new Error("You do not have permission to upload documents.");
-  }
-
+  if (!file.name.toLowerCase().endsWith(".pdf")) throw new Error("Only PDF files are allowed.");
+  if (userRole === "guest") throw new Error("You do not have permission to upload documents.");
   const formData = new FormData();
   formData.append("file", file);
-
-  const response = await authFetch(API_ROUTES.DEAL_DOCUMENTS(dealId), {
-    method: "POST",
-    body: formData,
-  });
-
+  if (returnable) {
+    formData.append("returnableKey", returnable.key);
+    formData.append("returnableCategory", returnable.category);
+    if (returnable.subtype) formData.append("returnableSubtype", returnable.subtype);
+    if (returnable.note) formData.append("returnableNote", returnable.note);
+  }
+  const response = await authFetch(API_ROUTES.DEAL_DOCUMENTS(dealId), { method: "POST", body: formData });
   if (!response.ok) {
     const payload = (await response.json().catch(() => null)) as { error?: string } | null;
     throw new Error(payload?.error ?? `Failed to store deal document metadata (${response.status})`);
   }
-
-  const payload = (await response.json()) as {
-    document?: { id?: string; downloadURL?: string; storagePath?: string; filePath?: string };
-  };
-
-  return {
-    id: payload.document?.id ?? "",
-    downloadURL: payload.document?.downloadURL ?? "",
-    storagePath: payload.document?.storagePath ?? payload.document?.filePath ?? "",
-  };
+  const payload = (await response.json()) as { document?: { id?: string; downloadURL?: string; storagePath?: string; filePath?: string } };
+  return { id: payload.document?.id ?? "", downloadURL: payload.document?.downloadURL ?? "", storagePath: payload.document?.storagePath ?? payload.document?.filePath ?? "" };
 }

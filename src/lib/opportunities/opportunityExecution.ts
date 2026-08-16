@@ -76,6 +76,7 @@ export type OpportunityDocumentChecklistItem = {
   required: boolean;
   status: OpportunityStageStatus;
   source: string | null;
+  reviewStatus?: string | null;
 };
 export type OpportunityExecutionStage = {
   key: OpportunityStageKey;
@@ -180,9 +181,8 @@ function allDocs(source: AnyRecord): AnyRecord[] {
   const intake = rec(source.opportunityIntake);
   return [...(Array.isArray(source.documents) ? source.documents.map(rec) : []), ...(Array.isArray(intake.uploadedDocuments) ? intake.uploadedDocuments.map(rec) : [])];
 }
-function hasDocument(docs: AnyRecord[], tokens: string[]): AnyRecord | null {
-  return docs.find((doc) => tokens.some((token) => textHas(docName(doc), token))) ?? null;
-}
+function documentIsApproved(doc: AnyRecord): boolean { const category = str(doc.returnableCategory) ?? str(doc.documentPreparationItem); if (!category) return normalize(doc.status) !== "rejected" && normalize(doc.reviewStatus) !== "rejected"; return normalize(doc.status) === "approved" && normalize(doc.reviewStatus) !== "rejected"; }
+function hasDocument(docs: AnyRecord[], tokens: string[]): AnyRecord | null { return docs.find((doc) => documentIsApproved(doc) && tokens.some((token) => textHas(docName(doc), token))) ?? null; }
 function phaseIndex(phase: OpportunityExecutionPhase): number { return OPPORTUNITY_PHASES.indexOf(phase); }
 function isAtLeast(phase: OpportunityExecutionPhase, target: OpportunityExecutionPhase): boolean { return phaseIndex(phase) >= phaseIndex(target); }
 
@@ -438,9 +438,13 @@ function buildDocumentChecklist(deal: AnyRecord, requirements: OpportunityRequir
   const docs = allDocs(deal);
   const item = (key: string, label: string, required: boolean, tokens: string[], completeOverride?: boolean): OpportunityDocumentChecklistItem => {
     if (!required) return { key, label, required, status: "NOT_APPLICABLE", source: null };
+    const candidate = docs.find((doc) => tokens.some((token) => textHas(docName(doc), token)));
     const found = hasDocument(docs, tokens);
-    const complete = completeOverride === true || Boolean(found) || f.documentsPrepared;
-    return { key, label, required, status: complete ? "COMPLETE" : "BLOCKED", source: found ? docName(found) : null };
+    const candidateStatus = normalize(candidate?.status);
+    const candidateReviewStatus = normalize(candidate?.reviewStatus);
+    const reviewStatus = candidate && !found && (candidateStatus === "pending" || candidateReviewStatus === "ready_for_review") ? "READY_FOR_REVIEW" : candidateStatus === "rejected" || candidateReviewStatus === "rejected" ? "REJECTED" : null;
+    const complete = (completeOverride === true && !candidate?.returnableCategory && !candidate?.documentPreparationItem) || Boolean(found);
+    return { key, label, required, status: complete ? "COMPLETE" : "BLOCKED", source: found ? docName(found) : candidate ? docName(candidate) : null, reviewStatus };
   };
   const complianceComplete = contractor ? evaluateOpportunityCompliance(requirements, contractor, str(deal.workspaceId)).status === "VALID" : false;
   return [

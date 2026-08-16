@@ -1,4 +1,6 @@
 import UploadClient from "./UploadClient";
+import { getOpportunityExecutionView } from "@/server/services/opportunityExecutionService";
+import { requireAuthorizedUserFromSession } from "@/lib/server/authz";
 
 type PageProps = {
   params: Promise<{
@@ -8,5 +10,7 @@ type PageProps = {
 
 export default async function UploadPage({ params }: PageProps) {
   const { dealId } = await params;
-  return <UploadClient dealId={dealId} />;
+  const actor = await requireAuthorizedUserFromSession();
+  const view = await getOpportunityExecutionView(dealId, actor);
+  return <UploadClient dealId={dealId} contractorName={view.state.contractorName} />;
 }

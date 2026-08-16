@@ -1,5 +1,4 @@
-import { FieldPath, FieldValue } from "firebase-admin/firestore";
-import admin from "firebase-admin";
+import { FieldPath } from "firebase-admin/firestore";
 import type { Deal, DealStage } from "@/types/deal";
 import { normalizeDeal, resolveTenderLockStatus } from "@/lib/deals/normalizeDeal";
 import { getFirebaseAdmin, getFirebaseStorageBucket } from "@/lib/firebase/admin";
