@@ -218,6 +218,7 @@ export default function OpportunityExecutionPanel({ dealId, state, matches }: Pr
         </div>
       </EnterprisePanel>
 
+      <div id="document-preparation-workspace">
       <EnterprisePanel eyebrow="Document preparation" title="Returnables and pack inputs">
         <div className="grid gap-3 md:grid-cols-2">
           {state.documentChecklist.map((item) => (
@@ -231,6 +232,7 @@ export default function OpportunityExecutionPanel({ dealId, state, matches }: Pr
           ))}
         </div>
       </EnterprisePanel>
+      </div>
 
       <EnterprisePanel eyebrow="Requirements review" title="Extracted tender requirements">
         <div className="grid gap-3 md:grid-cols-2">

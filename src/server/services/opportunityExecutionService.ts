@@ -4,7 +4,7 @@ import type { AuthorizedUser } from "@/lib/server/authz";
 import { listContractors } from "@/server/services/contractorService";
 import { getContractorBusinessName, resolveContractorReference } from "@/lib/contractors/contractorReferenceResolver";
 import { buildOpportunityExecutionState, extractOpportunityRequirements, matchContractorsForOpportunity, validateOpportunityTransition, type ContractorMatchResult, type OpportunityExecutionPhase, type OpportunityRequirementReview } from "@/lib/opportunities/opportunityExecution";
-import { buildProcurementExecutionProjection } from "@/lib/opportunities/procurementExecutionProjection";
+import { buildProcurementExecutionProjection, hasGovernedLockedPricing } from "@/lib/opportunities/procurementExecutionProjection";
 import { getDealContractorReference } from "@/lib/deals/contractorReference";
 import { assertAssignmentAllowed, evaluateContractorAssignmentAuthority } from "@/server/services/contractorAssignmentAuthorityService";
 import { currentDealStateLabel, normalizeSubmissionEvidence, recordProcurementTransitionAudit } from "@/lib/procurement/procurementStateAuthority";
@@ -50,10 +50,11 @@ export async function getOpportunityExecutionView(dealId: string, actor?: Author
   const contractorReference = contractorReferenceFromDeal(deal);
   const resolved = contractorReference ? await resolveContractorReference({ reference: contractorReference, expectedWorkspaceId: asString(deal.workspaceId), actor, dealId, logContext: "opportunity_execution_view" }) : null;
   const contractor = resolved?.ok && !isArchivedContractor(resolved.contractor) ? resolved.contractor : null;
-  const state = buildOpportunityExecutionState({ deal, contractor: contractor as Record<string, unknown> | null });
-  const canonicalPricing = await loadCanonicalTenderPricing(dealId);
-  const projectionDeal = { ...deal, ...(canonicalPricing ? { tenderPricing: canonicalPricing } : {}), sarsTcsSummary: contractor ? (contractor as Record<string, unknown>).sarsTcsSummary : null };
-  const projection = buildProcurementExecutionProjection({ deal: projectionDeal, state, remediationRequests: state.remediationRequests });
+const canonicalPricing = await loadCanonicalTenderPricing(dealId);
+const projectionDeal = { ...deal, ...(canonicalPricing ? { tenderPricing: canonicalPricing } : {}), sarsTcsSummary: contractor ? (contractor as Record<string, unknown>).sarsTcsSummary : null };
+const stateDeal = canonicalPricing && hasGovernedLockedPricing(canonicalPricing) ? { ...projectionDeal, opportunityExecution: { ...asRecord(asRecord(projectionDeal).opportunityExecution), pricingComplete: true } } : projectionDeal;
+const state = buildOpportunityExecutionState({ deal: stateDeal, contractor: contractor as Record<string, unknown> | null });
+const projection = buildProcurementExecutionProjection({ deal: stateDeal, state, remediationRequests: state.remediationRequests });
   const baseMatches = matchContractorsForOpportunity({ deal, contractors: await listContractors({ workspaceId: asString(deal.workspaceId), actorRole: actor?.role ?? null }) as Array<Record<string, unknown> & { id: string }> });
   const matches: ContractorMatchResult[] = actor
     ? await Promise.all(baseMatches.map(async (match) => {
