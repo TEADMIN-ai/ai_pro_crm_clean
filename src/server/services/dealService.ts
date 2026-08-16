@@ -47,6 +47,10 @@ export interface DealDocumentSummary {
   reviewedByRole?: string;
   rejectionReason?: string;
   version?: number;
+  returnableKey?: string;
+  returnableCategory?: string;
+  returnableSubtype?: string;
+  reviewStatus?: string;
 }
 
 export interface DealActivityEntry {
@@ -93,6 +97,10 @@ function normalizeDealDocument(
     reviewedByRole: asString(data.reviewedByRole),
     rejectionReason: asString(data.rejectionReason),
     version: typeof data.version === "number" ? data.version : undefined,
+    returnableKey: asString(data.returnableKey),
+    returnableCategory: asString(data.returnableCategory),
+    returnableSubtype: asString(data.returnableSubtype),
+    reviewStatus: asString(data.reviewStatus),
   };
 }
 

@@ -41,3 +41,14 @@ export function getReturnableContextByCategory(value: unknown): ReturnableContex
   if (typeof value !== "string") return null;
   return Object.values(CONTEXTS).find((context) => context.category === value.trim().toUpperCase()) ?? null;
 }
+
+export type ReturnableEvidenceIdentity = { id: string; canonicalEvidenceId?: string | null; documentId?: string | null; storagePath?: string | null; name: string };
+export function dedupeReturnableEvidence<T extends ReturnableEvidenceIdentity>(records: T[]): T[] {
+  const seen = new Set<string>();
+  return records.filter((record) => {
+    const identity = record.canonicalEvidenceId ?? record.documentId ?? record.id ?? record.storagePath ?? record.name;
+    if (seen.has(identity)) return false;
+    seen.add(identity);
+    return true;
+  });
+}
