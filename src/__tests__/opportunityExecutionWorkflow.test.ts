@@ -112,7 +112,7 @@ describe("opportunity execution workflow", () => {
   test("document preparation action stays available to prepare missing returnables", () => {
     const state = buildOpportunityExecutionState({ deal: { ...assignedDeal, opportunityExecution: { ...assignedDeal.opportunityExecution, complianceReviewed: true } }, contractor: validContractor });
     expect(state.currentPhase).toBe("DOCUMENT_PREPARATION");
-    expect(state.actions.find((action) => action.key === "prepare_documents")).toMatchObject({ enabled: true, href: "/dashboard/deals/deal-1/execution#document-preparation-workspace" });
+    expect(state.actions.find((action) => action.key === "prepare_documents")).toMatchObject({ enabled: true, href: undefined });
   });
 
   test("ready for submission requires validated tender pack", () => {

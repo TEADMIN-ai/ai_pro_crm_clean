@@ -107,7 +107,7 @@ export async function applyOpportunityExecutionAction(input: ActionInput) {
   await assertWorkspaceAccess(input.actor, deal);
   const currentView = await getOpportunityExecutionView(input.dealId, input.actor);
   const current = currentView.state.currentPhase;
-  const target = targetPhaseForAction(input.action, deal);
+  const target = input.action === "prepare_documents" && current === "DOCUMENT_PREPARATION" ? "DOCUMENT_PREPARATION" as OpportunityExecutionPhase : targetPhaseForAction(input.action, deal);
   if (!target) throw Object.assign(new Error("Unknown opportunity action"), { status: 400 });
   await recordProcurementTransitionAudit({
     actor: input.actor,
@@ -206,7 +206,14 @@ export async function applyOpportunityExecutionAction(input: ActionInput) {
   }
   if (input.action === "start_compliance_review") execution.complianceReviewed = true;
   if (input.action === "open_boq_pricing") execution.boqTaskCreated = true;
-  if (input.action === "prepare_documents") execution.documentsPrepared = true;
+  if (input.action === "prepare_documents") {
+    if (current === "DOCUMENT_PREPARATION") {
+      const existingPreparation = asRecord(existingExecution.documentPreparation);
+      execution.documentPreparation = { ...existingPreparation, status: "IN_PROGRESS", openedAt: existingPreparation.openedAt ?? now.toISOString(), openedBy: existingPreparation.openedBy ?? input.actor.uid, returnables: currentView.state.documentChecklist.map((item) => ({ key: item.key, label: item.label, required: item.required, status: item.status, source: item.source })) };
+    } else {
+      execution.documentsPrepared = true;
+    }
+  }
   if (input.action === "start_internal_review") execution.internalReviewApproved = true;
   if (input.action === "contractor_approval") execution.contractorApprovalComplete = true;
   if (input.action === "generate_tender_pack") { execution.tenderPackGenerated = true; execution.tenderPackValidated = true; }
@@ -269,5 +276,5 @@ export async function applyOpportunityExecutionAction(input: ActionInput) {
     evidenceReferences: submissionEvidence?.evidenceReferences ?? {},
   });
   const nextView = await getOpportunityExecutionView(input.dealId, input.actor);
-  return { ...nextView, redirectTo: input.action === "assign_contractor" ? `/dashboard/deals/${input.dealId}/execution` : undefined };
+  return { ...nextView, redirectTo: input.action === "assign_contractor" ? "/dashboard/deals/" + input.dealId + "/execution" : input.action === "prepare_documents" ? "/dashboard/deals/" + input.dealId + "/document-preparation" : undefined };
 }
