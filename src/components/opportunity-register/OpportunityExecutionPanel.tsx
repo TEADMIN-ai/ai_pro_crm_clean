@@ -9,6 +9,7 @@ import type { ContractorMatchResult, OpportunityAction, OpportunityActionKey, Op
 type Props = { dealId: string; state: OpportunityExecutionState; matches: ContractorMatchResult[] };
 
 const PRIMARY_ACTIONS: OpportunityActionKey[] = [
+  "reopen_requirements_review",
   "start_compliance_review",
   "open_missing_documents",
   "open_boq_pricing",
@@ -75,6 +76,7 @@ export default function OpportunityExecutionPanel({ dealId, state, matches }: Pr
   const [expandedBlockerId, setExpandedBlockerId] = useState<string | null>(null);
   const [requirementsDraft, setRequirementsDraft] = useState(() => ({ source: state.requirements, value: state.requirements }));
   const requirements = requirementsDraft.source === state.requirements ? requirementsDraft.value : state.requirements;
+  const requirementsEditable = !requirements.reviewed || requirements.reviewStatus === "IN_REVIEW" || state.currentPhase === "REQUIREMENTS_REVIEW";
 
   async function runAction(action: string, extra: Record<string, unknown> = {}) {
     setError(null);
@@ -95,7 +97,7 @@ export default function OpportunityExecutionPanel({ dealId, state, matches }: Pr
     });
   }
 
-  function setRequirement(key: keyof OpportunityRequirementReview, value: string | boolean) {
+  function setRequirement(key: keyof OpportunityRequirementReview, value: string | boolean | string[]) {
     setRequirementsDraft((current) => {
       const base = current.source === state.requirements ? current.value : state.requirements;
       return { source: state.requirements, value: { ...base, [key]: value } };
@@ -236,22 +238,23 @@ export default function OpportunityExecutionPanel({ dealId, state, matches }: Pr
 
       <EnterprisePanel eyebrow="Requirements review" title="Extracted tender requirements">
         <div className="grid gap-3 md:grid-cols-2">
-          <input className="rounded-md border p-2" value={fieldValue(requirements.rfqNumber)} onChange={(event) => setRequirement("rfqNumber", event.target.value)} placeholder="RFQ/RFP number" />
-          <input className="rounded-md border p-2" value={fieldValue(requirements.clientIssuer)} onChange={(event) => setRequirement("clientIssuer", event.target.value)} placeholder="Client / issuer" />
-          <input className="rounded-md border p-2" value={fieldValue(requirements.municipalityOrOrganOfState)} onChange={(event) => setRequirement("municipalityOrOrganOfState", event.target.value)} placeholder="Municipality / organ of state" />
-          <input className="rounded-md border p-2" value={fieldValue(requirements.department)} onChange={(event) => setRequirement("department", event.target.value)} placeholder="Department" />
-          <input className="rounded-md border p-2" value={fieldValue(requirements.closingDateTime)} onChange={(event) => setRequirement("closingDateTime", event.target.value)} placeholder="Closing date/time" />
-          <input className="rounded-md border p-2" value={fieldValue(requirements.serviceCategory)} onChange={(event) => setRequirement("serviceCategory", event.target.value)} placeholder="Service category" />
-          <input className="rounded-md border p-2" value={fieldValue(requirements.location)} onChange={(event) => setRequirement("location", event.target.value)} placeholder="Location" />
-          <input className="rounded-md border p-2" value={fieldValue(requirements.cidbRequirement)} onChange={(event) => setRequirement("cidbRequirement", event.target.value)} placeholder="CIDB requirement" />
-          <input className="rounded-md border p-2" value={fieldValue(requirements.submissionMethod)} onChange={(event) => setRequirement("submissionMethod", event.target.value)} placeholder="Submission method" />
+          <input disabled={!requirementsEditable} className="rounded-md border p-2" value={fieldValue(requirements.rfqNumber)} onChange={(event) => setRequirement("rfqNumber", event.target.value)} placeholder="RFQ/RFP number" />
+          <input disabled={!requirementsEditable} className="rounded-md border p-2" value={fieldValue(requirements.clientIssuer)} onChange={(event) => setRequirement("clientIssuer", event.target.value)} placeholder="Client / issuer" />
+          <input disabled={!requirementsEditable} className="rounded-md border p-2" value={fieldValue(requirements.municipalityOrOrganOfState)} onChange={(event) => setRequirement("municipalityOrOrganOfState", event.target.value)} placeholder="Municipality / organ of state" />
+          <input disabled={!requirementsEditable} className="rounded-md border p-2" value={fieldValue(requirements.department)} onChange={(event) => setRequirement("department", event.target.value)} placeholder="Department" />
+          <input disabled={!requirementsEditable} className="rounded-md border p-2" value={fieldValue(requirements.closingDateTime)} onChange={(event) => setRequirement("closingDateTime", event.target.value)} placeholder="Closing date/time" />
+          <input disabled={!requirementsEditable} className="rounded-md border p-2" value={fieldValue(requirements.serviceCategory)} onChange={(event) => setRequirement("serviceCategory", event.target.value)} placeholder="Service category" />
+          <input disabled={!requirementsEditable} className="rounded-md border p-2" value={fieldValue(requirements.location)} onChange={(event) => setRequirement("location", event.target.value)} placeholder="Location" />
+          <input disabled={!requirementsEditable} className="rounded-md border p-2" value={fieldValue(requirements.cidbRequirement)} onChange={(event) => setRequirement("cidbRequirement", event.target.value)} placeholder="CIDB requirement" />
+          <input disabled={!requirementsEditable} className="rounded-md border p-2" value={fieldValue(requirements.submissionMethod)} onChange={(event) => setRequirement("submissionMethod", event.target.value)} placeholder="Submission method" />
+          <input disabled={!requirementsEditable} className="rounded-md border p-2" value={requirements.formsRequiringCompletion.join(", ")} onChange={(event) => setRequirement("formsRequiringCompletion", event.target.value.split(",").map((item) => item.trim()).filter(Boolean))} placeholder="Required forms / SBD subtypes" />
         </div>
         <div className="mt-4 flex flex-wrap gap-4 text-sm">
           {(["csdRequirement", "taxRequirement", "bbbeeRequirement", "coidaRequirement", "bankingRequirement", "boqPricingSchedulePresent", "signatureRequired"] as const).map((key) => (
-            <label key={key} className="flex items-center gap-2"><input type="checkbox" checked={Boolean(requirements[key])} onChange={(event) => setRequirement(key, event.target.checked)} />{formatOpportunityRequirementLabel(key)}</label>
+            <label key={key} className="flex items-center gap-2"><input disabled={!requirementsEditable} type="checkbox" checked={Boolean(requirements[key])} onChange={(event) => setRequirement(key, event.target.checked)} />{formatOpportunityRequirementLabel(key)}</label>
           ))}
         </div>
-        <div className="mt-4"><EnterpriseActionButton disabled={pending || state.currentPhase !== "REQUIREMENTS_REVIEW"} onClick={() => submit("review_requirements", { requirements })} variant="success">Complete Requirements Review</EnterpriseActionButton></div>
+        <div className="mt-4 flex flex-wrap gap-3"><EnterpriseActionButton disabled={pending || !requirementsEditable || requirements.reviewed} onClick={() => submit("review_requirements", { requirements })} variant="success">Complete Requirements Review</EnterpriseActionButton>{requirements.reviewed ? <EnterpriseActionButton disabled={pending || !actionByKey(state.actions, "reopen_requirements_review")?.enabled} onClick={() => submit("reopen_requirements_review")} variant="secondary">Amend Requirements Review</EnterpriseActionButton> : null}</div>
       </EnterprisePanel>
 
       <EnterprisePanel eyebrow="Contractor matching" title="Live contractor recommendations">

@@ -15,7 +15,7 @@ export type OpportunityExecutionPhase = "INTAKE_COMPLETE" | "REQUIREMENTS_REVIEW
 export type OpportunityComplianceStatus = "VALID" | "MISSING" | "EXPIRED" | "UNVERIFIED" | "UNCLASSIFIED" | "INVALID" | "WRONG_CONTRACTOR" | "DUPLICATE" | "NOT_APPLICABLE" | "REQUIRES_REVIEW" | "REQUIRES_MANUAL_REVIEW";
 export type OpportunityTaskStatus = "not_started" | "in_progress" | "complete" | "blocked" | "not_applicable";
 export type OpportunityStageStatus = "NOT_STARTED" | "IN_PROGRESS" | "BLOCKED" | "COMPLETE" | "NOT_APPLICABLE";
-export type OpportunityActionKey = "review_requirements" | "find_matching_contractors" | "assign_contractor" | "open_contractor" | "open_execution_workspace" | "change_assignment" | "remove_assignment" | "start_compliance_review" | "open_missing_documents" | "open_supplier_quotes" | "open_tender_intelligence" | "open_boq_pricing" | "open_submission_review" | "prepare_documents" | "start_internal_review" | "contractor_approval" | "generate_tender_pack" | "mark_ready_for_submission" | "record_submission";
+export type OpportunityActionKey = "reopen_requirements_review" | "review_requirements" | "find_matching_contractors" | "assign_contractor" | "open_contractor" | "open_execution_workspace" | "change_assignment" | "remove_assignment" | "start_compliance_review" | "open_missing_documents" | "open_supplier_quotes" | "open_tender_intelligence" | "open_boq_pricing" | "open_submission_review" | "prepare_documents" | "start_internal_review" | "contractor_approval" | "generate_tender_pack" | "mark_ready_for_submission" | "record_submission";
 export type OpportunityStageKey = "requirements" | "assignment" | "compliance" | "supplierQuotes" | "tenderIntelligence" | "boq" | "documents" | "internalReview" | "contractorApproval" | "tenderPack" | "submission";
 export type ProcurementNextActionKey = "ASSIGN_CONTRACTOR" | "REMEDIATE_COMPLIANCE" | "UPLOAD_OR_APPROVE_SUPPLIER_QUOTE" | "REVIEW_TENDER_ANALYSIS" | "MAP_QUOTES_TO_TENDER_LINES" | "COMPLETE_PRICING" | "APPROVE_PRICING" | "GENERATE_PRICED_DOCUMENT" | "COMPLETE_DOCUMENTS" | "COMPLETE_SUBMISSION_REVIEW" | "GENERATE_TENDER_PACK" | "READY_FOR_SUBMISSION" | "RECORD_SUBMISSION" | "REQUEST_TCS_PIN" | "VERIFY_TCS_WITH_SARS" | "RESOLVE_TAX_IDENTITY_MISMATCH" | "REQUEST_TAX_REMEDIATION" | "REVERIFY_TCS" | "TAX_VERIFICATION_COMPLETE";
 type AnyRecord = Record<string, unknown>;
@@ -45,6 +45,9 @@ export type OpportunityRequirementReview = {
   reviewed: boolean;
   reviewedAt?: string | null;
   reviewedByUid?: string | null;
+  reviewStatus?: "PENDING" | "IN_REVIEW" | "APPROVED";
+  reopenedAt?: string | null;
+  reopenedByUid?: string | null;
 };
 
 export type OpportunityAction = { key: OpportunityActionKey; label: string; enabled: boolean; reason: string | null; href?: string };
@@ -176,7 +179,7 @@ export function normalizeCidbRequirement(value: unknown): string | null {
   if (["notrequired", "na", "none", "notapplicable"].includes(normalized)) return null;
   return raw;
 }
-function docName(doc: AnyRecord): string { return [doc.documentType, doc.name, doc.fileName, doc.title, doc.category].map(str).filter(Boolean).join(" "); }
+function docName(doc: AnyRecord): string { return Array.from(new Set([doc.documentType, doc.name, doc.fileName, doc.title, doc.category].map(str).filter((value): value is string => Boolean(value)))).join(" "); }
 function documentCategory(doc: AnyRecord): string { return normalize(doc.returnableCategory); }
 function documentBaseIdentity(doc: AnyRecord): string | null { return str(doc.canonicalEvidenceId) ?? str(doc.documentId) ?? str(doc.storagePath) ?? str(doc.id); }
 function documentMergeKey(doc: AnyRecord, fallback: string): string { const base = documentBaseIdentity(doc); return base ? "identity:" + base + "::category:" + documentCategory(doc) : fallback; }
@@ -283,9 +286,12 @@ export function extractOpportunityRequirements(deal: Deal | AnyRecord): Opportun
     formsRequiringCompletion: forms.length ? forms : ["SBD forms", "Declarations"],
     annexuresAndAmendments: annexures.length ? annexures : docs.filter((doc) => /annex|amend/i.test(docName(doc))).map((doc) => str(doc.name) ?? str(doc.fileName) ?? "Annexure/amendment"),
     signatureRequired: typeof existing.signatureRequired === "boolean" ? existing.signatureRequired : true,
-    reviewed: bool(existing.reviewed) || bool(source.requirementsReviewed),
+    reviewed: bool(existing.reviewed) || bool(source.requirementsReviewed) || bool(execution.requirementsReviewed),
     reviewedAt: str(existing.reviewedAt),
     reviewedByUid: str(existing.reviewedByUid),
+    reviewStatus: existing.reviewStatus === "IN_REVIEW" || existing.reviewStatus === "APPROVED" || existing.reviewStatus === "PENDING" ? existing.reviewStatus : bool(existing.reviewed) || bool(source.requirementsReviewed) || bool(execution.requirementsReviewed) ? "APPROVED" : "PENDING",
+    reopenedAt: str(existing.reopenedAt),
+    reopenedByUid: str(existing.reopenedByUid),
   };
 }
 
@@ -593,7 +599,8 @@ export function buildOpportunityExecutionState(input: { deal: Deal | AnyRecord; 
   const uniqueBlockers = Array.from(new Set([...blockers, ...complianceBlockers]));
   const actions: OpportunityAction[] = [];
   const documentsBlocked = documents.some((doc) => doc.status === "BLOCKED");
-  addAction(actions, "review_requirements", "Complete Requirements Review", phase === "REQUIREMENTS_REVIEW", "Requirements review is already complete or not the current phase");
+  addAction(actions, "review_requirements", "Complete Requirements Review", phase === "REQUIREMENTS_REVIEW" && !requirements.reviewed, "Requirements review is already complete or not the current phase");
+  addAction(actions, "reopen_requirements_review", "Amend Requirements Review", requirements.reviewed, "Requirements review is not complete");
   addAction(actions, "find_matching_contractors", "Find Matching Contractors", phase === "MATCHING_REQUIRED", "Complete requirements review first");
   addAction(actions, "assign_contractor", "Assign Contractor", phase === "MATCHING_REQUIRED", "Complete matching first");
   addAction(actions, "open_contractor", "Open Contractor", Boolean(contractorId), "No contractor is assigned", contractorId ? "/dashboard/contractors/" + contractorId : undefined);

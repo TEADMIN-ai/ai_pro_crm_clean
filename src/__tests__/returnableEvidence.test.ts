@@ -134,6 +134,13 @@ describe("live persisted returnable shapes", () => {
   });
 });
 
+describe("requirements subtype authority", () => {
+  test("generic SBD requirements do not infer uploaded subtype authority", () => {
+    const state = buildOpportunityExecutionState({ deal: { ...deal, opportunityExecution: { ...deal.opportunityExecution, requirements: { formsRequiringCompletion: ["SBD forms"] } }, documents: [ ...deal.documents, governedDocument("sbd", "SBD_FORMS", "SBD1.pdf", "approved", "APPROVED", "SBD1"), governedDocument("sbd", "SBD_FORMS", "SBD4.pdf", "approved", "APPROVED", "SBD4"), governedDocument("sbd", "SBD_FORMS", "SBD6_1.pdf", "approved", "APPROVED", "SBD6_1") ] }, contractor });
+    expect(state.documentChecklist.find((item) => item.key === "sbd")?.status).toBe("BLOCKED");
+  });
+});
+
 describe("approval-to-checklist projection", () => {
   test("approved declarations, signatures, and amendments complete only their matching items", () => {
     const state = buildOpportunityExecutionState({ deal: { ...deal, opportunityExecution: { ...deal.opportunityExecution, requirements: { formsRequiringCompletion: ["SBD forms"], signatureRequired: true, annexuresAndAmendments: ["Amendments"] } }, documents: [...deal.documents, governedDocument("declarations", "DECLARATIONS", "declaration.pdf", "approved", "APPROVED"), governedDocument("signatures", "SIGNATURES", "signed.pdf", "approved", "APPROVED"), governedDocument("amendments", "AMENDMENTS", "amendment.pdf", "approved", "APPROVED")] }, contractor });
@@ -152,5 +159,13 @@ describe("approval-to-checklist projection", () => {
   test("SBD fails closed without authoritative required subtype requirements", () => {
     const state = buildOpportunityExecutionState({ deal: { ...deal, documents: [ ...deal.documents, governedDocument("sbd", "SBD_FORMS", "SBD1.pdf", "approved", "APPROVED", "SBD1"), governedDocument("sbd", "SBD_FORMS", "SBD4.pdf", "approved", "APPROVED", "SBD4"), governedDocument("sbd", "SBD_FORMS", "SBD6.1.pdf", "approved", "APPROVED", "SBD6_1") ] }, contractor });
     expect(state.documentChecklist.find((item) => item.key === "sbd")?.status).toBe("BLOCKED");
+  });
+});
+
+describe("requirements review amendment authority", () => {
+  test("completed requirements expose an authorized amend action and remain immutable until reopened", () => {
+    const state = buildOpportunityExecutionState({ deal, contractor });
+    expect(state.actions.find((action) => action.key === "review_requirements")?.enabled).toBe(false);
+    expect(state.actions.find((action) => action.key === "reopen_requirements_review")).toMatchObject({ enabled: true, label: "Amend Requirements Review" });
   });
 });

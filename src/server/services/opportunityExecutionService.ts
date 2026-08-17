@@ -1,6 +1,6 @@
 import { Timestamp } from "firebase-admin/firestore";
 import { getFirebaseAdmin } from "@/lib/firebase/admin";
-import type { AuthorizedUser } from "@/lib/server/authz";
+import { assertPrivilegedRole, type AuthorizedUser } from "@/lib/server/authz";
 import { listContractors } from "@/server/services/contractorService";
 import { getContractorBusinessName, resolveContractorReference } from "@/lib/contractors/contractorReferenceResolver";
 import { buildOpportunityExecutionState, extractOpportunityRequirements, matchContractorsForOpportunity, mergeOpportunityDocuments, validateOpportunityTransition, type ContractorMatchResult, type OpportunityExecutionPhase, type OpportunityRequirementReview } from "@/lib/opportunities/opportunityExecution";
@@ -90,6 +90,7 @@ const projection = buildProcurementExecutionProjection({ deal: stateDeal, state,
 }
 
 function targetPhaseForAction(action: string, deal: Record<string, unknown>): OpportunityExecutionPhase | null {
+  if (action === "reopen_requirements_review") return asString(asRecord(deal.opportunityExecution).currentPhase) as OpportunityExecutionPhase | null;
   if (action === "review_requirements") return "MATCHING_REQUIRED";
   if (action === "find_matching_contractors") return "MATCHING_REQUIRED";
   if (action === "assign_contractor") return "COMPLIANCE_REVIEW";
@@ -108,9 +109,12 @@ export async function applyOpportunityExecutionAction(input: ActionInput) {
   const db = getFirebaseAdmin();
   const deal = await loadDealRecord(input.dealId);
   await assertWorkspaceAccess(input.actor, deal);
+  if (input.action === "reopen_requirements_review" || input.action === "review_requirements") assertPrivilegedRole(input.actor);
   const currentView = await getOpportunityExecutionView(input.dealId, input.actor);
   const current = currentView.state.currentPhase;
-  const target = input.action === "prepare_documents" && current === "DOCUMENT_PREPARATION" ? "DOCUMENT_PREPARATION" as OpportunityExecutionPhase : targetPhaseForAction(input.action, deal);
+  if (input.action === "reopen_requirements_review" && !currentView.state.requirements.reviewed) throw Object.assign(new Error("Requirements review is not complete"), { status: 409 });
+  if (input.action === "review_requirements" && current !== "REQUIREMENTS_REVIEW" && currentView.state.requirements.reviewStatus !== "IN_REVIEW") throw Object.assign(new Error("Requirements review must be reopened before it can be amended"), { status: 409 });
+  const target = input.action === "reopen_requirements_review" ? current : input.action === "prepare_documents" && current === "DOCUMENT_PREPARATION" ? "DOCUMENT_PREPARATION" as OpportunityExecutionPhase : targetPhaseForAction(input.action, deal);
   if (!target) throw Object.assign(new Error("Unknown opportunity action"), { status: 400 });
   await recordProcurementTransitionAudit({
     actor: input.actor,
@@ -175,9 +179,10 @@ export async function applyOpportunityExecutionAction(input: ActionInput) {
   const now = new Date();
   const patch: Record<string, unknown> = { updatedAt: now, workflowStatus: target };
   const existingExecution = asRecord(deal.opportunityExecution);
-  const requirements = { ...extractOpportunityRequirements(deal), ...(input.requirements ?? {}) };
+  const requirements = input.action === "reopen_requirements_review" ? extractOpportunityRequirements(deal) : { ...extractOpportunityRequirements(deal), ...(input.requirements ?? {}) };
   const execution: Record<string, unknown> = { ...existingExecution, currentPhase: target, executionWorkspaceId: existingExecution.executionWorkspaceId ?? `exec-${input.dealId}`, updatedAt: now.toISOString() };
-  if (input.action === "review_requirements") { execution.requirementsReviewed = true; requirements.reviewed = true; requirements.reviewedAt = now.toISOString(); requirements.reviewedByUid = input.actor.uid; execution.requirements = requirements; }
+  if (input.action === "reopen_requirements_review") { const priorRequirements = { ...requirements }; execution.requirementsReviewed = false; execution.requirements = { ...priorRequirements, reviewed: false, reviewStatus: "IN_REVIEW", reopenedAt: now.toISOString(), reopenedByUid: input.actor.uid }; }
+  if (input.action === "review_requirements") { execution.requirementsReviewed = true; requirements.reviewed = true; requirements.reviewStatus = "APPROVED"; requirements.reviewedAt = now.toISOString(); requirements.reviewedByUid = input.actor.uid; execution.requirements = requirements; }
   if (input.action === "find_matching_contractors") execution.matchingCompleted = true;
   if (input.action === "assign_contractor") {
     if (!input.contractorId) throw Object.assign(new Error("contractorId is required"), { status: 400 });
@@ -250,10 +255,10 @@ export async function applyOpportunityExecutionAction(input: ActionInput) {
   };
   const auditPayload = {
     userId: input.actor.uid,
-    action: input.action === "assign_contractor" ? "OPPORTUNITY_CONTRACTOR_ASSIGNED" : "OPPORTUNITY_EXECUTION_UPDATED",
+    action: input.action === "assign_contractor" ? "OPPORTUNITY_CONTRACTOR_ASSIGNED" : input.action === "reopen_requirements_review" ? "OPPORTUNITY_REQUIREMENTS_REOPENED" : "OPPORTUNITY_EXECUTION_UPDATED",
     entityType: "deal",
     entityId: input.dealId,
-    metadata: { action: input.action, phase: target, eventKey: deterministicEventKey },
+    metadata: { action: input.action, phase: target, eventKey: deterministicEventKey, ...(input.action === "reopen_requirements_review" ? { priorRequirements: requirements, priorReviewStatus: requirements.reviewStatus ?? "APPROVED" } : {}) },
     createdAt: Timestamp.fromDate(now),
   };
   if (deterministicEventKey) {
@@ -279,5 +284,5 @@ export async function applyOpportunityExecutionAction(input: ActionInput) {
     evidenceReferences: submissionEvidence?.evidenceReferences ?? {},
   });
   const nextView = await getOpportunityExecutionView(input.dealId, input.actor);
-  return { ...nextView, redirectTo: input.action === "assign_contractor" ? "/dashboard/deals/" + input.dealId + "/execution" : input.action === "prepare_documents" ? "/dashboard/deals/" + input.dealId + "/document-preparation" : undefined };
+  return { ...nextView, redirectTo: input.action === "assign_contractor" ? "/dashboard/deals/" + input.dealId + "/execution" : input.action === "prepare_documents" ? "/dashboard/deals/" + input.dealId + "/document-preparation" : input.action === "reopen_requirements_review" ? "/dashboard/deals/" + input.dealId + "/execution" : undefined };
 }
