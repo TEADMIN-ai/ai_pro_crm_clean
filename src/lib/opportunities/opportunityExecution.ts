@@ -197,13 +197,17 @@ function allDocs(source: AnyRecord): AnyRecord[] {
     return (!docDealId || !dealId || docDealId === dealId) && (!docWorkspaceId || !workspaceId || docWorkspaceId === workspaceId);
   });
 }
-function documentIsApproved(doc: AnyRecord): boolean { const category = str(doc.returnableCategory) ?? str(doc.documentPreparationItem); if (!category) return normalize(doc.status) !== "rejected" && normalize(doc.reviewStatus) !== "rejected"; return normalize(doc.status) === "approved" && normalize(doc.reviewStatus) !== "rejected"; }
+function documentIsApproved(doc: AnyRecord): boolean { const status = normalize(doc.status); const reviewStatus = normalize(doc.reviewStatus); const governed = Boolean(str(doc.returnableCategory) || str(doc.returnableKey) || str(doc.documentPreparationItem)); if (!governed) return status !== "rejected" && reviewStatus !== "rejected"; return status !== "rejected" && reviewStatus !== "rejected" && (status === "approved" || reviewStatus === "approved"); }
 function checklistDocumentMatches(doc: AnyRecord, key: string, tokens: string[]): boolean {
-  const itemKey = normalize(doc.returnableKey) || normalize(doc.documentPreparationItem);
-  if (itemKey) return itemKey === normalize(key);
-  const categoryKey: Record<string, string> = { sbd_forms: "sbd", declarations: "declarations", signatures: "signatures", amendments: "amendments", annexures: "annexures", rfq_source: "source", pricing_schedule: "pricing", contractor_compliance: "compliance" };
+  const normalizedKey = normalize(key);
+  const categoryKey: Record<string, string> = { sbd_forms: "sbd", declarations: "declarations", signatures: "signatures", amendments: "amendments", annexures: "annexures", rfq_source: "source", pricing_schedule: "pricing", boq: "pricing", contractor_compliance: "compliance" };
   const category = normalize(doc.returnableCategory);
-  if (categoryKey[category]) return categoryKey[category] === normalize(key);
+  if (category) return categoryKey[category] === normalizedKey;
+  const itemKey = normalize(doc.returnableKey) || normalize(doc.documentPreparationItem);
+  if (itemKey) return itemKey === normalizedKey;
+  const typeText = [doc.documentType, doc.category, doc.type].map(normalize).join(" ");
+  if (normalizedKey === "source" && /boq|pricing|schedule/.test(typeText)) return false;
+  if (normalizedKey === "pricing" && /boq|pricing|schedule/.test(typeText)) return true;
   return tokens.some((token) => textHas(docName(doc), token));
 }
 function hasDocument(docs: AnyRecord[], tokens: string[]): AnyRecord | null { return docs.find((doc) => documentIsApproved(doc) && tokens.some((token) => textHas(docName(doc), token))) ?? null; }
@@ -464,7 +468,8 @@ function buildDocumentChecklist(deal: AnyRecord, requirements: OpportunityRequir
   const item = (key: string, label: string, required: boolean, tokens: string[], completeOverride?: boolean): OpportunityDocumentChecklistItem => {
     if (!required) return { key, label, required, status: "NOT_APPLICABLE", source: null };
     const candidate = docs.find((doc) => checklistDocumentMatches(doc, key, tokens));
-    const found = docs.find((doc) => documentIsApproved(doc) && checklistDocumentMatches(doc, key, tokens)) ?? null;
+    const matchingDocs = docs.filter((doc) => checklistDocumentMatches(doc, key, tokens));
+    const found = matchingDocs.find((doc) => documentIsApproved(doc)) ?? null;
     const candidateStatus = normalize(candidate?.status);
     const candidateReviewStatus = normalize(candidate?.reviewStatus);
     const reviewStatus = candidate && !found && (candidateStatus === "pending" || candidateReviewStatus === "ready_for_review") ? "READY_FOR_REVIEW" : candidateStatus === "rejected" || candidateReviewStatus === "rejected" ? "REJECTED" : null;
@@ -472,7 +477,8 @@ function buildDocumentChecklist(deal: AnyRecord, requirements: OpportunityRequir
     const approvedSbdSubtypes = key === "sbd" ? docs.filter((doc) => documentIsApproved(doc) && checklistDocumentMatches(doc, key, tokens)).map((doc) => sbdSubtype(doc.returnableSubtype)).filter((value): value is string => Boolean(value)) : [];
     const sbdComplete = key === "sbd" && explicitSbdSubtypes.length > 0 && explicitSbdSubtypes.every((subtype) => approvedSbdSubtypes.includes(subtype));
     const complete = key === "sbd" ? sbdComplete : (completeOverride === true && !candidate?.returnableCategory && !candidate?.documentPreparationItem) || Boolean(found);
-    return { key, label, required, status: complete ? "COMPLETE" : "BLOCKED", source: found ? docName(found) : candidate ? docName(candidate) : null, reviewStatus };
+    const approvedSources = matchingDocs.filter(documentIsApproved).map(docName).filter(Boolean);
+    return { key, label, required, status: complete ? "COMPLETE" : "BLOCKED", source: approvedSources.length ? approvedSources.join(", ") : candidate ? docName(candidate) : null, reviewStatus };
   };
   const complianceComplete = contractor ? evaluateOpportunityCompliance(requirements, contractor, str(deal.workspaceId)).status === "VALID" : false;
   return [
