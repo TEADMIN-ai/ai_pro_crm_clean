@@ -201,10 +201,12 @@ function allDocs(source: AnyRecord): AnyRecord[] {
   const intake = rec(source.opportunityIntake);
   const dealId = str(source.id);
   const workspaceId = str(source.workspaceId);
-  return mergeOpportunityDocuments([...(Array.isArray(source.documents) ? source.documents : []), ...(Array.isArray(intake.uploadedDocuments) ? intake.uploadedDocuments : [])], []).filter((doc) => {
+  const merged = mergeOpportunityDocuments([...(Array.isArray(source.documents) ? source.documents : []), ...(Array.isArray(intake.uploadedDocuments) ? intake.uploadedDocuments : [])], []); return merged.filter((doc) => {
     const docDealId = str(doc.dealId) ?? str(doc.opportunityId);
-    const docWorkspaceId = str(doc.workspaceId) ?? str(doc.documentPreparationWorkspaceId);
-    return (!docDealId || !dealId || docDealId === dealId) && (!docWorkspaceId || !workspaceId || docWorkspaceId === workspaceId);
+    const docWorkspaceId = str(doc.workspaceId);
+    const docExecutionWorkspaceId = str(doc.documentPreparationWorkspaceId);
+    const executionWorkspaceId = str(rec(source.opportunityExecution).executionWorkspaceId) ?? str(source.executionWorkspaceId);
+    return (!docDealId || !dealId || docDealId === dealId) && (!docWorkspaceId || !workspaceId || docWorkspaceId === workspaceId) && (!docExecutionWorkspaceId || !executionWorkspaceId || docExecutionWorkspaceId === executionWorkspaceId);
   });
 }
 function documentIsApproved(doc: AnyRecord): boolean { const status = normalize(doc.status); const reviewStatus = normalize(doc.reviewStatus); const approvalStatus = normalize(doc.approvalStatus); const governed = Boolean(str(doc.returnableCategory) || str(doc.returnableKey) || str(doc.documentPreparationItem)); if (!governed) return status !== "rejected" && reviewStatus !== "rejected" && approvalStatus !== "rejected"; return status !== "rejected" && reviewStatus !== "rejected" && approvalStatus !== "rejected" && (status === "approved" || reviewStatus === "approved" || approvalStatus === "approved"); }
@@ -222,7 +224,7 @@ function checklistDocumentMatches(doc: AnyRecord, key: string, tokens: string[])
   return tokens.some((token) => textHas(docName(doc), token));
 }
 function hasDocument(docs: AnyRecord[], tokens: string[]): AnyRecord | null { return docs.find((doc) => documentIsApproved(doc) && tokens.some((token) => textHas(docName(doc), token))) ?? null; }
-function sbdSubtype(value: unknown): string | null { const normalized = normalize(value).replace(/[^a-z0-9]/g, ""); if (!normalized || normalized === "sbdforms") return null; return normalized.startsWith("sbd") ? normalized.replace("sbd", "sbd") : null; }
+export function normalizeSbdSubtype(value: unknown): string | null { const normalized = normalize(value).replace(/[^a-z0-9]/g, ""); if (!normalized || normalized === "sbdforms") return null; return normalized.startsWith("sbd") ? normalized : null; }
 function phaseIndex(phase: OpportunityExecutionPhase): number { return OPPORTUNITY_PHASES.indexOf(phase); }
 function isAtLeast(phase: OpportunityExecutionPhase, target: OpportunityExecutionPhase): boolean { return phaseIndex(phase) >= phaseIndex(target); }
 
@@ -484,8 +486,8 @@ function buildDocumentChecklist(deal: AnyRecord, requirements: OpportunityRequir
     const candidateStatus = normalize(candidate?.status);
     const candidateReviewStatus = normalize(candidate?.reviewStatus);
     const reviewStatus = candidate && !found && (candidateStatus === "pending" || candidateReviewStatus === "ready_for_review") ? "READY_FOR_REVIEW" : candidateStatus === "rejected" || candidateReviewStatus === "rejected" ? "REJECTED" : null;
-    const explicitSbdSubtypes = key === "sbd" ? requirements.formsRequiringCompletion.map(sbdSubtype).filter((value): value is string => Boolean(value)) : [];
-    const approvedSbdSubtypes = key === "sbd" ? docs.filter((doc) => documentIsApproved(doc) && checklistDocumentMatches(doc, key, tokens)).map((doc) => sbdSubtype(doc.returnableSubtype)).filter((value): value is string => Boolean(value)) : [];
+    const explicitSbdSubtypes = key === "sbd" ? requirements.formsRequiringCompletion.map(normalizeSbdSubtype).filter((value): value is string => Boolean(value)) : [];
+    const approvedSbdSubtypes = key === "sbd" ? docs.filter((doc) => documentIsApproved(doc) && checklistDocumentMatches(doc, key, tokens)).map((doc) => normalizeSbdSubtype(doc.returnableSubtype)).filter((value): value is string => Boolean(value)) : [];
     const sbdComplete = key === "sbd" && explicitSbdSubtypes.length > 0 && explicitSbdSubtypes.every((subtype) => approvedSbdSubtypes.includes(subtype));
     const complete = key === "sbd" ? sbdComplete : (completeOverride === true && !candidate?.returnableCategory && !candidate?.documentPreparationItem) || Boolean(found);
     const approvedSources = matchingDocs.filter(documentIsApproved).map(docName).filter(Boolean);

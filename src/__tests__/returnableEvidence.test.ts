@@ -1,5 +1,5 @@
 import { dedupeReturnableEvidence, getReturnableContext } from "@/lib/opportunities/returnableEvidence";
-import { buildOpportunityExecutionState, mergeOpportunityDocuments } from "@/lib/opportunities/opportunityExecution";
+import { buildOpportunityExecutionState, mergeOpportunityDocuments, normalizeSbdSubtype } from "@/lib/opportunities/opportunityExecution";
 
 const deal = {
   id: "deal-1",
@@ -117,6 +117,20 @@ describe("classifier authority", () => {
     expect(merged).toHaveLength(2);
     expect(merged.map((item) => item.returnableCategory).sort()).toEqual(["DECLARATIONS", "SBD_FORMS"]);
     expect(merged.find((item) => item.returnableCategory === "SBD_FORMS")?.status).toBe("approved");
+  });
+});
+
+describe("live persisted returnable shapes", () => {
+  test("approved canonical category records survive into checklist projection", () => {
+    const state = buildOpportunityExecutionState({ deal: { ...deal, opportunityExecution: { ...deal.opportunityExecution, documentPreparation: { returnables: [{ key: "declarations", status: "BLOCKED" }, { key: "signatures", status: "BLOCKED" }, { key: "amendments", status: "BLOCKED" }] }, requirements: { formsRequiringCompletion: ["SBD forms", "Declarations"], signatureRequired: true, annexuresAndAmendments: ["Amendments"] } }, documents: [{ id: "decl", dealId: "deal-1", returnableCategory: "DECLARATIONS", returnableKey: "declarations", documentPreparationItem: "declarations", status: "approved", reviewStatus: "APPROVED", approvalStatus: null, storagePath: "decl.pdf" }, { id: "sig", dealId: "deal-1", returnableCategory: "SIGNATURES", returnableKey: "signatures", documentPreparationItem: "signatures", status: "approved", reviewStatus: "APPROVED", storagePath: "sig.pdf" }, { id: "amend", dealId: "deal-1", returnableCategory: "AMENDMENTS", returnableKey: "amendments", status: "approved", reviewStatus: "APPROVED", storagePath: "amend.pdf" }] }, contractor });
+    expect(state.documentChecklist.find((item) => item.key === "declarations")?.status).toBe("COMPLETE");
+    expect(state.documentChecklist.find((item) => item.key === "signatures")?.status).toBe("COMPLETE");
+    expect(state.documentChecklist.find((item) => item.key === "amendments")?.status).toBe("COMPLETE");
+    expect(state.documentChecklist.find((item) => item.key === "sbd")?.status).toBe("BLOCKED");
+  });
+  test("SBD subtype normalization is shared by requirements and evidence", () => {
+    expect(["SBD1", "SBD_1", "SBD 1"].map(normalizeSbdSubtype)).toEqual(["sbd1", "sbd1", "sbd1"]);
+    expect(["SBD6_1", "SBD6.1", "SBD 6.1"].map(normalizeSbdSubtype)).toEqual(["sbd61", "sbd61", "sbd61"]);
   });
 });
 
