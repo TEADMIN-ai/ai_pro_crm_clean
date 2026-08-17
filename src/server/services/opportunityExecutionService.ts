@@ -3,7 +3,7 @@ import { getFirebaseAdmin } from "@/lib/firebase/admin";
 import type { AuthorizedUser } from "@/lib/server/authz";
 import { listContractors } from "@/server/services/contractorService";
 import { getContractorBusinessName, resolveContractorReference } from "@/lib/contractors/contractorReferenceResolver";
-import { buildOpportunityExecutionState, extractOpportunityRequirements, matchContractorsForOpportunity, validateOpportunityTransition, type ContractorMatchResult, type OpportunityExecutionPhase, type OpportunityRequirementReview } from "@/lib/opportunities/opportunityExecution";
+import { buildOpportunityExecutionState, extractOpportunityRequirements, matchContractorsForOpportunity, mergeOpportunityDocuments, validateOpportunityTransition, type ContractorMatchResult, type OpportunityExecutionPhase, type OpportunityRequirementReview } from "@/lib/opportunities/opportunityExecution";
 import { buildProcurementExecutionProjection, hasGovernedLockedPricing } from "@/lib/opportunities/procurementExecutionProjection";
 import { getDealContractorReference } from "@/lib/deals/contractorReference";
 import { assertAssignmentAllowed, evaluateContractorAssignmentAuthority } from "@/server/services/contractorAssignmentAuthorityService";
@@ -21,9 +21,12 @@ async function getUserWorkspaceId(uid: string): Promise<string | null> {
   return asString((snapshot.data() ?? {}).workspaceId);
 }
 async function loadDealRecord(dealId: string) {
-  const snapshot = await getFirebaseAdmin().collection("deals").doc(dealId).get();
+  const dealRef = getFirebaseAdmin().collection("deals").doc(dealId);
+  const [snapshot, documentsSnapshot] = await Promise.all([dealRef.get(), dealRef.collection("documents").get()]);
   if (!snapshot.exists) throw Object.assign(new Error("Opportunity not found"), { status: 404 });
-  return { id: snapshot.id, ...(snapshot.data() ?? {}) } as Record<string, unknown> & { id: string };
+  const data = snapshot.data() ?? {};
+  const documents = mergeOpportunityDocuments(data.documents, documentsSnapshot.docs.map((document) => ({ id: document.id, ...(document.data() ?? {}) })));
+  return { id: snapshot.id, ...data, documents } as Record<string, unknown> & { id: string };
 }
 async function loadCanonicalTenderPricing(dealId: string): Promise<Record<string, unknown> | null> {
   const snapshot = await getFirebaseAdmin().collection("tenderPricingWorkspaces").where("dealId", "==", dealId).limit(1).get();

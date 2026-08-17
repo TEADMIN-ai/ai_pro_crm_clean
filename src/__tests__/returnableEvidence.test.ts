@@ -1,5 +1,5 @@
 import { dedupeReturnableEvidence, getReturnableContext } from "@/lib/opportunities/returnableEvidence";
-import { buildOpportunityExecutionState } from "@/lib/opportunities/opportunityExecution";
+import { buildOpportunityExecutionState, mergeOpportunityDocuments } from "@/lib/opportunities/opportunityExecution";
 
 const deal = {
   id: "deal-1",
@@ -46,6 +46,33 @@ describe("returnable evidence identity projection", () => {
   test("does not deduplicate distinct documents with the same filename", () => {
     const records = [{ id: "doc-1", name: "SBD.pdf" }, { id: "doc-2", name: "SBD.pdf" }];
     expect(dedupeReturnableEvidence(records)).toHaveLength(2);
+  });
+});
+
+describe("canonical evidence rebuild", () => {
+  test("rebuilds execution state from approved canonical deal documents", () => {
+    const canonicalDocuments = [
+      governedDocument("sbd", "SBD_FORMS", "SBD1.pdf", "approved", "APPROVED", "SBD1"),
+      governedDocument("sbd", "SBD_FORMS", "SBD4.pdf", "approved", "APPROVED", "SBD4"),
+      governedDocument("sbd", "SBD_FORMS", "SBD6_1.pdf", "approved", "APPROVED", "SBD6_1"),
+      governedDocument("declarations", "DECLARATIONS", "declaration.pdf", "approved", "APPROVED"),
+      governedDocument("signatures", "SIGNATURES", "signed.pdf", "approved", "APPROVED"),
+      governedDocument("amendments", "AMENDMENTS", "amendment.pdf", "approved", "APPROVED"),
+    ].map((document) => ({ ...document, dealId: "deal-1", workspaceId: "workspace-a" }));
+    const rebuiltDeal = { ...deal, documents: mergeOpportunityDocuments(deal.documents, canonicalDocuments), opportunityExecution: { ...deal.opportunityExecution, requirements: { formsRequiringCompletion: ["SBD1", "SBD4", "SBD6_1"], signatureRequired: true, annexuresAndAmendments: ["Amendments"] } } };
+    const state = buildOpportunityExecutionState({ deal: rebuiltDeal, contractor });
+    expect(state.documentChecklist.filter((item) => ["sbd", "declarations", "signatures", "amendments"].includes(item.key)).every((item) => item.status === "COMPLETE")).toBe(true);
+  });
+
+  test("category-only approved evidence maps to its governed checklist", () => {
+    const state = buildOpportunityExecutionState({ deal: { ...deal, documents: [...deal.documents, { id: "declaration-1", returnableCategory: "DECLARATIONS", status: "approved", reviewStatus: "APPROVED" }] }, contractor });
+    expect(state.documentChecklist.find((item) => item.key === "declarations")?.status).toBe("COMPLETE");
+  });
+
+  test("cross-deal or cross-workspace evidence does not satisfy the checklist", () => {
+    const state = buildOpportunityExecutionState({ deal: { ...deal, documents: [{ id: "other", dealId: "other-deal", workspaceId: "workspace-a", returnableKey: "declarations", returnableCategory: "DECLARATIONS", status: "approved", reviewStatus: "APPROVED" }, { id: "other-workspace", dealId: "deal-1", workspaceId: "other-workspace", returnableKey: "signatures", returnableCategory: "SIGNATURES", status: "approved", reviewStatus: "APPROVED" }] }, contractor });
+    expect(state.documentChecklist.find((item) => item.key === "declarations")?.status).toBe("BLOCKED");
+    expect(state.documentChecklist.find((item) => item.key === "signatures")?.status).toBe("BLOCKED");
   });
 });
 

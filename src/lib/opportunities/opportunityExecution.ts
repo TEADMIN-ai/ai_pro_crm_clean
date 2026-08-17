@@ -177,12 +177,35 @@ export function normalizeCidbRequirement(value: unknown): string | null {
   return raw;
 }
 function docName(doc: AnyRecord): string { return [doc.documentType, doc.name, doc.fileName, doc.title, doc.category].map(str).filter(Boolean).join(" "); }
+export function mergeOpportunityDocuments(embedded: unknown, canonical: unknown[]): AnyRecord[] {
+  const merged = Array.isArray(embedded) ? embedded.map(rec) : [];
+  const byId = new Map(merged.map((doc, index) => [str(doc.id) ?? `embedded-${index}`, doc]));
+  for (const value of canonical) {
+    const doc = rec(value);
+    const id = str(doc.id);
+    byId.set(id ?? `canonical-${byId.size}`, doc);
+  }
+  return Array.from(byId.values());
+}
 function allDocs(source: AnyRecord): AnyRecord[] {
   const intake = rec(source.opportunityIntake);
-  return [...(Array.isArray(source.documents) ? source.documents.map(rec) : []), ...(Array.isArray(intake.uploadedDocuments) ? intake.uploadedDocuments.map(rec) : [])];
+  const dealId = str(source.id);
+  const workspaceId = str(source.workspaceId);
+  return [...(Array.isArray(source.documents) ? source.documents.map(rec) : []), ...(Array.isArray(intake.uploadedDocuments) ? intake.uploadedDocuments.map(rec) : [])].filter((doc) => {
+    const docDealId = str(doc.dealId) ?? str(doc.opportunityId);
+    const docWorkspaceId = str(doc.workspaceId) ?? str(doc.documentPreparationWorkspaceId);
+    return (!docDealId || !dealId || docDealId === dealId) && (!docWorkspaceId || !workspaceId || docWorkspaceId === workspaceId);
+  });
 }
 function documentIsApproved(doc: AnyRecord): boolean { const category = str(doc.returnableCategory) ?? str(doc.documentPreparationItem); if (!category) return normalize(doc.status) !== "rejected" && normalize(doc.reviewStatus) !== "rejected"; return normalize(doc.status) === "approved" && normalize(doc.reviewStatus) !== "rejected"; }
-function checklistDocumentMatches(doc: AnyRecord, key: string, tokens: string[]): boolean { const itemKey = normalize(doc.returnableKey) || normalize(doc.documentPreparationItem); if (itemKey) return itemKey === normalize(key); return tokens.some((token) => textHas(docName(doc), token)); }
+function checklistDocumentMatches(doc: AnyRecord, key: string, tokens: string[]): boolean {
+  const itemKey = normalize(doc.returnableKey) || normalize(doc.documentPreparationItem);
+  if (itemKey) return itemKey === normalize(key);
+  const categoryKey: Record<string, string> = { sbd_forms: "sbd", declarations: "declarations", signatures: "signatures", amendments: "amendments", annexures: "annexures", rfq_source: "source", pricing_schedule: "pricing", contractor_compliance: "compliance" };
+  const category = normalize(doc.returnableCategory);
+  if (categoryKey[category]) return categoryKey[category] === normalize(key);
+  return tokens.some((token) => textHas(docName(doc), token));
+}
 function hasDocument(docs: AnyRecord[], tokens: string[]): AnyRecord | null { return docs.find((doc) => documentIsApproved(doc) && tokens.some((token) => textHas(docName(doc), token))) ?? null; }
 function sbdSubtype(value: unknown): string | null { const normalized = normalize(value).replace(/[^a-z0-9]/g, ""); if (!normalized || normalized === "sbdforms") return null; return normalized.startsWith("sbd") ? normalized.replace("sbd", "sbd") : null; }
 function phaseIndex(phase: OpportunityExecutionPhase): number { return OPPORTUNITY_PHASES.indexOf(phase); }
