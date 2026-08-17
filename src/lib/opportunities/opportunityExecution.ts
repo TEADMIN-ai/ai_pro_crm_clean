@@ -177,27 +177,37 @@ export function normalizeCidbRequirement(value: unknown): string | null {
   return raw;
 }
 function docName(doc: AnyRecord): string { return [doc.documentType, doc.name, doc.fileName, doc.title, doc.category].map(str).filter(Boolean).join(" "); }
+function documentCategory(doc: AnyRecord): string { return normalize(doc.returnableCategory); }
+function documentBaseIdentity(doc: AnyRecord): string | null { return str(doc.canonicalEvidenceId) ?? str(doc.documentId) ?? str(doc.storagePath) ?? str(doc.id); }
+function documentMergeKey(doc: AnyRecord, fallback: string): string { const base = documentBaseIdentity(doc); return base ? "identity:" + base + "::category:" + documentCategory(doc) : fallback; }
 export function mergeOpportunityDocuments(embedded: unknown, canonical: unknown[]): AnyRecord[] {
-  const merged = Array.isArray(embedded) ? embedded.map(rec) : [];
-  const byId = new Map(merged.map((doc, index) => [str(doc.id) ?? `embedded-${index}`, doc]));
-  for (const value of canonical) {
+  const byKey = new Map<string, AnyRecord>();
+  const add = (value: unknown, source: string, canonicalSource: boolean) => {
     const doc = rec(value);
-    const id = str(doc.id);
-    byId.set(id ?? `canonical-${byId.size}`, doc);
-  }
-  return Array.from(byId.values());
+    const base = documentBaseIdentity(doc);
+    const key = documentMergeKey(doc, source + "-" + byKey.size);
+    if (canonicalSource && base) {
+      for (const [existingKey, existing] of byKey) {
+        if (documentBaseIdentity(existing) === base && (!documentCategory(existing) || documentCategory(existing) === documentCategory(doc))) byKey.delete(existingKey);
+      }
+    }
+    if (!byKey.has(key) || canonicalSource) byKey.set(key, doc);
+  };
+  (Array.isArray(embedded) ? embedded : []).forEach((value, index) => add(value, "embedded-" + index, false));
+  (Array.isArray(canonical) ? canonical : []).forEach((value, index) => add(value, "canonical-" + index, true));
+  return Array.from(byKey.values());
 }
 function allDocs(source: AnyRecord): AnyRecord[] {
   const intake = rec(source.opportunityIntake);
   const dealId = str(source.id);
   const workspaceId = str(source.workspaceId);
-  return [...(Array.isArray(source.documents) ? source.documents.map(rec) : []), ...(Array.isArray(intake.uploadedDocuments) ? intake.uploadedDocuments.map(rec) : [])].filter((doc) => {
+  return mergeOpportunityDocuments([...(Array.isArray(source.documents) ? source.documents : []), ...(Array.isArray(intake.uploadedDocuments) ? intake.uploadedDocuments : [])], []).filter((doc) => {
     const docDealId = str(doc.dealId) ?? str(doc.opportunityId);
     const docWorkspaceId = str(doc.workspaceId) ?? str(doc.documentPreparationWorkspaceId);
     return (!docDealId || !dealId || docDealId === dealId) && (!docWorkspaceId || !workspaceId || docWorkspaceId === workspaceId);
   });
 }
-function documentIsApproved(doc: AnyRecord): boolean { const status = normalize(doc.status); const reviewStatus = normalize(doc.reviewStatus); const governed = Boolean(str(doc.returnableCategory) || str(doc.returnableKey) || str(doc.documentPreparationItem)); if (!governed) return status !== "rejected" && reviewStatus !== "rejected"; return status !== "rejected" && reviewStatus !== "rejected" && (status === "approved" || reviewStatus === "approved"); }
+function documentIsApproved(doc: AnyRecord): boolean { const status = normalize(doc.status); const reviewStatus = normalize(doc.reviewStatus); const approvalStatus = normalize(doc.approvalStatus); const governed = Boolean(str(doc.returnableCategory) || str(doc.returnableKey) || str(doc.documentPreparationItem)); if (!governed) return status !== "rejected" && reviewStatus !== "rejected" && approvalStatus !== "rejected"; return status !== "rejected" && reviewStatus !== "rejected" && approvalStatus !== "rejected" && (status === "approved" || reviewStatus === "approved" || approvalStatus === "approved"); }
 function checklistDocumentMatches(doc: AnyRecord, key: string, tokens: string[]): boolean {
   const normalizedKey = normalize(key);
   const categoryKey: Record<string, string> = { sbd_forms: "sbd", declarations: "declarations", signatures: "signatures", amendments: "amendments", annexures: "annexures", rfq_source: "source", pricing_schedule: "pricing", boq: "pricing", contractor_compliance: "compliance" };
@@ -206,7 +216,8 @@ function checklistDocumentMatches(doc: AnyRecord, key: string, tokens: string[])
   const itemKey = normalize(doc.returnableKey) || normalize(doc.documentPreparationItem);
   if (itemKey) return itemKey === normalizedKey;
   const typeText = [doc.documentType, doc.category, doc.type].map(normalize).join(" ");
-  if (normalizedKey === "source" && /boq|pricing|schedule/.test(typeText)) return false;
+  const legacyReturnableText = [docName(doc), doc.documentType, doc.type, doc.category].map(normalize).join(" ");
+  if (normalizedKey === "source" && /boq|pricing|schedule|sbd|declaration|signature|amendment|annexure/.test(typeText + " " + legacyReturnableText)) return false;
   if (normalizedKey === "pricing" && /boq|pricing|schedule/.test(typeText)) return true;
   return tokens.some((token) => textHas(docName(doc), token));
 }

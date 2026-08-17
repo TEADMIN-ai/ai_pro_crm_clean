@@ -102,6 +102,24 @@ describe("category and merge isolation", () => {
   });
 });
 
+describe("classifier authority", () => {
+  test("canonical categories are exclusive and approvalStatus is honored", () => {
+    const documents = [{ id: "sbd", name: "SBD1-RFQ.pdf", returnableCategory: "SBD_FORMS", returnableSubtype: "SBD1", status: "pending", reviewStatus: "READY_FOR_REVIEW", approvalStatus: "APPROVED" }, { id: "declaration", name: "declaration-RFQ.pdf", returnableCategory: "DECLARATIONS", status: "pending", reviewStatus: "PENDING", approvalStatus: "APPROVED" }, { id: "signature", name: "signature-RFQ.pdf", returnableCategory: "SIGNATURES", status: "pending", reviewStatus: "PENDING", approvalStatus: "APPROVED" }, { id: "amendment", name: "amendment-RFQ.pdf", returnableCategory: "AMENDMENTS", status: "pending", reviewStatus: "PENDING", approvalStatus: "APPROVED" }, { id: "annexure", name: "annexure-RFQ.pdf", returnableCategory: "ANNEXURES", status: "pending", reviewStatus: "PENDING", approvalStatus: "APPROVED" }];
+    const state = buildOpportunityExecutionState({ deal: { ...deal, documents: [...deal.documents, ...documents] }, contractor });
+    expect(state.documentChecklist.find((item) => item.key === "source")?.source).toBe("rfq RFQ.pdf");
+    expect(state.documentChecklist.find((item) => item.key === "sbd")?.status).toBe("BLOCKED");
+    expect(state.documentChecklist.find((item) => item.key === "declarations")?.status).toBe("COMPLETE");
+    expect(state.documentChecklist.find((item) => item.key === "signatures")?.status).toBe("COMPLETE");
+    expect(state.documentChecklist.find((item) => item.key === "amendments")?.status).toBe("COMPLETE");
+  });
+  test("canonical and embedded copies deduplicate by stable identity without crossing categories", () => {
+    const merged = mergeOpportunityDocuments([{ id: "legacy", storagePath: "same.pdf", name: "same.pdf", returnableCategory: "SBD_FORMS", status: "pending" }, { id: "other", storagePath: "same.pdf", name: "same.pdf", returnableCategory: "DECLARATIONS", status: "approved", approvalStatus: "APPROVED" }], [{ id: "canonical", storagePath: "same.pdf", name: "same.pdf", returnableCategory: "SBD_FORMS", status: "approved", approvalStatus: "APPROVED" }]);
+    expect(merged).toHaveLength(2);
+    expect(merged.map((item) => item.returnableCategory).sort()).toEqual(["DECLARATIONS", "SBD_FORMS"]);
+    expect(merged.find((item) => item.returnableCategory === "SBD_FORMS")?.status).toBe("approved");
+  });
+});
+
 describe("approval-to-checklist projection", () => {
   test("approved declarations, signatures, and amendments complete only their matching items", () => {
     const state = buildOpportunityExecutionState({ deal: { ...deal, opportunityExecution: { ...deal.opportunityExecution, requirements: { formsRequiringCompletion: ["SBD forms"], signatureRequired: true, annexuresAndAmendments: ["Amendments"] } }, documents: [...deal.documents, governedDocument("declarations", "DECLARATIONS", "declaration.pdf", "approved", "APPROVED"), governedDocument("signatures", "SIGNATURES", "signed.pdf", "approved", "APPROVED"), governedDocument("amendments", "AMENDMENTS", "amendment.pdf", "approved", "APPROVED")] }, contractor });
