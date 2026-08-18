@@ -230,6 +230,7 @@ function checklistDocumentMatches(doc: AnyRecord, key: string, tokens: string[])
 }
 function hasDocument(docs: AnyRecord[], tokens: string[]): AnyRecord | null { return docs.find((doc) => documentIsApproved(doc) && tokens.some((token) => textHas(docName(doc), token))) ?? null; }
 export function normalizeSbdSubtype(value: unknown): string | null { const normalized = normalize(value).replace(/[^a-z0-9]/g, ""); if (!normalized || normalized === "sbdforms") return null; return normalized.startsWith("sbd") ? normalized : null; }
+function hasSbdRequirement(forms: string[]): boolean { return forms.some((form) => { const normalized = normalize(form).replace(/[^a-z0-9]/g, ""); return normalized === "sbdforms" || Boolean(normalizeSbdSubtype(form)); }); }
 function phaseIndex(phase: OpportunityExecutionPhase): number { return OPPORTUNITY_PHASES.indexOf(phase); }
 function isAtLeast(phase: OpportunityExecutionPhase, target: OpportunityExecutionPhase): boolean { return phaseIndex(phase) >= phaseIndex(target); }
 
@@ -502,10 +503,11 @@ function buildDocumentChecklist(deal: AnyRecord, requirements: OpportunityRequir
     return { key, label, required, status: complete ? "COMPLETE" : "BLOCKED", source: approvedSources.length ? approvedSources.join(", ") : candidate ? docName(candidate) : null, reviewStatus };
   };
   const complianceComplete = contractor ? evaluateOpportunityCompliance(requirements, contractor, str(deal.workspaceId)).status === "VALID" : false;
+  const sbdRequired = hasSbdRequirement(requirements.formsRequiringCompletion);
   return [
     item("source", "RFQ/RFP source document", true, ["rfq", "rfp", "request for quotation", "tender"]),
     item("pricing", "Pricing schedules", requirements.boqPricingSchedulePresent, ["boq", "pricing schedule", "bill of quantities"], f.pricingComplete),
-    item("sbd", "SBD forms", true, ["sbd"], f.documentsPrepared),
+    item("sbd", "SBD forms", sbdRequired, ["sbd"], f.documentsPrepared),
     item("declarations", "Declarations", true, ["declaration"], f.documentsPrepared),
     item("annexures", "Annexures and amendments", requirements.annexuresAndAmendments.length > 0, ["annex", "amend"], f.documentsPrepared),
     item("compliance", "Contractor compliance documents", true, ["tax", "bbbee", "b-bbee", "coida", "csd", "cidb"], complianceComplete),

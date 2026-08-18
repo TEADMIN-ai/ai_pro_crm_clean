@@ -181,3 +181,22 @@ describe("reopened requirements projection", () => {
     expect(state.actions.find((action) => action.key === "reopen_requirements_review")).toMatchObject({ enabled: false });
   });
 });
+
+
+describe("authoritative SBD requiredness", () => {
+  test("Declarations only makes SBD not required", () => {
+    const state = buildOpportunityExecutionState({ deal: { ...deal, opportunityExecution: { ...deal.opportunityExecution, requirements: { formsRequiringCompletion: ["Declarations"] } }, documents: [{ id: "sbd", returnableCategory: "SBD_FORMS", returnableSubtype: "SBD1", status: "approved", reviewStatus: "APPROVED" }] }, contractor });
+    expect(state.documentChecklist.find((item) => item.key === "sbd")).toMatchObject({ required: false, status: "NOT_APPLICABLE" });
+    expect(state.documentChecklist.find((item) => item.key === "declarations")?.required).toBe(true);
+  });
+  test("generic and explicit SBD requirements require SBD", () => {
+    const generic = buildOpportunityExecutionState({ deal: { ...deal, opportunityExecution: { ...deal.opportunityExecution, requirements: { formsRequiringCompletion: ["SBD forms", "Declarations"] } } }, contractor });
+    const explicit = buildOpportunityExecutionState({ deal: { ...deal, opportunityExecution: { ...deal.opportunityExecution, requirements: { formsRequiringCompletion: ["SBD1"] } } }, contractor });
+    expect(generic.documentChecklist.find((item) => item.key === "sbd")?.required).toBe(true);
+    expect(explicit.documentChecklist.find((item) => item.key === "sbd")?.required).toBe(true);
+  });
+  test("uploaded SBD evidence and stale persisted checklist state do not create an SBD requirement", () => {
+    const state = buildOpportunityExecutionState({ deal: { ...deal, opportunityExecution: { ...deal.opportunityExecution, requirements: { formsRequiringCompletion: ["Declarations"] }, documentPreparation: { returnables: [{ key: "sbd", required: true, status: "BLOCKED" }] } }, documents: [{ id: "sbd", returnableCategory: "SBD_FORMS", returnableSubtype: "SBD1", status: "approved", reviewStatus: "APPROVED" }] }, contractor });
+    expect(state.documentChecklist.find((item) => item.key === "sbd")).toMatchObject({ required: false, status: "NOT_APPLICABLE" });
+  });
+});
