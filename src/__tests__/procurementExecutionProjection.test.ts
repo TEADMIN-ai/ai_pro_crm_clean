@@ -86,7 +86,7 @@ const baseDeal = {
     internalReviewApproved: true,
     internalReviewApprovalProvenance: { action: "complete_internal_review", status: "APPROVED", completedAt: "2026-08-18T20:00:00.000Z", completedBy: "manager-1" },
     contractorApprovalComplete: true,
-    contractorApprovalProvenance: { action: "contractor_approval", status: "APPROVED", completedAt: "2026-08-18T20:01:00.000Z", completedBy: "manager-1" },
+    contractorApprovalProvenance: { action: "contractor_approval", status: "APPROVED", completedAt: "2026-08-18T20:01:00.000Z", completedBy: "manager-1" }, submissionReviewApprovalProvenance: { action: "complete_submission_review", status: "APPROVED", completedAt: "2026-08-18T20:02:00.000Z", completedBy: "manager-1" },
     tenderPackGenerated: true,
     tenderPackValidated: true,
     submissionReviewId: "test-procurement-1",
@@ -309,5 +309,12 @@ describe("canonical procurement execution projection", () => {
     expect(projection.quoteBlockers).toEqual([]);
     expect(projection.pricingBlockers).toEqual([]);
     expect(projection.pricingStatus).toBe("LOCKED");
+  });
+  it("requires explicit Submission Review completion before submission", () => {
+    const pending = projectionFor({ ...baseDeal, opportunityExecution: { ...baseDeal.opportunityExecution, submissionReviewApprovalProvenance: null } });
+    expect(pending.nextAction.key).toBe("COMPLETE_SUBMISSION_REVIEW");
+    expect(pending.submissionStatus).not.toBe("complete");
+    const approved = projectionFor(baseDeal);
+    expect(approved.nextAction.key).toBe("READY_FOR_SUBMISSION");
   });
 });

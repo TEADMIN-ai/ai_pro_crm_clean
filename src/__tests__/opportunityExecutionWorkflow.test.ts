@@ -1,4 +1,4 @@
-import { buildOpportunityExecutionState, buildSubmissionReadiness, hasValidContractorApproval, hasValidInternalReviewCompletion, isDocumentPreparationComplete, isRecoverableLegacyInternalReviewState, deriveOpportunityPhase, evaluateOpportunityCompliance, extractOpportunityRequirements, matchContractorsForOpportunity, validateOpportunityTransition } from "@/lib/opportunities/opportunityExecution";
+import { buildOpportunityExecutionState, buildSubmissionReadiness, hasValidContractorApproval, hasValidInternalReviewCompletion, hasValidSubmissionReviewCompletion, isDocumentPreparationComplete, isRecoverableLegacyInternalReviewState, deriveOpportunityPhase, evaluateOpportunityCompliance, extractOpportunityRequirements, matchContractorsForOpportunity, validateOpportunityTransition } from "@/lib/opportunities/opportunityExecution";
 
 const baseDeal = {
   id: "deal-1", title: "Cleaning RFQ", companyId: "unassigned", stage: "lead", status: "draft", category: "cleaning",
@@ -221,4 +221,11 @@ test("legacy downstream state derives back to internal review", () => {
   expect(state.currentPhase).toBe("INTERNAL_REVIEW");
   expect(state.actions.find((action) => action.key === "reconcile_legacy_internal_review")).toMatchObject({ enabled: true });
   expect(state.actions.find((action) => action.key === "contractor_approval")).toMatchObject({ enabled: false });
+});
+
+test("submission review approval requires explicit completion provenance", () => {
+  const pending = { ...assignedDeal, opportunityExecution: { ...assignedDeal.opportunityExecution, currentPhase: "READY_FOR_SUBMISSION" } };
+  expect(hasValidSubmissionReviewCompletion(pending)).toBe(false);
+  const approved = { ...pending, opportunityExecution: { ...pending.opportunityExecution, submissionReviewApprovalProvenance: { action: "complete_submission_review", status: "APPROVED", completedAt: "2026-08-18T20:02:00.000Z", completedBy: "manager-1" } } };
+  expect(hasValidSubmissionReviewCompletion(approved)).toBe(true);
 });

@@ -1,7 +1,7 @@
 import {
   buildSubmissionReadiness,
   hasValidContractorApproval,
-  hasValidInternalReviewCompletion,
+  hasValidInternalReviewCompletion, hasValidSubmissionReviewCompletion,
   type OpportunityComplianceStatus,
   type OpportunityExecutionPhase,
   type OpportunityExecutionState,
@@ -279,7 +279,7 @@ export function buildProcurementExecutionProjection(input: {
   const pricedDocumentMissing = pricingRequired && pricingApproved && (!pricingDocumentId || String(rec(pricing).validationStatus ?? execution.pricingValidationStatus ?? "").toUpperCase() === "VALIDATION_FAILED");
   const submissionReview = rec(deal.submissionReview ?? execution.submissionReview);
   const submissionReviewId = str(submissionReview.id) ?? str(execution.submissionReviewId);
-  const reviewStatus = taskStatus(submissionReview.reviewStatus ?? submissionReview.approvalStatus ?? execution.submissionReviewStatus, ["APPROVED", "COMPLETE"]);
+  const reviewStatus = hasValidSubmissionReviewCompletion(deal) ? "complete" : "not_started";
   const packStatus = str(execution.packStatus) ?? str(rec(deal.tenderPack).packStatus) ?? (bool(execution.tenderPackGenerated) && bool(execution.tenderPackValidated) ? "VALIDATED" : "NOT_STARTED");
   const packReady = hasValidInternalReviewCompletion(deal) && hasValidContractorApproval(deal) && (["VALIDATED", "GENERATED"].includes(packStatus.toUpperCase()) || (bool(execution.tenderPackGenerated) && bool(execution.tenderPackValidated)));
   const readinessModel: ProcurementReadinessModel = {
