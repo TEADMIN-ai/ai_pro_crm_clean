@@ -1,4 +1,4 @@
-import { buildOpportunityExecutionState, buildSubmissionReadiness, deriveOpportunityPhase, evaluateOpportunityCompliance, extractOpportunityRequirements, matchContractorsForOpportunity, validateOpportunityTransition } from "@/lib/opportunities/opportunityExecution";
+import { buildOpportunityExecutionState, buildSubmissionReadiness, isDocumentPreparationComplete, deriveOpportunityPhase, evaluateOpportunityCompliance, extractOpportunityRequirements, matchContractorsForOpportunity, validateOpportunityTransition } from "@/lib/opportunities/opportunityExecution";
 
 const baseDeal = {
   id: "deal-1", title: "Cleaning RFQ", companyId: "unassigned", stage: "lead", status: "draft", category: "cleaning",
@@ -145,4 +145,34 @@ test("genuine CIDB grade remains required", () => {
 
   expect(requirements.cidbRequirement).toBe("2CE");
   expect(cidbDetail).toMatchObject({ required: true, status: "MISSING", reason: "CIDB document not found" });
+});
+
+
+test("complete document preparation is distinct from internal review approval", () => {
+  const state = buildOpportunityExecutionState({
+    deal: {
+      ...assignedDeal,
+      documents: [
+        { id: "rfq", returnableCategory: "RFQ_SOURCE", status: "approved", reviewStatus: "APPROVED" },
+        { id: "decl", returnableCategory: "DECLARATIONS", status: "approved", reviewStatus: "APPROVED" },
+      ],
+      opportunityExecution: {
+        ...assignedDeal.opportunityExecution,
+        complianceReviewed: true,
+        requirements: {
+          reviewed: true,
+          reviewStatus: "APPROVED",
+          formsRequiringCompletion: ["Declarations"],
+          boqPricingSchedulePresent: false,
+          signatureRequired: false,
+          annexuresAndAmendments: [],
+        },
+        documentsPrepared: true,
+      },
+    },
+    contractor: validContractor,
+  });
+  expect(isDocumentPreparationComplete(state)).toBe(true);
+  expect(state.stages.find((stage) => stage.key === "documents")?.status).toBe("COMPLETE");
+  expect(state.stages.find((stage) => stage.key === "internalReview")?.status).toBe("NOT_STARTED");
 });

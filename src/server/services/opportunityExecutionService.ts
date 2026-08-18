@@ -3,7 +3,7 @@ import { getFirebaseAdmin } from "@/lib/firebase/admin";
 import { assertPrivilegedRole, type AuthorizedUser } from "@/lib/server/authz";
 import { listContractors } from "@/server/services/contractorService";
 import { getContractorBusinessName, resolveContractorReference } from "@/lib/contractors/contractorReferenceResolver";
-import { buildOpportunityExecutionState, extractOpportunityRequirements, isReopenedRequirementsReview, matchContractorsForOpportunity, mergeOpportunityDocuments, validateOpportunityTransition, type ContractorMatchResult, type OpportunityExecutionPhase, type OpportunityRequirementReview } from "@/lib/opportunities/opportunityExecution";
+import { buildOpportunityExecutionState, extractOpportunityRequirements, isDocumentPreparationComplete, isReopenedRequirementsReview, matchContractorsForOpportunity, mergeOpportunityDocuments, validateOpportunityTransition, type ContractorMatchResult, type OpportunityExecutionPhase, type OpportunityRequirementReview } from "@/lib/opportunities/opportunityExecution";
 import { buildProcurementExecutionProjection, hasGovernedLockedPricing } from "@/lib/opportunities/procurementExecutionProjection";
 import { getDealContractorReference } from "@/lib/deals/contractorReference";
 import { assertAssignmentAllowed, evaluateContractorAssignmentAuthority } from "@/server/services/contractorAssignmentAuthorityService";
@@ -116,7 +116,8 @@ export async function applyOpportunityExecutionAction(input: ActionInput) {
   if (input.action === "review_requirements" && currentView.state.requirements.reviewed && !isReopenedRequirementsReview(currentView.state.requirements)) throw Object.assign(new Error("Requirements review must be reopened before it can be amended"), { status: 409 });
   if (input.action === "review_requirements" && !currentView.state.requirements.reviewed && !isReopenedRequirementsReview(currentView.state.requirements) && current !== "REQUIREMENTS_REVIEW") throw Object.assign(new Error("Requirements review is not the current governed phase"), { status: 409 });
   const reopenedRequirementsReview = input.action === "review_requirements" && isReopenedRequirementsReview(currentView.state.requirements);
-  const target = reopenedRequirementsReview ? current : input.action === "reopen_requirements_review" ? current : input.action === "prepare_documents" && current === "DOCUMENT_PREPARATION" ? "DOCUMENT_PREPARATION" as OpportunityExecutionPhase : targetPhaseForAction(input.action, deal);
+  const prepareDocumentsComplete = input.action === "prepare_documents" && current === "DOCUMENT_PREPARATION" && isDocumentPreparationComplete(currentView.state);
+  const target = reopenedRequirementsReview || (input.action === "reopen_requirements_review") ? current : prepareDocumentsComplete ? "INTERNAL_REVIEW" : input.action === "prepare_documents" && current === "DOCUMENT_PREPARATION" ? "DOCUMENT_PREPARATION" as OpportunityExecutionPhase : targetPhaseForAction(input.action, deal);
   if (!target) throw Object.assign(new Error("Unknown opportunity action"), { status: 400 });
   if (!reopenedRequirementsReview) {
     await recordProcurementTransitionAudit({
@@ -188,6 +189,7 @@ export async function applyOpportunityExecutionAction(input: ActionInput) {
   if (input.action === "reopen_requirements_review") { const priorRequirements = { ...requirements }; execution.requirementsReviewed = false; execution.requirements = { ...priorRequirements, reviewed: false, reviewStatus: "IN_REVIEW", reopenedAt: now.toISOString(), reopenedByUid: input.actor.uid }; }
   if (input.action === "review_requirements") { execution.requirementsReviewed = true; requirements.reviewed = true; requirements.reviewStatus = "APPROVED"; requirements.reviewedAt = now.toISOString(); requirements.reviewedByUid = input.actor.uid; execution.requirements = requirements; }
   if (input.action === "find_matching_contractors") execution.matchingCompleted = true;
+  if (prepareDocumentsComplete) execution.documentsPrepared = true;
   if (input.action === "assign_contractor") {
     if (!input.contractorId) throw Object.assign(new Error("contractorId is required"), { status: 400 });
     await db.collection("deals").doc(input.dealId).set({ candidateContractorId: input.contractorId, contractorResolutionStatus: "REVIEW_REQUIRED", contractorAssignmentRequest: { requestedBy: input.actor.uid, requestedAt: now.toISOString(), candidateContractorId: input.contractorId } }, { merge: true });
@@ -221,7 +223,7 @@ export async function applyOpportunityExecutionAction(input: ActionInput) {
   if (input.action === "prepare_documents") {
     if (current === "DOCUMENT_PREPARATION") {
       const existingPreparation = asRecord(existingExecution.documentPreparation);
-      execution.documentPreparation = { ...existingPreparation, status: "IN_PROGRESS", openedAt: existingPreparation.openedAt ?? now.toISOString(), openedBy: existingPreparation.openedBy ?? input.actor.uid, returnables: currentView.state.documentChecklist.map((item) => ({ key: item.key, label: item.label, required: item.required, status: item.status, source: item.source })) };
+      execution.documentPreparation = { ...existingPreparation, status: prepareDocumentsComplete ? "COMPLETE" : "IN_PROGRESS", openedAt: existingPreparation.openedAt ?? now.toISOString(), openedBy: existingPreparation.openedBy ?? input.actor.uid, returnables: currentView.state.documentChecklist.map((item) => ({ key: item.key, label: item.label, required: item.required, status: item.status, source: item.source })) };
     } else {
       execution.documentsPrepared = true;
     }
