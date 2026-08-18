@@ -1,4 +1,4 @@
-import { buildOpportunityExecutionState, buildSubmissionReadiness, isDocumentPreparationComplete, deriveOpportunityPhase, evaluateOpportunityCompliance, extractOpportunityRequirements, matchContractorsForOpportunity, validateOpportunityTransition } from "@/lib/opportunities/opportunityExecution";
+import { buildOpportunityExecutionState, buildSubmissionReadiness, hasValidContractorApproval, hasValidInternalReviewCompletion, isDocumentPreparationComplete, isRecoverableLegacyInternalReviewState, deriveOpportunityPhase, evaluateOpportunityCompliance, extractOpportunityRequirements, matchContractorsForOpportunity, validateOpportunityTransition } from "@/lib/opportunities/opportunityExecution";
 
 const baseDeal = {
   id: "deal-1", title: "Cleaning RFQ", companyId: "unassigned", stage: "lead", status: "draft", category: "cleaning",
@@ -203,4 +203,22 @@ test("starting internal review does not approve or advance the workflow", () => 
 test("only completed internal review permits the forward transition", () => {
   expect(validateOpportunityTransition("INTERNAL_REVIEW", "CONTRACTOR_APPROVAL")).toMatchObject({ ok: true });
   expect(validateOpportunityTransition("INTERNAL_REVIEW", "PACK_GENERATION")).toMatchObject({ ok: false, status: 409 });
+});
+
+test("legacy internal review approval requires explicit completion provenance", () => {
+  const legacy = { ...assignedDeal, opportunityExecution: { ...assignedDeal.opportunityExecution, currentPhase: "CONTRACTOR_APPROVAL", internalReviewApproved: true, contractorApprovalComplete: true, tenderPackGenerated: true, tenderPackValidated: true } };
+  expect(hasValidInternalReviewCompletion(legacy)).toBe(false);
+  expect(hasValidContractorApproval(legacy)).toBe(false);
+  expect(isRecoverableLegacyInternalReviewState(legacy)).toBe(true);
+  const valid = { ...legacy, opportunityExecution: { ...legacy.opportunityExecution, internalReviewApprovalProvenance: { action: "complete_internal_review", status: "APPROVED", completedAt: "2026-08-18T20:00:00.000Z", completedBy: "manager-1" }, contractorApprovalProvenance: { action: "contractor_approval", status: "APPROVED", completedAt: "2026-08-18T20:01:00.000Z", completedBy: "manager-1" } } };
+  expect(hasValidInternalReviewCompletion(valid)).toBe(true);
+  expect(hasValidContractorApproval(valid)).toBe(true);
+  expect(isRecoverableLegacyInternalReviewState(valid)).toBe(false);
+});
+
+test("legacy downstream state derives back to internal review", () => {
+  const state = buildOpportunityExecutionState({ deal: { ...assignedDeal, opportunityExecution: { ...assignedDeal.opportunityExecution, currentPhase: "PACK_GENERATION", internalReviewApproved: true, contractorApprovalComplete: true, tenderPackGenerated: true, tenderPackValidated: true } }, contractor: validContractor });
+  expect(state.currentPhase).toBe("INTERNAL_REVIEW");
+  expect(state.actions.find((action) => action.key === "reconcile_legacy_internal_review")).toMatchObject({ enabled: true });
+  expect(state.actions.find((action) => action.key === "contractor_approval")).toMatchObject({ enabled: false });
 });

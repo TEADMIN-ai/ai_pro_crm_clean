@@ -15,7 +15,7 @@ export type OpportunityExecutionPhase = "INTAKE_COMPLETE" | "REQUIREMENTS_REVIEW
 export type OpportunityComplianceStatus = "VALID" | "MISSING" | "EXPIRED" | "UNVERIFIED" | "UNCLASSIFIED" | "INVALID" | "WRONG_CONTRACTOR" | "DUPLICATE" | "NOT_APPLICABLE" | "REQUIRES_REVIEW" | "REQUIRES_MANUAL_REVIEW";
 export type OpportunityTaskStatus = "not_started" | "in_progress" | "complete" | "blocked" | "not_applicable";
 export type OpportunityStageStatus = "NOT_STARTED" | "IN_PROGRESS" | "BLOCKED" | "COMPLETE" | "NOT_APPLICABLE";
-export type OpportunityActionKey = "reopen_requirements_review" | "review_requirements" | "find_matching_contractors" | "assign_contractor" | "open_contractor" | "open_execution_workspace" | "change_assignment" | "remove_assignment" | "start_compliance_review" | "open_missing_documents" | "open_supplier_quotes" | "open_tender_intelligence" | "open_boq_pricing" | "open_submission_review" | "prepare_documents" | "start_internal_review" | "complete_internal_review" | "contractor_approval" | "generate_tender_pack" | "mark_ready_for_submission" | "record_submission";
+export type OpportunityActionKey = "reopen_requirements_review" | "review_requirements" | "find_matching_contractors" | "assign_contractor" | "open_contractor" | "open_execution_workspace" | "change_assignment" | "remove_assignment" | "start_compliance_review" | "open_missing_documents" | "open_supplier_quotes" | "open_tender_intelligence" | "open_boq_pricing" | "open_submission_review" | "prepare_documents" | "start_internal_review" | "complete_internal_review" | "reconcile_legacy_internal_review" | "contractor_approval" | "generate_tender_pack" | "mark_ready_for_submission" | "record_submission";
 export type OpportunityStageKey = "requirements" | "assignment" | "compliance" | "supplierQuotes" | "tenderIntelligence" | "boq" | "documents" | "internalReview" | "contractorApproval" | "tenderPack" | "submission";
 export type ProcurementNextActionKey = "ASSIGN_CONTRACTOR" | "REMEDIATE_COMPLIANCE" | "UPLOAD_OR_APPROVE_SUPPLIER_QUOTE" | "REVIEW_TENDER_ANALYSIS" | "MAP_QUOTES_TO_TENDER_LINES" | "COMPLETE_PRICING" | "APPROVE_PRICING" | "GENERATE_PRICED_DOCUMENT" | "COMPLETE_DOCUMENTS" | "COMPLETE_SUBMISSION_REVIEW" | "GENERATE_TENDER_PACK" | "READY_FOR_SUBMISSION" | "RECORD_SUBMISSION" | "REQUEST_TCS_PIN" | "VERIFY_TCS_WITH_SARS" | "RESOLVE_TAX_IDENTITY_MISMATCH" | "REQUEST_TAX_REMEDIATION" | "REVERIFY_TCS" | "TAX_VERIFICATION_COMPLETE";
 type AnyRecord = Record<string, unknown>;
@@ -372,7 +372,7 @@ export function evaluateOpportunityCompliance(requirements: OpportunityRequireme
   return { status: requirementStatusToComplianceStatus(details), missing, expired, details };
 }
 
-function executionFlags(deal: Deal | AnyRecord) {
+export function hasValidInternalReviewCompletion(source: Deal | AnyRecord): boolean { const execution = rec(rec(source).opportunityExecution); const provenance = rec(execution.internalReviewApprovalProvenance); return bool(execution.internalReviewApproved) && provenance.action === "complete_internal_review" && provenance.status === "APPROVED" && Boolean(str(provenance.completedAt) && str(provenance.completedBy)); } export function hasValidContractorApproval(source: Deal | AnyRecord): boolean { const execution = rec(rec(source).opportunityExecution); const provenance = rec(execution.contractorApprovalProvenance); return bool(execution.contractorApprovalComplete) && provenance.action === "contractor_approval" && provenance.status === "APPROVED" && Boolean(str(provenance.completedAt) && str(provenance.completedBy)); } export function isRecoverableLegacyInternalReviewState(source: Deal | AnyRecord): boolean { const root = rec(source); const execution = rec(root.opportunityExecution); const phase = normalizeOpportunityPhase(execution.currentPhase ?? root.workflowStatus); return ["CONTRACTOR_APPROVAL", "PACK_GENERATION", "READY_FOR_SUBMISSION", "SUBMITTED"].includes(phase ?? "") && bool(execution.internalReviewApproved) && !hasValidInternalReviewCompletion(source); } function executionFlags(deal: Deal | AnyRecord) {
   const source = rec(deal);
   const execution = rec(source.opportunityExecution);
   return {
@@ -383,10 +383,10 @@ function executionFlags(deal: Deal | AnyRecord) {
     boqTaskCreated: bool(execution.boqTaskCreated),
     pricingComplete: bool(execution.pricingComplete) || ["manager_approved", "complete"].includes(normalize(source.pricingStatus)),
     documentsPrepared: bool(execution.documentsPrepared),
-    internalReviewStarted: bool(execution.internalReviewStarted) || bool(execution.internalReviewApproved),
-    internalReviewApproved: bool(execution.internalReviewApproved),
+    internalReviewStarted: bool(execution.internalReviewStarted),
+    internalReviewApproved: hasValidInternalReviewCompletion(source),
     contractorApprovalRequested: bool(execution.contractorApprovalRequested) || bool(execution.contractorApprovalComplete),
-    contractorApprovalComplete: bool(execution.contractorApprovalComplete),
+    contractorApprovalComplete: hasValidContractorApproval(source),
     tenderPackGenerated: bool(execution.tenderPackGenerated),
     tenderPackValidated: bool(execution.tenderPackValidated),
     readyForSubmission: bool(execution.readyForSubmission),
@@ -401,7 +401,7 @@ export function deriveOpportunityPhase(input: { deal: Deal | AnyRecord; contract
   if (["awarded", "won"].includes(normalize(source.status)) || ["awarded", "won"].includes(normalize(source.stage))) return "AWARDED";
   if (["lost", "rejected"].includes(normalize(source.stage))) return "UNSUCCESSFUL";
   if (normalize(source.stage) === "closed") return "CANCELLED";
-  const f = executionFlags(input.deal);
+  const f = executionFlags(input.deal); if (isRecoverableLegacyInternalReviewState(input.deal)) return "INTERNAL_REVIEW";
   const req = extractOpportunityRequirements(input.deal);
   const compliance = evaluateOpportunityCompliance(req, input.contractor ?? null, str(source.workspaceId));
   const assigned = buildAssignmentState(source, input.contractor ?? null).complete;
@@ -618,7 +618,7 @@ export function buildOpportunityExecutionState(input: { deal: Deal | AnyRecord; 
   addAction(actions, "open_missing_documents", "Open Missing Documents", compliance.status !== "VALID" || documentsBlocked, "No missing documents are blocking execution", contractorId ? "/dashboard/contractors/" + contractorId : undefined);
   addAction(actions, "open_boq_pricing", "Open BOQ/Pricing", requirements.boqPricingSchedulePresent && (phase === "BOQ_PRICING" || f.complianceReviewed), requirements.boqPricingSchedulePresent ? "Complete compliance review first" : "No BOQ or pricing schedule is required", "/dashboard/qs/boq?dealId=" + encodeURIComponent(String(source.id ?? "")));
   addAction(actions, "prepare_documents", "Prepare Returnables", phase === "DOCUMENT_PREPARATION", phase === "DOCUMENT_PREPARATION" ? null : "Resolve compulsory compliance and pricing blockers first");
-  addAction(actions, "start_internal_review", "Start Internal Review", phase === "INTERNAL_REVIEW" && !f.internalReviewStarted, "Prepare required documents first"); addAction(actions, "complete_internal_review", "Complete Internal Review", phase === "INTERNAL_REVIEW" && f.internalReviewStarted && !f.internalReviewApproved, "Start Internal Review first");
+  addAction(actions, "start_internal_review", "Start Internal Review", phase === "INTERNAL_REVIEW" && !f.internalReviewStarted, "Prepare required documents first"); addAction(actions, "complete_internal_review", "Complete Internal Review", phase === "INTERNAL_REVIEW" && f.internalReviewStarted && !f.internalReviewApproved, "Start Internal Review first"); addAction(actions, "reconcile_legacy_internal_review", "Reconcile Legacy Internal Review State", isRecoverableLegacyInternalReviewState(input.deal), "No recoverable legacy internal-review state detected");
   addAction(actions, "contractor_approval", "Request Contractor Approval", phase === "CONTRACTOR_APPROVAL", "Internal review must be approved first");
   addAction(actions, "generate_tender_pack", "Generate Tender Pack", phase === "PACK_GENERATION" && uniqueBlockers.length === 0, uniqueBlockers.join("; ") || "Opportunity is not in pack generation");
   addAction(actions, "mark_ready_for_submission", "Mark Ready for Submission", phase === "PACK_GENERATION" && uniqueBlockers.length === 0, uniqueBlockers.join("; ") || "Generate and validate the tender pack first");

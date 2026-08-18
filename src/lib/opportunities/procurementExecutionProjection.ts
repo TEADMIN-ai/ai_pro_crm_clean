@@ -1,5 +1,7 @@
 import {
   buildSubmissionReadiness,
+  hasValidContractorApproval,
+  hasValidInternalReviewCompletion,
   type OpportunityComplianceStatus,
   type OpportunityExecutionPhase,
   type OpportunityExecutionState,
@@ -279,7 +281,7 @@ export function buildProcurementExecutionProjection(input: {
   const submissionReviewId = str(submissionReview.id) ?? str(execution.submissionReviewId);
   const reviewStatus = taskStatus(submissionReview.reviewStatus ?? submissionReview.approvalStatus ?? execution.submissionReviewStatus, ["APPROVED", "COMPLETE"]);
   const packStatus = str(execution.packStatus) ?? str(rec(deal.tenderPack).packStatus) ?? (bool(execution.tenderPackGenerated) && bool(execution.tenderPackValidated) ? "VALIDATED" : "NOT_STARTED");
-  const packReady = ["VALIDATED", "GENERATED"].includes(packStatus.toUpperCase()) || (bool(execution.tenderPackGenerated) && bool(execution.tenderPackValidated));
+  const packReady = hasValidInternalReviewCompletion(deal) && hasValidContractorApproval(deal) && (["VALIDATED", "GENERATED"].includes(packStatus.toUpperCase()) || (bool(execution.tenderPackGenerated) && bool(execution.tenderPackValidated)));
   const readinessModel: ProcurementReadinessModel = {
     profileCompleteness: state.profileCompleteness,
     generalContractorCompliance: state.generalCompliance,
@@ -294,7 +296,7 @@ export function buildProcurementExecutionProjection(input: {
     state,
     pricingComplete: !pricingRequired || pricingApproved,
     documentsComplete,
-    internalReviewApproved: reviewStatus === "complete" || bool(execution.internalReviewApproved),
+    internalReviewApproved: hasValidInternalReviewCompletion(deal),
     signaturesComplete: !state.requirements.signatureRequired || state.documentChecklist.find((item) => item.key === "signatures")?.status === "COMPLETE",
     packGenerated: packReady,
     packValidated: packReady,

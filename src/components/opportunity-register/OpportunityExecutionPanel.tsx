@@ -15,6 +15,7 @@ const PRIMARY_ACTIONS: OpportunityActionKey[] = [
   "prepare_documents",
   "start_internal_review",
   "complete_internal_review",
+  "reconcile_legacy_internal_review",
   "contractor_approval",
   "generate_tender_pack",
   "record_submission",

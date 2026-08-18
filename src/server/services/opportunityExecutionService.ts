@@ -3,7 +3,7 @@ import { getFirebaseAdmin } from "@/lib/firebase/admin";
 import { assertPrivilegedRole, type AuthorizedUser } from "@/lib/server/authz";
 import { listContractors } from "@/server/services/contractorService";
 import { getContractorBusinessName, resolveContractorReference } from "@/lib/contractors/contractorReferenceResolver";
-import { buildOpportunityExecutionState, extractOpportunityRequirements, isDocumentPreparationComplete, isReopenedRequirementsReview, matchContractorsForOpportunity, mergeOpportunityDocuments, validateOpportunityTransition, type ContractorMatchResult, type OpportunityExecutionPhase, type OpportunityRequirementReview } from "@/lib/opportunities/opportunityExecution";
+import { buildOpportunityExecutionState, extractOpportunityRequirements, hasValidContractorApproval, hasValidInternalReviewCompletion, isDocumentPreparationComplete, isRecoverableLegacyInternalReviewState, isReopenedRequirementsReview, matchContractorsForOpportunity, mergeOpportunityDocuments, validateOpportunityTransition, type ContractorMatchResult, type OpportunityExecutionPhase, type OpportunityRequirementReview } from "@/lib/opportunities/opportunityExecution";
 import { buildProcurementExecutionProjection, hasGovernedLockedPricing } from "@/lib/opportunities/procurementExecutionProjection";
 import { getDealContractorReference } from "@/lib/deals/contractorReference";
 import { assertAssignmentAllowed, evaluateContractorAssignmentAuthority } from "@/server/services/contractorAssignmentAuthorityService";
@@ -97,7 +97,7 @@ function targetPhaseForAction(action: string, deal: Record<string, unknown>): Op
   if (action === "start_compliance_review") return "COMPLIANCE_REVIEW";
   if (action === "open_boq_pricing") return "BOQ_PRICING";
   if (action === "prepare_documents") return "INTERNAL_REVIEW";
-  if (action === "start_internal_review") return asString(asRecord(deal.opportunityExecution).currentPhase) as OpportunityExecutionPhase | null; if (action === "complete_internal_review") return "CONTRACTOR_APPROVAL";
+  if (action === "start_internal_review") return asString(asRecord(deal.opportunityExecution).currentPhase) as OpportunityExecutionPhase | null; if (action === "complete_internal_review") return "CONTRACTOR_APPROVAL"; if (action === "reconcile_legacy_internal_review") return "INTERNAL_REVIEW";
   if (action === "contractor_approval") return "PACK_GENERATION";
   if (action === "generate_tender_pack") return "PACK_GENERATION";
   if (action === "mark_ready_for_submission") return "READY_FOR_SUBMISSION";
@@ -109,9 +109,9 @@ export async function applyOpportunityExecutionAction(input: ActionInput) {
   const db = getFirebaseAdmin();
   const deal = await loadDealRecord(input.dealId);
   await assertWorkspaceAccess(input.actor, deal);
-  if (input.action === "reopen_requirements_review" || input.action === "review_requirements" || input.action === "start_internal_review" || input.action === "complete_internal_review") assertPrivilegedRole(input.actor);
+  if (input.action === "reopen_requirements_review" || input.action === "review_requirements" || input.action === "start_internal_review" || input.action === "complete_internal_review" || input.action === "reconcile_legacy_internal_review") assertPrivilegedRole(input.actor);
   const currentView = await getOpportunityExecutionView(input.dealId, input.actor);
-  const current = currentView.state.currentPhase; if ((input.action === "start_internal_review" || input.action === "complete_internal_review") && current !== "INTERNAL_REVIEW") throw Object.assign(new Error("Internal review is not the current governed phase"), { status: 409 }); if (input.action === "complete_internal_review" && !currentView.state.stages.some((stage) => stage.key === "internalReview" && stage.status === "IN_PROGRESS")) throw Object.assign(new Error("Internal review must be started before completion"), { status: 409 });
+  const current = currentView.state.currentPhase; if (input.action === "reconcile_legacy_internal_review" && !isRecoverableLegacyInternalReviewState(deal)) throw Object.assign(new Error("No recoverable legacy internal-review state detected"), { status: 409 }); if (input.action === "contractor_approval" && (current !== "CONTRACTOR_APPROVAL" || !hasValidInternalReviewCompletion(deal))) throw Object.assign(new Error("Explicit completed internal review is required before contractor approval"), { status: 409 }); if (input.action === "generate_tender_pack" && (current !== "PACK_GENERATION" || !hasValidInternalReviewCompletion(deal) || !hasValidContractorApproval(deal))) throw Object.assign(new Error("Governed internal review and contractor approval provenance are required before tender-pack generation"), { status: 409 }); if ((input.action === "start_internal_review" || input.action === "complete_internal_review") && current !== "INTERNAL_REVIEW") throw Object.assign(new Error("Internal review is not the current governed phase"), { status: 409 }); if (input.action === "complete_internal_review" && !currentView.state.stages.some((stage) => stage.key === "internalReview" && stage.status === "IN_PROGRESS")) throw Object.assign(new Error("Internal review must be started before completion"), { status: 409 });
   if (input.action === "reopen_requirements_review" && !currentView.state.requirements.reviewed) throw Object.assign(new Error("Requirements review is not complete"), { status: 409 });
   if (input.action === "review_requirements" && currentView.state.requirements.reviewed && !isReopenedRequirementsReview(currentView.state.requirements)) throw Object.assign(new Error("Requirements review must be reopened before it can be amended"), { status: 409 });
   if (input.action === "review_requirements" && !currentView.state.requirements.reviewed && !isReopenedRequirementsReview(currentView.state.requirements) && current !== "REQUIREMENTS_REVIEW") throw Object.assign(new Error("Requirements review is not the current governed phase"), { status: 409 });
@@ -228,8 +228,8 @@ export async function applyOpportunityExecutionAction(input: ActionInput) {
       execution.documentsPrepared = true;
     }
   }
-  if (input.action === "start_internal_review") execution.internalReviewStarted = true; if (input.action === "complete_internal_review") execution.internalReviewApproved = true;
-  if (input.action === "contractor_approval") execution.contractorApprovalComplete = true;
+  if (input.action === "start_internal_review") execution.internalReviewStarted = true; if (input.action === "complete_internal_review") { execution.internalReviewStarted = true; execution.internalReviewApproved = true; execution.internalReviewApprovalProvenance = { action: "complete_internal_review", status: "APPROVED", completedAt: now.toISOString(), completedBy: input.actor.uid, completedByEmail: input.actor.email ?? null }; } if (input.action === "reconcile_legacy_internal_review") { execution.currentPhase = "INTERNAL_REVIEW"; execution.internalReviewStarted = true; execution.internalReviewApproved = false; execution.internalReviewApprovalProvenance = null; execution.contractorApprovalComplete = false; execution.contractorApprovalProvenance = null; execution.tenderPackGenerated = false; execution.tenderPackValidated = false; execution.readyForSubmission = false; }
+  if (input.action === "contractor_approval") { execution.contractorApprovalComplete = true; execution.contractorApprovalProvenance = { action: "contractor_approval", status: "APPROVED", completedAt: now.toISOString(), completedBy: input.actor.uid, completedByEmail: input.actor.email ?? null }; }
   if (input.action === "generate_tender_pack") { execution.tenderPackGenerated = true; execution.tenderPackValidated = true; }
   if (input.action === "mark_ready_for_submission") execution.readyForSubmission = true;
   if (input.action === "record_submission") { execution.submitted = true; execution.submission = { ...(input.submission ?? {}), evidenceReferences: submissionEvidence?.evidenceReferences ?? {} }; patch.status = "submitted"; patch.stage = "submitted"; patch.tenderSubmittedAt = now; patch.tenderSubmittedBy = input.actor.uid; }
@@ -261,10 +261,10 @@ export async function applyOpportunityExecutionAction(input: ActionInput) {
   };
   const auditPayload = {
     userId: input.actor.uid,
-    action: input.action === "assign_contractor" ? "OPPORTUNITY_CONTRACTOR_ASSIGNED" : input.action === "reopen_requirements_review" ? "OPPORTUNITY_REQUIREMENTS_REOPENED" : "OPPORTUNITY_EXECUTION_UPDATED",
+    action: input.action === "assign_contractor" ? "OPPORTUNITY_CONTRACTOR_ASSIGNED" : input.action === "reopen_requirements_review" ? "OPPORTUNITY_REQUIREMENTS_REOPENED" : input.action === "reconcile_legacy_internal_review" ? "LEGACY_INTERNAL_REVIEW_STATE_RECONCILED" : "OPPORTUNITY_EXECUTION_UPDATED",
     entityType: "deal",
     entityId: input.dealId,
-    metadata: { action: input.action, phase: target, eventKey: deterministicEventKey, ...(input.action === "reopen_requirements_review" ? { priorRequirements: requirements, priorReviewStatus: requirements.reviewStatus ?? "APPROVED" } : {}) },
+    metadata: { action: input.action, phase: target, eventKey: deterministicEventKey, ...(input.action === "reopen_requirements_review" ? { priorRequirements: requirements, priorReviewStatus: requirements.reviewStatus ?? "APPROVED" } : {}), ...(input.action === "reconcile_legacy_internal_review" ? { reason: "Reconcile legacy internal-review state without trusting legacy approval", priorPhase: current, recoveredPhase: target, priorInternalReviewStarted: Boolean(existingExecution.internalReviewStarted), priorInternalReviewApproved: Boolean(existingExecution.internalReviewApproved), priorContractorApprovalComplete: Boolean(existingExecution.contractorApprovalComplete), priorTenderPackGenerated: Boolean(existingExecution.tenderPackGenerated), priorTenderPackValidated: Boolean(existingExecution.tenderPackValidated), recoveredInternalReviewStarted: true, recoveredInternalReviewApproved: false, recoveredContractorApprovalComplete: false, recoveredTenderPackGenerated: false, recoveredTenderPackValidated: false } : {}) },
     createdAt: Timestamp.fromDate(now),
   };
   if (deterministicEventKey) {
