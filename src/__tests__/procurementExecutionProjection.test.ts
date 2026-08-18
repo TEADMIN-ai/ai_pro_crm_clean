@@ -128,6 +128,7 @@ const baseDeal = {
   },
   submissionReview: { id: "test-procurement-1", reviewStatus: "APPROVED" },
   tenderPack: { packStatus: "VALIDATED" },
+  submissionAuthority: { clientQuoteReady: true, tenderPackDocumentReady: true, submissionEvidenceReady: true },
   sarsTcsSummary: createCompliantSarsTcsSummary(),
 };
 
@@ -317,4 +318,12 @@ describe("canonical procurement execution projection", () => {
     const approved = projectionFor(baseDeal);
     expect(approved.nextAction.key).toBe("READY_FOR_SUBMISSION");
   });
+
+  it("requires reviewed durable submission evidence before the final action", () => {
+    const projection = projectionFor({ ...baseDeal, submissionAuthority: { clientQuoteReady: true, tenderPackDocumentReady: true, submissionEvidenceReady: false } });
+    expect(projection.nextAction.key).toBe("ADD_SUBMISSION_EVIDENCE");
+    expect(projection.readinessStatus).not.toBe("READY");
+  });
+
+
 });

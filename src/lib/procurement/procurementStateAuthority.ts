@@ -53,6 +53,7 @@ const SAFE_DEAL_PATCH_FIELDS = new Set([
 
 const SUBMISSION_EVIDENCE_FIELDS = [
   "submissionDocumentId",
+  "submissionEvidenceDocumentId",
   "submissionReceiptId",
   "sentEmailEvidenceId",
   "portalReference",

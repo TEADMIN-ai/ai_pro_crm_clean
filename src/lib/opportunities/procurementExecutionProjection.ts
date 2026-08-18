@@ -193,6 +193,7 @@ function buildNextAction(input: {
   documentsIncomplete: boolean;
   submissionReviewIncomplete: boolean;
   tenderPackMissing: boolean;
+  submissionEvidenceMissing: boolean;
   ready: boolean;
 }): ProcurementNextAction {
   const due = input.state.dueDate;
@@ -217,6 +218,7 @@ function buildNextAction(input: {
   if (input.documentsIncomplete) return make("COMPLETE_DOCUMENTS", "Complete returnable documents", "staff", "Mandatory returnables, signatures, or amendments are incomplete.", "prepare_documents");
   if (input.submissionReviewIncomplete) return make("COMPLETE_SUBMISSION_REVIEW", "Complete Submission Review", "manager", "Internal Submission Review is not approved.", "open_submission_review", "/dashboard/submission-review?dealId=" + encodeURIComponent(input.state.dealId));
   if (input.tenderPackMissing) return make("GENERATE_TENDER_PACK", "Generate tender pack", "operations", "The final tender pack is not generated and validated.", "generate_tender_pack", "/dashboard/tender-pack-requests");
+  if (input.submissionEvidenceMissing) return make("ADD_SUBMISSION_EVIDENCE", "Add Submission Evidence", "operations", "Reviewed submission evidence is required before recording submission.", "open_submission_evidence", "/dashboard/deals/" + encodeURIComponent(input.state.dealId) + "/submission-evidence");
   if (input.ready) return make("READY_FOR_SUBMISSION", "Ready for submission", "manager", null, "record_submission");
   return make("RECORD_SUBMISSION", "Record submission", "operations", null, "record_submission");
 }
@@ -281,7 +283,8 @@ export function buildProcurementExecutionProjection(input: {
   const submissionReviewId = str(submissionReview.id) ?? str(execution.submissionReviewId);
   const reviewStatus = hasValidSubmissionReviewCompletion(deal) ? "complete" : "not_started";
   const packStatus = str(execution.packStatus) ?? str(rec(deal.tenderPack).packStatus) ?? (bool(execution.tenderPackGenerated) && bool(execution.tenderPackValidated) ? "VALIDATED" : "NOT_STARTED");
-  const packReady = hasValidInternalReviewCompletion(deal) && hasValidContractorApproval(deal) && (["VALIDATED", "GENERATED"].includes(packStatus.toUpperCase()) || (bool(execution.tenderPackGenerated) && bool(execution.tenderPackValidated)));
+  const submissionAuthority = rec(deal.submissionAuthority);
+  const packReady = hasValidInternalReviewCompletion(deal) && hasValidContractorApproval(deal) && Boolean(submissionAuthority.tenderPackDocumentReady) && (["VALIDATED", "GENERATED"].includes(packStatus.toUpperCase()) || (bool(execution.tenderPackGenerated) && bool(execution.tenderPackValidated)));
   const readinessModel: ProcurementReadinessModel = {
     profileCompleteness: state.profileCompleteness,
     generalContractorCompliance: state.generalCompliance,
@@ -301,7 +304,8 @@ export function buildProcurementExecutionProjection(input: {
     packGenerated: packReady,
     packValidated: packReady,
   });
-  const ready = submission.ready && !quoteBlockers.length && !intelligenceBlockers.length && !pricingBlockers.length && (!pricingRequired || Boolean(pricingDocumentId));
+  const submissionEvidenceMissing = !Boolean(submissionAuthority.clientQuoteReady) || !Boolean(submissionAuthority.tenderPackDocumentReady) || !Boolean(submissionAuthority.submissionEvidenceReady);
+  const ready = submission.ready && !quoteBlockers.length && !intelligenceBlockers.length && !pricingBlockers.length && (!pricingRequired || Boolean(pricingDocumentId)) && !submissionEvidenceMissing;
   const nextAction = buildNextAction({
     state,
     assignmentValid: state.assignment.complete,
@@ -318,6 +322,7 @@ export function buildProcurementExecutionProjection(input: {
     documentsIncomplete: !documentsComplete,
     submissionReviewIncomplete: reviewStatus !== "complete",
     tenderPackMissing: !packReady,
+    submissionEvidenceMissing,
     ready,
   });
   const blockers = [...allComplianceBlockers, ...quoteBlockers, ...intelligenceBlockers, ...pricingBlockers, ...submission.blockers.map((item) => blocker(item, "Submission readiness requires this prerequisite.", nextAction.owner, nextAction.href ?? "/dashboard/deals/" + encodeURIComponent(dealId) + "/execution", dueDate))];

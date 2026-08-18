@@ -50,3 +50,12 @@ export async function registerTenderPackDocument(input: {
   await getFirebaseAdmin().collection("commercialAuthorityAuditEvents").add({ action: "tender_pack_persisted", entityId: input.opportunityId, actor: input.actor.uid, workspaceId: input.workspaceId, metadata: { documentId, packId: input.packId, clientQuoteId: input.clientQuoteId }, createdAt: new Date() });
   return documentId;
 }
+
+export async function resolveVerifiedTenderPackDocument(input: { opportunityId: string; workspaceId?: string | null; documentId?: string | null }) {
+  const db = getFirebaseAdmin(); const requestedId = input.documentId?.trim() || null;
+  const snapshots = requestedId ? [await db.collection(MASTER_DATA_COLLECTIONS.document).doc(requestedId).get()] : (await db.collection(MASTER_DATA_COLLECTIONS.document).where("linkedEntityId", "==", input.opportunityId).get()).docs;
+  const matches = snapshots.map((snapshot) => ({ id: snapshot.id, ...(snapshot.data() ?? {}) } as Record<string, unknown>)).filter((document) => document.documentType === "TENDER_PACK" && document.linkedEntityId === input.opportunityId && (!input.workspaceId || !document.workspaceId || document.workspaceId === input.workspaceId) && document.verificationStatus === "VERIFIED" && typeof document.documentId === "string" && typeof document.storagePath === "string" && document.status === "active");
+  if (matches.length === 0) throw Object.assign(new Error("A verified persisted Tender Pack document is required"), { status: 409, code: "TENDER_PACK_DOCUMENT_REQUIRED" });
+  if (matches.length > 1) throw Object.assign(new Error("Multiple verified Tender Pack documents require explicit governance resolution"), { status: 409, code: "TENDER_PACK_DOCUMENT_AMBIGUOUS" });
+  return matches[0];
+}

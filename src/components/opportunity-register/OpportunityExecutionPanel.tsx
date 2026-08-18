@@ -113,7 +113,7 @@ export default function OpportunityExecutionPanel({ dealId, state, matches }: Pr
   function renderAction(action: OpportunityAction | undefined) {
     if (!action) return null;
     if (action.href && action.enabled) {
-      return <EnterpriseActionButton key={action.key} href={action.href} variant="secondary">{action.label}</EnterpriseActionButton>;
+      return <EnterpriseActionButton key={action.key} variant="secondary" onClick={() => router.push(action.href!)}>{action.label}</EnterpriseActionButton>;
     }
     if (action.href) {
       return (

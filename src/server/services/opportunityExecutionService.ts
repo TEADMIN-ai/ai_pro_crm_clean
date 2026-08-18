@@ -8,7 +8,9 @@ import { buildProcurementExecutionProjection, hasGovernedLockedPricing } from "@
 import { getDealContractorReference } from "@/lib/deals/contractorReference";
 import { assertAssignmentAllowed, evaluateContractorAssignmentAuthority } from "@/server/services/contractorAssignmentAuthorityService";
 import { currentDealStateLabel, normalizeSubmissionEvidence, recordProcurementTransitionAudit } from "@/lib/procurement/procurementStateAuthority";
-import { assertApprovedClientQuote } from "@/server/services/commercialAuthorityService";
+import { resolveApprovedClientQuote } from "@/server/services/commercialAuthorityService";
+import { resolveVerifiedTenderPackDocument } from "@/server/services/tenderPackCommercialAuthorityService";
+import { getSubmissionEvidenceAuthoritySnapshot, resolveSubmissionEvidence } from "@/server/services/submissionEvidenceAuthorityService";
 
 type ActionInput = { dealId: string; action: string; actor: AuthorizedUser; contractorId?: string; requirements?: Partial<OpportunityRequirementReview>; submission?: Record<string, unknown> };
 function asString(value: unknown): string | null { return typeof value === "string" && value.trim() ? value.trim() : null; }
@@ -54,7 +56,8 @@ export async function getOpportunityExecutionView(dealId: string, actor?: Author
   const resolved = contractorReference ? await resolveContractorReference({ reference: contractorReference, expectedWorkspaceId: asString(deal.workspaceId), actor, dealId, logContext: "opportunity_execution_view" }) : null;
   const contractor = resolved?.ok && !isArchivedContractor(resolved.contractor) ? resolved.contractor : null;
 const canonicalPricing = await loadCanonicalTenderPricing(dealId);
-const projectionDeal = { ...deal, ...(canonicalPricing ? { tenderPricing: canonicalPricing } : {}), sarsTcsSummary: contractor ? (contractor as Record<string, unknown>).sarsTcsSummary : null };
+const submissionAuthority = actor ? await getSubmissionEvidenceAuthoritySnapshot({ dealId, actor }) : { clientQuoteReady: false, tenderPackDocumentReady: false, submissionEvidenceReady: false, evidenceCount: 0 };
+const projectionDeal = { ...deal, submissionAuthority, ...(canonicalPricing ? { tenderPricing: canonicalPricing } : {}), sarsTcsSummary: contractor ? (contractor as Record<string, unknown>).sarsTcsSummary : null };
 const stateDeal = canonicalPricing && hasGovernedLockedPricing(canonicalPricing) ? { ...projectionDeal, opportunityExecution: { ...asRecord(asRecord(projectionDeal).opportunityExecution), pricingComplete: true } } : projectionDeal;
 const state = buildOpportunityExecutionState({ deal: stateDeal, contractor: contractor as Record<string, unknown> | null });
 const projection = buildProcurementExecutionProjection({ deal: stateDeal, state, remediationRequests: state.remediationRequests });
@@ -115,6 +118,8 @@ export async function applyOpportunityExecutionAction(input: ActionInput) {
   if (input.action === "reopen_requirements_review" && !currentView.state.requirements.reviewed) throw Object.assign(new Error("Requirements review is not complete"), { status: 409 });
   if (input.action === "review_requirements" && currentView.state.requirements.reviewed && !isReopenedRequirementsReview(currentView.state.requirements)) throw Object.assign(new Error("Requirements review must be reopened before it can be amended"), { status: 409 });
   if (input.action === "review_requirements" && !currentView.state.requirements.reviewed && !isReopenedRequirementsReview(currentView.state.requirements) && current !== "REQUIREMENTS_REVIEW") throw Object.assign(new Error("Requirements review is not the current governed phase"), { status: 409 });
+  let governedTenderPackDocument: Record<string, unknown> | null = null;
+  if (input.action === "generate_tender_pack") governedTenderPackDocument = await resolveVerifiedTenderPackDocument({ opportunityId: input.dealId, workspaceId: asString(deal.workspaceId), documentId: asString(asRecord(deal.opportunityExecution).tenderPackDocumentId) });
   const reopenedRequirementsReview = input.action === "review_requirements" && isReopenedRequirementsReview(currentView.state.requirements);
   const prepareDocumentsComplete = input.action === "prepare_documents" && current === "DOCUMENT_PREPARATION" && isDocumentPreparationComplete(currentView.state);
   const target = reopenedRequirementsReview || (input.action === "reopen_requirements_review") ? current : prepareDocumentsComplete ? "INTERNAL_REVIEW" : input.action === "prepare_documents" && current === "DOCUMENT_PREPARATION" ? "DOCUMENT_PREPARATION" as OpportunityExecutionPhase : targetPhaseForAction(input.action, deal);
@@ -144,15 +149,18 @@ export async function applyOpportunityExecutionAction(input: ActionInput) {
     }
   }
   let submissionEvidence: ReturnType<typeof normalizeSubmissionEvidence> | null = null;
+  const submissionPayload: Record<string, unknown> = { ...(input.submission ?? {}) };
   if (input.action === "record_submission") {
-    const clientQuoteId = asString(input.submission?.clientQuoteId);
-    const tenderPackDocumentId = asString(input.submission?.tenderPackDocumentId);
-    const submissionEvidenceDocumentId = asString(input.submission?.submissionEvidenceDocumentId);
-    if (!clientQuoteId || !tenderPackDocumentId || !submissionEvidenceDocumentId) {
-      throw Object.assign(new Error("Approved Client Quote, persisted Tender Pack Document_ID, and submission evidence Document_ID are required"), { status: 409, code: "COMMERCIAL_SUBMISSION_EVIDENCE_REQUIRED" });
-    }
-    await assertApprovedClientQuote({ opportunityId: input.dealId, clientQuoteId, actor: input.actor });
-    submissionEvidence = normalizeSubmissionEvidence(input.submission);
+    const workspaceId = asString(deal.workspaceId);
+    const clientQuote = await resolveApprovedClientQuote({ opportunityId: input.dealId, workspaceId, clientQuoteId: asString(submissionPayload.clientQuoteId), actor: input.actor });
+    const tenderPack = await resolveVerifiedTenderPackDocument({ opportunityId: input.dealId, workspaceId, documentId: asString(submissionPayload.tenderPackDocumentId) });
+    const submissionEvidenceDocumentId = asString(submissionPayload.submissionEvidenceDocumentId);
+    if (!submissionEvidenceDocumentId) throw Object.assign(new Error("Approved Submission Evidence is required"), { status: 409, code: "SUBMISSION_EVIDENCE_REQUIRED" });
+    const evidence = await resolveSubmissionEvidence({ dealId: input.dealId, evidenceId: submissionEvidenceDocumentId, actor: input.actor });
+    submissionPayload.clientQuoteId = clientQuote.clientQuoteId;
+    submissionPayload.tenderPackDocumentId = tenderPack.documentId;
+    submissionPayload.submissionEvidenceDocumentId = evidence.id;
+    submissionEvidence = normalizeSubmissionEvidence(submissionPayload);
     if (!submissionEvidence.valid) {
       await recordProcurementTransitionAudit({
         actor: input.actor,
@@ -177,9 +185,9 @@ export async function applyOpportunityExecutionAction(input: ActionInput) {
     });
   }
   if (submissionEvidence) {
-    submissionEvidence.evidenceReferences.clientQuoteId = asString(input.submission?.clientQuoteId) ?? "";
-    submissionEvidence.evidenceReferences.tenderPackDocumentId = asString(input.submission?.tenderPackDocumentId) ?? "";
-    submissionEvidence.evidenceReferences.submissionEvidenceDocumentId = asString(input.submission?.submissionEvidenceDocumentId) ?? "";
+    submissionEvidence.evidenceReferences.clientQuoteId = asString(submissionPayload.clientQuoteId) ?? "";
+    submissionEvidence.evidenceReferences.tenderPackDocumentId = asString(submissionPayload.tenderPackDocumentId) ?? "";
+    submissionEvidence.evidenceReferences.submissionEvidenceDocumentId = asString(submissionPayload.submissionEvidenceDocumentId) ?? "";
   }
   const now = new Date();
   const patch: Record<string, unknown> = { updatedAt: now, workflowStatus: target };
@@ -231,9 +239,9 @@ export async function applyOpportunityExecutionAction(input: ActionInput) {
   if (input.action === "start_internal_review") execution.internalReviewStarted = true; if (input.action === "complete_internal_review") { execution.internalReviewStarted = true; execution.internalReviewApproved = true; execution.internalReviewApprovalProvenance = { action: "complete_internal_review", status: "APPROVED", completedAt: now.toISOString(), completedBy: input.actor.uid, completedByEmail: input.actor.email ?? null }; } if (input.action === "reconcile_legacy_internal_review") { execution.currentPhase = "INTERNAL_REVIEW"; execution.internalReviewStarted = true; execution.internalReviewApproved = false; execution.internalReviewApprovalProvenance = null; execution.contractorApprovalComplete = false; execution.contractorApprovalProvenance = null; execution.tenderPackGenerated = false; execution.tenderPackValidated = false; execution.readyForSubmission = false; }
   if (input.action === "complete_submission_review") { execution.submissionReviewApprovalProvenance = { action: "complete_submission_review", status: "APPROVED", completedAt: now.toISOString(), completedBy: input.actor.uid, completedByEmail: input.actor.email ?? null }; }
   if (input.action === "contractor_approval") { execution.contractorApprovalComplete = true; execution.contractorApprovalProvenance = { action: "contractor_approval", status: "APPROVED", completedAt: now.toISOString(), completedBy: input.actor.uid, completedByEmail: input.actor.email ?? null }; }
-  if (input.action === "generate_tender_pack") { execution.tenderPackGenerated = true; execution.tenderPackValidated = true; }
+  if (input.action === "generate_tender_pack") { execution.tenderPackGenerated = true; execution.tenderPackValidated = true; execution.tenderPackDocumentId = governedTenderPackDocument?.documentId ?? null; }
   if (input.action === "mark_ready_for_submission") execution.readyForSubmission = true;
-  if (input.action === "record_submission") { execution.submitted = true; execution.submission = { ...(input.submission ?? {}), evidenceReferences: submissionEvidence?.evidenceReferences ?? {} }; patch.status = "submitted"; patch.stage = "submitted"; patch.tenderSubmittedAt = now; patch.tenderSubmittedBy = input.actor.uid; }
+  if (input.action === "record_submission") { execution.submitted = true; execution.submission = { ...submissionPayload, evidenceReferences: submissionEvidence?.evidenceReferences ?? {} }; patch.status = "submitted"; patch.stage = "submitted"; patch.tenderSubmittedAt = now; patch.tenderSubmittedBy = input.actor.uid; }
   if (input.action === "assign_contractor") {
     const assignment = asRecord(patch.contractorAssignment);
     const executionWorkspaceId = asString(assignment.executionWorkspaceId) ?? `exec-${input.dealId}`;

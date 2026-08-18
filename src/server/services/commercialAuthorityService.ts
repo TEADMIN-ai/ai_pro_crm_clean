@@ -152,6 +152,23 @@ export async function assertApprovedClientQuote(input: { opportunityId: string; 
   return quote;
 }
 
+export async function resolveApprovedClientQuote(input: { opportunityId: string; workspaceId?: string | null; clientQuoteId?: string | null; actor: AuthorizedUser }): Promise<ClientQuoteRecord> {
+  const db = getFirebaseAdmin(); const requestedId = asString(input.clientQuoteId);
+  const snapshots = requestedId ? [await db.collection("clientQuotes").doc(requestedId).get()] : (await db.collection("clientQuotes").where("opportunityId", "==", input.opportunityId).get()).docs;
+  const candidates: ClientQuoteRecord[] = [];
+  for (const snapshot of snapshots) {
+    if (!snapshot.exists) continue;
+    const quote = { clientQuoteId: snapshot.id, ...(snapshot.data() ?? {}) } as ClientQuoteRecord;
+    if (quote.opportunityId !== input.opportunityId || quote.status !== "APPROVED" || (input.workspaceId && quote.workspaceId !== input.workspaceId) || !quote.generatedDocumentId || !quote.lines?.length || quote.lines.some((line) => !line.approvedBy || !line.approvedAt)) continue;
+    const document = await loadDocument(quote.generatedDocumentId);
+    if (document?.verificationStatus === "VERIFIED") candidates.push(quote);
+  }
+  if (candidates.length === 0) throw Object.assign(new Error("No eligible approved Client Quote exists for this opportunity"), { status: 409, code: "CLIENT_QUOTE_NOT_APPROVED" });
+  if (candidates.length > 1) throw Object.assign(new Error("Multiple eligible approved Client Quotes require explicit governance resolution"), { status: 409, code: "CLIENT_QUOTE_AMBIGUOUS" });
+  if (input.actor.workspaceId && candidates[0].workspaceId !== input.actor.workspaceId) throw Object.assign(new Error("Cross-workspace Client Quote access rejected"), { status: 403 });
+  return candidates[0];
+}
+
 export function buildClientQuoteLine(input: { costLine: VerifiedSupplierCostLine; sellingRate: ApprovedSellingRate; quantity: number | null; unit: string; description: string }): ClientQuoteLine {
   return { ...input.sellingRate, supplierQuoteId: input.costLine.supplierQuoteId, supplierQuoteLineId: input.costLine.supplierQuoteLineId, supplierId: input.costLine.supplierId, supplierQuoteDocumentId: input.costLine.supplierQuoteDocumentId, quantity: input.quantity, unit: input.unit, description: input.description };
 }
