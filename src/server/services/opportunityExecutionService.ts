@@ -115,29 +115,32 @@ export async function applyOpportunityExecutionAction(input: ActionInput) {
   if (input.action === "reopen_requirements_review" && !currentView.state.requirements.reviewed) throw Object.assign(new Error("Requirements review is not complete"), { status: 409 });
   if (input.action === "review_requirements" && currentView.state.requirements.reviewed && !isReopenedRequirementsReview(currentView.state.requirements)) throw Object.assign(new Error("Requirements review must be reopened before it can be amended"), { status: 409 });
   if (input.action === "review_requirements" && !currentView.state.requirements.reviewed && !isReopenedRequirementsReview(currentView.state.requirements) && current !== "REQUIREMENTS_REVIEW") throw Object.assign(new Error("Requirements review is not the current governed phase"), { status: 409 });
-  const target = input.action === "reopen_requirements_review" ? current : input.action === "prepare_documents" && current === "DOCUMENT_PREPARATION" ? "DOCUMENT_PREPARATION" as OpportunityExecutionPhase : targetPhaseForAction(input.action, deal);
+  const reopenedRequirementsReview = input.action === "review_requirements" && isReopenedRequirementsReview(currentView.state.requirements);
+  const target = reopenedRequirementsReview ? current : input.action === "reopen_requirements_review" ? current : input.action === "prepare_documents" && current === "DOCUMENT_PREPARATION" ? "DOCUMENT_PREPARATION" as OpportunityExecutionPhase : targetPhaseForAction(input.action, deal);
   if (!target) throw Object.assign(new Error("Unknown opportunity action"), { status: 400 });
-  await recordProcurementTransitionAudit({
-    actor: input.actor,
-    workspaceId: asString(deal.workspaceId),
-    dealId: input.dealId,
-    action: "transition_requested",
-    priorState: currentDealStateLabel(deal),
-    requestedState: target,
-    reason: input.action,
-  });
-  const transition = validateOpportunityTransition(current, target);
-  if (transition.ok === false) {
+  if (!reopenedRequirementsReview) {
     await recordProcurementTransitionAudit({
       actor: input.actor,
       workspaceId: asString(deal.workspaceId),
       dealId: input.dealId,
-      action: "transition_rejected",
+      action: "transition_requested",
       priorState: currentDealStateLabel(deal),
       requestedState: target,
-      reason: transition.message,
+      reason: input.action,
     });
-    throw Object.assign(new Error(transition.message), { status: transition.status });
+    const transition = validateOpportunityTransition(current, target);
+    if (transition.ok === false) {
+      await recordProcurementTransitionAudit({
+        actor: input.actor,
+        workspaceId: asString(deal.workspaceId),
+        dealId: input.dealId,
+        action: "transition_rejected",
+        priorState: currentDealStateLabel(deal),
+        requestedState: target,
+        reason: transition.message,
+      });
+      throw Object.assign(new Error(transition.message), { status: transition.status });
+    }
   }
   let submissionEvidence: ReturnType<typeof normalizeSubmissionEvidence> | null = null;
   if (input.action === "record_submission") {
