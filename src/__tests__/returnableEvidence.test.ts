@@ -169,3 +169,15 @@ describe("requirements review amendment authority", () => {
     expect(state.actions.find((action) => action.key === "reopen_requirements_review")).toMatchObject({ enabled: true, label: "Amend Requirements Review" });
   });
 });
+
+
+describe("reopened requirements projection", () => {
+  test("an audited IN_REVIEW amendment remains active outside the original phase", () => {
+    const reopened = { ...deal, opportunityExecution: { ...deal.opportunityExecution, currentPhase: "DOCUMENT_PREPARATION", requirementsReviewed: false, requirements: { formsRequiringCompletion: ["Declarations"], reviewed: false, reviewStatus: "IN_REVIEW", reopenedAt: "2026-08-18T10:00:00.000Z", reopenedByUid: "staff-1" } } };
+    const state = buildOpportunityExecutionState({ deal: reopened, contractor });
+    expect(state.currentPhase).toBe("DOCUMENT_PREPARATION");
+    expect(state.stages.find((stage) => stage.key === "requirements")).toMatchObject({ status: "IN_PROGRESS", blockers: ["Amended requirements review is pending completion"] });
+    expect(state.actions.find((action) => action.key === "review_requirements")).toMatchObject({ enabled: true });
+    expect(state.actions.find((action) => action.key === "reopen_requirements_review")).toMatchObject({ enabled: false });
+  });
+});

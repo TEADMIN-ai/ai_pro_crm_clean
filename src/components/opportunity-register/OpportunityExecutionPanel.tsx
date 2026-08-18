@@ -9,7 +9,6 @@ import type { ContractorMatchResult, OpportunityAction, OpportunityActionKey, Op
 type Props = { dealId: string; state: OpportunityExecutionState; matches: ContractorMatchResult[] };
 
 const PRIMARY_ACTIONS: OpportunityActionKey[] = [
-  "reopen_requirements_review",
   "start_compliance_review",
   "open_missing_documents",
   "open_boq_pricing",
@@ -236,7 +235,7 @@ export default function OpportunityExecutionPanel({ dealId, state, matches }: Pr
       </EnterprisePanel>
       </div>
 
-      <EnterprisePanel eyebrow="Requirements review" title="Extracted tender requirements">
+      <EnterprisePanel eyebrow="Requirements review" title="Extracted tender requirements" action={<EnterpriseStatusBadge value={requirements.reviewStatus === "IN_REVIEW" ? "IN_REVIEW" : requirements.reviewed ? "COMPLETE" : "PENDING"} tone={requirements.reviewStatus === "IN_REVIEW" ? "warning" : requirements.reviewed ? "success" : "info"} />}>
         <div className="grid gap-3 md:grid-cols-2">
           <input disabled={!requirementsEditable} className="rounded-md border p-2" value={fieldValue(requirements.rfqNumber)} onChange={(event) => setRequirement("rfqNumber", event.target.value)} placeholder="RFQ/RFP number" />
           <input disabled={!requirementsEditable} className="rounded-md border p-2" value={fieldValue(requirements.clientIssuer)} onChange={(event) => setRequirement("clientIssuer", event.target.value)} placeholder="Client / issuer" />

@@ -50,6 +50,8 @@ export type OpportunityRequirementReview = {
   reopenedByUid?: string | null;
 };
 
+export function isReopenedRequirementsReview(requirements: OpportunityRequirementReview): boolean { return !requirements.reviewed && requirements.reviewStatus === "IN_REVIEW" && Boolean(requirements.reopenedAt) && Boolean(requirements.reopenedByUid); }
+
 export type OpportunityAction = { key: OpportunityActionKey; label: string; enabled: boolean; reason: string | null; href?: string };
 export type OpportunityAssignmentState = {
   contractorId: string | null;
@@ -540,7 +542,7 @@ function buildStages(input: {
   const { phase, requirements, assignment, compliance, documents, flags, blockers } = input;
   const documentBlockers = documents.filter((doc) => doc.status === "BLOCKED").map((doc) => doc.label + " is missing");
   return [
-    { key: "requirements", title: "Requirements Review", status: stageStatus({ complete: requirements.reviewed || isAtLeast(phase, "MATCHING_REQUIRED"), inProgress: phase === "REQUIREMENTS_REVIEW" }), owner: "staff", summary: "RFQ/RFP requirements, dates, returnables and compulsory documents.", blockers: requirements.reviewed ? [] : ["Review extracted tender requirements"], actionKey: "review_requirements" },
+    { key: "requirements", title: "Requirements Review", status: stageStatus({ complete: requirements.reviewed || (!isReopenedRequirementsReview(requirements) && isAtLeast(phase, "MATCHING_REQUIRED")), inProgress: isReopenedRequirementsReview(requirements) || phase === "REQUIREMENTS_REVIEW" }), owner: "staff", summary: "RFQ/RFP requirements, dates, returnables and compulsory documents.", blockers: requirements.reviewed ? [] : isReopenedRequirementsReview(requirements) ? ["Amended requirements review is pending completion"] : ["Review extracted tender requirements"], actionKey: "review_requirements" },
     { key: "assignment", title: "Contractor Assignment", status: stageStatus({ complete: assignment.complete, inProgress: phase === "MATCHING_REQUIRED", blocked: Boolean(assignment.assignmentReason) }), owner: "staff", summary: assignment.contractorName ?? "Select a live canonical contractor.", blockers: assignment.assignmentReason ? [assignment.assignmentReason] : assignment.complete ? [] : ["Assign a contractor"], actionKey: "assign_contractor" },
     { key: "compliance", title: "Compliance Review", status: stageStatus({ complete: compliance.status === "VALID" && flags.complianceReviewed, inProgress: phase === "COMPLIANCE_REVIEW" || flags.complianceStarted, blocked: assignment.complete && compliance.status !== "VALID" }), owner: "compliance", summary: "Tax, CSD, B-BBEE, COIDA, CIDB, banking and tender-specific checks.", blockers: compliance.status === "VALID" ? [] : [...compliance.missing, ...compliance.expired.map((item) => item + " expired")], actionKey: "start_compliance_review" },
     { key: "boq", title: "BOQ/Pricing", status: stageStatus({ complete: requirements.boqPricingSchedulePresent && flags.pricingComplete, inProgress: phase === "BOQ_PRICING" || flags.boqTaskCreated, blocked: requirements.boqPricingSchedulePresent && phase === "BOQ_PRICING" && !flags.pricingComplete, applicable: requirements.boqPricingSchedulePresent }), owner: "qs", summary: requirements.boqPricingSchedulePresent ? "BOQ or pricing schedule detected." : "No BOQ/pricing schedule detected.", blockers: requirements.boqPricingSchedulePresent && !flags.pricingComplete ? ["Required BOQ/pricing is incomplete"] : [], actionKey: "open_boq_pricing" },
@@ -599,7 +601,8 @@ export function buildOpportunityExecutionState(input: { deal: Deal | AnyRecord; 
   const uniqueBlockers = Array.from(new Set([...blockers, ...complianceBlockers]));
   const actions: OpportunityAction[] = [];
   const documentsBlocked = documents.some((doc) => doc.status === "BLOCKED");
-  addAction(actions, "review_requirements", "Complete Requirements Review", phase === "REQUIREMENTS_REVIEW" && !requirements.reviewed, "Requirements review is already complete or not the current phase");
+  const reopenedRequirementsReview = isReopenedRequirementsReview(requirements);
+  addAction(actions, "review_requirements", "Complete Requirements Review", (!requirements.reviewed && phase === "REQUIREMENTS_REVIEW") || reopenedRequirementsReview, reopenedRequirementsReview ? null : "Requirements review is already complete or not the current phase");
   addAction(actions, "reopen_requirements_review", "Amend Requirements Review", requirements.reviewed, "Requirements review is not complete");
   addAction(actions, "find_matching_contractors", "Find Matching Contractors", phase === "MATCHING_REQUIRED", "Complete requirements review first");
   addAction(actions, "assign_contractor", "Assign Contractor", phase === "MATCHING_REQUIRED", "Complete matching first");
