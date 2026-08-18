@@ -97,7 +97,7 @@ function targetPhaseForAction(action: string, deal: Record<string, unknown>): Op
   if (action === "start_compliance_review") return "COMPLIANCE_REVIEW";
   if (action === "open_boq_pricing") return "BOQ_PRICING";
   if (action === "prepare_documents") return "INTERNAL_REVIEW";
-  if (action === "start_internal_review") return "CONTRACTOR_APPROVAL";
+  if (action === "start_internal_review") return asString(asRecord(deal.opportunityExecution).currentPhase) as OpportunityExecutionPhase | null; if (action === "complete_internal_review") return "CONTRACTOR_APPROVAL";
   if (action === "contractor_approval") return "PACK_GENERATION";
   if (action === "generate_tender_pack") return "PACK_GENERATION";
   if (action === "mark_ready_for_submission") return "READY_FOR_SUBMISSION";
@@ -109,9 +109,9 @@ export async function applyOpportunityExecutionAction(input: ActionInput) {
   const db = getFirebaseAdmin();
   const deal = await loadDealRecord(input.dealId);
   await assertWorkspaceAccess(input.actor, deal);
-  if (input.action === "reopen_requirements_review" || input.action === "review_requirements") assertPrivilegedRole(input.actor);
+  if (input.action === "reopen_requirements_review" || input.action === "review_requirements" || input.action === "start_internal_review" || input.action === "complete_internal_review") assertPrivilegedRole(input.actor);
   const currentView = await getOpportunityExecutionView(input.dealId, input.actor);
-  const current = currentView.state.currentPhase;
+  const current = currentView.state.currentPhase; if ((input.action === "start_internal_review" || input.action === "complete_internal_review") && current !== "INTERNAL_REVIEW") throw Object.assign(new Error("Internal review is not the current governed phase"), { status: 409 }); if (input.action === "complete_internal_review" && !currentView.state.stages.some((stage) => stage.key === "internalReview" && stage.status === "IN_PROGRESS")) throw Object.assign(new Error("Internal review must be started before completion"), { status: 409 });
   if (input.action === "reopen_requirements_review" && !currentView.state.requirements.reviewed) throw Object.assign(new Error("Requirements review is not complete"), { status: 409 });
   if (input.action === "review_requirements" && currentView.state.requirements.reviewed && !isReopenedRequirementsReview(currentView.state.requirements)) throw Object.assign(new Error("Requirements review must be reopened before it can be amended"), { status: 409 });
   if (input.action === "review_requirements" && !currentView.state.requirements.reviewed && !isReopenedRequirementsReview(currentView.state.requirements) && current !== "REQUIREMENTS_REVIEW") throw Object.assign(new Error("Requirements review is not the current governed phase"), { status: 409 });
@@ -228,7 +228,7 @@ export async function applyOpportunityExecutionAction(input: ActionInput) {
       execution.documentsPrepared = true;
     }
   }
-  if (input.action === "start_internal_review") execution.internalReviewApproved = true;
+  if (input.action === "start_internal_review") execution.internalReviewStarted = true; if (input.action === "complete_internal_review") execution.internalReviewApproved = true;
   if (input.action === "contractor_approval") execution.contractorApprovalComplete = true;
   if (input.action === "generate_tender_pack") { execution.tenderPackGenerated = true; execution.tenderPackValidated = true; }
   if (input.action === "mark_ready_for_submission") execution.readyForSubmission = true;

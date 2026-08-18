@@ -176,3 +176,31 @@ test("complete document preparation is distinct from internal review approval", 
   expect(state.stages.find((stage) => stage.key === "documents")?.status).toBe("COMPLETE");
   expect(state.stages.find((stage) => stage.key === "internalReview")?.status).toBe("NOT_STARTED");
 });
+
+test("starting internal review does not approve or advance the workflow", () => {
+  const started = buildOpportunityExecutionState({
+    deal: { ...assignedDeal, opportunityExecution: { ...assignedDeal.opportunityExecution, currentPhase: "INTERNAL_REVIEW", documentsPrepared: true } },
+    contractor: validContractor,
+  });
+  expect(started.currentPhase).toBe("INTERNAL_REVIEW");
+  expect(started.stages.find((stage) => stage.key === "internalReview")?.status).toBe("NOT_STARTED");
+  expect(started.stages.find((stage) => stage.key === "contractorApproval")?.status).toBe("NOT_STARTED");
+  expect(started.actions.find((action) => action.key === "start_internal_review")).toMatchObject({ enabled: true });
+  expect(started.actions.find((action) => action.key === "complete_internal_review")).toMatchObject({ enabled: false });
+  expect(started.actions.find((action) => action.key === "contractor_approval")).toMatchObject({ enabled: false });
+
+  const inProgress = buildOpportunityExecutionState({
+    deal: { ...assignedDeal, opportunityExecution: { ...assignedDeal.opportunityExecution, currentPhase: "INTERNAL_REVIEW", documentsPrepared: true, internalReviewStarted: true } },
+    contractor: validContractor,
+  });
+  expect(inProgress.currentPhase).toBe("INTERNAL_REVIEW");
+  expect(inProgress.stages.find((stage) => stage.key === "internalReview")?.status).toBe("IN_PROGRESS");
+  expect(inProgress.stages.find((stage) => stage.key === "contractorApproval")?.status).toBe("NOT_STARTED");
+  expect(inProgress.actions.find((action) => action.key === "complete_internal_review")).toMatchObject({ enabled: true });
+  expect(inProgress.actions.find((action) => action.key === "contractor_approval")).toMatchObject({ enabled: false });
+});
+
+test("only completed internal review permits the forward transition", () => {
+  expect(validateOpportunityTransition("INTERNAL_REVIEW", "CONTRACTOR_APPROVAL")).toMatchObject({ ok: true });
+  expect(validateOpportunityTransition("INTERNAL_REVIEW", "PACK_GENERATION")).toMatchObject({ ok: false, status: 409 });
+});

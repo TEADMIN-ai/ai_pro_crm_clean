@@ -14,6 +14,7 @@ const PRIMARY_ACTIONS: OpportunityActionKey[] = [
   "open_boq_pricing",
   "prepare_documents",
   "start_internal_review",
+  "complete_internal_review",
   "contractor_approval",
   "generate_tender_pack",
   "record_submission",
