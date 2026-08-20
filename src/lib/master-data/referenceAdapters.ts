@@ -23,7 +23,8 @@ function resolution(input: CanonicalReferenceResolution): CanonicalReferenceReso
 }
 
 export function resolveOpportunityClientReference(deal: Deal & AnyRecord): CanonicalReferenceResolution {
-  const explicitClientId = text(deal.clientId) ?? text(deal.Client_ID) ?? text(record(deal.masterData).clientId);
+  const clientReference = record(deal.clientMasterDataReference);
+  const explicitClientId = text(deal.clientId) ?? text(clientReference.canonicalId) ?? text(deal.client_ID) ?? text(deal.Client_ID) ?? text(record(deal.masterData).clientId);
   if (explicitClientId) {
     return resolution({
       status: "RESOLVED",
@@ -32,7 +33,7 @@ export function resolveOpportunityClientReference(deal: Deal & AnyRecord): Canon
       sourceReference: explicitClientId,
       reason: "Opportunity carries an explicit canonical client reference.",
       provenance: "SYSTEM_CANONICAL",
-      verificationStatus: "PENDING_REVIEW",
+      verificationStatus: clientReference.verificationStatus === "VERIFIED" ? "VERIFIED" : "PENDING_REVIEW",
     });
   }
 

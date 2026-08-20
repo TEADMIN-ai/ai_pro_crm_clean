@@ -192,6 +192,7 @@ function buildNextAction(input: {
   pricedDocumentMissing: boolean;
   documentsIncomplete: boolean;
   submissionReviewIncomplete: boolean;
+  clientIdentityMissing: boolean;
   clientQuoteMissing: boolean;
   durableTenderPackMissing: boolean;
   tenderPackMissing: boolean;
@@ -219,6 +220,7 @@ function buildNextAction(input: {
   if (input.pricedDocumentMissing) return make("GENERATE_PRICED_DOCUMENT", "Generate priced document", "qs", "Approved pricing has not produced validated fill evidence.", "open_boq_pricing", "/dashboard/deals/" + encodeURIComponent(input.state.dealId) + "/tender-pricing");
   if (input.documentsIncomplete) return make("COMPLETE_DOCUMENTS", "Complete returnable documents", "staff", "Mandatory returnables, signatures, or amendments are incomplete.", "prepare_documents");
   if (input.submissionReviewIncomplete) return make("COMPLETE_SUBMISSION_REVIEW", "Complete Submission Review", "manager", "Internal Submission Review is not approved.", "open_submission_review", "/dashboard/submission-review?dealId=" + encodeURIComponent(input.state.dealId));
+  if (input.clientIdentityMissing) return make("VERIFY_CLIENT_IDENTITY", "Verify Client Identity", "staff", "Client identity required", "open_submission_review", "/dashboard/master-data-review");
   if (input.clientQuoteMissing) return make("APPROVE_PRICING", "Generate approved Client Quote", "manager", "Approved Client Quote must be generated.", "open_boq_pricing", "/dashboard/deals/" + encodeURIComponent(input.state.dealId) + "/tender-pricing");
   if (input.durableTenderPackMissing) return make("GENERATE_TENDER_PACK", "Generate durable Tender Pack", "operations", "Durable Tender Pack must be generated.", "generate_tender_pack", "/dashboard/tender-pack-requests");
   if (input.tenderPackMissing) return make("GENERATE_TENDER_PACK", "Generate tender pack", "operations", "The final tender pack is not generated and validated.", "generate_tender_pack", "/dashboard/tender-pack-requests");
@@ -308,11 +310,16 @@ export function buildProcurementExecutionProjection(input: {
     packGenerated: packReady,
     packValidated: packReady,
   });
+  const clientReference = rec(deal.clientMasterDataReference);
+  const canonicalClientId = str(deal.clientId) ?? str(clientReference.canonicalId) ?? str(deal.client_ID) ?? str(deal.Client_ID) ?? str(rec(deal.masterData).clientId);
+  const verifiedClientLinked = Boolean(canonicalClientId) && clientReference.verificationStatus === "VERIFIED";
+  const clientIdentityMissing = !verifiedClientLinked;
   const clientQuoteMissing = !Boolean(submissionAuthority.clientQuoteReady);
   const durableTenderPackMissing = !Boolean(submissionAuthority.tenderPackDocumentReady);
   const submissionEvidenceMissing = !Boolean(submissionAuthority.submissionEvidenceReady);
-  const durableAuthorityMissing = clientQuoteMissing || durableTenderPackMissing || submissionEvidenceMissing;
+  const durableAuthorityMissing = clientIdentityMissing || clientQuoteMissing || durableTenderPackMissing || submissionEvidenceMissing;
   const durableAuthorityBlockers = [
+    ...(clientIdentityMissing ? [blocker("Client identity required", "A VERIFIED canonical client must be linked to this opportunity before Client Quote creation.", "staff", "/dashboard/master-data-review", dueDate)] : []),
     ...(clientQuoteMissing ? [blocker("Approved Client Quote must be generated", "A canonical APPROVED clientQuotes record with a verified generated document is required before submission.", "manager", "/dashboard/deals/" + encodeURIComponent(dealId) + "/tender-pricing", dueDate)] : []),
     ...(durableTenderPackMissing ? [blocker("Durable Tender Pack must be generated", "An active VERIFIED TENDER_PACK master document linked to this opportunity is required before submission.", "operations", "/dashboard/tender-pack-requests", dueDate)] : []),
     ...(submissionEvidenceMissing ? [blocker("Reviewed submission evidence is required", "Submission evidence must be reviewed before recording submission.", "operations", "/dashboard/deals/" + encodeURIComponent(dealId) + "/submission-evidence", dueDate)] : []),
@@ -333,6 +340,7 @@ export function buildProcurementExecutionProjection(input: {
     pricedDocumentMissing,
     documentsIncomplete: !documentsComplete,
     submissionReviewIncomplete: reviewStatus !== "complete",
+    clientIdentityMissing,
     clientQuoteMissing,
     durableTenderPackMissing,
     tenderPackMissing: !packReady,

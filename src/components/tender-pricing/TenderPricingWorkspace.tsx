@@ -165,6 +165,17 @@ export default function TenderPricingWorkspace(props: Props) {
       </div>
 
       {message ? <p className="text-sm text-[color:var(--tex-text-muted)]">{message}</p> : null}
+      {pricing?.clientIdentityBlocker ? (
+        <div className="rounded-md border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div>
+              <p className="font-semibold">Client identity required</p>
+              <p className="mt-1 text-amber-900">Verify and link a canonical client before sending pricing to Submission Review.</p>
+            </div>
+            <a className="tex-action-button tex-action-button--secondary" href="/dashboard/master-data-review">Open Master Data Review</a>
+          </div>
+        </div>
+      ) : null}
 
       {pricing ? (
         <>

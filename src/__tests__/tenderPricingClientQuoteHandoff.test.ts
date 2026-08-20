@@ -2,14 +2,20 @@
 jest.mock("firebase-admin/firestore", () => ({ Timestamp: { fromDate: (date: Date) => date } }));
 
 const mockSet = jest.fn();
+const mockVerifiedClient = { entityType: "client", canonicalId: "TE-CLI-1", displayName: "Client", workspaceId: "workspace-1", status: "active", verificationStatus: "VERIFIED", reviewStatus: "READY_FOR_USE" };
 const mockPricingGet = jest.fn();
 
 jest.mock("@/lib/firebase/admin", () => ({
   getFirebaseAdmin: () => ({
     collection: (name: string) => ({
       doc: (id: string) => ({
-        get: name === "tenderPricingWorkspaces" && id === "pricing-1" ? mockPricingGet : jest.fn(async () => ({ exists: true, data: () => ({ workspaceId: "workspace-1" }) })),
+        get: name === "tenderPricingWorkspaces" && id === "pricing-1"
+          ? mockPricingGet
+          : jest.fn(async () => ({ exists: true, id, data: () => name === "masterClients" ? mockVerifiedClient : { workspaceId: "workspace-1", clientId: "TE-CLI-1" } })),
         set: mockSet,
+      }),
+      where: () => ({
+        limit: () => ({ get: jest.fn(async () => ({ empty: false, docs: [{ id: "TE-CLI-1", data: () => mockVerifiedClient }] })) }),
       }),
     }),
   }),
@@ -58,7 +64,7 @@ describe("tender pricing Client Quote handoff", () => {
 
     await expect(sendTenderPricingToSubmissionReview({ pricingId: "pricing-1", actor })).rejects.toMatchObject({ code: "CLIENT_QUOTE_ARTIFACT_REQUIRED" });
 
-    expect(mockCreateApprovedClientQuoteFromLockedPricing).toHaveBeenCalledWith({ pricing: approvedPricing, actor });
+    expect(mockCreateApprovedClientQuoteFromLockedPricing).toHaveBeenCalledWith({ pricing: expect.objectContaining({ id: "pricing-1", clientIdentityStatus: "RESOLVED_VERIFIED", clientIdentityCanonicalId: "TE-CLI-1" }), actor });
     expect(mockSet).not.toHaveBeenCalled();
   });
 });

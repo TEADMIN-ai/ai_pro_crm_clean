@@ -2,6 +2,7 @@ import { getFirebaseAdmin } from "@/lib/firebase/admin";
 import { assertPrivilegedRole, type AuthorizedUser } from "@/lib/server/authz";
 import type { ClientQuoteLine, ClientQuoteRecord, CommercialBlocker, VerifiedSupplierCostLine } from "@/types/commercialAuthority";
 import { assertApprovedClientQuote, calculateApprovedSellingRate, resolveApprovedClientQuote } from "@/server/services/commercialAuthorityService";
+import { assertDealHasVerifiedCanonicalClient } from "@/server/services/clientIdentityService";
 import type { TenderPricingLineItem, TenderPricingWorkspace } from "@/types/tenderPricing";
 
 function asString(value: unknown): string | null {
@@ -37,9 +38,7 @@ export async function createClientQuoteDraft(input: {
   const deal = await loadDeal(input.opportunityId);
   const workspaceId = asString(deal.workspaceId);
   assertWorkspace(input.actor, workspaceId);
-  const clientReference = deal.clientMasterDataReference && typeof deal.clientMasterDataReference === "object" ? (deal.clientMasterDataReference as Record<string, unknown>).canonicalId : null;
-  const clientId = asString(deal.clientId ?? deal.client_ID ?? clientReference);
-  if (!clientId) throw Object.assign(new Error("Canonical Client_ID is required before creating a Client Quote"), { status: 409, code: "CLIENT_ID_REQUIRED" });
+  const clientId = await assertDealHasVerifiedCanonicalClient({ deal, actor: input.actor });
   if (!input.lines.length) throw Object.assign(new Error("At least one commercial line is required"), { status: 409, code: "CLIENT_QUOTE_NOT_READY" });
   const lines: ClientQuoteLine[] = [];
   const blockers: CommercialBlocker[] = [];
@@ -116,9 +115,7 @@ export async function createApprovedClientQuoteFromLockedPricing(input: { pricin
   const deal = await loadDeal(pricing.dealId);
   const workspaceId = asString(deal.workspaceId);
   assertWorkspace(input.actor, workspaceId);
-  const clientReference = deal.clientMasterDataReference && typeof deal.clientMasterDataReference === "object" ? (deal.clientMasterDataReference as Record<string, unknown>).canonicalId : null;
-  const clientId = asString(deal.clientId ?? deal.client_ID ?? clientReference);
-  if (!clientId) throw Object.assign(new Error("Canonical Client_ID is required before creating a Client Quote"), { status: 409, code: "CLIENT_ID_REQUIRED" });
+  const clientId = await assertDealHasVerifiedCanonicalClient({ deal, actor: input.actor });
   const existing = await getFirebaseAdmin().collection("clientQuotes").where("opportunityId", "==", pricing.dealId).get();
   for (const item of existing.docs) {
     const quote = { clientQuoteId: item.id, ...(item.data() ?? {}) } as ClientQuoteRecord;

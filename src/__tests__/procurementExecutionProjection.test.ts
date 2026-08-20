@@ -62,6 +62,8 @@ const baseDeal = {
   opportunityId: "test-procurement-1",
   title: "Controlled TEST RFQ",
   workspaceId: "workspace-test",
+  clientId: "TE-CLI-1",
+  clientMasterDataReference: { canonicalId: "TE-CLI-1", verificationStatus: "VERIFIED" },
   rfqNumber: "TEST-RFQ-1",
   clientName: "Test Municipality",
   closingDate: "2026-08-01T10:00:00.000Z",
@@ -357,4 +359,14 @@ test("legacy ready-for-submission state projects durable artifact repair blocker
     "Approved Client Quote must be generated",
     "Durable Tender Pack must be generated",
   ]));
+});
+
+test("opportunity intake projects Verify Client Identity when canonical client linkage is missing", () => {
+  const { clientId, clientMasterDataReference, ...dealWithoutClient } = baseDeal;
+  void clientId;
+  void clientMasterDataReference;
+  const projection = projectionFor({ ...dealWithoutClient, submissionAuthority: { clientQuoteReady: false, tenderPackDocumentReady: true, submissionEvidenceReady: true } });
+  expect(projection.nextAction.key).toBe("VERIFY_CLIENT_IDENTITY");
+  expect(projection.nextAction.blocker).toBe("Client identity required");
+  expect(projection.blockers.map((item) => item.problem)).toContain("Client identity required");
 });

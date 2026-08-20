@@ -35,6 +35,7 @@ export type TenderValidationStatus = "NOT_STARTED" | "VALIDATION_FAILED" | "VALI
 export type TenderPricingLockStatus = "UNLOCKED" | "LOCKED" | "SUPERSEDED";
 export type TenderPricingAggregationMode = "FIXED_QUANTITY" | "UNIT_RATE_ONLY" | "MIXED";
 export type TenderPricingSource = "APPROVED_SUPPLIER_QUOTE" | "MANUAL_ENTRY" | "PROVISIONAL";
+export type TenderPricingClientIdentityStatus = "RESOLVED_VERIFIED" | "CLIENT_REVIEW_REQUIRED" | "CLIENT_VERIFICATION_REQUIRED" | "AMBIGUOUS_CLIENT_MATCH" | "UNRESOLVED";
 export type TenderPricingRiskCode =
   | "NEGATIVE_MARGIN"
   | "LOW_MARGIN"
@@ -267,6 +268,10 @@ export type TenderPricingWorkspace = {
   approvals: TenderPricingApproval[];
   documentFillEvidence?: TenderPricingDocumentFillEvidence | null;
   submissionReviewHandoff?: TenderPricingHandoff | null;
+  clientIdentityStatus?: TenderPricingClientIdentityStatus | null;
+  clientIdentityCanonicalId?: string | null;
+  clientIdentityNextAction?: string | null;
+  clientIdentityBlocker?: string | null;
   createdBy: string;
   createdAt: string;
   updatedAt: string;

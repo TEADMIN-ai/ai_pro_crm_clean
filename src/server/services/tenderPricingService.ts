@@ -19,6 +19,7 @@ import type {
 } from "@/types/tenderPricing";
 import { isApprovedTenderIntelligence, loadCanonicalTenderPricingSources, type CanonicalTenderPricingSources } from "@/server/services/tenderPricingCanonicalSources";
 import { createApprovedClientQuoteFromLockedPricing } from "@/server/services/clientQuoteAuthorityService";
+import { resolveDealClientIdentity } from "@/server/services/clientIdentityService";
 
 const TENDER_PRICING_COLLECTION = "tenderPricingWorkspaces";
 const TENDER_PRICING_AUDIT_COLLECTION = "tenderPricingAuditEvents";
@@ -169,6 +170,27 @@ function buildInputFromDeal(args: {
   };
 }
 
+async function projectClientIdentity(workspace: TenderPricingWorkspace, actor: AuthorizedUser): Promise<TenderPricingWorkspace> {
+  const identity = await resolveDealClientIdentity({ dealId: workspace.dealId, actor });
+  const ready = identity.status === "RESOLVED_VERIFIED";
+  return {
+    ...workspace,
+    clientIdentityStatus: identity.status,
+    clientIdentityCanonicalId: identity.canonicalId,
+    clientIdentityNextAction: ready ? null : "Verify Client Identity",
+    clientIdentityBlocker: ready ? null : "Client identity required",
+    nextAction: ready || !["LOCKED", "VALIDATED", "DOCUMENT_FILLED", "APPROVED"].includes(workspace.pricingStatus) ? workspace.nextAction : "Client identity required",
+  };
+}
+
+async function assertClientIdentityReadyForHandoff(workspace: TenderPricingWorkspace, actor: AuthorizedUser): Promise<TenderPricingWorkspace> {
+  const projected = await projectClientIdentity(workspace, actor);
+  if (projected.clientIdentityStatus !== "RESOLVED_VERIFIED") {
+    await persistPricing(projected);
+    throw Object.assign(new Error("Client identity required"), { status: 409, code: "CLIENT_IDENTITY_REQUIRED" });
+  }
+  return projected;
+}
 async function persistPricing(workspace: TenderPricingWorkspace) {
   await getFirebaseAdmin().collection(TENDER_PRICING_COLLECTION).doc(workspace.id).set(workspace, { merge: true });
 }
@@ -192,11 +214,11 @@ export async function startTenderPricingWorkspace(input: { dealId: string; actor
   const canonicalSources = await loadCanonicalTenderPricingSources(input.dealId);
   const existing = await getTenderPricingWorkspaceForDeal(input.dealId, input.actor);
   const buildInput = buildInputFromDeal({ deal, actor: input.actor, body: { ...input.body, id: existing?.id }, canonicalSources });
-  const workspace = buildTenderPricingWorkspace({
+  const workspace = await projectClientIdentity(buildTenderPricingWorkspace({
     ...buildInput,
     supplierQuotes,
     createdBy: existing?.createdBy ?? input.actor.uid,
-  });
+  }), input.actor);
   await persistPricing(workspace);
   await writeAudit({ pricingId: workspace.id, dealId: workspace.dealId, workspaceId: workspace.workspaceId, actorUid: input.actor.uid, action: "TENDER_PRICING_STARTED", metadata: { blockers: workspace.blockers } });
   return workspace;
@@ -219,7 +241,7 @@ export async function updateTenderPricingWorkspace(input: { pricingId: string; a
   const supplierQuotes = await listSupplierQuotesForDeal(current.dealId, input.actor);
   const canonicalSources = await loadCanonicalTenderPricingSources(current.dealId);
   const buildInput = buildInputFromDeal({ deal, actor: input.actor, body: { ...input.body, id: current.id }, canonicalSources });
-  const rebuilt = buildTenderPricingWorkspace({ ...buildInput, supplierQuotes, createdBy: current.createdBy, now: nowIso() });
+  const rebuilt = await projectClientIdentity(buildTenderPricingWorkspace({ ...buildInput, supplierQuotes, createdBy: current.createdBy, now: nowIso() }), input.actor);
   await persistPricing(rebuilt);
   await writeAudit({ pricingId: rebuilt.id, dealId: rebuilt.dealId, workspaceId: rebuilt.workspaceId, actorUid: input.actor.uid, action: "TENDER_PRICING_UPDATED" });
   return rebuilt;
@@ -228,7 +250,7 @@ export async function updateTenderPricingWorkspace(input: { pricingId: string; a
 export async function approveTenderPricingWorkspace(input: { pricingId: string; actor: AuthorizedUser; role?: "staff" | "manager" | "director"; notes?: string | null }): Promise<TenderPricingWorkspace> {
   const current = await loadPricing(input.pricingId, input.actor);
   const role = input.role ?? (input.actor.role === "manager" || input.actor.role === "admin" ? "manager" : "staff");
-  const approved = approveTenderPricing(current, { uid: input.actor.uid, role, notes: input.notes });
+  const approved = await projectClientIdentity(approveTenderPricing(current, { uid: input.actor.uid, role, notes: input.notes }), input.actor);
   await persistPricing(approved);
   await writeAudit({ pricingId: approved.id, dealId: approved.dealId, workspaceId: approved.workspaceId, actorUid: input.actor.uid, action: "TENDER_PRICING_APPROVED", metadata: { role } });
   return approved;
@@ -237,14 +259,14 @@ export async function approveTenderPricingWorkspace(input: { pricingId: string; 
 export async function generateTenderPricingDocument(input: { pricingId: string; actor: AuthorizedUser }): Promise<TenderPricingWorkspace> {
   const current = await loadPricing(input.pricingId, input.actor);
   const evidence = buildPricingScheduleFillEvidence(current);
-  const next: TenderPricingWorkspace = {
+  const next: TenderPricingWorkspace = await projectClientIdentity({
     ...current,
     documentFillStatus: evidence.validationIssues.length ? "PREVIEW_REQUIRED" : "DOCUMENT_FILLED",
     pricingStatus: "DOCUMENT_FILLED",
     documentFillEvidence: evidence,
     updatedAt: nowIso(),
     nextAction: "Preview and validate the priced BOQ or pricing schedule.",
-  };
+  }, input.actor);
   await persistPricing(next);
   await writeAudit({ pricingId: next.id, dealId: next.dealId, workspaceId: next.workspaceId, actorUid: input.actor.uid, action: "TENDER_PRICING_DOCUMENT_GENERATED", metadata: { warnings: evidence.warnings } });
   return next;
@@ -253,14 +275,14 @@ export async function generateTenderPricingDocument(input: { pricingId: string; 
 export async function validateTenderPricing(input: { pricingId: string; actor: AuthorizedUser }): Promise<TenderPricingWorkspace> {
   const current = await loadPricing(input.pricingId, input.actor);
   const blockers = validateTenderPricingWorkspace(current);
-  const next: TenderPricingWorkspace = {
+  const next: TenderPricingWorkspace = await projectClientIdentity({
     ...current,
     blockers,
     validationStatus: blockers.length ? "VALIDATION_FAILED" : "VALIDATED",
     pricingStatus: blockers.length ? "VALIDATION_FAILED" : current.pricingStatus,
     updatedAt: nowIso(),
     nextAction: blockers[0]?.message ?? "Lock pricing revision.",
-  };
+  }, input.actor);
   await persistPricing(next);
   await writeAudit({ pricingId: next.id, dealId: next.dealId, workspaceId: next.workspaceId, actorUid: input.actor.uid, action: "TENDER_PRICING_VALIDATED", metadata: { blockerCount: blockers.length } });
   return next;
@@ -268,7 +290,7 @@ export async function validateTenderPricing(input: { pricingId: string; actor: A
 
 export async function lockTenderPricingWorkspace(input: { pricingId: string; actor: AuthorizedUser }): Promise<TenderPricingWorkspace> {
   const current = await loadPricing(input.pricingId, input.actor);
-  const locked = lockTenderPricing(current, input.actor.uid);
+  const locked = await projectClientIdentity(lockTenderPricing(current, input.actor.uid), input.actor);
   await persistPricing(locked);
   await writeAudit({ pricingId: locked.id, dealId: locked.dealId, workspaceId: locked.workspaceId, actorUid: input.actor.uid, action: "TENDER_PRICING_LOCKED" });
   return locked;
@@ -276,10 +298,11 @@ export async function lockTenderPricingWorkspace(input: { pricingId: string; act
 
 export async function sendTenderPricingToSubmissionReview(input: { pricingId: string; actor: AuthorizedUser }): Promise<TenderPricingWorkspace> {
   const current = await loadPricing(input.pricingId, input.actor);
-  const handoff = buildTenderPricingHandoff(current);
-  const clientQuote = handoff.pricingApproved ? await createApprovedClientQuoteFromLockedPricing({ pricing: current, actor: input.actor }) : null;
+  const gated = await assertClientIdentityReadyForHandoff(current, input.actor);
+  const handoff = buildTenderPricingHandoff(gated);
+  const clientQuote = handoff.pricingApproved ? await createApprovedClientQuoteFromLockedPricing({ pricing: gated, actor: input.actor }) : null;
   const next: TenderPricingWorkspace = {
-    ...current,
+    ...gated,
     submissionReviewHandoff: handoff,
     updatedAt: nowIso(),
     nextAction: handoff.nextAction,
@@ -287,7 +310,7 @@ export async function sendTenderPricingToSubmissionReview(input: { pricingId: st
   const now = new Date();
   await Promise.all([
     persistPricing(next),
-    getFirebaseAdmin().collection("submissionReviews").doc(current.dealId).set({
+    getFirebaseAdmin().collection("submissionReviews").doc(gated.dealId).set({
       tenderPricingId: handoff.tenderPricingId,
       pricingStatus: handoff.pricingApproved ? "approved" : "blocked",
       boqStatus: handoff.pricingApproved ? "priced" : "blocked",
@@ -305,7 +328,7 @@ export async function sendTenderPricingToSubmissionReview(input: { pricingId: st
       nextAction: handoff.nextAction,
       updatedAt: Timestamp.fromDate(now),
     }, { merge: true }),
-    getFirebaseAdmin().collection("opportunityExecutionWorkspaces").doc(current.dealId).set({
+    getFirebaseAdmin().collection("opportunityExecutionWorkspaces").doc(gated.dealId).set({
       tenderPricingId: handoff.tenderPricingId,
       pricingStatus: handoff.pricingStatus,
       pricingComplete: handoff.pricingApproved,
