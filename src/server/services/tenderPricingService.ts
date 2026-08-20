@@ -18,6 +18,7 @@ import type {
   TenderPricingWorkspace,
 } from "@/types/tenderPricing";
 import { isApprovedTenderIntelligence, loadCanonicalTenderPricingSources, type CanonicalTenderPricingSources } from "@/server/services/tenderPricingCanonicalSources";
+import { createApprovedClientQuoteFromLockedPricing } from "@/server/services/clientQuoteAuthorityService";
 
 const TENDER_PRICING_COLLECTION = "tenderPricingWorkspaces";
 const TENDER_PRICING_AUDIT_COLLECTION = "tenderPricingAuditEvents";
@@ -276,6 +277,7 @@ export async function lockTenderPricingWorkspace(input: { pricingId: string; act
 export async function sendTenderPricingToSubmissionReview(input: { pricingId: string; actor: AuthorizedUser }): Promise<TenderPricingWorkspace> {
   const current = await loadPricing(input.pricingId, input.actor);
   const handoff = buildTenderPricingHandoff(current);
+  const clientQuote = handoff.pricingApproved ? await createApprovedClientQuoteFromLockedPricing({ pricing: current, actor: input.actor }) : null;
   const next: TenderPricingWorkspace = {
     ...current,
     submissionReviewHandoff: handoff,
@@ -292,6 +294,8 @@ export async function sendTenderPricingToSubmissionReview(input: { pricingId: st
       pricingApproved: handoff.pricingApproved,
       pricingDocumentId: handoff.pricingDocumentId ?? null,
       pricingDocumentUrl: handoff.pricingDocumentUrl ?? null,
+      clientQuoteId: clientQuote?.clientQuoteId ?? null,
+      clientQuoteDocumentId: clientQuote?.generatedDocumentId ?? null,
       totalTenderValue: handoff.totalTenderValue,
       grossProfit: handoff.grossProfit,
       grossMargin: handoff.grossMargin,
@@ -308,6 +312,8 @@ export async function sendTenderPricingToSubmissionReview(input: { pricingId: st
       pricingApproved: handoff.pricingApproved,
       pricingDocumentId: handoff.pricingDocumentId ?? null,
       pricingDocumentUrl: handoff.pricingDocumentUrl ?? null,
+      clientQuoteId: clientQuote?.clientQuoteId ?? null,
+      clientQuoteDocumentId: clientQuote?.generatedDocumentId ?? null,
       totalTenderValue: handoff.totalTenderValue,
       grossProfit: handoff.grossProfit,
       grossMargin: handoff.grossMargin,

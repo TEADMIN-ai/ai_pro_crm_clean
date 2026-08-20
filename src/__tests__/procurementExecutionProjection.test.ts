@@ -327,3 +327,34 @@ describe("canonical procurement execution projection", () => {
 
 
 });
+
+test("approved pricing flags without canonical clientQuotes remain insufficient", () => {
+  const projection = projectionFor({ ...baseDeal, submissionAuthority: { clientQuoteReady: false, tenderPackDocumentReady: true, submissionEvidenceReady: true } });
+  expect(projection.nextAction.key).toBe("APPROVE_PRICING");
+  expect(projection.nextAction.blocker).toBe("Approved Client Quote must be generated.");
+  expect(projection.readinessStatus).toBe("BLOCKED");
+  expect(projection.blockers.map((item) => item.problem)).toContain("Approved Client Quote must be generated");
+});
+
+test("Tender Pack flags without durable authority remain insufficient", () => {
+  const projection = projectionFor({ ...baseDeal, submissionAuthority: { clientQuoteReady: true, tenderPackDocumentReady: false, submissionEvidenceReady: true } });
+  expect(projection.nextAction.key).toBe("GENERATE_TENDER_PACK");
+  expect(projection.nextAction.blocker).toBe("Durable Tender Pack must be generated.");
+  expect(projection.readinessStatus).toBe("BLOCKED");
+  expect(projection.blockers.map((item) => item.problem)).toContain("Durable Tender Pack must be generated");
+});
+
+test("legacy ready-for-submission state projects durable artifact repair blockers", () => {
+  const projection = projectionFor({
+    ...baseDeal,
+    opportunityExecution: { ...baseDeal.opportunityExecution, currentPhase: "READY_FOR_SUBMISSION" },
+    submissionAuthority: { clientQuoteReady: false, tenderPackDocumentReady: false, submissionEvidenceReady: false },
+  });
+  expect(projection.currentPhase).toBe("READY_FOR_SUBMISSION");
+  expect(projection.readinessStatus).toBe("BLOCKED");
+  expect(projection.nextAction.key).toBe("APPROVE_PRICING");
+  expect(projection.blockers.map((item) => item.problem)).toEqual(expect.arrayContaining([
+    "Approved Client Quote must be generated",
+    "Durable Tender Pack must be generated",
+  ]));
+});

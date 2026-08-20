@@ -1,7 +1,8 @@
 import { getFirebaseAdmin } from "@/lib/firebase/admin";
 import { assertPrivilegedRole, type AuthorizedUser } from "@/lib/server/authz";
 import type { ClientQuoteLine, ClientQuoteRecord, CommercialBlocker, VerifiedSupplierCostLine } from "@/types/commercialAuthority";
-import { assertApprovedClientQuote, calculateApprovedSellingRate } from "@/server/services/commercialAuthorityService";
+import { assertApprovedClientQuote, calculateApprovedSellingRate, resolveApprovedClientQuote } from "@/server/services/commercialAuthorityService";
+import type { TenderPricingLineItem, TenderPricingWorkspace } from "@/types/tenderPricing";
 
 function asString(value: unknown): string | null {
   return typeof value === "string" && value.trim() ? value.trim() : null;
@@ -71,6 +72,7 @@ export async function approveClientQuote(input: { clientQuoteId: string; actor: 
   if (!generatedDocumentId) throw Object.assign(new Error("Approved Client Quote requires a persisted Document_ID"), { status: 409, code: "CLIENT_QUOTE_ARTIFACT_REQUIRED" });
   const document = await getFirebaseAdmin().collection("masterDocuments").doc(generatedDocumentId).get();
   if (!document.exists) throw Object.assign(new Error("Client Quote Document_ID is not a governed document"), { status: 409, code: "CLIENT_QUOTE_ARTIFACT_REQUIRED" });
+  if ((document.data() as Record<string, unknown>).verificationStatus !== "VERIFIED") throw Object.assign(new Error("Client Quote Document_ID is not verified"), { status: 409, code: "CLIENT_QUOTE_ARTIFACT_REQUIRED" });
   const approvedAt = new Date().toISOString();
   const approved: ClientQuoteRecord = { ...quote, status: "APPROVED", generatedDocumentId, approvedBy: input.actor.uid, approvedAt, updatedAt: approvedAt, lines: quote.lines.map((line) => ({ ...line, approvedBy: input.actor.uid, approvedAt })) };
   await getFirebaseAdmin().collection("clientQuotes").doc(input.clientQuoteId).set(approved);
@@ -80,4 +82,62 @@ export async function approveClientQuote(input: { clientQuoteId: string; actor: 
 
 export async function getApprovedClientQuote(opportunityId: string, clientQuoteId: string | null | undefined, actor: AuthorizedUser) {
   return assertApprovedClientQuote({ opportunityId, clientQuoteId, actor });
+}
+
+async function loadSupplierQuoteDocumentId(supplierQuoteId: string | null | undefined): Promise<string | null> {
+  const id = asString(supplierQuoteId);
+  if (!id) return null;
+  const snapshot = await getFirebaseAdmin().collection("supplierQuotes").doc(id).get();
+  if (!snapshot.exists) return null;
+  const quote = snapshot.data() as Record<string, unknown>;
+  return asString(quote.masterDocumentId ?? quote.uploadedDocumentId);
+}
+
+function requiredPricingApproval(workspace: TenderPricingWorkspace): boolean {
+  const current = (role: string) => workspace.approvals.some((approval) => approval.revision === workspace.revision && approval.role === role && Boolean(approval.approvedBy && approval.approvedAt));
+  return current("staff") && current("manager") && (workspace.managementApprovalStatus !== "DIRECTOR_REQUIRED" || current("director"));
+}
+
+function lineQuantity(line: TenderPricingLineItem): number | null {
+  return typeof line.quantity === "number" && Number.isFinite(line.quantity) && line.quantity > 0 ? line.quantity : null;
+}
+
+function landedUnitCost(line: TenderPricingLineItem): number {
+  const quantity = lineQuantity(line);
+  return quantity ? Math.round((line.sourceCost / quantity) * 100) / 100 : line.sourceCost;
+}
+
+export async function createApprovedClientQuoteFromLockedPricing(input: { pricing: TenderPricingWorkspace; actor: AuthorizedUser }): Promise<ClientQuoteRecord> {
+  assertPrivilegedRole(input.actor);
+  const pricing = input.pricing;
+  const generatedDocumentId = asString(pricing.documentFillEvidence?.pricedDocumentId);
+  if (pricing.lockStatus !== "LOCKED" || pricing.validationStatus !== "VALIDATED" || !requiredPricingApproval(pricing)) throw Object.assign(new Error("Locked approved tender pricing is required before Client Quote approval"), { status: 409, code: "CLIENT_QUOTE_NOT_READY" });
+  if (!generatedDocumentId) throw Object.assign(new Error("Approved Client Quote requires a persisted Document_ID"), { status: 409, code: "CLIENT_QUOTE_ARTIFACT_REQUIRED" });
+  const deal = await loadDeal(pricing.dealId);
+  const workspaceId = asString(deal.workspaceId);
+  assertWorkspace(input.actor, workspaceId);
+  const clientReference = deal.clientMasterDataReference && typeof deal.clientMasterDataReference === "object" ? (deal.clientMasterDataReference as Record<string, unknown>).canonicalId : null;
+  const clientId = asString(deal.clientId ?? deal.client_ID ?? clientReference);
+  if (!clientId) throw Object.assign(new Error("Canonical Client_ID is required before creating a Client Quote"), { status: 409, code: "CLIENT_ID_REQUIRED" });
+  const existing = await getFirebaseAdmin().collection("clientQuotes").where("opportunityId", "==", pricing.dealId).get();
+  for (const item of existing.docs) {
+    const quote = { clientQuoteId: item.id, ...(item.data() ?? {}) } as ClientQuoteRecord;
+    if (quote.status === "APPROVED" && quote.generatedDocumentId === generatedDocumentId) return resolveApprovedClientQuote({ opportunityId: pricing.dealId, workspaceId, clientQuoteId: item.id, actor: input.actor });
+  }
+  const lines: ClientQuoteLine[] = [];
+  for (const line of pricing.lineItems) {
+    if (line.priceSource === "UNPRICED") continue;
+    const supplierQuoteId = asString(line.mapping?.supplierQuoteId);
+    const supplierQuoteLineId = asString(line.mapping?.supplierLineItemId);
+    if (!supplierQuoteId || !supplierQuoteLineId) throw Object.assign(new Error("Approved Client Quote requires supplier quote mapping for every priced line"), { status: 409, code: "CLIENT_QUOTE_NOT_READY" });
+    const supplierQuoteDocumentId = await loadSupplierQuoteDocumentId(supplierQuoteId);
+    lines.push({ itemId: asString(line.itemCode) ?? line.id, landedUnitCost: landedUnitCost(line), method: "MARGIN", percentage: typeof line.grossMarginPercentage === "number" && Number.isFinite(line.grossMarginPercentage) ? line.grossMarginPercentage / 100 : 0, sellingUnitRate: line.tenderUnitPrice, override: false, overrideReason: null, approvedBy: null as unknown as string, approvedAt: null as unknown as string, supplierQuoteId, supplierQuoteLineId, supplierId: supplierQuoteId, supplierQuoteDocumentId: supplierQuoteDocumentId ?? generatedDocumentId, quantity: lineQuantity(line), unit: line.unit, description: line.description });
+  }
+  if (!lines.length) throw Object.assign(new Error("At least one approved Client Quote line is required"), { status: 409, code: "CLIENT_QUOTE_NOT_READY" });
+  const clientQuoteId = "CQ-" + pricing.dealId + "-" + pricing.revision + "-" + Date.now();
+  const now = new Date().toISOString();
+  const quote: ClientQuoteRecord = { clientQuoteId, opportunityId: pricing.dealId, clientId, siteId: asString(deal.siteId), workspaceId: workspaceId ?? "", status: "DRAFT", currency: pricing.currency, taxTreatment: "EXCLUSIVE", lines, total: pricing.total, generatedDocumentId, previousClientQuoteId: null, createdBy: input.actor.uid, createdAt: now, approvedBy: null, approvedAt: null, updatedAt: now };
+  await getFirebaseAdmin().collection("clientQuotes").doc(clientQuoteId).set(quote);
+  await audit(input.actor, "client_quote_created_from_locked_pricing", clientQuoteId, { opportunityId: pricing.dealId, pricingId: pricing.id, generatedDocumentId, lineCount: lines.length });
+  return approveClientQuote({ clientQuoteId, actor: input.actor, generatedDocumentId, overrideReason: "Approved locked tender pricing handoff" });
 }

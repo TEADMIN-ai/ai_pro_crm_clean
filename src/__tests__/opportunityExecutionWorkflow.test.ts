@@ -229,3 +229,46 @@ test("submission review approval requires explicit completion provenance", () =>
   const approved = { ...pending, opportunityExecution: { ...pending.opportunityExecution, submissionReviewApprovalProvenance: { action: "complete_submission_review", status: "APPROVED", completedAt: "2026-08-18T20:02:00.000Z", completedBy: "manager-1" } } };
   expect(hasValidSubmissionReviewCompletion(approved)).toBe(true);
 });
+
+test("execution panel cannot mark ready with tender pack flags but missing durable authority", () => {
+  const state = buildOpportunityExecutionState({
+    deal: {
+      ...assignedDeal,
+      submissionAuthority: { clientQuoteReady: true, tenderPackDocumentReady: false, submissionEvidenceReady: false },
+      opportunityExecution: {
+        ...assignedDeal.opportunityExecution,
+        currentPhase: "PACK_GENERATION",
+        documentsPrepared: true,
+        internalReviewApproved: true,
+        internalReviewApprovalProvenance: { action: "complete_internal_review", status: "APPROVED", completedAt: "2026-08-18T20:00:00.000Z", completedBy: "manager-1" },
+        contractorApprovalComplete: true,
+        contractorApprovalProvenance: { action: "contractor_approval", status: "APPROVED", completedAt: "2026-08-18T20:01:00.000Z", completedBy: "manager-1" },
+        tenderPackGenerated: true,
+        tenderPackValidated: true,
+      },
+    },
+    contractor: validContractor,
+  });
+  expect(state.stages.find((stage) => stage.key === "tenderPack")?.status).toBe("BLOCKED");
+  expect(state.actions.find((action) => action.key === "mark_ready_for_submission")).toMatchObject({ enabled: false, reason: "Durable Tender Pack must be generated" });
+});
+
+test("execution panel routes tender pack generation through governed generator", () => {
+  const state = buildOpportunityExecutionState({
+    deal: {
+      ...assignedDeal,
+      submissionAuthority: { clientQuoteReady: true, tenderPackDocumentReady: false, submissionEvidenceReady: false },
+      opportunityExecution: {
+        ...assignedDeal.opportunityExecution,
+        currentPhase: "PACK_GENERATION",
+        documentsPrepared: true,
+        internalReviewApproved: true,
+        internalReviewApprovalProvenance: { action: "complete_internal_review", status: "APPROVED", completedAt: "2026-08-18T20:00:00.000Z", completedBy: "manager-1" },
+        contractorApprovalComplete: true,
+        contractorApprovalProvenance: { action: "contractor_approval", status: "APPROVED", completedAt: "2026-08-18T20:01:00.000Z", completedBy: "manager-1" },
+      },
+    },
+    contractor: validContractor,
+  });
+  expect(state.actions.find((action) => action.key === "generate_tender_pack")).toMatchObject({ enabled: true, href: "/dashboard/tender-pack-requests" });
+});

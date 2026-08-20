@@ -61,3 +61,8 @@ describe("staging UAT seed plan", () => {
     expect(resetPaths.some((path) => path === "contractors" || path === "deals" || path === "users")).toBe(false);
   });
 });
+
+test("staging UAT seed authority targets the live TEOS staging Firebase project", () => {
+  expect(STAGING_FIREBASE_PROJECT_ID).toBe("torque-empire-teos-staging");
+  expect(STAGING_FIREBASE_PROJECT_ID).not.toBe("torque-empire-ai-pro-crm-staging");
+});

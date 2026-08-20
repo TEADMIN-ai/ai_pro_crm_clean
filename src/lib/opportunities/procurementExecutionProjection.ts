@@ -192,6 +192,8 @@ function buildNextAction(input: {
   pricedDocumentMissing: boolean;
   documentsIncomplete: boolean;
   submissionReviewIncomplete: boolean;
+  clientQuoteMissing: boolean;
+  durableTenderPackMissing: boolean;
   tenderPackMissing: boolean;
   submissionEvidenceMissing: boolean;
   ready: boolean;
@@ -217,6 +219,8 @@ function buildNextAction(input: {
   if (input.pricedDocumentMissing) return make("GENERATE_PRICED_DOCUMENT", "Generate priced document", "qs", "Approved pricing has not produced validated fill evidence.", "open_boq_pricing", "/dashboard/deals/" + encodeURIComponent(input.state.dealId) + "/tender-pricing");
   if (input.documentsIncomplete) return make("COMPLETE_DOCUMENTS", "Complete returnable documents", "staff", "Mandatory returnables, signatures, or amendments are incomplete.", "prepare_documents");
   if (input.submissionReviewIncomplete) return make("COMPLETE_SUBMISSION_REVIEW", "Complete Submission Review", "manager", "Internal Submission Review is not approved.", "open_submission_review", "/dashboard/submission-review?dealId=" + encodeURIComponent(input.state.dealId));
+  if (input.clientQuoteMissing) return make("APPROVE_PRICING", "Generate approved Client Quote", "manager", "Approved Client Quote must be generated.", "open_boq_pricing", "/dashboard/deals/" + encodeURIComponent(input.state.dealId) + "/tender-pricing");
+  if (input.durableTenderPackMissing) return make("GENERATE_TENDER_PACK", "Generate durable Tender Pack", "operations", "Durable Tender Pack must be generated.", "generate_tender_pack", "/dashboard/tender-pack-requests");
   if (input.tenderPackMissing) return make("GENERATE_TENDER_PACK", "Generate tender pack", "operations", "The final tender pack is not generated and validated.", "generate_tender_pack", "/dashboard/tender-pack-requests");
   if (input.submissionEvidenceMissing) return make("ADD_SUBMISSION_EVIDENCE", "Add Submission Evidence", "operations", "Reviewed submission evidence is required before recording submission.", "open_submission_evidence", "/dashboard/deals/" + encodeURIComponent(input.state.dealId) + "/submission-evidence");
   if (input.ready) return make("READY_FOR_SUBMISSION", "Ready for submission", "manager", null, "record_submission");
@@ -304,8 +308,16 @@ export function buildProcurementExecutionProjection(input: {
     packGenerated: packReady,
     packValidated: packReady,
   });
-  const submissionEvidenceMissing = !Boolean(submissionAuthority.clientQuoteReady) || !Boolean(submissionAuthority.tenderPackDocumentReady) || !Boolean(submissionAuthority.submissionEvidenceReady);
-  const ready = submission.ready && !quoteBlockers.length && !intelligenceBlockers.length && !pricingBlockers.length && (!pricingRequired || Boolean(pricingDocumentId)) && !submissionEvidenceMissing;
+  const clientQuoteMissing = !Boolean(submissionAuthority.clientQuoteReady);
+  const durableTenderPackMissing = !Boolean(submissionAuthority.tenderPackDocumentReady);
+  const submissionEvidenceMissing = !Boolean(submissionAuthority.submissionEvidenceReady);
+  const durableAuthorityMissing = clientQuoteMissing || durableTenderPackMissing || submissionEvidenceMissing;
+  const durableAuthorityBlockers = [
+    ...(clientQuoteMissing ? [blocker("Approved Client Quote must be generated", "A canonical APPROVED clientQuotes record with a verified generated document is required before submission.", "manager", "/dashboard/deals/" + encodeURIComponent(dealId) + "/tender-pricing", dueDate)] : []),
+    ...(durableTenderPackMissing ? [blocker("Durable Tender Pack must be generated", "An active VERIFIED TENDER_PACK master document linked to this opportunity is required before submission.", "operations", "/dashboard/tender-pack-requests", dueDate)] : []),
+    ...(submissionEvidenceMissing ? [blocker("Reviewed submission evidence is required", "Submission evidence must be reviewed before recording submission.", "operations", "/dashboard/deals/" + encodeURIComponent(dealId) + "/submission-evidence", dueDate)] : []),
+  ];
+  const ready = submission.ready && !quoteBlockers.length && !intelligenceBlockers.length && !pricingBlockers.length && (!pricingRequired || Boolean(pricingDocumentId)) && !durableAuthorityMissing;
   const nextAction = buildNextAction({
     state,
     assignmentValid: state.assignment.complete,
@@ -321,11 +333,13 @@ export function buildProcurementExecutionProjection(input: {
     pricedDocumentMissing,
     documentsIncomplete: !documentsComplete,
     submissionReviewIncomplete: reviewStatus !== "complete",
+    clientQuoteMissing,
+    durableTenderPackMissing,
     tenderPackMissing: !packReady,
     submissionEvidenceMissing,
     ready,
   });
-  const blockers = [...allComplianceBlockers, ...quoteBlockers, ...intelligenceBlockers, ...pricingBlockers, ...submission.blockers.map((item) => blocker(item, "Submission readiness requires this prerequisite.", nextAction.owner, nextAction.href ?? "/dashboard/deals/" + encodeURIComponent(dealId) + "/execution", dueDate))];
+  const blockers = [...allComplianceBlockers, ...quoteBlockers, ...intelligenceBlockers, ...pricingBlockers, ...durableAuthorityBlockers, ...submission.blockers.map((item) => blocker(item, "Submission readiness requires this prerequisite.", nextAction.owner, nextAction.href ?? "/dashboard/deals/" + encodeURIComponent(dealId) + "/execution", dueDate))];
   const contractorIdentityStatus = state.contractorId ? "RESOLVED" : "UNRESOLVED";
   const workspaceResolutionStatus = str(deal.workspaceId) ? "RESOLVED" : "UNRESOLVED";
   const eligible = contractorIdentityStatus === "RESOLVED" && workspaceResolutionStatus === "RESOLVED" && state.complianceStatus === "VALID" && allComplianceBlockers.length === 0;

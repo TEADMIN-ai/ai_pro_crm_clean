@@ -1,5 +1,5 @@
 
-export const STAGING_FIREBASE_PROJECT_ID = "torque-empire-ai-pro-crm-staging";
+export const STAGING_FIREBASE_PROJECT_ID = "torque-empire-teos-staging";
 export const STAGING_ENVIRONMENT = "staging";
 export const STAGING_SEED_VERSION = "staging-uat-v1";
 export const STAGING_SEED_CREATED_BY = "staging-seed";

@@ -540,6 +540,7 @@ function buildStages(input: {
   documents: OpportunityDocumentChecklistItem[];
   flags: ReturnType<typeof executionFlags>;
   blockers: string[];
+  durableTenderPackReady: boolean;
 }): OpportunityExecutionStage[] {
   const { phase, requirements, assignment, compliance, documents, flags, blockers } = input;
   const documentBlockers = documents.filter((doc) => doc.status === "BLOCKED").map((doc) => doc.label + " is missing");
@@ -551,7 +552,7 @@ function buildStages(input: {
     { key: "documents", title: "Document Preparation", status: stageStatus({ complete: flags.documentsPrepared, inProgress: phase === "DOCUMENT_PREPARATION", blocked: phase === "DOCUMENT_PREPARATION" && documentBlockers.length > 0 }), owner: "staff", summary: "Returnables, forms, declarations, annexures, amendments and compliance pack.", blockers: flags.documentsPrepared ? [] : documentBlockers, actionKey: "prepare_documents" },
     { key: "internalReview", title: "Internal Review", status: stageStatus({ complete: flags.internalReviewApproved, inProgress: flags.internalReviewStarted }), owner: "manager", summary: "Internal readiness approval before contractor sign-off.", blockers: flags.documentsPrepared || flags.internalReviewApproved ? [] : ["Prepare mandatory documents first"], actionKey: "start_internal_review" },
     { key: "contractorApproval", title: "Contractor Approval", status: stageStatus({ complete: flags.contractorApprovalComplete, inProgress: phase === "CONTRACTOR_APPROVAL" || flags.contractorApprovalRequested }), owner: "contractor", summary: "Contractor approval and required signatures.", blockers: flags.internalReviewApproved || flags.contractorApprovalComplete ? [] : ["Internal review must be approved first"], actionKey: "contractor_approval" },
-    { key: "tenderPack", title: "Tender Pack", status: stageStatus({ complete: flags.tenderPackGenerated && flags.tenderPackValidated, inProgress: phase === "PACK_GENERATION", blocked: phase === "PACK_GENERATION" && blockers.length > 0 }), owner: "operations", summary: "Generate and validate the final tender pack.", blockers: blockers.filter((blocker) => !/BOQ\/pricing/.test(blocker)), actionKey: "generate_tender_pack" },
+    { key: "tenderPack", title: "Tender Pack", status: stageStatus({ complete: flags.tenderPackGenerated && flags.tenderPackValidated && input.durableTenderPackReady, inProgress: phase === "PACK_GENERATION", blocked: (flags.tenderPackGenerated && flags.tenderPackValidated && !input.durableTenderPackReady) || (phase === "PACK_GENERATION" && blockers.length > 0) }), owner: "operations", summary: "Generate and validate the final tender pack.", blockers: blockers.filter((blocker) => !/BOQ\/pricing/.test(blocker)), actionKey: "generate_tender_pack" },
     { key: "submission", title: "Submission", status: stageStatus({ complete: flags.submitted, inProgress: phase === "READY_FOR_SUBMISSION", blocked: phase === "READY_FOR_SUBMISSION" && blockers.length > 0 }), owner: "manager", summary: "Record final portal/email/manual submission evidence.", blockers: flags.submitted ? [] : blockers, actionKey: "record_submission" },
   ];
 }
@@ -599,6 +600,12 @@ export function buildOpportunityExecutionState(input: { deal: Deal | AnyRecord; 
     if (!f.internalReviewApproved) blockers.push("Internal review is not approved");
     if (requirements.signatureRequired && !f.contractorApprovalComplete) blockers.push("Required contractor signatures are incomplete");
   }
+  const submissionAuthority = rec(source.submissionAuthority);
+  const durableClientQuoteReady = Boolean(submissionAuthority.clientQuoteReady);
+  const durableTenderPackReady = Boolean(submissionAuthority.tenderPackDocumentReady);
+  const durableSubmissionReady = durableClientQuoteReady && durableTenderPackReady && Boolean(submissionAuthority.submissionEvidenceReady);
+  if (isAtLeast(phase, "PACK_GENERATION") && !durableClientQuoteReady) blockers.push("Approved Client Quote must be generated");
+  if (isAtLeast(phase, "READY_FOR_SUBMISSION") && !durableTenderPackReady) blockers.push("Durable Tender Pack must be generated");
   const complianceBlockers = complianceRequirements
     .filter((detail) => detail.blockerSeverity !== "none")
     .map((detail) => detail.reason);
@@ -620,10 +627,10 @@ export function buildOpportunityExecutionState(input: { deal: Deal | AnyRecord; 
   addAction(actions, "prepare_documents", "Prepare Returnables", phase === "DOCUMENT_PREPARATION", phase === "DOCUMENT_PREPARATION" ? null : "Resolve compulsory compliance and pricing blockers first");
   addAction(actions, "start_internal_review", "Start Internal Review", phase === "INTERNAL_REVIEW" && !f.internalReviewStarted, "Prepare required documents first"); addAction(actions, "complete_internal_review", "Complete Internal Review", phase === "INTERNAL_REVIEW" && f.internalReviewStarted && !f.internalReviewApproved, "Start Internal Review first"); addAction(actions, "reconcile_legacy_internal_review", "Reconcile Legacy Internal Review State", isRecoverableLegacyInternalReviewState(input.deal), "No recoverable legacy internal-review state detected"); addAction(actions, "complete_submission_review", "Complete Submission Review", phase === "READY_FOR_SUBMISSION" && !f.submissionReviewApproved && uniqueBlockers.length === 0, uniqueBlockers.length === 0 ? "Submission Review is ready for manager approval" : uniqueBlockers.join("; "));
   addAction(actions, "contractor_approval", "Request Contractor Approval", phase === "CONTRACTOR_APPROVAL", "Internal review must be approved first");
-  addAction(actions, "generate_tender_pack", "Generate Tender Pack", phase === "PACK_GENERATION" && uniqueBlockers.length === 0, uniqueBlockers.join("; ") || "Opportunity is not in pack generation");
-  addAction(actions, "mark_ready_for_submission", "Mark Ready for Submission", phase === "PACK_GENERATION" && uniqueBlockers.length === 0, uniqueBlockers.join("; ") || "Generate and validate the tender pack first");
-  const submissionAuthority = rec(source.submissionAuthority); const durableSubmissionReady = Boolean(submissionAuthority.clientQuoteReady) && Boolean(submissionAuthority.tenderPackDocumentReady) && Boolean(submissionAuthority.submissionEvidenceReady); addAction(actions, "open_submission_evidence", "Add Submission Evidence", phase === "READY_FOR_SUBMISSION" && !durableSubmissionReady, durableSubmissionReady ? "Submission evidence is already complete" : "Create and approve durable submission evidence", "/dashboard/deals/" + encodeURIComponent(String(source.id ?? "")) + "/submission-evidence"); addAction(actions, "record_submission", "Record Submission", phase === "READY_FOR_SUBMISSION" && f.submissionReviewApproved && durableSubmissionReady, f.submissionReviewApproved && durableSubmissionReady ? "Opportunity is not ready for submission" : "Complete approved Client Quote, Tender Pack, and Submission Evidence first");
-  const stages = buildStages({ phase, requirements, assignment, compliance, documents, flags: f, blockers: uniqueBlockers });
+  addAction(actions, "generate_tender_pack", "Generate Tender Pack", phase === "PACK_GENERATION" && durableClientQuoteReady && uniqueBlockers.length === 0, !durableClientQuoteReady ? "Approved Client Quote must be generated" : uniqueBlockers.join("; ") || "Opportunity is not in pack generation", "/dashboard/tender-pack-requests");
+  addAction(actions, "mark_ready_for_submission", "Mark Ready for Submission", phase === "PACK_GENERATION" && durableClientQuoteReady && durableTenderPackReady && uniqueBlockers.length === 0, !durableClientQuoteReady ? "Approved Client Quote must be generated" : !durableTenderPackReady ? "Durable Tender Pack must be generated" : uniqueBlockers.join("; ") || "Generate and validate the tender pack first");
+  addAction(actions, "open_submission_evidence", "Add Submission Evidence", phase === "READY_FOR_SUBMISSION" && !durableSubmissionReady, durableSubmissionReady ? "Submission evidence is already complete" : "Create and approve durable submission evidence", "/dashboard/deals/" + encodeURIComponent(String(source.id ?? "")) + "/submission-evidence"); addAction(actions, "record_submission", "Record Submission", phase === "READY_FOR_SUBMISSION" && f.submissionReviewApproved && durableSubmissionReady, f.submissionReviewApproved && durableSubmissionReady ? "Opportunity is not ready for submission" : "Complete approved Client Quote, Tender Pack, and Submission Evidence first");
+  const stages = buildStages({ phase, requirements, assignment, compliance, documents, flags: f, blockers: uniqueBlockers, durableTenderPackReady });
   const readinessBase = stages.filter((stage) => stage.status === "COMPLETE" || stage.status === "NOT_APPLICABLE").length / stages.length;
   const readiness = phase === "SUBMITTED" || phase === "AWARDED" ? 100 : Math.max(0, Math.min(99, Math.round(readinessBase * 100) - uniqueBlockers.length * 4));
   const dueDate = requirements.closingDateTime;

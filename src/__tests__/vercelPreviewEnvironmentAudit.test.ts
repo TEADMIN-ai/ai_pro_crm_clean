@@ -15,7 +15,7 @@ const SECRET_API_KEY = "redacted-test-api-key-sentinel";
 function previewEnv(overrides: Record<string, string | undefined> = {}) {
   return {
     NEXT_PUBLIC_FIREBASE_API_KEY: SECRET_API_KEY,
-    NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: "torque-empire-ai-pro-crm-staging.firebaseapp.com",
+    NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: "torque-empire-teos-staging.firebaseapp.com",
     NEXT_PUBLIC_FIREBASE_PROJECT_ID: TEOS_STAGING_FIREBASE_PROJECT_ID,
     NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: TEOS_STAGING_FIREBASE_STORAGE_BUCKET,
     NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: "123456789",

@@ -17,12 +17,12 @@ import { GET } from "@/app/api/health/route";
 
 const BASE_ENV = {
   NEXT_PUBLIC_FIREBASE_API_KEY: "test-api-key",
-  NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: "torque-empire-ai-pro-crm-staging.firebaseapp.com",
-  NEXT_PUBLIC_FIREBASE_PROJECT_ID: "torque-empire-ai-pro-crm-staging",
+  NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: "torque-empire-teos-staging.firebaseapp.com",
+  NEXT_PUBLIC_FIREBASE_PROJECT_ID: "torque-empire-teos-staging",
   NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: "torque-empire-teos-staging.firebasestorage.app",
   NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: "123456789",
   NEXT_PUBLIC_FIREBASE_APP_ID: "1:123456789:web:staging",
-  FIREBASE_PROJECT_ID: "torque-empire-ai-pro-crm-staging",
+  FIREBASE_PROJECT_ID: "torque-empire-teos-staging",
   FIREBASE_CLIENT_EMAIL: "staging-admin@example.iam.gserviceaccount.com",
   FIREBASE_PRIVATE_KEY: "redacted-test-private-key",
   OPENAI_API_KEY: "redacted-openai-test-key",
