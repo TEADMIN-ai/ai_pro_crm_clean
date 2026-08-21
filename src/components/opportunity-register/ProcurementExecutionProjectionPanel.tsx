@@ -20,7 +20,7 @@ function statusFrom(score: number | null, blocked: boolean, started: boolean) {
   return "NOT_STARTED";
 }
 
-function stageRows(projection: ProcurementExecutionProjection) {
+export function stageRows(projection: ProcurementExecutionProjection) {
   const readiness = projection.readiness;
   const route = (path: string) => path.replace("[dealId]", encodeURIComponent(projection.dealId));
   return [
@@ -33,7 +33,7 @@ function stageRows(projection: ProcurementExecutionProjection) {
     { title: "Document Preparation", status: projection.documentPreparationStatus, progress: readiness.documentCompleteness, owner: "Staff", due: projection.dueDate, action: "Open Workspace", href: route("/dashboard/deals/[dealId]/document-preparation"), blockers: projection.blockers.filter((item) => /returnable|document|signature|amendment/i.test(item.problem)) },
     { title: "Internal Review", status: projection.reviewStatus, progress: projection.reviewStatus === "complete" ? 100 : 0, owner: "Manager", due: projection.dueDate, action: "Open Workspace", href: "/dashboard/submission-review?dealId=" + encodeURIComponent(projection.dealId), blockers: projection.blockers.filter((item) => /review/i.test(item.problem)) },
     { title: "Tender Pack", status: projection.packStatus, progress: projection.packStatus === "VALIDATED" ? 100 : 0, owner: "Operations", due: projection.dueDate, action: "Open Workspace", href: "/dashboard/tender-pack-requests?dealId=" + encodeURIComponent(projection.dealId), blockers: projection.blockers.filter((item) => /pack/i.test(item.problem)) },
-    { title: "Submission", status: projection.readinessStatus, progress: projection.readinessScore, owner: "Operations", due: projection.dueDate, action: "Open Workspace", href: route("/dashboard/deals/[dealId]/execution"), blockers: projection.blockers },
+    { title: "Submission", status: projection.submissionStatus, progress: projection.submissionStatus === "complete" ? 100 : projection.readinessScore === 100 ? 90 : projection.readinessScore, owner: "Operations", due: projection.dueDate, action: "Open Workspace", href: route("/dashboard/deals/[dealId]/execution"), blockers: projection.blockers },
   ].map((stage) => ({ ...stage, status: statusFrom(stage.progress, stage.blockers.length > 0, stage.status !== "NOT_STARTED") }));
 }
 

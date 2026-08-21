@@ -1,4 +1,5 @@
 import { buildOpportunityExecutionState } from "@/lib/opportunities/opportunityExecution";
+import { stageRows } from "@/components/opportunity-register/ProcurementExecutionProjectionPanel";
 import { buildProcurementExecutionProjection, tenderPackGenerationBlockers } from "@/lib/opportunities/procurementExecutionProjection";
 import type { SarsTcsVerificationRecord } from "@/lib/sars-tcs";
 
@@ -184,7 +185,7 @@ describe("canonical procurement execution projection", () => {
     expect(projection.pricingClassification).toBe("EMBEDDED_PRICING_SCHEDULE");
     expect(projection.totalTenderValue).toBe(125000);
     expect(projection.grossMargin).toBe(20);
-    expect(projection.nextAction.key).toBe("READY_FOR_SUBMISSION");
+    expect(projection.nextAction.key).toBe("RECORD_SUBMISSION");
     expect(projection.pricingApproved).toBe(true);
     expect(projection.readiness.pricingCompleteness).toBe(100);
     expect(projection.blockers.map((item) => item.problem)).not.toContain("Required pricing must be complete");
@@ -242,27 +243,27 @@ describe("canonical procurement execution projection", () => {
 
   it("does not block downstream workflow when SARS verification is not required", () => {
     const projection = projectionFor({ ...baseDeal, sarsTcsSummary: null, opportunityExecution: { ...baseDeal.opportunityExecution, requirements: { ...baseDeal.opportunityExecution.requirements, taxRequirement: false, compulsoryReturnables: ["B-BBEE", "COIDA", "CSD", "SBD forms"] } } });
-    expect(projection.nextAction.key).toBe("READY_FOR_SUBMISSION");
+    expect(projection.nextAction.key).toBe("RECORD_SUBMISSION");
     expect(projection.sarsVerificationBlockers).toEqual([]);
   });
 
   it("uses the canonical default when taxRequirement is undefined", () => {
     const projection = projectionFor({ ...baseDeal, sarsTcsSummary: null, opportunityExecution: { ...baseDeal.opportunityExecution, requirements: { reviewed: true, bbbeeRequirement: true, coidaRequirement: true, csdRequirement: true, bankingRequirement: true, boqPricingSchedulePresent: true, signatureRequired: true, compulsoryReturnables: ["B-BBEE", "COIDA", "CSD", "SBD forms"], formsRequiringCompletion: ["SBD 1", "SBD 4"] } } });
-    expect(projection.nextAction.key).toBe("READY_FOR_SUBMISSION");
+    expect(projection.nextAction.key).toBe("RECORD_SUBMISSION");
     expect(projection.sarsVerificationBlockers).toEqual([]);
   });
 
   it("does not make taxRequirement imply live SARS verification", () => {
     const projection = projectionFor({ ...baseDeal, sarsTcsSummary: null, opportunityExecution: { ...baseDeal.opportunityExecution, requirements: { ...baseDeal.opportunityExecution.requirements, sarsVerificationRequired: false } } });
     expect(projection.sarsVerificationRequired).toBe(false);
-    expect(projection.nextAction.key).toBe("READY_FOR_SUBMISSION");
+    expect(projection.nextAction.key).toBe("RECORD_SUBMISSION");
     expect(projection.sarsVerificationBlockers).toEqual([]);
   });
 
   it("defaults undefined sarsVerificationRequired to false when taxRequirement is true", () => {
     const projection = projectionFor({ ...baseDeal, sarsTcsSummary: null });
     expect(projection.sarsVerificationRequired).toBe(false);
-    expect(projection.nextAction.key).toBe("READY_FOR_SUBMISSION");
+    expect(projection.nextAction.key).toBe("RECORD_SUBMISSION");
     expect(projection.sarsVerificationBlockers).toEqual([]);
   });
 
@@ -376,7 +377,7 @@ describe("canonical procurement execution projection", () => {
     expect(pending.nextAction.key).toBe("COMPLETE_SUBMISSION_REVIEW");
     expect(pending.submissionStatus).not.toBe("complete");
     const approved = projectionFor(baseDeal);
-    expect(approved.nextAction.key).toBe("READY_FOR_SUBMISSION");
+    expect(approved.nextAction.key).toBe("RECORD_SUBMISSION");
   });
 
   it("requires reviewed durable submission evidence before the final action", () => {
@@ -427,4 +428,62 @@ test("opportunity intake projects Verify Client Identity when canonical client l
   expect(projection.nextAction.key).toBe("VERIFY_CLIENT_IDENTITY");
   expect(projection.nextAction.blocker).toBe("Client identity required");
   expect(projection.blockers.map((item) => item.problem)).toContain("Client identity required");
+});
+
+test("ready prerequisites do not complete the top Submission operational stage", () => {
+  const projection = projectionFor(baseDeal);
+  const submissionStage = stageRows(projection).find((stage) => stage.title === "Submission");
+  const state = buildOpportunityExecutionState({ deal: baseDeal, contractor });
+
+  expect(projection.readinessScore).toBe(100);
+  expect(projection.nextAction.key).toBe("RECORD_SUBMISSION");
+  expect(projection.nextAction.label).toBe("Record Submission");
+  expect(projection.submissionStatus).toBe("in_progress");
+  expect(submissionStage?.status).toBe("IN_PROGRESS");
+  expect(submissionStage?.progress).toBe(90);
+  expect(state.readiness).toBeLessThan(100);
+});
+
+test("submitted execution authority completes the top Submission operational stage", () => {
+  const deal = { ...baseDeal, opportunityExecution: { ...baseDeal.opportunityExecution, submitted: true, submission: { submissionEvidenceDocumentId: "SE-test" } } };
+  const projection = projectionFor(deal);
+  const submissionStage = stageRows(projection).find((stage) => stage.title === "Submission");
+  const state = buildOpportunityExecutionState({ deal, contractor });
+
+  expect(projection.currentPhase).toBe("SUBMITTED");
+  expect(projection.nextAction.key).toBe("SUBMISSION_RECORDED");
+  expect(projection.submissionStatus).toBe("complete");
+  expect(submissionStage?.status).toBe("COMPLETE");
+  expect(submissionStage?.progress).toBe(100);
+  expect(state.readiness).toBe(100);
+});
+
+test("submitted status or stage also completes Submission", () => {
+  for (const deal of [{ ...baseDeal, status: "submitted" }, { ...baseDeal, stage: "submitted" }]) {
+    const projection = projectionFor(deal);
+    const submissionStage = stageRows(projection).find((stage) => stage.title === "Submission");
+
+    expect(projection.submissionStatus).toBe("complete");
+    expect(submissionStage?.status).toBe("COMPLETE");
+    expect(submissionStage?.progress).toBe(100);
+  }
+});
+
+test("TEST DO NOT SUBMIT evidence does not prove external submission", () => {
+  const projection = projectionFor({
+    ...baseDeal,
+    submissionEvidence: [{ id: "SE-test", status: "APPROVED", testMarker: "TEST / DO NOT SUBMIT" }],
+  });
+  const submissionStage = stageRows(projection).find((stage) => stage.title === "Submission");
+
+  expect(projection.readinessScore).toBe(100);
+  expect(projection.submissionStatus).toBe("in_progress");
+  expect(submissionStage?.status).toBe("IN_PROGRESS");
+});
+
+test("readiness status and score alone cannot mark Submission complete", () => {
+  const projection = projectionFor(baseDeal);
+  const submissionStage = stageRows({ ...projection, readinessStatus: "READY", readinessScore: 100, submissionStatus: "in_progress" }).find((stage) => stage.title === "Submission");
+
+  expect(submissionStage?.status).toBe("IN_PROGRESS");
 });

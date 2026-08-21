@@ -198,6 +198,7 @@ function buildNextAction(input: {
   tenderPackMissing: boolean;
   submissionEvidenceMissing: boolean;
   ready: boolean;
+  submissionComplete: boolean;
 }): ProcurementNextAction {
   const due = input.state.dueDate;
   const make = (key: ProcurementNextActionKey, label: string, owner: string, blockerText: string | null, actionKey: string | null, href?: string): ProcurementNextAction => ({
@@ -225,7 +226,8 @@ function buildNextAction(input: {
   if (input.durableTenderPackMissing) return make("GENERATE_TENDER_PACK", "Generate durable Tender Pack", "operations", "Durable Tender Pack must be generated.", "generate_tender_pack", "/dashboard/tender-pack-requests?dealId=" + encodeURIComponent(input.state.dealId));
   if (input.tenderPackMissing) return make("GENERATE_TENDER_PACK", "Generate tender pack", "operations", "The final tender pack is not generated and validated.", "generate_tender_pack", "/dashboard/tender-pack-requests?dealId=" + encodeURIComponent(input.state.dealId));
   if (input.submissionEvidenceMissing) return make("ADD_SUBMISSION_EVIDENCE", "Add Submission Evidence", "operations", "Reviewed submission evidence is required before recording submission.", "open_submission_evidence", "/dashboard/deals/" + encodeURIComponent(input.state.dealId) + "/submission-evidence");
-  if (input.ready) return make("READY_FOR_SUBMISSION", "Ready for submission", "manager", null, "record_submission");
+  if (input.submissionComplete) return make("SUBMISSION_RECORDED", "Submission recorded", "operations", null, null);
+  if (input.ready) return make("RECORD_SUBMISSION", "Record Submission", "operations", null, "record_submission");
   return make("RECORD_SUBMISSION", "Record submission", "operations", null, "record_submission");
 }
 
@@ -327,6 +329,7 @@ export function buildProcurementExecutionProjection(input: {
     ...(submissionEvidenceMissing ? [blocker("Reviewed submission evidence is required", "Submission evidence must be reviewed before recording submission.", "operations", "/dashboard/deals/" + encodeURIComponent(dealId) + "/submission-evidence", dueDate)] : []),
   ];
   const ready = submission.ready && !quoteBlockers.length && !intelligenceBlockers.length && !pricingBlockers.length && (!pricingRequired || canonicalPricingComplete) && !durableAuthorityMissing;
+  const submissionComplete = state.submissionStatus === "complete";
   const nextAction = buildNextAction({
     state,
     assignmentValid: state.assignment.complete,
@@ -348,6 +351,7 @@ export function buildProcurementExecutionProjection(input: {
     tenderPackMissing: !packReady,
     submissionEvidenceMissing,
     ready,
+    submissionComplete,
   });
   const blockers = [...allComplianceBlockers, ...quoteBlockers, ...intelligenceBlockers, ...pricingBlockers, ...durableAuthorityBlockers, ...submission.blockers.map((item) => blocker(item, "Submission readiness requires this prerequisite.", nextAction.owner, nextAction.href ?? "/dashboard/deals/" + encodeURIComponent(dealId) + "/execution", dueDate))];
   const contractorIdentityStatus = state.contractorId ? "RESOLVED" : "UNRESOLVED";
@@ -364,7 +368,7 @@ export function buildProcurementExecutionProjection(input: {
     dealId,
     contractorId: state.contractorId,
     contractorName: state.contractorName,
-    currentPhase: readinessStatus === "READY" ? "READY_FOR_SUBMISSION" : state.currentPhase,
+    currentPhase: submissionComplete ? state.currentPhase : readinessStatus === "READY" ? "READY_FOR_SUBMISSION" : state.currentPhase,
     readiness: readinessModel,
     blockers,
     nextAction,
