@@ -172,7 +172,7 @@ export default function TenderPricingWorkspace(props: Props) {
               <p className="font-semibold">Client identity required</p>
               <p className="mt-1 text-amber-900">Verify and link a canonical client before sending pricing to Submission Review.</p>
             </div>
-            <a className="tex-action-button tex-action-button--secondary" href="/dashboard/master-data-review">Open Master Data Review</a>
+            <a className="tex-action-button tex-action-button--secondary" href={"/dashboard/deals/" + encodeURIComponent(props.dealId) + "/client-identity"}>Verify Client Identity</a>
           </div>
         </div>
       ) : null}
@@ -216,6 +216,9 @@ export default function TenderPricingWorkspace(props: Props) {
             <section className="rounded-lg border border-[color:var(--tex-border)] bg-white p-5">
               <h3 className="font-semibold text-[color:var(--tex-text-strong)]">Next action</h3>
               <p className="mt-3 text-sm text-[color:var(--tex-text-muted)]">{pricing.nextAction}</p>
+              <p className="mt-2 text-xs font-semibold text-[color:var(--tex-text-muted)]">
+                Client identity: {pricing.clientIdentityCanonicalId ? "ready (" + pricing.clientIdentityCanonicalId + ")" : pricing.clientIdentityStatus ?? "not evaluated"}
+              </p>
             </section>
           </div>
 

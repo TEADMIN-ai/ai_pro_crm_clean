@@ -104,6 +104,7 @@ test("governed candidate creation creates pending review client without automati
   const result = await createClientCandidateForDeal({ dealId: "deal-1", actor });
   expect(result.entity).toMatchObject({ entityType: "client", verificationStatus: "PENDING_REVIEW", reviewStatus: "REVIEW_REQUIRED" });
   expect(mockCollectionRecords("masterClients").get(result.entity.canonicalId)?.verificationStatus).toBe("PENDING_REVIEW");
+  expect(mockCollectionRecords("clientQuotes").size).toBe(0);
 });
 
 test("ambiguous canonical matches fail closed", async () => {
@@ -126,6 +127,7 @@ test("verified client linkage persists canonical deal shape and audit", async ()
     clientMasterDataReference: { canonicalId: "TE-CLI-1", verificationStatus: "VERIFIED", source: "masterClients" },
   });
   expect(mockCollectionRecords("dealClientIdentityAuditEvents").size).toBe(1);
+  expect(mockCollectionRecords("clientQuotes").size).toBe(0);
 });
 
 test("linkage is workspace scoped", async () => {
