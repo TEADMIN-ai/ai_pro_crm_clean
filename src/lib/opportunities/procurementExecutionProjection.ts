@@ -240,7 +240,9 @@ export function buildProcurementExecutionProjection(input: {
   const dueDate = state.dueDate;
   const dealId = state.dealId || String(deal.id ?? "");
   const pricing = rec(deal.tenderPricing ?? execution.tenderPricing ?? deal.pricing);
-  const canonicalPricingComplete = hasGovernedLockedPricing(pricing);
+  const documentEvidence = rec(pricing.documentFillEvidence);
+  const governedPricedDocumentReady = Boolean(str(documentEvidence.governedDocumentId)) && documentEvidence.governedDocumentStatus === "VERIFIED" && Boolean(str(documentEvidence.storagePath));
+  const canonicalPricingComplete = hasGovernedLockedPricing(pricing) && governedPricedDocumentReady;
   const supplierQuoteIds = supplierQuoteIdsFrom(deal, execution);
   const approvedSupplierQuoteIds = approvedQuoteIdsFrom(deal, execution, pricing);
   const quoteCoverage = canonicalPricingComplete ? 100 : pct(execution.lineItemCoverage ?? execution.quoteCoverage ?? (approvedSupplierQuoteIds.length ? 100 : supplierQuoteIds.length ? 50 : 0));
@@ -252,15 +254,15 @@ export function buildProcurementExecutionProjection(input: {
   const pricingClassification = str(execution.pricingClassification) ?? str(intelligence.boqClassification) ?? str(intelligence.pricingClassification) ?? (state.pricingRequired ? "MANUAL_REVIEW_REQUIRED" : "NO_PRICING_REQUIRED");
   const extractedLineItemCount = arr(intelligence.extractedLineItems ?? execution.tenderLineItems).length || pct(execution.extractedLineItemCount);
 
+  const pricingRequired = lineItemsRequired(state.requirements, intelligence);
   const tenderPricingId = str(pricing.id) ?? str(execution.tenderPricingId);
   const pricingStatus = str(pricing.pricingStatus) ?? str(execution.pricingStatus) ?? "NOT_STARTED";
-  const pricingApproved = bool(execution.pricingApproved) || ["APPROVED", "LOCKED", "VALIDATED"].includes(pricingStatus.toUpperCase()) || bool(pricing.pricingApproved);
-  const pricingDocumentId = str(execution.pricingDocumentId) ?? str(pricing.pricingDocumentId) ?? str(rec(pricing.documentFillEvidence).pricedDocumentId);
+  const pricingApproved = pricingRequired ? canonicalPricingComplete : bool(execution.pricingApproved) || ["APPROVED", "LOCKED", "VALIDATED"].includes(pricingStatus.toUpperCase()) || bool(pricing.pricingApproved);
+  const pricingDocumentId = str(documentEvidence.governedDocumentId) ?? str(pricing.pricingDocumentId) ?? str(documentEvidence.pricedDocumentId) ?? str(execution.pricingDocumentId);
   const totalTenderValue = Number(execution.totalTenderValue ?? pricing.total ?? 0) || 0;
   const grossProfit = Number(execution.grossProfit ?? pricing.grossProfit ?? 0) || 0;
   const grossMargin = Number(execution.grossMargin ?? pricing.grossMarginPercentage ?? pricing.grossMargin ?? 0) || 0;
   const pricingBlockers = arr<AnyRecord>(pricing.blockers ?? execution.pricingBlockers).map((item) => blocker(str(item.message) ?? str(item.code) ?? "Pricing blocker", "Pricing validation must pass before submission.", "qs", "/dashboard/deals/" + encodeURIComponent(dealId) + "/tender-pricing", dueDate));
-  const pricingRequired = lineItemsRequired(state.requirements, intelligence);
   const quoteBlockers = pricingRequired && !approvedSupplierQuoteIds.length
     ? [blocker("No approved supplier quote", "Supplier prices are required before tender pricing can be calculated.", "staff", "/dashboard/deals/" + encodeURIComponent(dealId) + "/supplier-quotes", dueDate)]
     : quoteCoverage < 100 && pricingRequired
@@ -281,10 +283,10 @@ export function buildProcurementExecutionProjection(input: {
   const documentsComplete = requiredDocuments.length > 0 && requiredDocuments.every((item) => item.status === "COMPLETE");
   const documentCompleteness = state.documentChecklist.length ? pct((state.documentChecklist.filter((item) => item.status === "COMPLETE" || item.status === "NOT_APPLICABLE").length / state.documentChecklist.length) * 100) : 0;
   const tenderAnalysisCompleteness = requirementsReviewStatus === "APPROVED" ? 100 : tenderAnalysisStatus === "ANALYSIS_COMPLETE" || tenderAnalysisStatus === "REVIEW_REQUIRED" ? 75 : tenderAnalysisStatus === "ANALYSING" ? 40 : 0;
-  const mappingIncomplete = pricingRequired && (String(rec(pricing).mappingStatus ?? execution.mappingStatus ?? "").toUpperCase().includes("MAPPING_REQUIRED") || pricingStatus === "MAPPING_REQUIRED");
+  const mappingIncomplete = pricingRequired && !canonicalPricingComplete && (String(rec(pricing).mappingStatus ?? execution.mappingStatus ?? "").toUpperCase().includes("MAPPING_REQUIRED") || pricingStatus === "MAPPING_REQUIRED");
   const pricingIncomplete = pricingRequired && !pricingApproved && ["NOT_STARTED", "SOURCE_QUOTES_REQUIRED", "TENDER_ANALYSIS_REQUIRED", "PRICING_IN_PROGRESS", "VALIDATION_FAILED"].includes(pricingStatus.toUpperCase());
   const pricingAwaitingApproval = pricingRequired && !pricingApproved && ["REVIEW_REQUIRED", "MANAGER_APPROVAL_REQUIRED", "DIRECTOR_APPROVAL_REQUIRED"].includes(pricingStatus.toUpperCase());
-  const pricedDocumentMissing = pricingRequired && pricingApproved && (!pricingDocumentId || String(rec(pricing).validationStatus ?? execution.pricingValidationStatus ?? "").toUpperCase() === "VALIDATION_FAILED");
+  const pricedDocumentMissing = pricingRequired && !canonicalPricingComplete && (pricingApproved || Boolean(pricingDocumentId)) && (!pricingDocumentId || String(rec(pricing).validationStatus ?? execution.pricingValidationStatus ?? "").toUpperCase() === "VALIDATION_FAILED" || documentEvidence.governedDocumentStatus !== "VERIFIED");
   const submissionReview = rec(deal.submissionReview ?? execution.submissionReview);
   const submissionReviewId = str(submissionReview.id) ?? str(execution.submissionReviewId);
   const reviewStatus = hasValidSubmissionReviewCompletion(deal) ? "complete" : "not_started";
@@ -297,13 +299,13 @@ export function buildProcurementExecutionProjection(input: {
     opportunityEligibility: state.complianceStatus === "VALID" && state.contractorId ? 100 : state.contractorId ? 50 : 0,
     supplierQuoteCoverage: quoteCoverage,
     tenderAnalysisCompleteness,
-    pricingCompleteness: !pricingRequired ? 100 : pricingApproved && pricingDocumentId ? 100 : pricingApproved ? 85 : pricingStatus === "REVIEW_REQUIRED" ? 70 : mappingIncomplete ? 45 : 0,
+    pricingCompleteness: !pricingRequired ? 100 : canonicalPricingComplete ? 100 : pricingApproved && pricingDocumentId ? 85 : pricingApproved ? 70 : pricingStatus === "REVIEW_REQUIRED" ? 70 : mappingIncomplete ? 45 : 0,
     documentCompleteness,
     submissionReadiness: state.submissionReadiness,
   };
   const submission = buildSubmissionReadiness({
     state,
-    pricingComplete: !pricingRequired || pricingApproved,
+    pricingComplete: !pricingRequired || canonicalPricingComplete,
     documentsComplete,
     internalReviewApproved: hasValidInternalReviewCompletion(deal),
     signaturesComplete: !state.requirements.signatureRequired || state.documentChecklist.find((item) => item.key === "signatures")?.status === "COMPLETE",
@@ -324,7 +326,7 @@ export function buildProcurementExecutionProjection(input: {
     ...(durableTenderPackMissing ? [blocker("Durable Tender Pack must be generated", "An active VERIFIED TENDER_PACK master document linked to this opportunity is required before submission.", "operations", "/dashboard/tender-pack-requests?dealId=" + encodeURIComponent(input.state.dealId), dueDate)] : []),
     ...(submissionEvidenceMissing ? [blocker("Reviewed submission evidence is required", "Submission evidence must be reviewed before recording submission.", "operations", "/dashboard/deals/" + encodeURIComponent(dealId) + "/submission-evidence", dueDate)] : []),
   ];
-  const ready = submission.ready && !quoteBlockers.length && !intelligenceBlockers.length && !pricingBlockers.length && (!pricingRequired || Boolean(pricingDocumentId)) && !durableAuthorityMissing;
+  const ready = submission.ready && !quoteBlockers.length && !intelligenceBlockers.length && !pricingBlockers.length && (!pricingRequired || canonicalPricingComplete) && !durableAuthorityMissing;
   const nextAction = buildNextAction({
     state,
     assignmentValid: state.assignment.complete,

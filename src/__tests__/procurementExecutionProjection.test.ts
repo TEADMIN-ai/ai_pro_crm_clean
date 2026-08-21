@@ -118,11 +118,30 @@ const baseDeal = {
   ],
   tenderPricing: {
     id: "pricing-test-1",
-    pricingStatus: "LOCKED",
+    pricingStatus: "DOCUMENT_FILLED",
     mappingStatus: "APPROVED",
     validationStatus: "VALIDATED",
+    lockStatus: "LOCKED",
     pricingApproved: true,
     pricingDocumentId: "priced-doc-1",
+    approvedSupplierQuoteIds: ["quote-a"],
+    revision: 1,
+    managementApprovalStatus: "MANAGER_APPROVED",
+    approvals: [
+      { revision: 1, role: "staff", approvedBy: "staff", approvedAt: "2026-07-17T10:00:00.000Z" },
+      { revision: 1, role: "manager", approvedBy: "manager", approvedAt: "2026-07-17T10:05:00.000Z" },
+    ],
+    lineItems: [
+      { mapping: { supplierQuoteId: "quote-a" } },
+      { mapping: { supplierQuoteId: "quote-a" } },
+    ],
+    documentFillEvidence: {
+      pricedDocumentId: "priced-doc-1",
+      governedDocumentId: "priced-doc-1",
+      governedDocumentStatus: "VERIFIED",
+      storagePath: "priced-documents/workspace-test/test-procurement-1/pricing-test-1/revision-1/priced-document.json",
+    },
+    submissionReviewHandoff: { pricingApproved: true, workflowTransition: "DOCUMENT_PREPARATION" },
     total: 125000,
     grossProfit: 25000,
     grossMarginPercentage: 20,
@@ -166,6 +185,10 @@ describe("canonical procurement execution projection", () => {
     expect(projection.totalTenderValue).toBe(125000);
     expect(projection.grossMargin).toBe(20);
     expect(projection.nextAction.key).toBe("READY_FOR_SUBMISSION");
+    expect(projection.pricingApproved).toBe(true);
+    expect(projection.readiness.pricingCompleteness).toBe(100);
+    expect(projection.blockers.map((item) => item.problem)).not.toContain("Required pricing must be complete");
+    expect(projection.pricingStatus).toBe("DOCUMENT_FILLED");
     expect(tenderPackGenerationBlockers(projection)).toEqual([]);
   });
 
@@ -177,13 +200,13 @@ describe("canonical procurement execution projection", () => {
   });
 
   it("blocks the workflow until an approved supplier quote exists", () => {
-    const projection = projectionFor({ ...baseDeal, supplierQuotes: baseDeal.supplierQuotes.map((quote) => ({ ...quote, approvalStatus: "PENDING" })) });
+    const projection = projectionFor({ ...baseDeal, supplierQuotes: baseDeal.supplierQuotes.map((quote) => ({ ...quote, approvalStatus: "PENDING" })), tenderPricing: { ...baseDeal.tenderPricing, approvedSupplierQuoteIds: [], lineItems: [] } });
     expect(projection.nextAction.key).toBe("UPLOAD_OR_APPROVE_SUPPLIER_QUOTE");
     expect(projection.quoteBlockers[0].problem).toBe("No approved supplier quote");
   });
 
   it("rejects tender pack generation when pricing is unapproved", () => {
-    const projection = projectionFor({ ...baseDeal, tenderPricing: { ...baseDeal.tenderPricing, pricingStatus: "REVIEW_REQUIRED", pricingApproved: false, pricingDocumentId: null } });
+    const projection = projectionFor({ ...baseDeal, tenderPricing: { ...baseDeal.tenderPricing, pricingStatus: "REVIEW_REQUIRED", pricingApproved: false, pricingDocumentId: null, lockStatus: "UNLOCKED", documentFillEvidence: null } });
     expect(tenderPackGenerationBlockers(projection).map((item) => item.problem)).toContain("Pricing is not approved");
   });
 
@@ -312,6 +335,41 @@ describe("canonical procurement execution projection", () => {
     expect(projection.quoteBlockers).toEqual([]);
     expect(projection.pricingBlockers).toEqual([]);
     expect(projection.pricingStatus).toBe("LOCKED");
+  });
+
+  it("uses governed locked pricing to clear the top-level pricing readiness blocker", () => {
+    const projection = projectionFor({
+      ...baseDeal,
+      opportunityExecution: { ...baseDeal.opportunityExecution, pricingApproved: false, pricingSourceStatus: "QUOTE_APPROVED" },
+      tenderPricing: { ...baseDeal.tenderPricing, mappingStatus: "PRICING_IN_PROGRESS" },
+    });
+    const state = buildOpportunityExecutionState({ deal: { ...baseDeal, opportunityExecution: { ...baseDeal.opportunityExecution, pricingComplete: true } }, contractor });
+    const pricingStage = state.stages.find((stage) => stage.title === "BOQ/Pricing");
+    expect(projection.pricingApproved).toBe(true);
+    expect(projection.readiness.pricingCompleteness).toBe(100);
+    expect(projection.blockers.map((item) => item.problem)).not.toContain("Required pricing must be complete");
+    expect(pricingStage?.status).toBe("COMPLETE");
+  });
+
+  it("does not treat approved execution pricing flags as governed pricing authority", () => {
+    const projection = projectionFor({
+      ...baseDeal,
+      opportunityExecution: { ...baseDeal.opportunityExecution, pricingApproved: true, pricingSourceStatus: "QUOTE_APPROVED" },
+      tenderPricing: { ...baseDeal.tenderPricing, lockStatus: "UNLOCKED", documentFillEvidence: null },
+    });
+    expect(projection.pricingApproved).toBe(false);
+    expect(projection.readiness.pricingCompleteness).not.toBe(100);
+    expect(projection.blockers.map((item) => item.problem)).toContain("Required pricing must be complete");
+  });
+
+  it("keeps synthetic or unverified priced documents blocked", () => {
+    const projection = projectionFor({
+      ...baseDeal,
+      tenderPricing: { ...baseDeal.tenderPricing, documentFillEvidence: { pricedDocumentId: "priced-pricing-test-1", governedDocumentStatus: "MISSING" } },
+    });
+    expect(projection.pricingApproved).toBe(false);
+    expect(projection.nextAction.key).toBe("GENERATE_PRICED_DOCUMENT");
+    expect(projection.readiness.pricingCompleteness).not.toBe(100);
   });
   it("requires explicit Submission Review completion before submission", () => {
     const pending = projectionFor({ ...baseDeal, opportunityExecution: { ...baseDeal.opportunityExecution, submissionReviewApprovalProvenance: null } });
