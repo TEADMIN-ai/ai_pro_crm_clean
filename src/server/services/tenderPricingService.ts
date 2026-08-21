@@ -179,8 +179,22 @@ async function projectClientIdentity(workspace: TenderPricingWorkspace, actor: A
     clientIdentityCanonicalId: identity.canonicalId,
     clientIdentityNextAction: ready ? null : "Verify Client Identity",
     clientIdentityBlocker: ready ? null : "Client identity required",
-    nextAction: ready || !["LOCKED", "VALIDATED", "DOCUMENT_FILLED", "APPROVED"].includes(workspace.pricingStatus) ? workspace.nextAction : "Client identity required",
+    nextAction: projectClientIdentityNextAction(workspace, ready),
   };
+}
+
+function projectClientIdentityNextAction(workspace: TenderPricingWorkspace, ready: boolean): string {
+  if (!ready) {
+    return ["LOCKED", "VALIDATED", "DOCUMENT_FILLED", "APPROVED"].includes(workspace.pricingStatus)
+      ? "Client identity required"
+      : workspace.nextAction;
+  }
+  if (workspace.nextAction !== "Client identity required") return workspace.nextAction;
+  if (workspace.lockStatus === "LOCKED" || workspace.pricingStatus === "LOCKED") {
+    return "Send approved priced document to Submission Review.";
+  }
+  if (workspace.validationStatus === "VALIDATED") return "Lock pricing revision.";
+  return "Continue tender pricing.";
 }
 
 async function assertClientIdentityReadyForHandoff(workspace: TenderPricingWorkspace, actor: AuthorizedUser): Promise<TenderPricingWorkspace> {
@@ -204,7 +218,8 @@ export async function getTenderPricingWorkspaceForDeal(dealId: string, actor: Au
     .limit(1)
     .get();
   if (snapshot.empty) return null;
-  return { id: snapshot.docs[0].id, ...(snapshot.docs[0].data() ?? {}) } as TenderPricingWorkspace;
+  const workspace = { id: snapshot.docs[0].id, ...(snapshot.docs[0].data() ?? {}) } as TenderPricingWorkspace;
+  return projectClientIdentity(workspace, actor);
 }
 
 export async function startTenderPricingWorkspace(input: { dealId: string; actor: AuthorizedUser; body?: Record<string, unknown> }): Promise<TenderPricingWorkspace> {
