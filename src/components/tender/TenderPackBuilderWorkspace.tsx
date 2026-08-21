@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { EnterpriseActionButton, EnterpriseCard, EnterpriseEmptyState, EnterprisePanel, EnterpriseStatusBadge } from "@/components/ui/EnterpriseUI";
+import { authFetch } from "@/lib/client/authFetch";
 import type { TenderPackWorkspaceState } from "@/server/services/tenderPackWorkspaceService";
 
 type Props = { dealId?: string; requestId?: string };
@@ -21,7 +22,7 @@ export default function TenderPackBuilderWorkspace({ dealId, requestId }: Props)
     if (!dealId) return;
     setLoading(true);
     setError(null);
-    const response = await fetch("/api/tender-pack/workspace?dealId=" + encodeURIComponent(dealId), { cache: "no-store" });
+    const response = await authFetch("/api/tender-pack/workspace?dealId=" + encodeURIComponent(dealId), { cache: "no-store" });
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(typeof payload.error === "string" ? payload.error : "Tender Pack workspace unavailable");
     setState(payload as TenderPackWorkspaceState);
@@ -51,7 +52,7 @@ export default function TenderPackBuilderWorkspace({ dealId, requestId }: Props)
     setError(null);
     setResult(null);
     try {
-      const response = await fetch(state.generationEndpoint, {
+      const response = await authFetch(state.generationEndpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ...state.generationPayload, ...(requestId ? { requestId } : {}) }),
