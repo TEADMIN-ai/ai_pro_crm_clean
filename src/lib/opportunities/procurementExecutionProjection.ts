@@ -222,8 +222,8 @@ function buildNextAction(input: {
   if (input.submissionReviewIncomplete) return make("COMPLETE_SUBMISSION_REVIEW", "Complete Submission Review", "manager", "Internal Submission Review is not approved.", "open_submission_review", "/dashboard/submission-review?dealId=" + encodeURIComponent(input.state.dealId));
   if (input.clientIdentityMissing) return make("VERIFY_CLIENT_IDENTITY", "Verify Client Identity", "staff", "Client identity required", "open_submission_review", "/dashboard/master-data-review");
   if (input.clientQuoteMissing) return make("APPROVE_PRICING", "Generate approved Client Quote", "manager", "Approved Client Quote must be generated.", "open_boq_pricing", "/dashboard/deals/" + encodeURIComponent(input.state.dealId) + "/tender-pricing");
-  if (input.durableTenderPackMissing) return make("GENERATE_TENDER_PACK", "Generate durable Tender Pack", "operations", "Durable Tender Pack must be generated.", "generate_tender_pack", "/dashboard/tender-pack-requests");
-  if (input.tenderPackMissing) return make("GENERATE_TENDER_PACK", "Generate tender pack", "operations", "The final tender pack is not generated and validated.", "generate_tender_pack", "/dashboard/tender-pack-requests");
+  if (input.durableTenderPackMissing) return make("GENERATE_TENDER_PACK", "Generate durable Tender Pack", "operations", "Durable Tender Pack must be generated.", "generate_tender_pack", "/dashboard/tender-pack-requests?dealId=" + encodeURIComponent(input.state.dealId));
+  if (input.tenderPackMissing) return make("GENERATE_TENDER_PACK", "Generate tender pack", "operations", "The final tender pack is not generated and validated.", "generate_tender_pack", "/dashboard/tender-pack-requests?dealId=" + encodeURIComponent(input.state.dealId));
   if (input.submissionEvidenceMissing) return make("ADD_SUBMISSION_EVIDENCE", "Add Submission Evidence", "operations", "Reviewed submission evidence is required before recording submission.", "open_submission_evidence", "/dashboard/deals/" + encodeURIComponent(input.state.dealId) + "/submission-evidence");
   if (input.ready) return make("READY_FOR_SUBMISSION", "Ready for submission", "manager", null, "record_submission");
   return make("RECORD_SUBMISSION", "Record submission", "operations", null, "record_submission");
@@ -321,7 +321,7 @@ export function buildProcurementExecutionProjection(input: {
   const durableAuthorityBlockers = [
     ...(clientIdentityMissing ? [blocker("Client identity required", "A VERIFIED canonical client must be linked to this opportunity before Client Quote creation.", "staff", "/dashboard/master-data-review", dueDate)] : []),
     ...(clientQuoteMissing ? [blocker("Approved Client Quote must be generated", "A canonical APPROVED clientQuotes record with a verified generated document is required before submission.", "manager", "/dashboard/deals/" + encodeURIComponent(dealId) + "/tender-pricing", dueDate)] : []),
-    ...(durableTenderPackMissing ? [blocker("Durable Tender Pack must be generated", "An active VERIFIED TENDER_PACK master document linked to this opportunity is required before submission.", "operations", "/dashboard/tender-pack-requests", dueDate)] : []),
+    ...(durableTenderPackMissing ? [blocker("Durable Tender Pack must be generated", "An active VERIFIED TENDER_PACK master document linked to this opportunity is required before submission.", "operations", "/dashboard/tender-pack-requests?dealId=" + encodeURIComponent(input.state.dealId), dueDate)] : []),
     ...(submissionEvidenceMissing ? [blocker("Reviewed submission evidence is required", "Submission evidence must be reviewed before recording submission.", "operations", "/dashboard/deals/" + encodeURIComponent(dealId) + "/submission-evidence", dueDate)] : []),
   ];
   const ready = submission.ready && !quoteBlockers.length && !intelligenceBlockers.length && !pricingBlockers.length && (!pricingRequired || Boolean(pricingDocumentId)) && !durableAuthorityMissing;
@@ -449,7 +449,7 @@ export function tenderPackGenerationBlockers(projection: ProcurementExecutionPro
     blockers.push(blocker("Required signatures are incomplete", "Submission documents must carry required bidder signatures before packing.", "staff", route, dueDate));
   }
   if (projection.packStatus === "SUPERSEDED") {
-    blockers.push(blocker("Pack documents are superseded", "Superseded or invalid documents cannot be used for the final pack.", "operations", "/dashboard/tender-pack-requests", dueDate));
+    blockers.push(blocker("Pack documents are superseded", "Superseded or invalid documents cannot be used for the final pack.", "operations", "/dashboard/tender-pack-requests?dealId=" + encodeURIComponent(projection.dealId), dueDate));
   }
   return blockers;
 }

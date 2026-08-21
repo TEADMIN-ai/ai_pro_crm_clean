@@ -10,7 +10,7 @@ import { persistTenderPackPdf } from "@/server/services/tenderPackService";
 import { getTenderPackRequest, markTenderPackRequestGenerated } from "@/server/services/tenderPackRequestService";
 import { recordAuditLog } from "@/server/services/auditLogService";
 import { assertApprovedClientQuote } from "@/server/services/commercialAuthorityService";
-import { registerTenderPackDocument } from "@/server/services/tenderPackCommercialAuthorityService";
+import { registerTenderPackDocument, resolveVerifiedTenderPackDocument } from "@/server/services/tenderPackCommercialAuthorityService";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -190,6 +190,7 @@ export async function POST(request: NextRequest) {
       filename: persistedPack.fileName,
       actor: user,
     });
+    await resolveVerifiedTenderPackDocument({ opportunityId: deal.id, workspaceId, documentId: tenderPackDocumentId });
 
     if (tenderPackRequest) {
       await markTenderPackRequestGenerated({
