@@ -20,6 +20,7 @@ import type {
 import { isApprovedTenderIntelligence, loadCanonicalTenderPricingSources, type CanonicalTenderPricingSources } from "@/server/services/tenderPricingCanonicalSources";
 import { createApprovedClientQuoteFromLockedPricing } from "@/server/services/clientQuoteAuthorityService";
 import { resolveDealClientIdentity } from "@/server/services/clientIdentityService";
+import { registerPricedDocumentAuthority, resolveVerifiedPricedDocumentAuthority } from "@/server/services/pricedDocumentAuthorityService";
 
 const TENDER_PRICING_COLLECTION = "tenderPricingWorkspaces";
 const TENDER_PRICING_AUDIT_COLLECTION = "tenderPricingAuditEvents";
@@ -205,6 +206,35 @@ async function assertClientIdentityReadyForHandoff(workspace: TenderPricingWorks
   }
   return projected;
 }
+
+async function projectPricedDocumentAuthority(workspace: TenderPricingWorkspace): Promise<TenderPricingWorkspace> {
+  if (!workspace.documentFillEvidence?.pricedDocumentId && !workspace.documentFillEvidence?.governedDocumentId) return workspace;
+  try {
+    const document = await resolveVerifiedPricedDocumentAuthority({ workspace });
+    const documentId = asString(document.documentId) ?? asString(document.id);
+    const storagePath = asString(document.storagePath);
+    return {
+      ...workspace,
+      documentFillEvidence: workspace.documentFillEvidence ? {
+        ...workspace.documentFillEvidence,
+        pricedDocumentId: documentId,
+        governedDocumentId: documentId,
+        governedDocumentStatus: "VERIFIED",
+        storagePath,
+      } : workspace.documentFillEvidence,
+      nextAction: workspace.nextAction === "Generate priced document" ? "Validate document." : workspace.nextAction,
+    };
+  } catch {
+    return {
+      ...workspace,
+      documentFillEvidence: workspace.documentFillEvidence ? {
+        ...workspace.documentFillEvidence,
+        governedDocumentStatus: "MISSING",
+      } : workspace.documentFillEvidence,
+      nextAction: ["LOCKED", "VALIDATED", "DOCUMENT_FILLED", "APPROVED"].includes(workspace.pricingStatus) ? "Generate priced document" : workspace.nextAction,
+    };
+  }
+}
 async function persistPricing(workspace: TenderPricingWorkspace) {
   await getFirebaseAdmin().collection(TENDER_PRICING_COLLECTION).doc(workspace.id).set(workspace, { merge: true });
 }
@@ -219,7 +249,7 @@ export async function getTenderPricingWorkspaceForDeal(dealId: string, actor: Au
     .get();
   if (snapshot.empty) return null;
   const workspace = { id: snapshot.docs[0].id, ...(snapshot.docs[0].data() ?? {}) } as TenderPricingWorkspace;
-  return projectClientIdentity(workspace, actor);
+  return projectPricedDocumentAuthority(await projectClientIdentity(workspace, actor));
 }
 
 export async function startTenderPricingWorkspace(input: { dealId: string; actor: AuthorizedUser; body?: Record<string, unknown> }): Promise<TenderPricingWorkspace> {
@@ -274,11 +304,13 @@ export async function approveTenderPricingWorkspace(input: { pricingId: string; 
 export async function generateTenderPricingDocument(input: { pricingId: string; actor: AuthorizedUser }): Promise<TenderPricingWorkspace> {
   const current = await loadPricing(input.pricingId, input.actor);
   const evidence = buildPricingScheduleFillEvidence(current);
+  const authority = await registerPricedDocumentAuthority({ workspace: current, evidence, actor: input.actor });
+  const governedEvidence = { ...evidence, pricedDocumentId: authority.documentId, governedDocumentId: authority.documentId, governedDocumentStatus: "VERIFIED" as const, storagePath: authority.storagePath };
   const next: TenderPricingWorkspace = await projectClientIdentity({
     ...current,
-    documentFillStatus: evidence.validationIssues.length ? "PREVIEW_REQUIRED" : "DOCUMENT_FILLED",
+    documentFillStatus: governedEvidence.validationIssues.length ? "PREVIEW_REQUIRED" : "DOCUMENT_FILLED",
     pricingStatus: "DOCUMENT_FILLED",
-    documentFillEvidence: evidence,
+    documentFillEvidence: governedEvidence,
     updatedAt: nowIso(),
     nextAction: "Preview and validate the priced BOQ or pricing schedule.",
   }, input.actor);
@@ -289,6 +321,7 @@ export async function generateTenderPricingDocument(input: { pricingId: string; 
 
 export async function validateTenderPricing(input: { pricingId: string; actor: AuthorizedUser }): Promise<TenderPricingWorkspace> {
   const current = await loadPricing(input.pricingId, input.actor);
+  await resolveVerifiedPricedDocumentAuthority({ workspace: current });
   const blockers = validateTenderPricingWorkspace(current);
   const next: TenderPricingWorkspace = await projectClientIdentity({
     ...current,
@@ -305,6 +338,7 @@ export async function validateTenderPricing(input: { pricingId: string; actor: A
 
 export async function lockTenderPricingWorkspace(input: { pricingId: string; actor: AuthorizedUser }): Promise<TenderPricingWorkspace> {
   const current = await loadPricing(input.pricingId, input.actor);
+  await resolveVerifiedPricedDocumentAuthority({ workspace: current });
   const locked = await projectClientIdentity(lockTenderPricing(current, input.actor.uid), input.actor);
   await persistPricing(locked);
   await writeAudit({ pricingId: locked.id, dealId: locked.dealId, workspaceId: locked.workspaceId, actorUid: input.actor.uid, action: "TENDER_PRICING_LOCKED" });
@@ -314,6 +348,7 @@ export async function lockTenderPricingWorkspace(input: { pricingId: string; act
 export async function sendTenderPricingToSubmissionReview(input: { pricingId: string; actor: AuthorizedUser }): Promise<TenderPricingWorkspace> {
   const current = await loadPricing(input.pricingId, input.actor);
   const gated = await assertClientIdentityReadyForHandoff(current, input.actor);
+  await resolveVerifiedPricedDocumentAuthority({ workspace: gated });
   const handoff = buildTenderPricingHandoff(gated);
   const clientQuote = handoff.pricingApproved ? await createApprovedClientQuoteFromLockedPricing({ pricing: gated, actor: input.actor }) : null;
   const next: TenderPricingWorkspace = {

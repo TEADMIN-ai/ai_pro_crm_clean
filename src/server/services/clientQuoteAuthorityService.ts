@@ -3,6 +3,7 @@ import { assertPrivilegedRole, type AuthorizedUser } from "@/lib/server/authz";
 import type { ClientQuoteLine, ClientQuoteRecord, CommercialBlocker, VerifiedSupplierCostLine } from "@/types/commercialAuthority";
 import { assertApprovedClientQuote, calculateApprovedSellingRate, resolveApprovedClientQuote } from "@/server/services/commercialAuthorityService";
 import { assertDealHasVerifiedCanonicalClient } from "@/server/services/clientIdentityService";
+import { pricedDocumentIdFromEvidence, resolveVerifiedPricedDocumentAuthority } from "@/server/services/pricedDocumentAuthorityService";
 import type { TenderPricingLineItem, TenderPricingWorkspace } from "@/types/tenderPricing";
 
 function asString(value: unknown): string | null {
@@ -109,9 +110,10 @@ function landedUnitCost(line: TenderPricingLineItem): number {
 export async function createApprovedClientQuoteFromLockedPricing(input: { pricing: TenderPricingWorkspace; actor: AuthorizedUser }): Promise<ClientQuoteRecord> {
   assertPrivilegedRole(input.actor);
   const pricing = input.pricing;
-  const generatedDocumentId = asString(pricing.documentFillEvidence?.pricedDocumentId);
+  const generatedDocumentId = pricedDocumentIdFromEvidence(pricing.documentFillEvidence);
   if (pricing.lockStatus !== "LOCKED" || pricing.validationStatus !== "VALIDATED" || !requiredPricingApproval(pricing)) throw Object.assign(new Error("Locked approved tender pricing is required before Client Quote approval"), { status: 409, code: "CLIENT_QUOTE_NOT_READY" });
   if (!generatedDocumentId) throw Object.assign(new Error("Approved Client Quote requires a persisted Document_ID"), { status: 409, code: "CLIENT_QUOTE_ARTIFACT_REQUIRED" });
+  await resolveVerifiedPricedDocumentAuthority({ workspace: pricing, documentId: generatedDocumentId });
   const deal = await loadDeal(pricing.dealId);
   const workspaceId = asString(deal.workspaceId);
   assertWorkspace(input.actor, workspaceId);
@@ -133,8 +135,8 @@ export async function createApprovedClientQuoteFromLockedPricing(input: { pricin
   if (!lines.length) throw Object.assign(new Error("At least one approved Client Quote line is required"), { status: 409, code: "CLIENT_QUOTE_NOT_READY" });
   const clientQuoteId = "CQ-" + pricing.dealId + "-" + pricing.revision + "-" + Date.now();
   const now = new Date().toISOString();
-  const quote: ClientQuoteRecord = { clientQuoteId, opportunityId: pricing.dealId, clientId, siteId: asString(deal.siteId), workspaceId: workspaceId ?? "", status: "DRAFT", currency: pricing.currency, taxTreatment: "EXCLUSIVE", lines, total: pricing.total, generatedDocumentId, previousClientQuoteId: null, createdBy: input.actor.uid, createdAt: now, approvedBy: null, approvedAt: null, updatedAt: now };
+  const quote: ClientQuoteRecord = { clientQuoteId, opportunityId: pricing.dealId, clientId, siteId: asString(deal.siteId), workspaceId: workspaceId ?? "", status: "APPROVED", currency: pricing.currency, taxTreatment: "EXCLUSIVE", lines: lines.map((line) => ({ ...line, approvedBy: input.actor.uid, approvedAt: now })), total: pricing.total, generatedDocumentId, previousClientQuoteId: null, createdBy: input.actor.uid, createdAt: now, approvedBy: input.actor.uid, approvedAt: now, updatedAt: now };
   await getFirebaseAdmin().collection("clientQuotes").doc(clientQuoteId).set(quote);
-  await audit(input.actor, "client_quote_created_from_locked_pricing", clientQuoteId, { opportunityId: pricing.dealId, pricingId: pricing.id, generatedDocumentId, lineCount: lines.length });
-  return approveClientQuote({ clientQuoteId, actor: input.actor, generatedDocumentId, overrideReason: "Approved locked tender pricing handoff" });
+  await audit(input.actor, "client_quote_created_from_locked_pricing", clientQuoteId, { opportunityId: pricing.dealId, pricingId: pricing.id, generatedDocumentId, lineCount: lines.length, status: "APPROVED" });
+  return quote;
 }

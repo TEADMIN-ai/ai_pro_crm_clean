@@ -131,6 +131,11 @@ export default function TenderPricingWorkspace(props: Props) {
   }
 
   const unresolved = pricing?.blockers.filter((item) => item.severity === "BLOCKER") ?? [];
+  const pricedDocumentStatus = !pricing?.documentFillEvidence?.pricedDocumentId
+    ? "MISSING"
+    : pricing.documentFillEvidence.governedDocumentStatus === "VERIFIED"
+      ? "VERIFIED"
+      : "GENERATED";
   const rateSchedule = pricing?.pricingAggregationMode !== "FIXED_QUANTITY";
   const rateScheduleLabel = pricing?.pricingAggregationMode === "UNIT_RATE_ONLY" ? "Unit rates only" : "Mixed schedule - fixed totals unavailable";
 
@@ -149,6 +154,7 @@ export default function TenderPricingWorkspace(props: Props) {
             {pricing ? <Badge value={pricing.pricingStatus} /> : <Badge value="NOT_STARTED" />}
             {pricing ? <Badge value={pricing.validationStatus} /> : null}
             {pricing ? <Badge value={pricing.lockStatus} /> : null}
+            {pricing ? <Badge value={`PRICED_DOCUMENT_${pricedDocumentStatus}`} /> : null}
           </div>
         </div>
       </div>
@@ -204,6 +210,7 @@ export default function TenderPricingWorkspace(props: Props) {
               <p className="mt-3 text-sm text-[color:var(--tex-text-muted)]">Pricing schedule: {pricing.sourcePricingDocumentId ?? "Required"}</p>
               <p className="mt-1 text-sm text-[color:var(--tex-text-muted)]">Approved supplier quotes: {pricing.approvedSupplierQuoteIds.length}</p>
               <p className="mt-1 text-sm text-[color:var(--tex-text-muted)]">Revision: {pricing.revision}</p>
+              <p className="mt-1 text-sm text-[color:var(--tex-text-muted)]">Priced document: {pricedDocumentStatus}</p>
             </section>
             <section className="rounded-lg border border-[color:var(--tex-border)] bg-white p-5">
               <h3 className="font-semibold text-[color:var(--tex-text-strong)]">Approvals</h3>

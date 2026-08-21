@@ -188,6 +188,9 @@ export type TenderPricingDocumentFillEvidence = {
   sourceDocumentPath: string;
   pricedDocumentId?: string | null;
   pricedDocumentUrl?: string | null;
+  governedDocumentId?: string | null;
+  governedDocumentStatus?: "MISSING" | "GENERATED" | "VERIFIED" | "INVALID" | null;
+  storagePath?: string | null;
   originalPreserved: boolean;
   fieldMappings: Array<{
     tenderLineItemId?: string | null;

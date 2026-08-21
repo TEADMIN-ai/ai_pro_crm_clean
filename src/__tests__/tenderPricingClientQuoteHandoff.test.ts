@@ -11,7 +11,7 @@ jest.mock("@/lib/firebase/admin", () => ({
       doc: (id: string) => ({
         get: name === "tenderPricingWorkspaces" && id === "pricing-1"
           ? mockPricingGet
-          : jest.fn(async () => ({ exists: true, id, data: () => name === "masterClients" ? mockVerifiedClient : { workspaceId: "workspace-1", clientId: "TE-CLI-1" } })),
+          : jest.fn(async () => ({ exists: true, id, data: () => name === "masterClients" ? mockVerifiedClient : name === "masterDocuments" ? { entityType: "document", canonicalId: id, documentId: id, documentType: "PRICED_TENDER_DOCUMENT", linkedEntityId: "deal-1", workspaceId: "workspace-1", status: "active", verificationStatus: "VERIFIED", reviewStatus: "READY_FOR_USE", storagePath: "priced-documents/workspace-1/deal-1/pricing-1/revision-1/priced-document.json" } : { workspaceId: "workspace-1", clientId: "TE-CLI-1" } })),
         set: mockSet,
       }),
       where: () => ({
