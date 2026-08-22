@@ -10,7 +10,7 @@ import { assertAssignmentAllowed, evaluateContractorAssignmentAuthority } from "
 import { currentDealStateLabel, normalizeSubmissionEvidence, recordProcurementTransitionAudit } from "@/lib/procurement/procurementStateAuthority";
 import { resolveApprovedClientQuote } from "@/server/services/commercialAuthorityService";
 import { resolveVerifiedTenderPackDocument } from "@/server/services/tenderPackCommercialAuthorityService";
-import { getSubmissionEvidenceAuthoritySnapshot, resolveSubmissionEvidence } from "@/server/services/submissionEvidenceAuthorityService";
+import { getSubmissionEvidenceAuthoritySnapshot, resolveSingleApprovedSubmissionEvidence, resolveSubmissionEvidence } from "@/server/services/submissionEvidenceAuthorityService";
 
 type ActionInput = { dealId: string; action: string; actor: AuthorizedUser; contractorId?: string; requirements?: Partial<OpportunityRequirementReview>; submission?: Record<string, unknown> };
 function asString(value: unknown): string | null { return typeof value === "string" && value.trim() ? value.trim() : null; }
@@ -160,7 +160,9 @@ export async function applyOpportunityExecutionAction(input: ActionInput) {
     const workspaceId = asString(deal.workspaceId);
     const clientQuote = await resolveApprovedClientQuote({ opportunityId: input.dealId, workspaceId, clientQuoteId: asString(submissionPayload.clientQuoteId), actor: input.actor });
     const tenderPack = await resolveVerifiedTenderPackDocument({ opportunityId: input.dealId, workspaceId, documentId: asString(submissionPayload.tenderPackDocumentId) });
-    const submissionEvidenceDocumentId = asString(submissionPayload.submissionEvidenceDocumentId);
+    const explicitSubmissionEvidenceDocumentId = asString(submissionPayload.submissionEvidenceDocumentId);
+    const resolvedSubmissionEvidence = explicitSubmissionEvidenceDocumentId ? null : await resolveSingleApprovedSubmissionEvidence({ dealId: input.dealId, actor: input.actor });
+    const submissionEvidenceDocumentId = explicitSubmissionEvidenceDocumentId ?? asString(resolvedSubmissionEvidence?.id);
     if (!submissionEvidenceDocumentId) throw Object.assign(new Error("Approved Submission Evidence is required"), { status: 409, code: "SUBMISSION_EVIDENCE_REQUIRED" });
     const evidence = await resolveSubmissionEvidence({ dealId: input.dealId, evidenceId: submissionEvidenceDocumentId, actor: input.actor });
     submissionPayload.clientQuoteId = clientQuote.clientQuoteId;

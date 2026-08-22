@@ -69,6 +69,12 @@ describe("opportunity execution assignment authentication", () => {
     expect(panelSource).toContain("body: JSON.stringify({ action, ...extra })");
   });
 
+  it("sends canonical approved submission evidence ID for Record Submission when available", () => {
+    expect(panelSource).toContain('action.key === "record_submission"');
+    expect(panelSource).toContain("state.submissionAuthority.approvedSubmissionEvidenceId");
+    expect(panelSource).toContain("submissionEvidenceDocumentId: state.submissionAuthority.approvedSubmissionEvidenceId");
+  });
+
   it("returns 401 when no bearer-authenticated actor is available", async () => {
     requireAuthorizedUser.mockRejectedValue(new MockAuthorizationError("unauthorized", 401));
 

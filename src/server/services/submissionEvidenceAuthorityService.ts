@@ -8,6 +8,7 @@ export type SubmissionEvidenceStatus = "READY_FOR_REVIEW" | "APPROVED" | "REJECT
 function text(value: unknown): string | null { return typeof value === "string" && value.trim() ? value.trim() : null; }
 async function dealFor(dealId: string) { const snapshot = await getFirebaseAdmin().collection("deals").doc(dealId).get(); if (!snapshot.exists) throw Object.assign(new Error("Opportunity not found"), { status: 404 }); return { id: snapshot.id, ...(snapshot.data() ?? {}) } as Record<string, unknown> & { id: string }; }
 function assertWorkspace(actor: AuthorizedUser, workspaceId: string | null) { if (actor.workspaceId && workspaceId && actor.workspaceId !== workspaceId) throw Object.assign(new Error("Cross-workspace submission evidence access rejected"), { status: 403 }); }
+function isApprovedEvidenceForDeal(evidence: Record<string, unknown>, dealId: string, workspaceId: string | null) { return evidence.dealId === dealId && (!text(evidence.opportunityId) || evidence.opportunityId === dealId) && (!workspaceId || evidence.workspaceId === workspaceId) && evidence.status === "APPROVED" && Boolean(text(evidence.reviewedBy)) && Boolean(text(evidence.reviewedAt)); }
 
 export async function createSubmissionEvidence(input: { dealId: string; actor: AuthorizedUser; type: SubmissionEvidenceType; portalReference?: string | null; note?: string | null; testMarker?: string | null; file?: File | null }) {
   assertPrivilegedRole(input.actor); const deal = await dealFor(input.dealId); const workspaceId = text(deal.workspaceId); assertWorkspace(input.actor, workspaceId);
@@ -26,7 +27,16 @@ export async function reviewSubmissionEvidence(input: { dealId: string; evidence
 
 export async function listSubmissionEvidence(dealId: string, actor: AuthorizedUser) { const deal = await dealFor(dealId); const workspaceId = text(deal.workspaceId); assertWorkspace(actor, workspaceId); const snapshot = await getFirebaseAdmin().collection("submissionEvidence").where("dealId", "==", dealId).get(); return snapshot.docs.map((item) => ({ id: item.id, ...(item.data() ?? {}) } as Record<string, unknown> & { id: string })); }
 
-export async function resolveSubmissionEvidence(input: { dealId: string; evidenceId: string; actor: AuthorizedUser }) { const deal = await dealFor(input.dealId); const workspaceId = text(deal.workspaceId); assertWorkspace(input.actor, workspaceId); const snapshot = await getFirebaseAdmin().collection("submissionEvidence").doc(input.evidenceId).get(); const evidence = snapshot.exists ? ({ id: snapshot.id, ...(snapshot.data() ?? {}) } as Record<string, unknown> & { id: string }) : null; if (!evidence || evidence.dealId !== input.dealId || (workspaceId && evidence.workspaceId !== workspaceId) || evidence.status !== "APPROVED" || !text(evidence.reviewedBy) || !text(evidence.reviewedAt)) throw Object.assign(new Error("Approved Submission Evidence is required for this opportunity"), { status: 409, code: "SUBMISSION_EVIDENCE_NOT_APPROVED" }); return evidence; }
+export async function resolveSubmissionEvidence(input: { dealId: string; evidenceId: string; actor: AuthorizedUser }) { const deal = await dealFor(input.dealId); const workspaceId = text(deal.workspaceId); assertWorkspace(input.actor, workspaceId); const snapshot = await getFirebaseAdmin().collection("submissionEvidence").doc(input.evidenceId).get(); const evidence = snapshot.exists ? ({ id: snapshot.id, ...(snapshot.data() ?? {}) } as Record<string, unknown> & { id: string }) : null; if (!evidence || !isApprovedEvidenceForDeal(evidence, input.dealId, workspaceId)) throw Object.assign(new Error("Approved Submission Evidence is required for this opportunity"), { status: 409, code: "SUBMISSION_EVIDENCE_NOT_APPROVED" }); return evidence; }
+
+export async function resolveSingleApprovedSubmissionEvidence(input: { dealId: string; actor: AuthorizedUser }) {
+  const deal = await dealFor(input.dealId); const workspaceId = text(deal.workspaceId); assertWorkspace(input.actor, workspaceId);
+  const snapshot = await getFirebaseAdmin().collection("submissionEvidence").where("dealId", "==", input.dealId).get();
+  const eligible = snapshot.docs.map((item) => ({ id: item.id, ...(item.data() ?? {}) } as Record<string, unknown> & { id: string })).filter((item) => isApprovedEvidenceForDeal(item, input.dealId, workspaceId));
+  if (eligible.length === 0) throw Object.assign(new Error("Approved Submission Evidence is required"), { status: 409, code: "SUBMISSION_EVIDENCE_REQUIRED" });
+  if (eligible.length > 1) throw Object.assign(new Error("Multiple approved Submission Evidence records exist; select the evidence to record submission"), { status: 409, code: "SUBMISSION_EVIDENCE_AMBIGUOUS", evidenceIds: eligible.map((item) => item.id) });
+  return eligible[0];
+}
 
 import { resolveApprovedClientQuote } from "@/server/services/commercialAuthorityService";
 import { resolveVerifiedTenderPackDocument } from "@/server/services/tenderPackCommercialAuthorityService";
@@ -37,5 +47,6 @@ export async function getSubmissionEvidenceAuthoritySnapshot(input: { dealId: st
   try { await resolveApprovedClientQuote({ opportunityId: input.dealId, workspaceId, actor: input.actor }); clientQuoteReady = true; } catch { clientQuoteReady = false; }
   try { await resolveVerifiedTenderPackDocument({ opportunityId: input.dealId, workspaceId }); tenderPackDocumentReady = true; } catch { tenderPackDocumentReady = false; }
   const evidence = await listSubmissionEvidence(input.dealId, input.actor);
-  return { clientQuoteReady, tenderPackDocumentReady, submissionEvidenceReady: evidence.some((item) => item.status === "APPROVED"), evidenceCount: evidence.length };
+  const approvedEvidence = evidence.filter((item) => isApprovedEvidenceForDeal(item, input.dealId, workspaceId));
+  return { clientQuoteReady, tenderPackDocumentReady, submissionEvidenceReady: approvedEvidence.length > 0, approvedSubmissionEvidenceId: approvedEvidence.length === 1 ? approvedEvidence[0].id : null, approvedSubmissionEvidenceCount: approvedEvidence.length, evidenceCount: evidence.length };
 }

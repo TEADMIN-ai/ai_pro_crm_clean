@@ -230,6 +230,38 @@ test("submission review approval requires explicit completion provenance", () =>
   expect(hasValidSubmissionReviewCompletion(approved)).toBe(true);
 });
 
+test("execution state exposes canonical approved submission evidence ID for Record Submission", () => {
+  const state = buildOpportunityExecutionState({
+    deal: {
+      ...assignedDeal,
+      submissionAuthority: {
+        clientQuoteReady: true,
+        tenderPackDocumentReady: true,
+        submissionEvidenceReady: true,
+        approvedSubmissionEvidenceId: "SE-1",
+        approvedSubmissionEvidenceCount: 1,
+        evidenceCount: 1,
+      },
+      opportunityExecution: {
+        ...assignedDeal.opportunityExecution,
+        currentPhase: "READY_FOR_SUBMISSION",
+        documentsPrepared: true,
+        internalReviewApproved: true,
+        internalReviewApprovalProvenance: { action: "complete_internal_review", status: "APPROVED", completedAt: "2026-08-18T20:00:00.000Z", completedBy: "manager-1" },
+        contractorApprovalComplete: true,
+        contractorApprovalProvenance: { action: "contractor_approval", status: "APPROVED", completedAt: "2026-08-18T20:01:00.000Z", completedBy: "manager-1" },
+        tenderPackGenerated: true,
+        tenderPackValidated: true,
+        submissionReviewApprovalProvenance: { action: "complete_submission_review", status: "APPROVED", completedAt: "2026-08-18T20:02:00.000Z", completedBy: "manager-1" },
+      },
+    },
+    contractor: validContractor,
+  });
+
+  expect(state.submissionAuthority.approvedSubmissionEvidenceId).toBe("SE-1");
+  expect(state.actions.find((action) => action.key === "record_submission")).toMatchObject({ enabled: true });
+});
+
 test("execution panel cannot mark ready with tender pack flags but missing durable authority", () => {
   const state = buildOpportunityExecutionState({
     deal: {
@@ -270,5 +302,5 @@ test("execution panel routes tender pack generation through governed generator",
     },
     contractor: validContractor,
   });
-  expect(state.actions.find((action) => action.key === "generate_tender_pack")).toMatchObject({ enabled: true, href: "/dashboard/tender-pack-requests" });
+  expect(state.actions.find((action) => action.key === "generate_tender_pack")).toMatchObject({ enabled: true, href: "/dashboard/tender-pack-requests?dealId=deal-1" });
 });

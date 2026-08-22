@@ -131,6 +131,7 @@ export type OpportunityExecutionState = {
   documentChecklist: OpportunityDocumentChecklistItem[];
   stages: OpportunityExecutionStage[];
   actions: OpportunityAction[];
+  submissionAuthority: { clientQuoteReady: boolean; tenderPackDocumentReady: boolean; submissionEvidenceReady: boolean; approvedSubmissionEvidenceId?: string | null; approvedSubmissionEvidenceCount?: number | null; evidenceCount?: number | null };
 };
 
 export type ContractorMatchResult = {
@@ -679,6 +680,14 @@ export function buildOpportunityExecutionState(input: { deal: Deal | AnyRecord; 
     documentChecklist: documents,
     stages,
     actions,
+    submissionAuthority: {
+      clientQuoteReady: durableClientQuoteReady,
+      tenderPackDocumentReady: durableTenderPackReady,
+      submissionEvidenceReady: Boolean(submissionAuthority.submissionEvidenceReady),
+      approvedSubmissionEvidenceId: str(submissionAuthority.approvedSubmissionEvidenceId),
+      approvedSubmissionEvidenceCount: typeof submissionAuthority.approvedSubmissionEvidenceCount === "number" ? submissionAuthority.approvedSubmissionEvidenceCount : null,
+      evidenceCount: typeof submissionAuthority.evidenceCount === "number" ? submissionAuthority.evidenceCount : null,
+    },
   };
 }
 

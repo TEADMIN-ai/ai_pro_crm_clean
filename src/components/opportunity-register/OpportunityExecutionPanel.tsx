@@ -123,7 +123,7 @@ export default function OpportunityExecutionPanel({ dealId, state, matches }: Pr
       );
     }
     return (
-      <EnterpriseActionButton key={action.key} disabled={pending || !action.enabled} variant={action.enabled ? "success" : "secondary"} onClick={() => submit(action.key)} title={action.reason ?? undefined}>
+      <EnterpriseActionButton key={action.key} disabled={pending || !action.enabled} variant={action.enabled ? "success" : "secondary"} onClick={() => submit(action.key, action.key === "record_submission" && state.submissionAuthority.approvedSubmissionEvidenceId ? { submission: { submissionEvidenceDocumentId: state.submissionAuthority.approvedSubmissionEvidenceId } } : {})} title={action.reason ?? undefined}>
         {action.label}
       </EnterpriseActionButton>
     );
