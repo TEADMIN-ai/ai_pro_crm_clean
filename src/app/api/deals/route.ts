@@ -8,6 +8,8 @@ import { generateFixSuggestions } from "@/lib/engine/fixSuggestions";
 import { analyzeTenderText } from "@/lib/tenderAnalysisService";
 import { getContractorBusinessName, resolveContractorReference } from "@/lib/contractors/contractorReferenceResolver";
 import { getDealContractorReference } from "@/lib/deals/contractorReference";
+import { buildOpportunityExecutionState } from "@/lib/opportunities/opportunityExecution";
+import { buildProcurementExecutionProjection } from "@/lib/opportunities/procurementExecutionProjection";
 
 const db = getFirebaseAdmin();
 
@@ -87,6 +89,33 @@ function buildStoredReadinessProjection(data: Record<string, unknown>): StoredRe
   };
 }
 
+function buildWorkflowPhaseProjection(input: {
+  id: string;
+  data: Record<string, unknown>;
+  contractor: Record<string, unknown> | null;
+  contractorId: string | null;
+  contractorName: string | null;
+}): string {
+  try {
+    const deal = {
+      id: input.id,
+      ...input.data,
+      contractorId: input.contractorId ?? undefined,
+      contractorName: input.contractorName ?? undefined,
+    };
+    const state = buildOpportunityExecutionState({ deal, contractor: input.contractor });
+    const projection = buildProcurementExecutionProjection({
+      deal,
+      state,
+      remediationRequests: state.remediationRequests,
+    });
+
+    return projection.currentPhase;
+  } catch (error) {
+    console.error("DEALS WORKFLOW PHASE PROJECTION ERROR:", error);
+    return "UNKNOWN";
+  }
+}
 export async function GET(req: NextRequest) {
   try {
     const user = await requireAuthorizedUser(req);
@@ -137,10 +166,19 @@ export async function GET(req: NextRequest) {
         const canonicalContractorId = contractorResolution?.ok === true ? contractorResolution.contractorId : null;
         const resolvedContractorName = resolvedContractor ? getContractorBusinessName(resolvedContractor) : null;
         const resolvedCompanyId = getString(data.companyId) || null;
+        const workflowPhase = buildWorkflowPhaseProjection({
+          id: doc.id,
+          data,
+          contractor: resolvedContractor,
+          contractorId: canonicalContractorId,
+          contractorName: resolvedContractorName,
+        });
 
         return {
           id: doc.id,
           ...data,
+          legacyStatus: getString(data.status) || null,
+          workflowPhase,
           title,
           description,
           scopeOfWork: scopeText,

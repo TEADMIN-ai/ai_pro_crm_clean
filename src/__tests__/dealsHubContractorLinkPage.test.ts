@@ -7,6 +7,11 @@ const source = readFileSync(
   "utf8",
 );
 
+const routeSource = readFileSync(
+  path.join(process.cwd(), "src/app/api/deals/route.ts"),
+  "utf8",
+);
+
 describe("Deals Hub contractor link UI wiring", () => {
   it("keeps the no-contractor state visible and blocks pack generation through the canonical decision", () => {
     const decision = buildDealsDashboardDecision({ deal: { contractorReferenceResolution: { status: "none" } } });
@@ -49,6 +54,27 @@ describe("Deals Hub contractor link UI wiring", () => {
     expect(source).toContain("selectedAssignmentDecision?.assignmentAllowed !== true");
     expect(source).toContain("disabled={isLoadingContractors || isAssigningContractor || !assignmentContractorId.trim() || selectedAssignmentDecision?.assignmentAllowed !== true}");
     expect(missingDecision.assignmentAllowed).toBe(false);
+  });
+});
+
+describe("Deals Hub workflow phase read model", () => {
+  it("exposes canonical workflowPhase while preserving raw status as legacyStatus", () => {
+    expect(routeSource).toContain("buildOpportunityExecutionState");
+    expect(routeSource).toContain("buildProcurementExecutionProjection");
+    expect(routeSource).toContain("const workflowPhase = buildWorkflowPhaseProjection");
+    expect(routeSource).toContain("workflowPhase,");
+    expect(routeSource).toContain("legacyStatus: getString(data.status) || null");
+    expect(routeSource).toContain('return "UNKNOWN"');
+  });
+});
+
+describe("Deals Hub workflow phase status wiring", () => {
+  it("renders workflow status from canonical workflowPhase instead of raw legacy status", () => {
+    expect(source).toContain("function getWorkflowStatusLabel(deal: Deal | null | undefined): string");
+    expect(source).toContain("Status: {getWorkflowStatusLabel(selectedDeal)}");
+    expect(source).toContain("{getWorkflowStatusLabel(deal)}</td>");
+    expect(source).not.toContain('Status: {selectedDeal?.status || "Unknown"}');
+    expect(source).not.toContain('{deal.status || "Unknown"}</td>');
   });
 });
 

@@ -23,6 +23,8 @@ type Deal = {
   title?: string;
   name?: string;
   status?: string;
+  legacyStatus?: string | null;
+  workflowPhase?: string | null;
   readinessScore?: number;
   riskLevel?: string;
   contractorId?: string;
@@ -61,6 +63,10 @@ const DEFAULT_STATUS: StatusState = {
   detail: "No action started yet.",
   tone: "idle",
 };
+
+function getWorkflowStatusLabel(deal: Deal | null | undefined): string {
+  return deal?.workflowPhase?.trim() || "Unknown";
+}
 
 function getDealTitle(deal: Deal): string {
   return deal.title?.trim() || deal.name?.trim() || `Deal ${deal.id}`;
@@ -896,7 +902,7 @@ export default function DealsPage() {
                     {selectedDeal ? getDealTitle(selectedDeal) : "No deal selected"}
                   </p>
                   <p className="mt-2 text-sm text-slate-500">
-                    Status: {selectedDeal?.status || "Unknown"}
+                    Status: {getWorkflowStatusLabel(selectedDeal)}
                   </p>
                 </div>
 
@@ -1169,7 +1175,7 @@ export default function DealsPage() {
                                       <p className="mt-1 text-xs text-slate-500">ID: {deal.id}</p>
                                     </div>
                                   </td>
-                                  <td className="px-6 py-4 text-sm text-slate-600">{deal.status || "Unknown"}</td>
+                                  <td className="px-6 py-4 text-sm text-slate-600">{getWorkflowStatusLabel(deal)}</td>
                                   <td className="px-6 py-4 text-sm text-slate-600">
                                     Readiness not verified
                                   </td>

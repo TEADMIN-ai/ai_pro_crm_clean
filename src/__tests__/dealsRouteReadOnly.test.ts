@@ -247,6 +247,31 @@ describe("GET /api/deals read-only behaviour", () => {
     expectNoWrites();
   });
 
+  it("does not expose raw submitted status as canonical workflow phase", async () => {
+    dealDocs = [makeDeal("deal-1", { status: "submitted", stage: "submitted", opportunityExecution: { submitted: true, readyForSubmission: true } })];
+
+    const response = await GET(request());
+    const payload = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(payload.deals[0].status).toBe("submitted");
+    expect(payload.deals[0].legacyStatus).toBe("submitted");
+    expect(payload.deals[0].workflowPhase).toBe("READY_FOR_SUBMISSION");
+    expect(payload.deals[0].workflowPhase).not.toBe("submitted");
+    expectNoWrites();
+  });
+
+  it("returns SUBMITTED from valid governed submission provenance", async () => {
+    dealDocs = [makeDeal("deal-1", { status: "submitted", opportunityExecution: { submissionCompletionProvenance: { action: "record_submission", status: "SUBMITTED", completedAt: "2026-08-21T16:00:00.000Z", completedBy: "manager-1", clientQuoteId: "CQ-1", tenderPackDocumentId: "MDOC-TP-1", submissionEvidenceDocumentId: "SE-1" } } })];
+
+    const response = await GET(request());
+    const payload = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(payload.deals[0]).toEqual(expect.objectContaining({ status: "submitted", legacyStatus: "submitted", workflowPhase: "SUBMITTED" }));
+    expectNoWrites();
+  });
+
   it("returns controlled errors without exposing stack traces", async () => {
     getDeals.mockRejectedValueOnce(new Error("internal stack detail"));
 
