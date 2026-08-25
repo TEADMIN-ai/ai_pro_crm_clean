@@ -444,8 +444,19 @@ test("ready prerequisites do not complete the top Submission operational stage",
   expect(state.readiness).toBeLessThan(100);
 });
 
-test("submitted execution authority completes the top Submission operational stage", () => {
-  const deal = { ...baseDeal, opportunityExecution: { ...baseDeal.opportunityExecution, submitted: true, submission: { submissionEvidenceDocumentId: "SE-test" } } };
+const validSubmissionCompletionProvenance = {
+  action: "record_submission",
+  status: "SUBMITTED",
+  completedAt: "2026-08-21T16:00:00.000Z",
+  completedBy: "manager-1",
+  completedByEmail: null,
+  clientQuoteId: "CQ-1",
+  tenderPackDocumentId: "MDOC-TP-1",
+  submissionEvidenceDocumentId: "SE-1",
+};
+
+test("complete governed submission provenance completes the top Submission operational stage", () => {
+  const deal = { ...baseDeal, opportunityExecution: { ...baseDeal.opportunityExecution, submitted: true, submission: { submissionEvidenceDocumentId: "SE-test" }, submissionCompletionProvenance: validSubmissionCompletionProvenance } };
   const projection = projectionFor(deal);
   const submissionStage = stageRows(projection).find((stage) => stage.title === "Submission");
   const state = buildOpportunityExecutionState({ deal, contractor });
@@ -458,16 +469,22 @@ test("submitted execution authority completes the top Submission operational sta
   expect(state.readiness).toBe(100);
 });
 
-test("submitted status or stage also completes Submission", () => {
-  for (const deal of [{ ...baseDeal, status: "submitted" }, { ...baseDeal, stage: "submitted" }]) {
-    const projection = projectionFor(deal);
-    const submissionStage = stageRows(projection).find((stage) => stage.title === "Submission");
+test.each([
+  ["status submitted alone", { ...baseDeal, status: "submitted" }],
+  ["stage submitted alone", { ...baseDeal, stage: "submitted" }],
+  ["opportunityExecution.submitted true alone", { ...baseDeal, opportunityExecution: { ...baseDeal.opportunityExecution, submitted: true } }],
+  ["all loose submitted markers together", { ...baseDeal, status: "submitted", stage: "submitted", opportunityExecution: { ...baseDeal.opportunityExecution, submitted: true } }],
+])("%s does not complete Submission", (_label, deal) => {
+  const projection = projectionFor(deal);
+  const submissionStage = stageRows(projection).find((stage) => stage.title === "Submission");
 
-    expect(projection.submissionStatus).toBe("complete");
-    expect(submissionStage?.status).toBe("COMPLETE");
-    expect(submissionStage?.progress).toBe(100);
-  }
+  expect(projection.currentPhase).toBe("READY_FOR_SUBMISSION");
+  expect(projection.nextAction.key).toBe("RECORD_SUBMISSION");
+  expect(projection.submissionStatus).toBe("in_progress");
+  expect(submissionStage?.status).toBe("IN_PROGRESS");
+  expect(submissionStage?.progress).toBe(90);
 });
+
 
 test("TEST DO NOT SUBMIT evidence does not prove external submission", () => {
   const projection = projectionFor({

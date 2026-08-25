@@ -12,7 +12,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ de
   try {
     const actor = await requireAuthorizedUser(request); const { dealId: rawDealId } = await context.params; const dealId = decodeURIComponent(rawDealId);
     const form = await request.formData(); const file = form.get("file"); const type = String(form.get("evidenceType") ?? "") as SubmissionEvidenceType;
-    if (!["PORTAL_RECEIPT", "SENT_EMAIL", "SUBMISSION_DOCUMENT"].includes(type)) return NextResponse.json({ error: "A valid submission evidence type is required" }, { status: 400 });
+    if (!["PORTAL_RECEIPT", "SENT_EMAIL", "MANUAL_RECEIPT", "SUBMISSION_DOCUMENT"].includes(type)) return NextResponse.json({ error: "A valid submission evidence type is required" }, { status: 400 });
     return NextResponse.json({ evidence: await createSubmissionEvidence({ dealId, actor, type, portalReference: String(form.get("portalReference") ?? "") || null, note: String(form.get("note") ?? "") || null, testMarker: String(form.get("testMarker") ?? "") || null, file: file instanceof File ? file : null }) }, { status: 201 });
   } catch (error) { if (error instanceof AuthorizationError) return NextResponse.json({ error: error.message }, { status: error.status }); return errorResponse(error); }
 }

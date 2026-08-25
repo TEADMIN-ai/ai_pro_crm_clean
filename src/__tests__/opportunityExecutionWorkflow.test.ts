@@ -67,8 +67,38 @@ describe("opportunity execution workflow", () => {
     const state = buildOpportunityExecutionState({ deal: { ...assignedDeal, opportunityExecution: { ...assignedDeal.opportunityExecution, currentPhase: "PACK_GENERATION", documentsPrepared: true, internalReviewApproved: true, contractorApprovalComplete: true } }, contractor: validContractor });
     expect(buildSubmissionReadiness({ state, pricingComplete: true, documentsComplete: true, internalReviewApproved: true, signaturesComplete: true, packGenerated: true, packValidated: true }).ready).toBe(true);
   });
-  test("submission record changes status to submitted", () => {
-    expect(deriveOpportunityPhase({ deal: { ...baseDeal, status: "submitted", stage: "submitted" } })).toBe("SUBMITTED");
+  const validSubmissionCompletionProvenance = {
+    action: "record_submission",
+    status: "SUBMITTED",
+    completedAt: "2026-08-21T16:00:00.000Z",
+    completedBy: "manager-1",
+    clientQuoteId: "CQ-1",
+    tenderPackDocumentId: "MDOC-TP-1",
+    submissionEvidenceDocumentId: "SE-1",
+  };
+
+  test.each([
+    ["deal.status submitted alone", { ...baseDeal, status: "submitted" }],
+    ["deal.stage submitted alone", { ...baseDeal, stage: "submitted" }],
+    ["opportunityExecution.submitted true alone", { ...baseDeal, opportunityExecution: { submitted: true } }],
+    ["all loose submitted markers together", { ...baseDeal, status: "submitted", stage: "submitted", opportunityExecution: { submitted: true } }],
+  ])("%s does not derive SUBMITTED", (_label, deal) => {
+    expect(deriveOpportunityPhase({ deal })).not.toBe("SUBMITTED");
+    expect(deriveOpportunityPhase({ deal })).toBe("REQUIREMENTS_REVIEW");
+  });
+
+  test("complete governed submission provenance derives SUBMITTED", () => {
+    expect(deriveOpportunityPhase({ deal: { ...baseDeal, opportunityExecution: { submissionCompletionProvenance: validSubmissionCompletionProvenance } } })).toBe("SUBMITTED");
+  });
+
+  test.each(["action", "status", "completedAt", "completedBy", "clientQuoteId", "tenderPackDocumentId", "submissionEvidenceDocumentId"] as const)("missing %s does not derive SUBMITTED", (field) => {
+    const provenance = { ...validSubmissionCompletionProvenance };
+    delete provenance[field];
+    expect(deriveOpportunityPhase({ deal: { ...baseDeal, opportunityExecution: { submitted: true, submissionCompletionProvenance: provenance } } })).not.toBe("SUBMITTED");
+  });
+
+  test("wrong submission provenance action does not derive SUBMITTED", () => {
+    expect(deriveOpportunityPhase({ deal: { ...baseDeal, opportunityExecution: { submitted: true, submissionCompletionProvenance: { ...validSubmissionCompletionProvenance, action: "complete_submission_review" } } } })).not.toBe("SUBMITTED");
   });
   test("invalid phase transition returns 409", () => {
     expect(validateOpportunityTransition("REQUIREMENTS_REVIEW", "SUBMITTED")).toMatchObject({ ok: false, status: 409 });

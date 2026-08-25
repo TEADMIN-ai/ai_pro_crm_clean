@@ -54,7 +54,8 @@ jest.mock("@/server/services/tenderPackCommercialAuthorityService", () => ({
   resolveVerifiedTenderPackDocument: (...args: unknown[]) => mockResolveVerifiedTenderPackDocument(...args),
 }));
 
-import { getSubmissionEvidenceAuthoritySnapshot, resolveSingleApprovedSubmissionEvidence, resolveSubmissionEvidence } from "@/server/services/submissionEvidenceAuthorityService";
+import { TEOS_STAGING_FIREBASE_PROJECT_ID } from "@/lib/server/environmentSafety";
+import { getSubmissionEvidenceAuthoritySnapshot, resolveSingleApprovedSubmissionEvidence, resolveSubmissionEvidence, validateSubmissionEvidenceForEnvironment } from "@/server/services/submissionEvidenceAuthorityService";
 
 const actor = { uid: "manager-1", email: "manager@example.test", role: "manager" as const, workspaceId: "workspace-1" };
 
@@ -72,7 +73,7 @@ function approvedEvidence(id: string, overrides: Record<string, unknown> = {}) {
     reviewedBy: "manager-1",
     reviewedAt: "2026-08-21T15:23:47.012Z",
     evidenceType: "PORTAL_RECEIPT",
-    testMarker: "TEST / DO NOT SUBMIT",
+    portalReference: "PORTAL-REF-1",
     storagePath: "uploads/deals/deal-1/submission-evidence/evidence.pdf",
     ...overrides,
   });
@@ -140,11 +141,18 @@ test("authority snapshot exposes exactly one approved evidence ID for UI forward
   });
 });
 
-test("TEST DO NOT SUBMIT evidence alone does not mark submission complete", async () => {
-  approvedEvidence("SE-1");
+test("controlled staging evidence is rejected outside a verified staging simulation environment", async () => {
+  approvedEvidence("SE-1", { testMarker: "TEST / DO NOT SUBMIT" });
   const deal = mockCollectionRecords("deals").get("deal-1");
 
   expect(deal?.opportunityExecution).toBeUndefined();
-  await expect(resolveSingleApprovedSubmissionEvidence({ dealId: "deal-1", actor })).resolves.toMatchObject({ testMarker: "TEST / DO NOT SUBMIT" });
+  await expect(resolveSingleApprovedSubmissionEvidence({ dealId: "deal-1", actor })).rejects.toMatchObject({ code: "CONTROLLED_STAGING_SUBMISSION_EVIDENCE_REJECTED" });
   expect(mockCollectionRecords("deals").get("deal-1")?.opportunityExecution).toBeUndefined();
+});
+
+test("controlled staging evidence is allowed only with verified staging identity", () => {
+  expect(validateSubmissionEvidenceForEnvironment({
+    evidence: { evidenceType: "PORTAL_RECEIPT", testMarker: "TEST / DO NOT SUBMIT", portalReference: "STAGING-REF" },
+    env: { NODE_ENV: "development", FIREBASE_PROJECT_ID: TEOS_STAGING_FIREBASE_PROJECT_ID, NEXT_PUBLIC_FIREBASE_PROJECT_ID: TEOS_STAGING_FIREBASE_PROJECT_ID, TEOS_ALLOW_STAGING_SIMULATION: "true" },
+  })).toMatchObject({ controlledStaging: true, stagingAllowed: true });
 });

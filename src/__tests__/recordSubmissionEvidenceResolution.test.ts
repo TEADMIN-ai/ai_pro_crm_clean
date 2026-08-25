@@ -122,7 +122,7 @@ function approvedEvidence(id: string, overrides: Record<string, unknown> = {}) {
     reviewedBy: "manager-1",
     reviewedAt: "2026-08-21T15:23:47.012Z",
     evidenceType: "PORTAL_RECEIPT",
-    testMarker: "TEST / DO NOT SUBMIT",
+    portalReference: "PORTAL-REF-1",
     storagePath: "uploads/deals/deal-1/submission-evidence/evidence.pdf",
     ...overrides,
   };
@@ -167,6 +167,14 @@ test("record_submission resolves exactly one approved evidence and writes submit
     currentPhase: "SUBMITTED",
     submitted: true,
     submission: expect.objectContaining({ submissionEvidenceDocumentId: "SE-1" }),
+    submissionCompletionProvenance: expect.objectContaining({
+      action: "record_submission",
+      status: "SUBMITTED",
+      completedBy: "manager-1",
+      clientQuoteId: "CQ-1",
+      tenderPackDocumentId: "MDOC-TP-1",
+      submissionEvidenceDocumentId: "SE-1",
+    }),
   });
 });
 
