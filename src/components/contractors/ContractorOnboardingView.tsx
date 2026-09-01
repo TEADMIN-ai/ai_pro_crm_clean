@@ -297,8 +297,8 @@ export function canApproveOnboardingLifecycle(contractor: ContractorRecord, view
   return viewer.isPrivileged === true && contractor.archived !== true && isOnboardingLifecycleState(contractor);
 }
 
-export function buildReadinessSummary(documents: ContractorDocument[], contractor: ContractorRecord, _decision?: CanonicalDecision) {
-  void _decision;
+
+export function buildReadinessSummary(documents: ContractorDocument[], contractor: ContractorRecord, canonicalDecision?: CanonicalDecision) {
   const verifiedTypes = new Set<SupportedDocumentType>();
   const missingLabels: string[] = [];
 
@@ -323,19 +323,45 @@ export function buildReadinessSummary(documents: ContractorDocument[], contracto
   const reviewRequiredCount = documents.filter(isExtractionFailed).length;
   const requiredDocsApprovedCount = verifiedTypes.size;
   const docsMissing = missingLabels.length;
+  const documentReadinessScore = Math.round((requiredDocsApprovedCount / SUPPORTED_DOCUMENT_TYPES.length) * 100);
   const readinessScore =
-    typeof contractor.readinessScore === "number" && Number.isFinite(contractor.readinessScore)
-      ? contractor.readinessScore
-      : Math.round((requiredDocsApprovedCount / SUPPORTED_DOCUMENT_TYPES.length) * 100);
+    typeof canonicalDecision?.readinessScore === "number" && Number.isFinite(canonicalDecision.readinessScore)
+      ? canonicalDecision.readinessScore
+      : typeof contractor.readinessScore === "number" && Number.isFinite(contractor.readinessScore)
+        ? contractor.readinessScore
+        : documentReadinessScore;
+  const canonicalReady = canonicalDecision?.readinessDecisionStatus === "READY";
+  const documentPortfolioComplete = docsMissing === 0 && reviewRequiredCount === 0;
+  const approvalBlockers: string[] = [];
+
+  if (!canonicalDecision) {
+    approvalBlockers.push("Canonical readiness decision unavailable.");
+  } else if (!canonicalReady) {
+    approvalBlockers.push("Canonical readiness is " + (canonicalDecision.readinessDecisionStatus || "UNKNOWN") + ".");
+  }
+  if (readinessScore !== 100) {
+    approvalBlockers.push("Canonical readiness score is " + Math.round(readinessScore) + "%.");
+  }
+  if (docsMissing > 0) {
+    approvalBlockers.push(docsMissing + " required document(s) missing.");
+  }
+  if (reviewRequiredCount > 0) {
+    approvalBlockers.push(reviewRequiredCount + " document(s) require review.");
+  }
 
   return {
     readinessScore,
+    documentReadinessScore,
+    readinessDecisionStatus: canonicalDecision?.readinessDecisionStatus ?? "UNRESOLVED",
+    canonicalDecisionAvailable: Boolean(canonicalDecision),
     requiredDocsApprovedCount,
     requiredDocsTotalCount: SUPPORTED_DOCUMENT_TYPES.length,
     docsMissing,
     reviewRequiredCount,
     missingLabels,
-    canApprove: readinessScore === 100 && docsMissing === 0 && reviewRequiredCount === 0,
+    documentPortfolioComplete,
+    approvalBlockers,
+    canApprove: Boolean(canonicalDecision) && canonicalReady && readinessScore === 100 && documentPortfolioComplete,
   };
 }
 
@@ -595,7 +621,7 @@ export default function ContractorOnboardingView({ contractorId }: Props) {
           archived={payload.canonicalDecision?.archived === true}
           historicalReadinessScore={typeof payload.canonicalDecision?.historicalDecision.readinessScore === "number" ? payload.canonicalDecision.historicalDecision.readinessScore : null}
           status={payload.contractor.status}
-          overallStatus={payload.contractor.overallStatus}
+          overallStatus={payload.canonicalDecision ? payload.canonicalDecision.readinessDecisionStatus : payload.contractor.overallStatus}
           readinessScore={readinessSummary.readinessScore}
           requiredDocsApprovedCount={readinessSummary.requiredDocsApprovedCount}
           requiredDocsTotalCount={readinessSummary.requiredDocsTotalCount}
@@ -607,11 +633,7 @@ export default function ContractorOnboardingView({ contractorId }: Props) {
           logoUrl={payload.contractor.logoUrl ?? payload.contractor.businessLogoUrl}
           href={`/dashboard/contractors/${encodeURIComponent(contractorId)}`}
           canApproveOnboarding={canApproveOnboarding}
-          approveDisabledReason={
-            readinessSummary.canApprove
-              ? null
-              : `${readinessSummary.docsMissing} missing and ${readinessSummary.reviewRequiredCount} requiring review`
-          }
+          approveDisabledReason={readinessSummary.canApprove ? null : readinessSummary.approvalBlockers.join(" ")}
           onApproveOnboarding={() => void approveOnboardingPortfolio()}
         />
 
@@ -626,6 +648,7 @@ export default function ContractorOnboardingView({ contractorId }: Props) {
           documents={payload.documents}
           deals={payload.linkedDeals}
           timeline={payload.timeline}
+          canonicalDecision={payload.canonicalDecision}
           readinessSummary={readinessSummary}
         />
 
@@ -780,7 +803,9 @@ export default function ContractorOnboardingView({ contractorId }: Props) {
                 docsMissing={readinessSummary.docsMissing}
                 reviewRequiredCount={readinessSummary.reviewRequiredCount}
                 missingLabels={readinessSummary.missingLabels}
-                portfolioReady={readinessSummary.canApprove}
+                approvalBlockers={readinessSummary.approvalBlockers}
+                readinessDecisionStatus={readinessSummary.readinessDecisionStatus}
+                portfolioReady={readinessSummary.documentPortfolioComplete}
                 canApprove={readinessSummary.canApprove && canApproveOnboarding}
                 approving={approvingOnboarding}
                 onApprove={approveOnboardingPortfolio}
@@ -958,6 +983,8 @@ function OnboardingApprovalPanel(props: {
   docsMissing: number;
   reviewRequiredCount: number;
   missingLabels: string[];
+  approvalBlockers: string[];
+  readinessDecisionStatus: string;
   canApprove: boolean;
   approving: boolean;
   onApprove: () => void;
@@ -967,7 +994,9 @@ function OnboardingApprovalPanel(props: {
       ? props.missingLabels.join(", ")
       : props.reviewRequiredCount > 0
         ? `${props.reviewRequiredCount} document(s) require review`
-        : "Ready for approval";
+        : props.approvalBlockers.length > 0
+          ? props.approvalBlockers.join(" ")
+          : "Ready for approval";
 
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -975,7 +1004,7 @@ function OnboardingApprovalPanel(props: {
         <div>
           <h2 className="text-lg font-semibold text-slate-950">Onboarding Approval</h2>
           <p className="mt-1 text-sm text-slate-600">
-            Onboarding approval is based on lifecycle state and verified required documents.
+            Onboarding approval is based on canonical readiness, lifecycle state and verified required documents.
           </p>
         </div>
         <span className={`rounded-full border px-3 py-1 text-xs font-semibold ${
@@ -985,7 +1014,7 @@ function OnboardingApprovalPanel(props: {
               ? "border-sky-200 bg-sky-50 text-sky-700"
               : "border-amber-200 bg-amber-50 text-amber-800"
         }`}>
-          {props.onboardingLifecycleApproved ? "Onboarding Approved" : props.canApprove ? "Ready for approval" : props.portfolioReady ? "Lifecycle unavailable" : "Review Required"}
+          {props.onboardingLifecycleApproved ? "Onboarding Approved" : props.canApprove ? "Ready for approval" : props.portfolioReady ? props.readinessDecisionStatus : "Review Required"}
         </span>
       </div>
 
@@ -1013,7 +1042,7 @@ function OnboardingApprovalPanel(props: {
         </dl>
       </div>
 
-      {!props.onboardingLifecycleApproved && !props.portfolioReady ? (
+      {!props.onboardingLifecycleApproved && !props.canApprove ? (
         <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
           <p className="font-semibold">Approval blocked</p>
           <p className="mt-1">{blockerText}</p>

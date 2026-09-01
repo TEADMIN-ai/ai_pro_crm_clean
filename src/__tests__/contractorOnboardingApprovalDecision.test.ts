@@ -7,6 +7,19 @@ import type { ContractorDocument } from "@/types/document";
 const mandatoryTypes = ["cipc", "bbbee", "taxClearance", "coida", "bankConfirmation"] as const;
 const privilegedViewer = { isPrivileged: true };
 
+function canonicalDecision(readinessDecisionStatus: string, readinessScore: number | null = readinessDecisionStatus === "READY" ? 100 : null) {
+  return {
+    readinessScore,
+    readinessDecisionStatus,
+    complianceDecisionStatus: readinessDecisionStatus,
+    assignmentAllowed: readinessDecisionStatus === "READY",
+    identityMatchStatus: "MATCHED",
+    csdValidationStatus: "VALID",
+    archived: false,
+    historicalDecision: { readinessScore: null, complianceStatus: null },
+  };
+}
+
 function approvedDocument(documentType: string): ContractorDocument {
   return {
     id: documentType,
@@ -25,6 +38,7 @@ function canEnableApprovalButton(input: {
   archived?: boolean;
   documents: ContractorDocument[];
   readinessScore: number;
+  canonicalDecision?: ReturnType<typeof canonicalDecision>;
 }): boolean {
   const contractor = {
     id: "rwBxCeiW77cvEbUDY6BjFt2FmzI2",
@@ -34,7 +48,7 @@ function canEnableApprovalButton(input: {
     archived: input.archived,
     readinessScore: input.readinessScore,
   };
-  const summary = buildReadinessSummary(input.documents, contractor);
+  const summary = buildReadinessSummary(input.documents, contractor, input.canonicalDecision);
   return summary.canApprove && canApproveOnboardingLifecycle(contractor, privilegedViewer);
 }
 
@@ -45,6 +59,7 @@ describe("contractor onboarding approval decision", () => {
       complianceApproved: true,
       documents: mandatoryTypes.map(approvedDocument),
       readinessScore: 100,
+      canonicalDecision: canonicalDecision("READY"),
     })).toBe(true);
   });
 
@@ -80,4 +95,20 @@ describe("contractor onboarding approval decision", () => {
     expect(summary.reviewRequiredCount).toBe(1);
     expect(canEnableApprovalButton({ status: "onboarding", documents, readinessScore: 100 })).toBe(false);
   });
+
+  test("blocks approval when documents are complete but canonical readiness is blocked", () => {
+    const documents = mandatoryTypes.map(approvedDocument);
+    const summary = buildReadinessSummary(documents, { id: "contractor-1", status: "onboarding", readinessScore: 100 }, canonicalDecision("BLOCKED", null));
+
+    expect(summary.requiredDocsApprovedCount).toBe(mandatoryTypes.length);
+    expect(summary.docsMissing).toBe(0);
+    expect(summary.documentReadinessScore).toBe(100);
+    expect(summary.readinessScore).toBe(100);
+    expect(summary.readinessDecisionStatus).toBe("BLOCKED");
+    expect(summary.documentPortfolioComplete).toBe(true);
+    expect(summary.canApprove).toBe(false);
+    expect(summary.approvalBlockers).toContain("Canonical readiness is BLOCKED.");
+    expect(canEnableApprovalButton({ status: "onboarding", documents, readinessScore: 100, canonicalDecision: canonicalDecision("BLOCKED", null) })).toBe(false);
+  });
+
 });
