@@ -1526,7 +1526,7 @@ function normalizePartnerActivity(value: unknown): import("@/types/vehicleFinanc
 }
 function normalizeSupplierQuoteDocuments(value: unknown): import("@/types/vehicleFinance").VehicleFinanceSupplierQuoteDocument[] {
   const documents = Array.isArray(value) ? value as any[] : [];
-  return documents.map((item) => ({ documentId: asString(item?.documentId) || crypto.randomUUID(), fileName: asString(item?.fileName), fileUrl: asString(item?.fileUrl) || null, storagePath: asString(item?.storagePath) || null, uploadedAt: toIso(item?.uploadedAt), uploadedBy: asString(item?.uploadedBy) || null, notes: asString(item?.notes) || null })).filter((item) => item.fileName && (item.fileUrl || item.storagePath));
+  return documents.map((item) => ({ documentId: asString(item?.documentId) || crypto.randomUUID(), fileName: asString(item?.fileName), fileUrl: asString(item?.fileUrl) || null, storagePath: asString(item?.storagePath) || null, mimeType: asString(item?.mimeType) || null, sizeBytes: Number.isSafeInteger(item?.sizeBytes) ? Number(item.sizeBytes) : null, uploadedAt: toIso(item?.uploadedAt), uploadedBy: asString(item?.uploadedBy) || null, notes: asString(item?.notes) || null })).filter((item) => item.fileName && (item.fileUrl || item.storagePath));
 }
 function normalizeProcurementCaseData(id: string, data: Record<string, unknown>): import("@/types/vehicleFinance").VehicleFinanceProcurementCase {
   const history = Array.isArray(data.activityHistory) ? data.activityHistory as any[] : [];
@@ -1682,6 +1682,15 @@ export async function listVehicleFinanceSupplierQuotes(procurementCaseId?: strin
   const snapshot = await query.limit(500).get();
   return snapshot.docs.map((doc) => normalizeSupplierQuoteData(doc.id, (doc.data() ?? {}) as Record<string, unknown>)).sort((left, right) => right.createdAt.localeCompare(left.createdAt));
 }
+export async function getVehicleFinanceSupplierQuoteDocument(supplierQuoteId: string, documentId: string) {
+  const quoteSnapshot = await assertProcurementDocument(SUPPLIER_QUOTE_COLLECTION, supplierQuoteId, "Supplier quote");
+  const quote = normalizeSupplierQuoteData(quoteSnapshot.id, (quoteSnapshot.data() ?? {}) as Record<string, unknown>);
+  await assertProcurementDocument(PROCUREMENT_CASE_COLLECTION, quote.procurementCaseId, "Procurement case");
+  const document = quote.supportingDocuments.find((item) => item.documentId === documentId);
+  if (!document?.storagePath || document.fileUrl || !document.storagePath.startsWith(`vehicle-finance/procurement-cases/${quote.procurementCaseId}/supplier-quotes/`)) throw new VehicleFinanceProcurementValidationError("Quote document is unavailable", 404);
+  return { quote, document };
+}
+
 export async function createVehicleFinanceSupplierQuote(input: Record<string, unknown>, actor: ActorContext): Promise<import("@/types/vehicleFinance").VehicleFinanceSupplierQuote> {
   const supplierId = requireProcurementString(input.supplierId, "Supplier");
   const procurementCaseId = requireProcurementString(input.procurementCaseId, "Procurement case");
