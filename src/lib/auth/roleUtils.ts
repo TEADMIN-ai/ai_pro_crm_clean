@@ -8,11 +8,16 @@ export type UserRole =
   | "viewer"
   | "dealerPilot"
   | "vehicleFinanceStaff"
+  | "vehicleFinancePartner"
   | "ROAR_CARS_STAFF"
   | "guest";
 
 export function isVehicleFinanceRole(role?: UserRole): boolean {
   return role === "dealerPilot" || role === "vehicleFinanceStaff" || role === "ROAR_CARS_STAFF";
+}
+
+export function isVehicleFinancePartnerRole(role?: UserRole): boolean {
+  return role === "vehicleFinancePartner";
 }
 
 export function isRoarCarsStaffRole(role?: UserRole): boolean {
@@ -64,7 +69,7 @@ export function canViewContractorProfile(role?: UserRole): boolean {
 }
 
 export function canAccessVehicleFinance(role?: UserRole): boolean {
-  return role === "admin" || role === "manager" || role === "staff" || isVehicleFinanceRole(role);
+  return role === "admin" || role === "manager" || role === "staff" || isVehicleFinanceRole(role) || isVehicleFinancePartnerRole(role);
 }
 
 // Compatibility aliases used by existing callers.

@@ -84,7 +84,7 @@ function buildHtml(args: {
     '<tr><td style="background:#0f2747;padding:26px 32px;border-bottom:4px solid #1d7ff2;">' +
     '<div style="font-size:12px;font-weight:700;letter-spacing:1.8px;color:#9ec5ff;text-transform:uppercase;">Torque Empire TEOS</div>' +
     '<h1 style="margin:10px 0 0;font-size:26px;line-height:1.25;color:#ffffff;">New Vehicle Finance Application</h1>' +
-    '<p style="margin:8px 0 0;font-size:14px;line-height:1.6;color:#d9e7f7;">Roar Cars SA finance notification</p>' +
+    '<p style="margin:8px 0 0;font-size:14px;line-height:1.6;color:#d9e7f7;">Torque Empire Car Division finance notification</p>' +
     "</td></tr>" +
     '<tr><td style="padding:28px 32px;">' +
     '<p style="margin:0 0 18px;font-size:16px;line-height:1.7;color:#0f172a;">A new vehicle finance application has been submitted and stored successfully.</p>' +

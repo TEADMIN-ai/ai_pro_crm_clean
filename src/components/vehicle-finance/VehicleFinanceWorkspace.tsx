@@ -15,10 +15,17 @@ import { buildVehicleFinanceDecisionFromIntelligence } from "@/lib/vehicle-finan
 import {
   getVehicleFinanceDocumentLabel,
   VEHICLE_FINANCE_DOCUMENT_TYPES,
+  VEHICLE_FINANCE_PARTNER_VISIBLE_STATUSES,
+  VEHICLE_FINANCE_PARTNER_MESSAGE_TEMPLATES,
   type VehicleFinanceApplication,
   type VehicleFinanceAssessment,
+  type VehicleFinanceBusinessClient,
   type VehicleFinanceCertificate,
   type VehicleFinanceCustomer,
+  type VehicleFinanceProcurementCase,
+  type VehicleFinanceProcurementSummary,
+  type VehicleFinanceSupplier,
+  type VehicleFinanceSupplierQuote,
   type VehicleFinanceDocument,
   type VehicleFinanceDocumentType,
 } from "@/types/vehicleFinance";
@@ -38,6 +45,11 @@ type VehicleFinanceOverview = {
   documents: VehicleFinanceDocument[];
   assessments: VehicleFinanceAssessment[];
   certificates: VehicleFinanceCertificate[];
+  businessClients: VehicleFinanceBusinessClient[];
+  suppliers: VehicleFinanceSupplier[];
+  procurementCases: VehicleFinanceProcurementCase[];
+  supplierQuotes: VehicleFinanceSupplierQuote[];
+  procurementSummary: VehicleFinanceProcurementSummary;
 };
 
 type VehicleFinanceDriverLicenceIntelligenceJobResponse = {
@@ -55,7 +67,7 @@ type VehicleFinanceDriverLicenceIntelligenceStatusResponse = {
   driverLicenceIntelligence?: unknown;
 };
 
-type Section = "dashboard" | "customers" | "applications" | "document-verification" | "certificates" | "reports";
+type Section = "dashboard" | "customers" | "business-clients" | "supply-chain" | "procurement-cases" | "applications" | "document-verification" | "certificates" | "reports";
 
 type Props = {
   initialSection: Section;
@@ -80,6 +92,12 @@ type ApplicationForm = {
   dealValue: string;
 };
 
+type BusinessClientForm = { legalName: string; tradingName: string; registrationNumber: string; vatNumber: string; industry: string; accountStatus: string; primaryContact: string; procurementContact: string; phone: string; email: string; registeredAddress: string; billingAddress: string; accountManager: string; preferredTransactionMethod: string; procurementNotes: string };
+type SupplierForm = { legalName: string; tradingName: string; supplierCategory: string; classification: string; brandsRepresented: string; branchLocation: string; primarySalesContact: string; fleetContact: string; email: string; phone: string; relationshipStatus: string; preferredSupplier: boolean; quoteTurnaroundNotes: string; geographicCoverage: string; commercialNotes: string };
+type ProcurementCaseForm = { businessClientId: string; clientRequestor: string; internalReference: string; clientReferenceNumber: string; accountOwner: string; vehicleQuantity: string; make: string; model: string; variant: string; fuelType: string; colour: string; requiredSpecifications: string; condition: string; purchaseMethod: string; budget: string; requiredDeliveryDate: string; notes: string };
+type SupplierQuoteForm = { procurementCaseId: string; supplierId: string; vehicleDescription: string; quotedAmount: string; availability: string; quoteDate: string; quoteExpiry: string; supplierReference: string; colourSpecification: string; quoteState: string; notes: string };
+type PartnerStatusPublicationForm = { supplierQuoteId: string; partnerVisibleStatus: string; messageTemplateId: string; reviewedCustomMessage: string; reviewedCustomMessageApproved: boolean };
+
 const EMPTY_CUSTOMER_FORM: CustomerForm = {
   firstName: "",
   lastName: "",
@@ -97,15 +115,27 @@ const EMPTY_APPLICATION_FORM: ApplicationForm = {
   dealerName: "",
   dealValue: "",
 };
+const EMPTY_BUSINESS_CLIENT_FORM: BusinessClientForm = { legalName: "", tradingName: "", registrationNumber: "", vatNumber: "", industry: "", accountStatus: "ACTIVE", primaryContact: "", procurementContact: "", phone: "", email: "", registeredAddress: "", billingAddress: "", accountManager: "", preferredTransactionMethod: "", procurementNotes: "" };
+const EMPTY_SUPPLIER_FORM: SupplierForm = { legalName: "", tradingName: "", supplierCategory: "DEALER", classification: "FRANCHISE", brandsRepresented: "", branchLocation: "", primarySalesContact: "", fleetContact: "", email: "", phone: "", relationshipStatus: "CONFIRMED", preferredSupplier: false, quoteTurnaroundNotes: "", geographicCoverage: "", commercialNotes: "" };
+const EMPTY_PROCUREMENT_CASE_FORM: ProcurementCaseForm = { businessClientId: "", clientRequestor: "", internalReference: "", clientReferenceNumber: "", accountOwner: "", vehicleQuantity: "1", make: "", model: "", variant: "", fuelType: "", colour: "", requiredSpecifications: "", condition: "NEW", purchaseMethod: "PURCHASE_ORDER", budget: "", requiredDeliveryDate: "", notes: "" };
+const EMPTY_SUPPLIER_QUOTE_FORM: SupplierQuoteForm = { procurementCaseId: "", supplierId: "", vehicleDescription: "", quotedAmount: "", availability: "", quoteDate: "", quoteExpiry: "", supplierReference: "", colourSpecification: "", quoteState: "SUBMITTED", notes: "" };
+const EMPTY_PARTNER_STATUS_PUBLICATION_FORM: PartnerStatusPublicationForm = { supplierQuoteId: "", partnerVisibleStatus: "UNDER_REVIEW", messageTemplateId: "under_review_default", reviewedCustomMessage: "", reviewedCustomMessageApproved: false };
 
 const EMPTY_CUSTOMERS: VehicleFinanceCustomer[] = [];
 const EMPTY_APPLICATIONS: VehicleFinanceApplication[] = [];
 const EMPTY_DOCUMENTS: VehicleFinanceDocument[] = [];
 const EMPTY_CERTIFICATES: VehicleFinanceCertificate[] = [];
+const EMPTY_BUSINESS_CLIENTS: VehicleFinanceBusinessClient[] = [];
+const EMPTY_SUPPLIERS: VehicleFinanceSupplier[] = [];
+const EMPTY_PROCUREMENT_CASES: VehicleFinanceProcurementCase[] = [];
+const EMPTY_SUPPLIER_QUOTES: VehicleFinanceSupplierQuote[] = [];
 
 const SECTION_TITLES: Record<Section, string> = {
   dashboard: "Vehicle Dashboard",
-  customers: "Customer Enquiries",
+  customers: "Individual Customers",
+  "business-clients": "Business Clients",
+  "supply-chain": "Supply Chain",
+  "procurement-cases": "Procurement Cases",
   applications: "Finance Applications",
   "document-verification": "Document Verification",
   certificates: "Finance Certificates",
@@ -204,6 +234,11 @@ export default function VehicleFinanceWorkspace({ initialSection, initialApplica
   const [error, setError] = useState<string | null>(null);
   const [customerForm, setCustomerForm] = useState<CustomerForm>(EMPTY_CUSTOMER_FORM);
   const [applicationForm, setApplicationForm] = useState<ApplicationForm>(EMPTY_APPLICATION_FORM);
+  const [businessClientForm, setBusinessClientForm] = useState<BusinessClientForm>(EMPTY_BUSINESS_CLIENT_FORM);
+  const [supplierForm, setSupplierForm] = useState<SupplierForm>(EMPTY_SUPPLIER_FORM);
+  const [procurementCaseForm, setProcurementCaseForm] = useState<ProcurementCaseForm>(EMPTY_PROCUREMENT_CASE_FORM);
+  const [supplierQuoteForm, setSupplierQuoteForm] = useState<SupplierQuoteForm>(EMPTY_SUPPLIER_QUOTE_FORM);
+  const [partnerStatusPublicationForm, setPartnerStatusPublicationForm] = useState<PartnerStatusPublicationForm>(EMPTY_PARTNER_STATUS_PUBLICATION_FORM);
   const [busy, setBusy] = useState<string | null>(null);
   const [documentFiles, setDocumentFiles] = useState<Partial<Record<VehicleFinanceDocumentType, File>>>({});
   const [selectedApplicationId, setSelectedApplicationId] = useState<string>(initialApplicationId ?? "");
@@ -333,6 +368,17 @@ export default function VehicleFinanceWorkspace({ initialSection, initialApplica
   const applications = overview?.applications ?? EMPTY_APPLICATIONS;
   const documents = overview?.documents ?? EMPTY_DOCUMENTS;
   const certificates = overview?.certificates ?? EMPTY_CERTIFICATES;
+  const businessClients = overview?.businessClients ?? EMPTY_BUSINESS_CLIENTS;
+  const suppliers = overview?.suppliers ?? EMPTY_SUPPLIERS;
+  const procurementCases = overview?.procurementCases ?? EMPTY_PROCUREMENT_CASES;
+  const supplierQuotes = overview?.supplierQuotes ?? EMPTY_SUPPLIER_QUOTES;
+  const procurementSummary = overview?.procurementSummary ?? { activeBusinessClients: 0, activeProcurementCases: 0, registeredSuppliers: 0, quotesAwaitingClientDecision: 0, vehiclesPendingDelivery: 0 };
+
+  const selectedPartnerStatusQuote = useMemo(() => supplierQuotes.find((quote) => quote.supplierQuoteId === partnerStatusPublicationForm.supplierQuoteId) ?? null, [partnerStatusPublicationForm.supplierQuoteId, supplierQuotes]);
+  const selectedPartnerStatusCase = useMemo(() => selectedPartnerStatusQuote ? procurementCases.find((item) => item.procurementCaseId === selectedPartnerStatusQuote.procurementCaseId) ?? null : null, [procurementCases, selectedPartnerStatusQuote]);
+  const selectedPartnerStatusSupplier = useMemo(() => selectedPartnerStatusQuote ? suppliers.find((supplier) => supplier.supplierId === selectedPartnerStatusQuote.supplierId) ?? null : null, [selectedPartnerStatusQuote, suppliers]);
+  const partnerMessageTemplatesForStatus = useMemo(() => VEHICLE_FINANCE_PARTNER_MESSAGE_TEMPLATES.filter((template) => template.status === partnerStatusPublicationForm.partnerVisibleStatus), [partnerStatusPublicationForm.partnerVisibleStatus]);
+  const selectedPartnerMessageTemplate = useMemo(() => partnerMessageTemplatesForStatus.find((template) => template.messageTemplateId === partnerStatusPublicationForm.messageTemplateId) ?? null, [partnerMessageTemplatesForStatus, partnerStatusPublicationForm.messageTemplateId]);
 
   const selectedApplication = useMemo(
     () => applications.find((application) => application.applicationId === selectedApplicationId) ?? null,
@@ -503,6 +549,86 @@ export default function VehicleFinanceWorkspace({ initialSection, initialApplica
     }
   }
 
+  async function submitBusinessClient(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    try {
+      setBusy("businessClient");
+      const response = await authFetch("/api/vehicle-finance/business-clients", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(businessClientForm) });
+      const payload = (await response.json().catch(() => null)) as { error?: string } | null;
+      if (!response.ok) throw new Error(payload?.error ?? `Business client create failed (${response.status})`);
+      setBusinessClientForm(EMPTY_BUSINESS_CLIENT_FORM);
+      await refresh();
+    } catch (businessClientError) {
+      setError(businessClientError instanceof Error ? businessClientError.message : "Business client creation failed");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function submitSupplier(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    try {
+      setBusy("supplier");
+      const response = await authFetch("/api/vehicle-finance/suppliers", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...supplierForm, brandsRepresented: supplierForm.brandsRepresented.split(",").map((item) => item.trim()).filter(Boolean) }) });
+      const payload = (await response.json().catch(() => null)) as { error?: string } | null;
+      if (!response.ok) throw new Error(payload?.error ?? `Supplier create failed (${response.status})`);
+      setSupplierForm(EMPTY_SUPPLIER_FORM);
+      await refresh();
+    } catch (supplierError) {
+      setError(supplierError instanceof Error ? supplierError.message : "Supplier creation failed");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function submitProcurementCase(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    try {
+      setBusy("procurementCase");
+      const response = await authFetch("/api/vehicle-finance/procurement-cases", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...procurementCaseForm, vehicleQuantity: Number(procurementCaseForm.vehicleQuantity) || 1, budget: Number(procurementCaseForm.budget) || null }) });
+      const payload = (await response.json().catch(() => null)) as { error?: string } | null;
+      if (!response.ok) throw new Error(payload?.error ?? `Procurement case create failed (${response.status})`);
+      setProcurementCaseForm(EMPTY_PROCUREMENT_CASE_FORM);
+      await refresh();
+    } catch (procurementCaseError) {
+      setError(procurementCaseError instanceof Error ? procurementCaseError.message : "Procurement case creation failed");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function submitSupplierQuote(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    try {
+      setBusy("supplierQuote");
+      const response = await authFetch("/api/vehicle-finance/supplier-quotes", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...supplierQuoteForm, quotedAmount: Number(supplierQuoteForm.quotedAmount) || 0 }) });
+      const payload = (await response.json().catch(() => null)) as { error?: string } | null;
+      if (!response.ok) throw new Error(payload?.error ?? `Supplier quote create failed (${response.status})`);
+      setSupplierQuoteForm(EMPTY_SUPPLIER_QUOTE_FORM);
+      await refresh();
+    } catch (supplierQuoteError) {
+      setError(supplierQuoteError instanceof Error ? supplierQuoteError.message : "Supplier quote creation failed");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function submitPartnerStatusPublication(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    try {
+      setBusy("partnerStatusPublication");
+      const response = await authFetch("/api/vehicle-finance/supplier-quotes/" + encodeURIComponent(partnerStatusPublicationForm.supplierQuoteId) + "/partner-visible-status", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(partnerStatusPublicationForm) });
+      const payload = (await response.json().catch(() => null)) as { error?: string } | null;
+      if (!response.ok) throw new Error(payload?.error ?? "Partner-visible status publication failed (" + response.status + ")");
+      setPartnerStatusPublicationForm(EMPTY_PARTNER_STATUS_PUBLICATION_FORM);
+      await refresh();
+    } catch (publicationError) {
+      setError(publicationError instanceof Error ? publicationError.message : "Partner-visible status publication failed");
+    } finally {
+      setBusy(null);
+    }
+  }
+
   async function uploadDocument(documentType: VehicleFinanceDocumentType) {
     if (!selectedApplicationId) return;
     const file = documentFiles[documentType];
@@ -627,10 +753,10 @@ export default function VehicleFinanceWorkspace({ initialSection, initialApplica
   return (
     <div data-module="vehicle-finance" className="tex-shell space-y-6">
       <div className="space-y-2">
-        <p className="text-[11px] font-bold uppercase tracking-[0.3em] text-sky-200/70">Roar Cars SA Â· Born To Roar</p>
+        <p className="text-[11px] font-bold uppercase tracking-[0.3em] text-sky-200/70">Torque Empire Car Division</p>
         <h1 className="text-2xl font-semibold tracking-tight text-slate-50 sm:text-3xl">{SECTION_TITLES[section]}</h1>
         <p className="max-w-3xl text-sm text-slate-400">
-          Premium dealership operations for enquiries, applications, verification, underwriting, inventory matching, and reporting.
+          Torque Empire Car Division operations for individual finance, business clients, supplier sourcing, procurement cases, and reporting.
         </p>
       </div>
 
@@ -643,6 +769,35 @@ export default function VehicleFinanceWorkspace({ initialSection, initialApplica
           <p className="text-sm text-slate-300">Loading vehicle finance workspace...</p>
         </Card>
       ) : null}
+
+      <Card>
+        <div className="flex flex-wrap gap-2">
+          {[
+            ["/dashboard/vehicle-finance/customers", "Individual Customers"],
+            ["/dashboard/vehicle-finance/business-clients", "Business Clients"],
+            ["/dashboard/vehicle-finance/supply-chain", "Supply Chain"],
+            ["/dashboard/vehicle-finance/procurement-cases", "Procurement Cases"],
+          ].map(([href, label]) => (
+            <Link key={href} href={href} className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-xs font-semibold uppercase tracking-[0.14em] text-slate-200 transition hover:border-cyan-300/40 hover:text-cyan-100">
+              {label}
+            </Link>
+          ))}
+        </div>
+        <div className="mt-4 grid gap-4 md:grid-cols-5">
+          {[
+            ["Active Business Clients", procurementSummary.activeBusinessClients],
+            ["Active Procurement Cases", procurementSummary.activeProcurementCases],
+            ["Registered Suppliers", procurementSummary.registeredSuppliers],
+            ["Quotes Awaiting Client Decision", procurementSummary.quotesAwaitingClientDecision],
+            ["Vehicles Pending Delivery", procurementSummary.vehiclesPendingDelivery],
+          ].map(([label, value]) => (
+            <div key={label} className="rounded-lg border border-slate-800 bg-slate-950/70 p-3">
+              <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500">{label}</p>
+              <p className="mt-2 text-2xl font-semibold text-slate-50">{value}</p>
+            </div>
+          ))}
+        </div>
+      </Card>
 
       {section === "dashboard" ? (
         <>
@@ -803,6 +958,81 @@ export default function VehicleFinanceWorkspace({ initialSection, initialApplica
         </div>
       ) : null}
 
+      {section === "business-clients" ? (
+        <div className="grid gap-6 xl:grid-cols-[380px_minmax(0,1fr)]">
+          <Card>
+            <IdentityCardHeader title="Create Business Client" subtitle="Separate governed B2B procurement account" />
+            <form className="mt-4 grid gap-3" onSubmit={submitBusinessClient}>
+              {[
+                ["legalName", "Legal / Business Name"], ["tradingName", "Trading Name"], ["registrationNumber", "Registration Number"], ["vatNumber", "VAT Number"], ["industry", "Industry"], ["primaryContact", "Primary Contact"], ["procurementContact", "Procurement Contact"], ["phone", "Phone"], ["email", "Email"], ["registeredAddress", "Registered Address"], ["billingAddress", "Billing Address"], ["accountManager", "Account Manager"], ["preferredTransactionMethod", "Preferred Payment Method"], ["procurementNotes", "Commercial Notes"]
+              ].map(([field, label]) => (
+                <label key={field} className="grid gap-1 text-sm text-slate-300">
+                  <span>{label}</span>
+                  <input value={businessClientForm[field as keyof BusinessClientForm] as string} onChange={(event) => setBusinessClientForm((current) => ({ ...current, [field]: event.target.value }))} type={field === "email" ? "email" : "text"} className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white" />
+                </label>
+              ))}
+              <label className="grid gap-1 text-sm text-slate-300"><span>Client / Account Status</span><select value={businessClientForm.accountStatus} onChange={(event) => setBusinessClientForm((current) => ({ ...current, accountStatus: event.target.value }))} className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white"><option value="ACTIVE">Active</option><option value="ON_HOLD">On Hold</option><option value="SUSPENDED">Suspended</option></select></label>
+              <button type="submit" disabled={busy === "businessClient"} className="rounded-lg bg-cyan-600 px-4 py-2 text-sm font-semibold text-white">{busy === "businessClient" ? "Saving..." : "Save Business Client"}</button>
+            </form>
+          </Card>
+          <Card>
+            <IdentityCardHeader title="Business Clients" subtitle="Commercial clients remain separate from individual applicants"><Badge tone="neutral">{businessClients.length} total</Badge></IdentityCardHeader>
+            <Table className="mt-4"><thead><tr><th>Client</th><th>Status</th><th>Contacts</th><th>Procurement History</th></tr></thead><tbody>
+              {businessClients.map((client) => {
+                const clientCases = procurementCases.filter((item) => item.businessClientId === client.businessClientId);
+                return <tr key={client.businessClientId}><td><p className="font-medium text-slate-100">{client.legalName}</p><p className="text-xs text-slate-400">{client.tradingName || client.registrationNumber}</p></td><td><Badge tone={client.accountStatus === "ACTIVE" ? "success" : "warning"}>{client.accountStatus}</Badge></td><td>{client.primaryContact}<p className="text-xs text-slate-400">{client.email}</p></td><td>{clientCases.length} total / {clientCases.filter((item) => !["COMPLETED", "CANCELLED"].includes(item.lifecycleStatus)).length} active</td></tr>;
+              })}
+            </tbody></Table>
+          </Card>
+        </div>
+      ) : null}
+
+      {section === "supply-chain" ? (
+        <div className="grid gap-6 xl:grid-cols-[380px_minmax(0,1fr)]">
+          <Card><IdentityCardHeader title="Register Supplier" subtitle="Dealer and supplier canonical registry" /><form className="mt-4 grid gap-3" onSubmit={submitSupplier}>
+            {[ ["legalName", "Supplier / Dealer Legal Name"], ["tradingName", "Trading / Branch Name"], ["brandsRepresented", "Brands Represented"], ["branchLocation", "Branch / Location"], ["primarySalesContact", "Primary Sales Contact"], ["fleetContact", "Fleet / Corporate Contact"], ["email", "Email"], ["phone", "Phone"], ["quoteTurnaroundNotes", "Quote Turnaround Notes"], ["geographicCoverage", "Geographic Coverage"], ["commercialNotes", "Commercial Notes"] ].map(([field, label]) => <label key={field} className="grid gap-1 text-sm text-slate-300"><span>{label}</span><input value={supplierForm[field as keyof SupplierForm] as string} onChange={(event) => setSupplierForm((current) => ({ ...current, [field]: event.target.value }))} type={field === "email" ? "email" : "text"} className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white" /></label>)}
+            <label className="grid gap-1 text-sm text-slate-300"><span>Supplier Category</span><select value={supplierForm.supplierCategory} onChange={(event) => setSupplierForm((current) => ({ ...current, supplierCategory: event.target.value }))} className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white"><option value="DEALER">Dealer</option><option value="OEM">OEM</option><option value="BROKER">Broker</option><option value="FLEET_PARTNER">Fleet Partner</option><option value="OTHER">Other</option></select></label>
+            <label className="grid gap-1 text-sm text-slate-300"><span>Classification</span><select value={supplierForm.classification} onChange={(event) => setSupplierForm((current) => ({ ...current, classification: event.target.value }))} className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white"><option value="FRANCHISE">Franchise</option><option value="INDEPENDENT">Independent</option><option value="OTHER">Other</option></select></label>
+            <label className="flex items-center gap-2 text-sm text-slate-300"><input type="checkbox" checked={supplierForm.preferredSupplier} onChange={(event) => setSupplierForm((current) => ({ ...current, preferredSupplier: event.target.checked }))} /> Preferred supplier</label>
+            <button type="submit" disabled={busy === "supplier"} className="rounded-lg bg-cyan-600 px-4 py-2 text-sm font-semibold text-white">{busy === "supplier" ? "Saving..." : "Save Supplier"}</button>
+          </form></Card>
+          <Card><IdentityCardHeader title="Supply Chain Registry" subtitle="Supplier opportunities and quotations"><Badge tone="neutral">{suppliers.length} total</Badge></IdentityCardHeader><Table className="mt-4"><thead><tr><th>Supplier</th><th>Relationship</th><th>Coverage</th><th>Opportunities</th></tr></thead><tbody>{suppliers.map((supplier) => { const quotes = supplierQuotes.filter((quote) => quote.supplierId === supplier.supplierId); return <tr key={supplier.supplierId}><td><p className="font-medium text-slate-100">{supplier.legalName}</p><p className="text-xs text-slate-400">{supplier.tradingName || supplier.brandsRepresented.join(", ") || "No brands recorded"}</p></td><td><Badge tone={supplier.preferredSupplier ? "success" : "info"}>{supplier.relationshipStatus}</Badge></td><td>{supplier.geographicCoverage || supplier.branchLocation || "Not recorded"}</td><td>{quotes.length} quotes / {quotes.filter((quote) => quote.quoteState === "SELECTED").length} selected</td></tr>; })}</tbody></Table></Card>
+        </div>
+      ) : null}
+
+      {section === "procurement-cases" ? (
+        <div className="grid gap-6 xl:grid-cols-[420px_minmax(0,1fr)]">
+          <div className="space-y-6">
+            <Card><IdentityCardHeader title="Create Procurement Case" subtitle="Governed corporate vehicle requirement" /><form className="mt-4 grid gap-3" onSubmit={submitProcurementCase}>
+              <label className="grid gap-1 text-sm text-slate-300"><span>Business Client</span><select value={procurementCaseForm.businessClientId} onChange={(event) => setProcurementCaseForm((current) => ({ ...current, businessClientId: event.target.value }))} className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white"><option value="">Select business client</option>{businessClients.map((client) => <option key={client.businessClientId} value={client.businessClientId}>{client.legalName}</option>)}</select></label>
+              {[ ["clientRequestor", "Client Contact / Requestor"], ["internalReference", "Internal Reference"], ["clientReferenceNumber", "Client RFQ / PO / Reference"], ["accountOwner", "Torque Empire Account Owner"], ["vehicleQuantity", "Vehicle Quantity"], ["make", "Make"], ["model", "Model"], ["variant", "Variant"], ["fuelType", "Fuel Type"], ["colour", "Colour"], ["requiredSpecifications", "Required Specifications"], ["budget", "Budget"], ["requiredDeliveryDate", "Required Delivery Date"], ["notes", "Notes"] ].map(([field, label]) => <label key={field} className="grid gap-1 text-sm text-slate-300"><span>{label}</span><input value={procurementCaseForm[field as keyof ProcurementCaseForm]} onChange={(event) => setProcurementCaseForm((current) => ({ ...current, [field]: event.target.value }))} type={field === "vehicleQuantity" || field === "budget" ? "number" : field === "requiredDeliveryDate" ? "date" : "text"} className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white" /></label>)}
+              <label className="grid gap-1 text-sm text-slate-300"><span>Purchase Method</span><select value={procurementCaseForm.purchaseMethod} onChange={(event) => setProcurementCaseForm((current) => ({ ...current, purchaseMethod: event.target.value }))} className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white"><option value="CASH">Cash</option><option value="FINANCE">Finance</option><option value="LEASE">Lease</option><option value="PURCHASE_ORDER">Purchase Order</option><option value="OTHER">Other</option></select></label>
+              <label className="grid gap-1 text-sm text-slate-300"><span>Condition</span><select value={procurementCaseForm.condition} onChange={(event) => setProcurementCaseForm((current) => ({ ...current, condition: event.target.value }))} className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white"><option value="NEW">New</option><option value="DEMO">Demo</option><option value="USED">Used</option></select></label>
+              <button type="submit" disabled={busy === "procurementCase"} className="rounded-lg bg-cyan-600 px-4 py-2 text-sm font-semibold text-white">{busy === "procurementCase" ? "Saving..." : "Save Procurement Case"}</button>
+            </form></Card>
+            <Card><IdentityCardHeader title="Link Supplier Quote" subtitle="Quote must reference registered supplier and case" /><form className="mt-4 grid gap-3" onSubmit={submitSupplierQuote}>
+              <label className="grid gap-1 text-sm text-slate-300"><span>Procurement Case</span><select value={supplierQuoteForm.procurementCaseId} onChange={(event) => setSupplierQuoteForm((current) => ({ ...current, procurementCaseId: event.target.value }))} className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white"><option value="">Select case</option>{procurementCases.map((item) => <option key={item.procurementCaseId} value={item.procurementCaseId}>{item.internalReference} / {item.make} {item.model}</option>)}</select></label>
+              <label className="grid gap-1 text-sm text-slate-300"><span>Supplier</span><select value={supplierQuoteForm.supplierId} onChange={(event) => setSupplierQuoteForm((current) => ({ ...current, supplierId: event.target.value }))} className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white"><option value="">Select supplier</option>{suppliers.map((supplier) => <option key={supplier.supplierId} value={supplier.supplierId}>{supplier.legalName}</option>)}</select></label>
+              {[ ["vehicleDescription", "Vehicle Description"], ["quotedAmount", "Quoted Amount"], ["availability", "Availability"], ["quoteDate", "Quote Date"], ["quoteExpiry", "Quote Expiry"], ["supplierReference", "Supplier Reference"], ["colourSpecification", "Colour / Specification"], ["notes", "Notes"] ].map(([field, label]) => <label key={field} className="grid gap-1 text-sm text-slate-300"><span>{label}</span><input value={supplierQuoteForm[field as keyof SupplierQuoteForm]} onChange={(event) => setSupplierQuoteForm((current) => ({ ...current, [field]: event.target.value }))} type={field === "quotedAmount" ? "number" : field === "quoteDate" || field === "quoteExpiry" ? "date" : "text"} className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white" /></label>)}
+              <button type="submit" disabled={busy === "supplierQuote"} className="rounded-lg bg-cyan-600 px-4 py-2 text-sm font-semibold text-white">{busy === "supplierQuote" ? "Saving..." : "Save Supplier Quote"}</button>
+            </form></Card>
+            <Card><IdentityCardHeader title="Publish Partner Status" subtitle="Internal supplier-visible status publication" />
+              <form className="mt-4 grid gap-3" onSubmit={submitPartnerStatusPublication}>
+                <label className="grid gap-1 text-sm text-slate-300"><span>Supplier Quote</span><select value={partnerStatusPublicationForm.supplierQuoteId} onChange={(event) => setPartnerStatusPublicationForm((current) => ({ ...current, supplierQuoteId: event.target.value }))} className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white"><option value="">Select quote</option>{supplierQuotes.map((quote) => { const supplier = suppliers.find((entry) => entry.supplierId === quote.supplierId); const procurementCase = procurementCases.find((entry) => entry.procurementCaseId === quote.procurementCaseId); return <option key={quote.supplierQuoteId} value={quote.supplierQuoteId}>{supplier?.legalName ?? quote.supplierId} / {procurementCase?.internalReference ?? quote.procurementCaseId} / {quote.vehicleDescription}</option>; })}</select></label>
+                <div className="grid gap-3 rounded-lg border border-slate-800 bg-slate-950/70 p-3 text-sm text-slate-300"><p><span className="text-slate-500">Current internal status:</span> {selectedPartnerStatusCase?.internalStatus ?? selectedPartnerStatusCase?.lifecycleStatus ?? "No quote selected"}</p><p><span className="text-slate-500">Current partner-visible status:</span> {selectedPartnerStatusQuote?.partnerVisibleStatus ?? "No quote selected"}</p><p><span className="text-slate-500">Supplier:</span> {selectedPartnerStatusSupplier?.legalName ?? "No quote selected"}</p></div>
+                <label className="grid gap-1 text-sm text-slate-300"><span>Proposed Partner-Visible Status</span><select value={partnerStatusPublicationForm.partnerVisibleStatus} onChange={(event) => { const nextStatus = event.target.value; const defaultTemplate = VEHICLE_FINANCE_PARTNER_MESSAGE_TEMPLATES.find((template) => template.status === nextStatus); setPartnerStatusPublicationForm((current) => ({ ...current, partnerVisibleStatus: nextStatus, messageTemplateId: defaultTemplate?.messageTemplateId ?? "", reviewedCustomMessage: "", reviewedCustomMessageApproved: false })); }} className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white">{VEHICLE_FINANCE_PARTNER_VISIBLE_STATUSES.map((status) => <option key={status} value={status}>{status}</option>)}</select></label>
+                <label className="grid gap-1 text-sm text-slate-300"><span>Message Template</span><select value={partnerStatusPublicationForm.messageTemplateId} onChange={(event) => setPartnerStatusPublicationForm((current) => ({ ...current, messageTemplateId: event.target.value, reviewedCustomMessage: "", reviewedCustomMessageApproved: false }))} className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white">{partnerMessageTemplatesForStatus.map((template) => <option key={template.messageTemplateId} value={template.messageTemplateId}>{template.message}</option>)}</select></label>
+                {selectedPartnerMessageTemplate?.reviewedCustomTextAllowed ? <label className="grid gap-1 text-sm text-slate-300"><span>Reviewed Custom Message</span><textarea value={partnerStatusPublicationForm.reviewedCustomMessage} onChange={(event) => setPartnerStatusPublicationForm((current) => ({ ...current, reviewedCustomMessage: event.target.value }))} rows={3} className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white" /></label> : null}
+                {selectedPartnerMessageTemplate?.reviewedCustomTextAllowed ? <label className="flex items-center gap-2 text-sm text-slate-300"><input type="checkbox" checked={partnerStatusPublicationForm.reviewedCustomMessageApproved} onChange={(event) => setPartnerStatusPublicationForm((current) => ({ ...current, reviewedCustomMessageApproved: event.target.checked }))} /> Reviewed custom supplier message approved</label> : null}
+                <div className="rounded-lg border border-slate-800 bg-slate-950/70 p-3 text-sm text-slate-300"><span className="text-slate-500">Rendered partner message:</span> {partnerStatusPublicationForm.reviewedCustomMessage && selectedPartnerMessageTemplate?.reviewedCustomTextAllowed && partnerStatusPublicationForm.reviewedCustomMessageApproved ? partnerStatusPublicationForm.reviewedCustomMessage : selectedPartnerMessageTemplate?.message ?? "Select a template"}</div>
+                <button type="submit" disabled={!partnerStatusPublicationForm.supplierQuoteId || !partnerStatusPublicationForm.messageTemplateId || busy === "partnerStatusPublication"} className="rounded-lg bg-cyan-600 px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-slate-700">{busy === "partnerStatusPublication" ? "Publishing..." : "Publish Partner Status"}</button>
+              </form>
+            </Card>
+          </div>
+          <Card><IdentityCardHeader title="Procurement Cases" subtitle="Requirement, lifecycle and supplier quote comparison"><Badge tone="neutral">{procurementCases.length} total</Badge></IdentityCardHeader><div className="mt-4 space-y-4">{procurementCases.map((item) => { const client = businessClients.find((businessClient) => businessClient.businessClientId === item.businessClientId); const caseQuotes = supplierQuotes.filter((quote) => quote.procurementCaseId === item.procurementCaseId); return <div key={item.procurementCaseId} className="rounded-lg border border-slate-800 bg-slate-950/70 p-4"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="font-semibold text-slate-100">{item.internalReference} / {item.vehicleQuantity} x {item.make} {item.model}</p><p className="text-xs text-slate-400">{client?.legalName ?? item.businessClientId} / {item.clientRequestor}</p></div><Badge tone={item.lifecycleStatus === "COMPLETED" ? "success" : item.lifecycleStatus === "CANCELLED" ? "warning" : "info"}>{item.lifecycleStatus}</Badge></div><p className="mt-3 text-sm text-slate-300">{item.requiredSpecifications || item.notes || "No detailed specification recorded"}</p><Table className="mt-4"><thead><tr><th>Supplier</th><th>Quote</th><th>Availability</th><th>State</th></tr></thead><tbody>{caseQuotes.map((quote) => { const supplier = suppliers.find((entry) => entry.supplierId === quote.supplierId); return <tr key={quote.supplierQuoteId}><td>{supplier?.legalName ?? quote.supplierId}</td><td>{quote.quotedAmount.toLocaleString("en-ZA")}</td><td>{quote.availability}</td><td><Badge tone={quote.quoteState === "SELECTED" ? "success" : quote.quoteState === "DECLINED" ? "warning" : "neutral"}>{quote.quoteState}</Badge></td></tr>; })}</tbody></Table><p className="mt-3 text-xs text-slate-500">Activity events: {item.activityHistory.length}</p></div>; })}</div></Card>
+        </div>
+      ) : null}
+
       {section === "applications" ? (
         <div className="grid gap-6 xl:grid-cols-[380px_minmax(0,1fr)]">
           <Card>
@@ -812,10 +1042,10 @@ export default function VehicleFinanceWorkspace({ initialSection, initialApplica
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Inventory Feed</p>
                 <p className="mt-2 text-sm text-slate-200">
                   {inventoryLoading
-                    ? "Loading synchronized Roar inventory..."
+                    ? "Loading synchronized vehicle inventory..."
                     : inventory?.status === "LIVE" || inventory?.status === "CACHED"
-                      ? `${inventory.metrics.activeVehicles} synchronized vehicles available from Roar Cars`
-                      : "Roar inventory feed is being prepared."}
+                      ? `${inventory.metrics.activeVehicles} synchronized vehicles available for Torque Empire Car Division`
+                      : "Vehicle inventory feed is being prepared."}
                 </p>
                 <p className="mt-1 text-xs text-slate-400">
                   {inventory?.warning ?? inventoryError ?? (inventory ? `Last synced ${formatDate(inventory.syncedAt)}` : "Live inventory will appear here when available.")}
@@ -840,7 +1070,7 @@ export default function VehicleFinanceWorkspace({ initialSection, initialApplica
               </label>
               {inventoryVehicles.length ? (
                 <label className="grid gap-1 text-sm text-slate-300">
-                  <span>Vehicle from Roar Inventory</span>
+                  <span>Vehicle from Inventory</span>
                   <select
                     value={selectedInventoryVehicleId}
                     required

@@ -13,6 +13,7 @@ export interface UserProfile {
   status?: string;
   company?: string;
   contractorId?: string;
+  vehicleFinanceSupplierId?: string;
   workspaceId?: string;
   workspaceSlug?: string;
   workspace?: WorkspaceSummary | null;
@@ -40,6 +41,10 @@ const ROLE_ALIASES: Record<string, UserRole> = {
   dealer_pilot: 'dealerPilot',
   vehiclefinancestaff: 'vehicleFinanceStaff',
   vehicle_finance_staff: 'vehicleFinanceStaff',
+  vehiclefinancepartner: 'vehicleFinancePartner',
+  vehicle_finance_partner: 'vehicleFinancePartner',
+  supplierpartner: 'vehicleFinancePartner',
+  supplier_partner: 'vehicleFinancePartner',
   roar_cars_staff: 'ROAR_CARS_STAFF',
   roarcarsstaff: 'ROAR_CARS_STAFF',
 };
@@ -77,6 +82,10 @@ export function normalizeContractorId(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim().length > 0 ? value.trim() : undefined;
 }
 
+function normalizeSupplierId(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim().length > 0 ? value.trim() : undefined;
+}
+
 export function resolveWorkspaceId(primary?: unknown, fallback?: unknown): string | undefined {
   if (typeof primary === 'string' && WORKSPACE_ID_PATTERN.test(primary.trim())) {
     return primary.trim().toLowerCase();
@@ -101,6 +110,7 @@ export function buildUserProfile(data: Record<string, unknown>): UserProfile {
     status: typeof data.status === 'string' ? data.status : undefined,
     company: typeof data.company === 'string' ? data.company : undefined,
     contractorId: normalizeContractorId(data.contractorId),
+    vehicleFinanceSupplierId: normalizeContractorId(data.vehicleFinanceSupplierId),
     workspaceId: resolveWorkspaceId(data.workspaceId, workspace?.id),
     workspaceSlug: typeof data.workspaceSlug === 'string' ? data.workspaceSlug : undefined,
     workspace,

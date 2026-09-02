@@ -150,14 +150,14 @@ export default function VehicleFinanceExecutiveDashboard() {
     const controller = new AbortController();
     authFetch(API_ROUTES.VEHICLE_FINANCE_ROAR_INVENTORY, { cache: "no-store", signal: controller.signal })
       .then(async (response) => {
-        if (!response.ok) throw new Error(`Roar inventory request failed (${response.status})`);
+        if (!response.ok) throw new Error(`Vehicle inventory request failed (${response.status})`);
         return response.json() as Promise<RoarInventoryResponse>;
       })
       .then(setInventory)
       .catch((inventoryError: unknown) => {
         if (!controller.signal.aborted) {
-          setInventoryError(inventoryError instanceof Error ? inventoryError.message : "Roar inventory unavailable");
-          console.warn("[vehicle-finance] Roar inventory unavailable", inventoryError);
+          setInventoryError(inventoryError instanceof Error ? inventoryError.message : "Vehicle inventory unavailable");
+          console.warn("[vehicle-finance] Vehicle inventory unavailable", inventoryError);
         }
       });
     return () => controller.abort();
@@ -294,7 +294,7 @@ export default function VehicleFinanceExecutiveDashboard() {
       <section className="relative z-10 min-h-[560px] overflow-hidden rounded-[32px] border border-sky-300/25 bg-slate-950 shadow-[0_28px_100px_rgba(2,8,23,0.55)] lg:min-h-[650px]">
         <Image
           src={ROAR_SHOWROOM_SRC}
-          alt="Roar Cars SA premium vehicle showroom"
+          alt="Torque Empire Car Division premium vehicle showroom"
           fill
           sizes="(min-width: 1280px) 1200px, 100vw"
           className="object-cover object-center"
@@ -307,9 +307,9 @@ export default function VehicleFinanceExecutiveDashboard() {
           <div>
             <div className="inline-flex items-center gap-3 rounded-full border border-sky-200/25 bg-slate-950/55 px-4 py-2 backdrop-blur-md">
               <span className="h-2 w-2 rounded-full bg-sky-300 shadow-[0_0_14px_rgba(125,211,252,0.9)]" />
-              <span className="text-[10px] font-bold uppercase tracking-[0.3em] text-sky-100">Roar Cars SA Vehicle Division</span>
+              <span className="text-[10px] font-bold uppercase tracking-[0.3em] text-sky-100">Torque Empire Car Division</span>
             </div>
-            <p className="mt-8 text-xs font-bold uppercase tracking-[0.38em] text-sky-200/80">Born To Roar</p>
+            <p className="mt-8 text-xs font-bold uppercase tracking-[0.38em] text-sky-200/80">Vehicle Procurement</p>
             <h1 className="mt-4 max-w-3xl text-4xl font-semibold tracking-[-0.055em] text-white sm:text-5xl lg:text-7xl">
               The dealership command center.
             </h1>
@@ -378,7 +378,7 @@ export default function VehicleFinanceExecutiveDashboard() {
 
       <section className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
         <Card>
-          <IdentityCardHeader title="Featured Vehicles" subtitle="Live Roar inventory highlights">
+          <IdentityCardHeader title="Featured Vehicles" subtitle="Live vehicle inventory highlights">
             <div className="flex flex-wrap gap-2">
               <Badge tone={inventory?.status === "LIVE" ? "success" : inventory?.status === "CACHED" ? "warning" : "danger"}>
                 {inventory?.status ?? "UNAVAILABLE"}
@@ -419,7 +419,7 @@ export default function VehicleFinanceExecutiveDashboard() {
                   <div className="rounded-[24px] border border-amber-300/25 bg-amber-300/[0.08] p-5 text-amber-50 md:col-span-2">
                     <p className="font-semibold">Inventory sync unavailable</p>
                     <p className="mt-2 text-sm leading-6 text-slate-100">
-                      {inventoryError || inventory?.warning || "No live Roar Cars vehicles are available from the synchronized feed yet."}
+                      {inventoryError || inventory?.warning || "No live vehicles are available from the synchronized feed yet."}
                     </p>
                     <p className="mt-3 text-xs uppercase tracking-[0.18em] text-amber-100/80">
                       Last sync {formatSyncedAt(inventory?.syncedAt ?? inventory?.source.lastSyncedAt)}
@@ -430,7 +430,7 @@ export default function VehicleFinanceExecutiveDashboard() {
         </Card>
 
         <Card>
-          <IdentityCardHeader title="Dealership Metrics" subtitle="Operational snapshot for Roar Cars SA" />
+          <IdentityCardHeader title="Dealership Metrics" subtitle="Operational snapshot for Torque Empire Car Division" />
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
             {[
               ["Applications Today", dashboard.metrics.totalApplications],
@@ -680,7 +680,7 @@ export default function VehicleFinanceExecutiveDashboard() {
 
       <section className="grid gap-6 xl:grid-cols-2">
         <Card>
-          <IdentityCardHeader title="Dealer Reports" subtitle="Operational summary for Roar Cars SA" />
+          <IdentityCardHeader title="Dealer Reports" subtitle="Operational summary for Torque Empire Car Division" />
           <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
             {[
               ["Applications Processed", dashboard.metrics.totalApplications],
@@ -702,7 +702,7 @@ export default function VehicleFinanceExecutiveDashboard() {
         </Card>
 
         <Card>
-          <IdentityCardHeader title="Certification Requirements" subtitle="Operational readiness for Roar Cars SA onboarding" />
+          <IdentityCardHeader title="Certification Requirements" subtitle="Operational readiness for Torque Empire Car Division onboarding" />
           <div className="mt-4 flex flex-wrap gap-2">
             {[
               "Driver Licence Upload",

@@ -133,7 +133,7 @@ export default function VehicleFinanceOperationsDashboard() {
     loadOperations()
       .catch((loadError: unknown) => {
         if (!controller.signal.aborted) {
-          setError(loadError instanceof Error ? loadError.message : "Roar Cars operations unavailable");
+          setError(loadError instanceof Error ? loadError.message : "Torque Empire Car Division operations unavailable");
         }
       })
       .finally(() => {
@@ -187,7 +187,7 @@ export default function VehicleFinanceOperationsDashboard() {
   return (
     <div className="mx-auto max-w-7xl space-y-6 p-4 pb-10 md:p-6 lg:p-8">
       <section className="rounded-[28px] border border-sky-300/15 bg-slate-950/90 p-6 shadow-[0_24px_80px_rgba(2,8,23,0.35)]">
-        <p className="text-xs font-semibold uppercase tracking-[0.28em] text-sky-200/80">Roar Cars Operations Centre</p>
+        <p className="text-xs font-semibold uppercase tracking-[0.28em] text-sky-200/80">Torque Empire Car Division Operations Centre</p>
         <div className="mt-4 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
           <div className="max-w-3xl">
             <h1 className="text-3xl font-semibold tracking-[-0.04em] text-white md:text-4xl">Dealer operations control room.</h1>

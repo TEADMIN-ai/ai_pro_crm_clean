@@ -364,7 +364,7 @@ export default function ExecutiveDashboard() {
               { label: "QS Engine", value: metrics.riskHeatmap.length > 0 ? "Signals" : "Clear", tone: metrics.riskHeatmap.length > 0 ? "info" : "success" },
               { label: "Contractors", value: metrics.complianceSummary.averageComplianceScore >= 80 ? "Ready" : "Review", tone: metrics.complianceSummary.averageComplianceScore >= 80 ? "success" : "warning" },
               { label: "Driver App", value: "Synced", tone: "success" },
-              { label: "Roar Cars", value: "Visible", tone: "info" },
+              { label: "Torque Empire Car Division", value: "Visible", tone: "info" },
             ]}
           />
 

@@ -22,7 +22,7 @@ const PROFILE_ACCESS: Exclude<UserRole, "guest">[] = [
 
 function getCompanyLabel(role?: UserRole): string {
   if (role === "dealerPilot" || role === "vehicleFinanceStaff" || role === "ROAR_CARS_STAFF") {
-    return "Roar Cars SA";
+    return "Torque Empire Car Division";
   }
 
   if (role === "contractor") {
@@ -39,7 +39,7 @@ function getRoleLabel(role?: UserRole): string {
     case "vehicleFinanceStaff":
       return "Vehicle Finance Staff";
     case "ROAR_CARS_STAFF":
-      return "Roar Cars Staff";
+      return "Car Division Staff";
     case "staff":
       return "Staff";
     case "driver":

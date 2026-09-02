@@ -183,7 +183,7 @@ export default function RoarCarsInventoryWorkspace({ mode = "inventory" }: Props
     inventory?.status === "CACHED"
       ? "Last cached inventory is shown where available."
       : error && !inventory
-        ? "Roar inventory feed is being prepared."
+        ? "Vehicle inventory feed is being prepared."
         : "Synced from Roar Cars website.";
 
   const heroCountText = loading
@@ -195,21 +195,21 @@ export default function RoarCarsInventoryWorkspace({ mode = "inventory" }: Props
   return (
     <main className="mx-auto max-w-7xl space-y-6 overflow-x-hidden p-4 pb-10 md:p-6 lg:p-8">
       <section className="relative min-h-[300px] overflow-hidden rounded-[32px] border border-sky-300/20 bg-slate-950 px-6 py-8 shadow-[0_24px_70px_rgba(2,8,23,0.4)] md:px-8 md:py-10">
-        <Image src={HERO_IMAGE} alt="Roar Cars SA showroom" fill sizes="100vw" className="object-cover object-center opacity-45" priority />
+        <Image src={HERO_IMAGE} alt="Torque Empire Car Division showroom" fill sizes="100vw" className="object-cover object-center opacity-45" priority />
         <div className="absolute inset-0 bg-gradient-to-r from-slate-950 via-slate-950/88 to-slate-950/30" />
         <div className="relative max-w-3xl">
           <div className="inline-flex items-center gap-2 rounded-full border border-sky-200/20 bg-slate-950/60 px-3 py-1.5 backdrop-blur-md">
             <span className="h-2 w-2 rounded-full bg-sky-300 shadow-[0_0_14px_rgba(125,211,252,0.9)]" />
-            <span className="text-[10px] font-bold uppercase tracking-[0.32em] text-sky-100">Roar Cars SA</span>
+            <span className="text-[10px] font-bold uppercase tracking-[0.32em] text-sky-100">Torque Empire Car Division</span>
           </div>
-          <p className="mt-5 text-xs font-bold uppercase tracking-[0.38em] text-sky-200/80">Born To Roar</p>
+          <p className="mt-5 text-xs font-bold uppercase tracking-[0.38em] text-sky-200/80">Vehicle Procurement</p>
           <h1 className="mt-4 text-3xl font-semibold tracking-[-0.04em] text-white sm:text-4xl">
             {mode === "listings" ? "Vehicle Listings" : "Live Vehicle Inventory"}
           </h1>
           <p className="mt-4 max-w-2xl text-sm leading-6 text-slate-200 sm:text-base">
             {mode === "listings"
               ? "Compact live stock view for the vehicle sales team, with direct links back to the original Roar listing."
-              : "Browse live Roar Cars stock and open the original dealership listing for full vehicle details."}
+              : "Browse live vehicle stock and open the original dealership listing for full vehicle details."}
           </p>
           <div className="mt-6 flex flex-wrap gap-3">
             <div className="inline-flex rounded-full border border-white/15 bg-slate-950/55 px-4 py-2 text-sm font-semibold text-white backdrop-blur-md">

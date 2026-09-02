@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
-import { isVehicleFinanceRole } from "@/lib/auth/roleUtils";
+import { isVehicleFinancePartnerRole, isVehicleFinanceRole } from "@/lib/auth/roleUtils";
 
 type GovernanceNavBadge = {
   label: string;
@@ -12,7 +12,7 @@ type GovernanceNavBadge = {
 };
 
 type DashboardNavItem = {
-  key: "overview" | "masterDataReview" | "opportunityRegister" | "submissionProfiles" | "submissionReview" | "deals" | "contractors" | "qs" | "hygiene" | "vehicleFinance" | "inventory" | "listings" | "applications" | "customers" | "reports" | "tenderRequests" | "intelligence" | "governance" | "settings";
+  key: "overview" | "masterDataReview" | "opportunityRegister" | "submissionProfiles" | "submissionReview" | "deals" | "contractors" | "qs" | "hygiene" | "vehicleFinance" | "inventory" | "listings" | "applications" | "customers" | "reports" | "partnerPortal" | "tenderRequests" | "intelligence" | "governance" | "settings";
   href: string;
   label: string;
   match: (pathname: string) => boolean;
@@ -70,7 +70,7 @@ const DASHBOARD_NAV_ITEMS: DashboardNavItem[] = [
   {
     key: "vehicleFinance",
     href: "/dashboard/vehicle-finance",
-    label: "Roar Cars SA",
+    label: "Torque Empire Car Division",
     match: (pathname) => pathname.startsWith("/dashboard/vehicle-finance"),
   },
   {
@@ -102,6 +102,15 @@ const DASHBOARD_NAV_ITEMS: DashboardNavItem[] = [
     href: "/dashboard/settings",
     label: "Settings",
     match: (pathname) => pathname.startsWith("/dashboard/settings"),
+  },
+];
+
+const VEHICLE_FINANCE_PARTNER_NAV_ITEMS: DashboardNavItem[] = [
+  {
+    key: "partnerPortal",
+    href: "/dashboard/vehicle-finance/partner",
+    label: "Partner Portal",
+    match: (pathname) => pathname.startsWith("/dashboard/vehicle-finance/partner"),
   },
 ];
 
@@ -190,6 +199,7 @@ function DashboardNavIcon({ itemKey, active }: { itemKey: DashboardNavItem["key"
           <path d="M7.25 7.25h5.5M7.25 10h5.5M7.25 12.75h3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
         </svg>
       );
+    case "partnerPortal":
     case "vehicleFinance":
       return (
         <svg viewBox="0 0 20 20" fill="none" className={"h-4 w-4 " + iconClassName} aria-hidden="true">
@@ -279,7 +289,7 @@ export default function DashboardWorkspaceNav({
 }) {
   const pathname = usePathname();
   const { role, loading } = useAuth();
-  const navItems = isVehicleFinanceRole(role) ? ROAR_CARS_NAV_ITEMS : DASHBOARD_NAV_ITEMS;
+  const navItems = isVehicleFinancePartnerRole(role) ? VEHICLE_FINANCE_PARTNER_NAV_ITEMS : isVehicleFinanceRole(role) ? ROAR_CARS_NAV_ITEMS : DASHBOARD_NAV_ITEMS;
 
   if (loading) {
     return (

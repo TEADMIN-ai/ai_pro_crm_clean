@@ -3,7 +3,7 @@ import { getFirebaseAdmin } from '@/lib/firebase/admin';
 import { buildUserProfile, normalizeContractorId, resolveRole, type UserProfile } from '@/lib/auth/userProfile';
 import { ensureContractorAuthLinkage } from '@/lib/contractors/contractorAuthLink';
 import type { UserRole } from '@/lib/auth/roleUtils';
-import { isVehicleFinanceRole, isVehicleFinanceStaffRole } from '@/lib/auth/roleUtils';
+import { isVehicleFinancePartnerRole, isVehicleFinanceRole, isVehicleFinanceStaffRole } from '@/lib/auth/roleUtils';
 import { requireAuth } from '@/lib/server/requireAuth';
 import { verifySession } from '@/lib/server/verifySession';
 import { resolveCapabilities } from '@/lib/capabilities/capabilityResolver';
@@ -14,6 +14,7 @@ export interface AuthorizedUser {
   email?: string;
   role: UserRole;
   contractorId?: string;
+  vehicleFinanceSupplierId?: string;
   workspaceId?: string;
   capabilities?: readonly CapabilityKey[];
 }
@@ -41,6 +42,7 @@ export interface ResolvedIdentity {
   email?: string;
   role: UserRole;
   contractorId?: string;
+  vehicleFinanceSupplierId?: string;
   workspaceId?: string;
   capabilities?: readonly CapabilityKey[];
   profile: UserProfile | null;
@@ -73,6 +75,7 @@ export async function resolveAuthorizedIdentity(args: {
     email: args.email,
     role,
     contractorId,
+    vehicleFinanceSupplierId: profile?.vehicleFinanceSupplierId,
     workspaceId: profile?.workspace?.id ?? profile?.workspaceId,
     capabilities,
     profile,
@@ -116,6 +119,7 @@ export async function requireAuthorizedUser(request: NextRequest): Promise<Autho
       email: resolved.email,
       role: resolved.role,
       contractorId: resolvedContractorId,
+      vehicleFinanceSupplierId: resolved.vehicleFinanceSupplierId,
       workspaceId: resolved.workspaceId,
       capabilities: resolved.capabilities,
     };
@@ -146,6 +150,7 @@ export async function requireAuthorizedUserFromSession(): Promise<AuthorizedUser
     email: resolved.email,
     role: resolved.role,
     contractorId: resolved.contractorId,
+    vehicleFinanceSupplierId: resolved.vehicleFinanceSupplierId,
     workspaceId: resolved.workspaceId,
     capabilities: resolved.capabilities,
   };
@@ -180,6 +185,12 @@ export function isVehicleFinanceAuthorizedRole(role: UserRole): boolean {
 
 export function assertVehicleFinanceRole(user: AuthorizedUser): void {
   if (!isVehicleFinanceAuthorizedRole(user.role)) {
+    throw new AuthorizationError('unauthorized', 403);
+  }
+}
+
+export function assertVehicleFinancePartnerRole(user: AuthorizedUser): void {
+  if (!isVehicleFinancePartnerRole(user.role) || !user.vehicleFinanceSupplierId) {
     throw new AuthorizationError('unauthorized', 403);
   }
 }

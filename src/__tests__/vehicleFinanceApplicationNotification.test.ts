@@ -61,7 +61,7 @@ describe("vehicle finance application notifications", () => {
     return { db: { collection }, add, auditAdd, queueSet };
   }
 
-  test("sends to the configured Roar Cars finance recipients", async () => {
+  test("sends to the configured vehicle finance recipients", async () => {
     const { db, add, auditAdd } = createDb();
     getFirebaseAdmin.mockReturnValue(db);
     resendSend.mockResolvedValue({ data: { id: "resend-1" }, error: null });

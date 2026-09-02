@@ -11,7 +11,7 @@ export default function VehicleFinanceDashboardRouter() {
   if (loading) {
     return (
       <div className="mx-auto max-w-7xl p-6 text-sm text-slate-300" role="status">
-        Loading Roar Cars workspace…
+        Loading Torque Empire Car Division workspace…
       </div>
     );
   }

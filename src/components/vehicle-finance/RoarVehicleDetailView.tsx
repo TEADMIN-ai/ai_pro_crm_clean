@@ -83,7 +83,7 @@ export default function RoarVehicleDetailView({ vehicleId }: Props) {
       <section className="rounded-[32px] border border-sky-300/20 bg-slate-950 p-6 shadow-[0_24px_70px_rgba(2,8,23,0.4)] md:p-8">
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div>
-            <p className="text-xs font-bold uppercase tracking-[0.32em] text-sky-200">Roar Cars SA</p>
+            <p className="text-xs font-bold uppercase tracking-[0.32em] text-sky-200">Torque Empire Car Division</p>
             <h1 className="mt-3 text-3xl font-semibold tracking-[-0.04em] text-white sm:text-4xl">Vehicle Detail</h1>
             <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-200">
               {vehicle ? "Frontend vehicle profile with live inventory data and source context." : "The selected vehicle could not be found in the current inventory sync."}

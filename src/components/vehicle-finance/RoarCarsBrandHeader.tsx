@@ -28,12 +28,12 @@ export default function RoarCarsBrandHeader() {
         <div className="flex items-center justify-between gap-4">
           <Link href="/dashboard/vehicle-finance" className="group flex items-center gap-3 no-underline">
             <span className="flex h-11 w-11 items-center justify-center rounded-full border border-sky-300/30 bg-sky-400/10 text-lg font-black tracking-[-0.08em] text-sky-100 shadow-[0_0_28px_rgba(56,189,248,0.16)]">
-              RC
+              TE
             </span>
             <span>
-              <span className="block text-sm font-bold uppercase tracking-[0.22em] text-white">Roar Cars SA</span>
+              <span className="block text-sm font-bold uppercase tracking-[0.22em] text-white">Torque Empire Car Division</span>
               <span className="mt-0.5 block text-[10px] font-semibold uppercase tracking-[0.32em] text-sky-200/70">
-                Born To Roar
+                Vehicle Procurement
               </span>
             </span>
           </Link>
@@ -42,7 +42,7 @@ export default function RoarCarsBrandHeader() {
           </span>
         </div>
 
-        <nav aria-label="Roar Cars Vehicle Division" className="flex gap-2 overflow-x-auto pb-1">
+        <nav aria-label="Torque Empire Car Division" className="flex gap-2 overflow-x-auto pb-1">
           {NAV_ITEMS.map((item) => {
             const active = item.exact
                 ? pathname === "/dashboard/vehicle-finance"

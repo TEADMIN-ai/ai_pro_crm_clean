@@ -16,7 +16,7 @@ export default function SettingsPage() {
       <h1 className="text-xl font-semibold">{isRoarCarsWorkspace ? "Dealer Settings" : "System Settings"}</h1>
       <p className="text-sm text-slate-400">
         {isRoarCarsWorkspace
-          ? "Configure Roar Cars workspace and account preferences."
+          ? "Configure Torque Empire Car Division workspace and account preferences."
           : "Configure system preferences and user roles."}
       </p>
     </div>

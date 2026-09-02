@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
     console.error("[roar-inventory] persisted inventory read failed", error);
     return NextResponse.json(
       {
-        error: "Roar Cars inventory is temporarily unavailable",
+        error: "Vehicle inventory is temporarily unavailable",
         status: "UNAVAILABLE",
       },
       { status: 200 },

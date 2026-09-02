@@ -35,7 +35,7 @@ export default function RoarCarsStaffDashboard() {
     ])
       .then(async ([overviewResponse, inventoryResponse]) => {
         if (!overviewResponse.ok || !inventoryResponse.ok) {
-          throw new Error("Roar Cars operational data is temporarily unavailable");
+          throw new Error("Torque Empire Car Division operational data is temporarily unavailable");
         }
 
         const [overviewPayload, inventoryPayload] = await Promise.all([
@@ -48,7 +48,7 @@ export default function RoarCarsStaffDashboard() {
       })
       .catch((loadError: unknown) => {
         if (!controller.signal.aborted) {
-          setError(loadError instanceof Error ? loadError.message : "Roar Cars operational data is temporarily unavailable");
+          setError(loadError instanceof Error ? loadError.message : "Torque Empire Car Division operational data is temporarily unavailable");
         }
       });
 
@@ -69,7 +69,7 @@ export default function RoarCarsStaffDashboard() {
       <section className="relative min-h-[430px] overflow-hidden rounded-[32px] border border-sky-300/25 bg-slate-950 shadow-[0_28px_100px_rgba(2,8,23,0.55)]">
         <Image
           src={SHOWROOM_IMAGE}
-          alt="Roar Cars SA vehicle showroom"
+          alt="Torque Empire Car Division vehicle showroom"
           fill
           sizes="(min-width: 1280px) 1200px, 100vw"
           className="object-cover object-center"
@@ -77,7 +77,7 @@ export default function RoarCarsStaffDashboard() {
         />
         <div className="absolute inset-0 bg-[linear-gradient(100deg,rgba(2,6,23,0.97)_0%,rgba(2,8,23,0.78)_55%,rgba(2,8,23,0.25)_100%)]" />
         <div className="relative flex min-h-[430px] max-w-3xl flex-col justify-center px-6 py-12 sm:px-10 lg:px-14">
-          <p className="text-xs font-bold uppercase tracking-[0.34em] text-sky-200">Roar Cars SA Operations Centre</p>
+          <p className="text-xs font-bold uppercase tracking-[0.34em] text-sky-200">Torque Empire Car Division Operations Centre</p>
           <h1 className="mt-5 text-4xl font-semibold tracking-[-0.05em] text-white sm:text-5xl lg:text-6xl">
             Vehicle inventory and finance operations.
           </h1>
@@ -101,7 +101,7 @@ export default function RoarCarsStaffDashboard() {
         </div>
       ) : null}
 
-      <section aria-label="Roar Cars operational KPIs" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+      <section aria-label="Torque Empire Car Division operational KPIs" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
         {kpis.map(([label, value]) => (
           <Card key={label} className="min-h-[150px] border-sky-300/15 bg-slate-950/70">
             <p className="text-xs font-semibold uppercase tracking-[0.17em] text-sky-200/70">{label}</p>

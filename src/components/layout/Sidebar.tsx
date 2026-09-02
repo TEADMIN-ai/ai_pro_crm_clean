@@ -117,7 +117,7 @@ export default function Sidebar() {
               : []),
             {
               href: "/dashboard/vehicle-finance",
-              label: "Roar Cars SA",
+              label: "Torque Empire Car Division",
               active: pathname.startsWith("/dashboard/vehicle-finance"),
             },
             ...(role === "admin"
