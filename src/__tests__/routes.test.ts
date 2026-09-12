@@ -1,6 +1,10 @@
 import { API_ROUTES } from "@/lib/routes";
 
 describe("API_ROUTES integrity", () => {
+  test("AUTH_DEBUG route is correct", () => {
+    expect(API_ROUTES.AUTH_DEBUG).toBe("/api/auth/debug");
+  });
+
   test("CONTRACTORS route is correct", () => {
     expect(API_ROUTES.CONTRACTORS).toBe("/api/contractors");
   });

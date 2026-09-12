@@ -4,12 +4,14 @@ export const TORQUE_EMPIRE_BRAND = {
   platformName: "Torque Empire",
   shortName: "Torque Empire",
   tagline: "Four Divisions. One Vision. Total Excellence.",
+  corporateTagline: "Business Transformation. Intelligent Solutions. Real Impact.",
   division: "TEOS Platform",
   websiteUrl: "https://www.torqueempire.net",
   description: "Torque Empire (Pty) Ltd is a South African technology and professional services company delivering procurement, hygiene, telecommunications, and TEOS business systems.",
   colors: {
     navy: "#07111f",
     blue: "#0b2f57",
+    gold: "#c8a24a",
     cobalt: "#1d4ed8",
     slate: "#475569",
     border: "#d9e2ec",
@@ -27,6 +29,7 @@ export const TORQUE_EMPIRE_BRAND_ASSETS = {
   logoDarkPng: "/corporate/logo/torque-empire-dark.png",
   logoLightPng: "/corporate/logo/torque-empire-light.png",
   monogramSvg: "/corporate/logo/torque-empire-monogram.svg",
+  businessLetterheadPng: "/corporate/letterhead/torque-empire-business-letterhead.png",
   faviconPng: "/corporate/logo/favicon.png",
 } as const;
 

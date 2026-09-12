@@ -3,6 +3,8 @@ import { getAuth } from "firebase-admin/auth";
 import { getFirebaseAdmin } from "@/lib/firebase/admin";
 import { AuthorizationError, requireAuthorizedUser } from "@/lib/server/authz";
 
+export const runtime = "nodejs";
+
 async function exchangeRefreshToken(refreshToken: string, apiKey: string) {
   const tokenResponse = await fetch(`https://securetoken.googleapis.com/v1/token?key=${encodeURIComponent(apiKey)}`, {
     method: "POST",

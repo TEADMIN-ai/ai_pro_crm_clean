@@ -79,6 +79,33 @@ describe("authFetch", () => {
     expect(headers.get("X-Test")).toBe("1");
   });
 
+  test("sends the exact route with bearer token and caller credentials", async () => {
+    mockAuth.currentUser = { getIdToken: jest.fn().mockResolvedValue("firebase-token") };
+
+    const fetchMock = jest.fn().mockResolvedValue(
+      new Response(JSON.stringify({ sessionExists: true }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      })
+    );
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    await authFetch("/api/auth/debug", {
+      method: "GET",
+      cache: "no-store",
+      credentials: "include",
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0][0]).toBe("/api/auth/debug");
+    const fetchInit = fetchMock.mock.calls[0][1] as RequestInit;
+    expect(fetchInit.method).toBe("GET");
+    expect(fetchInit.cache).toBe("no-store");
+    expect(fetchInit.credentials).toBe("include");
+    const headers = new Headers(fetchInit.headers);
+    expect(headers.get("Authorization")).toBe("Bearer firebase-token");
+  });
+
   test("returns native Response when no user token", async () => {
     localStorage.removeItem("authToken");
 

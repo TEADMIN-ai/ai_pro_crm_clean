@@ -41,6 +41,11 @@ const pendingWorkflowSteps: HygieneWorkflowStep[] = completedWorkflowSteps.map((
   status: "Pending",
 }));
 
+const completedWithoutSignatureEvidenceWorkflowSteps: HygieneWorkflowStep[] = completedWorkflowSteps.map((step) => ({
+  ...step,
+  status: step.label === "Capture client signature" ? "Pending" : step.status,
+}));
+
 export const cbavoClient: HygieneClient = {
   clientId: "TE-CLI-0001",
   clientName: "CBAVO Services",
@@ -138,9 +143,29 @@ export const cbavoCollections: HygieneCollection[] = [
     manifestId: "TE-WM-2026-0001",
     evidencePhotoIds: [],
     clientSignatureStatus: "Pending signature capture",
-    notes: "First completed CBAVO hygiene collection. Florida and Ontdekkers manifests attached.",
+    notes: "First completed CBAVO hygiene collection for Florida Campus.",
     workflowSteps: completedWorkflowSteps,
   },
+  {
+    collectionId: "TE-COL-2026-0003",
+    clientId: "TE-CLI-0001",
+    siteId: "TE-SIT-0002",
+    scheduledDate: "2026-06-19",
+    scheduledTimeWindow: "After 13:00",
+    assignedDriver: "C. Karanie",
+    vehicleRegistration: "JG 71 RS GP",
+    vehicleName: "Nissan NP200",
+    status: "Completed",
+    arrivalTime: null,
+    departureTime: null,
+    completedAt: null,
+    manifestId: "TE-WM-2026-0002",
+    evidencePhotoIds: [],
+    clientSignatureStatus: "Pending signature capture",
+    notes: "First completed CBAVO hygiene collection for Ontdekkers Campus.",
+    workflowSteps: completedWithoutSignatureEvidenceWorkflowSteps,
+  },
+
   {
     collectionId: "TE-COL-2026-0002",
     clientId: "TE-CLI-0001",
@@ -186,7 +211,7 @@ export const cbavoManifests: HygieneManifest[] = [
   },
   {
     manifestId: "TE-WM-2026-0002",
-    collectionId: "TE-COL-2026-0001",
+    collectionId: "TE-COL-2026-0003",
     clientId: "TE-CLI-0001",
     siteId: "TE-SIT-0002",
     generatorRegistration: HYGIENE_GENERATOR_REGISTRATION,
@@ -236,7 +261,7 @@ export const cbavoDriverLogs: HygieneDriverLog[] = [
     endKm: null,
     fuel: "R200 Diesel",
     signatureStatus: "Pending signature capture",
-    linkedCollectionIds: ["TE-COL-2026-0001"],
+    linkedCollectionIds: ["TE-COL-2026-0001", "TE-COL-2026-0003"],
   },
 ];
 
@@ -367,7 +392,7 @@ export const cbavoReports: HygieneReport[] = [
   {
     reportId: "TE-HR-2026-06",
     period: "2026-06",
-    collectionsCompleted: 1,
+    collectionsCompleted: 2,
     sitesServiced: 2,
     totalBinsServiced: 9,
     manifestsCreated: 2,

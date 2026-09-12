@@ -1,0 +1,210 @@
+import { PDFDocument, StandardFonts } from "pdf-lib";
+import {
+  TORQUE_EMPIRE_HYGIENE_PDF_BRAND,
+  assertClientFacingHygienePdfContent,
+  buildHygieneSiteLabel,
+  buildHygieneManifestFileName,
+  buildPdfContentDisposition,
+  generateHygieneClientPackPdf,
+  getHygienePdfLayoutForTesting,
+  loadTorqueEmpirePdfBrandImage,
+  measureHygienePdfRowsForTesting,
+  generateHygieneManifestPdf,
+} from "@/lib/hygiene/hygienePdfBranding";
+import type { HygieneClient, HygieneCollection, HygieneManifest, HygieneSite } from "@/types/hygiene";
+
+const client: HygieneClient = {
+  clientId: "TE-CLI-1",
+  clientName: "CBAVO Services",
+  clientType: "Hygiene Client",
+  companyRegistration: "2024/105084/07",
+  primaryContactName: "Ops",
+  primaryContactPhone: "069 000 0000",
+  primaryContactEmail: "ops@example.test",
+  billingContact: "Ops",
+  contractStartDate: "2026-07-01",
+  contractEndDate: "2027-07-01",
+  serviceFrequency: "Weekly",
+  collectionDay: "Friday",
+  collectionWindow: "After 13:00",
+  paymentStatus: "Paid",
+  status: "Active",
+  monthlyRevenue: 2100,
+  recordClassification: "PRODUCTION",
+  createdAt: "2026-07-01",
+  updatedAt: "2026-07-01",
+};
+
+const site: HygieneSite = {
+  siteId: "TE-SIT-1",
+  clientId: client.clientId,
+  siteName: "Goldman Crossing",
+  address: "1 Goldman Street",
+  suburb: "Florida",
+  city: "Roodepoort",
+  contactPerson: "Site Manager",
+  contactPhone: "069 111 1111",
+  binCount: 4,
+  binSize: "12L",
+  serviceFrequency: "Weekly",
+  accessNotes: "Reception access",
+  lastServiceDate: null,
+  nextServiceDate: "2026-07-10",
+  status: "Active",
+};
+
+const collection: HygieneCollection = {
+  collectionId: "TE-COL-2026-0001",
+  clientId: client.clientId,
+  siteId: site.siteId,
+  scheduledDate: "2026-07-10",
+  scheduledTimeWindow: "After 13:00",
+  assignedDriver: "Driver One",
+  vehicleRegistration: "TE 01 GP",
+  vehicleName: "Hygiene Vehicle",
+  status: "Completed",
+  arrivalTime: "2026-07-10T10:00:00.000Z",
+  departureTime: "2026-07-10T10:30:00.000Z",
+  completedAt: "2026-07-10T10:30:00.000Z",
+  manifestId: "TE-WM-2026-0001",
+  evidencePhotoIds: [],
+  clientSignatureStatus: "Captured",
+  notes: "Operational collection update.",
+  workflowSteps: [],
+};
+
+const manifest: HygieneManifest = {
+  manifestId: "TE-WM-2026-0001",
+  collectionId: collection.collectionId,
+  clientId: client.clientId,
+  siteId: site.siteId,
+  generatorRegistration: "GPG-15-793",
+  transportRegistration: "GPT-15-858",
+  wasteClassification: "HW19",
+  wasteType: "Sanitary/Feminine Hygiene Waste",
+  quantity: 4,
+  unit: "12L bins",
+  collectionDate: "2026-07-10",
+  collectedBy: "Driver One",
+  vehicleRegistration: "TE 01 GP",
+  disposalFacility: "Approved Disposal Facility",
+  disposalDate: "2026-07-11",
+  disposalCertificateNo: "CERT-2026-77",
+  status: "Certified",
+  createdAt: "2026-07-10T10:31:00.000Z",
+  updatedAt: "2026-07-11T12:00:00.000Z",
+};
+
+const data = { manifest, collection, client, site, generatedAt: "2026-07-12T09:00:00.000Z" };
+
+describe("Hygiene PDF branding", () => {
+  it("keeps header text ranges separated inside the reserved header zone", () => {
+    const layout = getHygienePdfLayoutForTesting();
+
+    expect(layout.headerText.division.bottom).toBeGreaterThan(layout.headerText.title.top);
+    expect(layout.headerText.title.bottom).toBeGreaterThan(layout.headerText.subtitle.top);
+    expect(layout.headerText.subtitle.bottom).toBeGreaterThan(layout.header.bottom);
+    expect(layout.body.top).toBeLessThan(layout.header.bottom);
+  });
+
+  it("reserves a footer zone below body content", () => {
+    const layout = getHygienePdfLayoutForTesting();
+
+    expect(layout.body.bottom).toBeGreaterThan(layout.footer.top);
+    expect(layout.footer.top).toBeGreaterThan(0);
+  });
+
+  it("normalizes site labels without duplicating address locality", () => {
+    expect(buildHygieneSiteLabel({
+      ...site,
+      siteName: "Ontdekkers Campus",
+      address: "Ontdekkers, Roodepoort",
+      suburb: "Ontdekkers",
+      city: "Roodepoort",
+    })).toBe("Ontdekkers Campus, Ontdekkers, Roodepoort");
+  });
+
+  it("expands row height for long client-facing values", async () => {
+    const pdf = await PDFDocument.create();
+    const fonts = {
+      regular: await pdf.embedFont(StandardFonts.Helvetica),
+      bold: await pdf.embedFont(StandardFonts.HelveticaBold),
+    };
+
+    const [shortRow, longRow] = measureHygienePdfRowsForTesting([
+      ["Site", "Short site"],
+      ["Declaration", "This long declaration text must wrap safely inside the value cell without clipping, overlapping labels, or entering adjacent rows in the generated client-facing PDF."],
+    ], 499.28, fonts);
+
+    expect(shortRow).toBe(20);
+    expect(longRow).toBeGreaterThan(shortRow);
+  });
+
+  it("keeps the approved Torque Empire Hygiene document identity reusable", () => {
+    expect(TORQUE_EMPIRE_HYGIENE_PDF_BRAND.divisionName).toBe("Torque Empire - Hygiene Solutions");
+    expect(TORQUE_EMPIRE_HYGIENE_PDF_BRAND.documentGenerator).toBe("Generated by TEOS on behalf of Torque Empire (Pty) Ltd");
+    expect(TORQUE_EMPIRE_HYGIENE_PDF_BRAND.approvedLetterheadAsset).toBe("/corporate/letterhead/torque-empire-business-letterhead.png");
+    expect(TORQUE_EMPIRE_HYGIENE_PDF_BRAND.colors).toMatchObject({
+      navy: "#07111f",
+      gold: "#c8a24a",
+      white: "#ffffff",
+    });
+  });
+
+  it("generates manifest PDFs with Torque Empire TEOS metadata", async () => {
+    const bytes = await generateHygieneManifestPdf(data);
+    const pdf = await PDFDocument.load(bytes);
+
+    expect(pdf.getPageCount()).toBe(1);
+    expect(pdf.getAuthor()).toBe("TEOS on behalf of Torque Empire (Pty) Ltd");
+    expect(pdf.getCreator()).toBe("TEOS on behalf of Torque Empire (Pty) Ltd");
+    expect(pdf.getSubject()).toContain("Waste manifest generated by TEOS");
+  });
+
+  it("loads the approved public letterhead asset for server-side PDF rendering", async () => {
+    const pdf = await PDFDocument.create();
+    await expect(loadTorqueEmpirePdfBrandImage(pdf)).resolves.toBeTruthy();
+  });
+
+  it("builds safe content-disposition headers for unsafe filenames", () => {
+    const header = buildPdfContentDisposition("attachment", "Bad\r\nName_Client/../../Manifest.pdf");
+
+    expect(header).toContain("attachment;");
+    expect(header).not.toContain("\r");
+    expect(header).not.toContain("\n");
+    expect(header).not.toContain("..");
+    expect(header).toContain(".pdf");
+  });
+
+  it("builds client packs with cover, manifest, unaltered certificate pages and index", async () => {
+    const certificate = await PDFDocument.create();
+    certificate.addPage([300, 200]);
+    const certificateBytes = await certificate.save();
+
+    const packBytes = await generateHygieneClientPackPdf(data, certificateBytes);
+    const pack = await PDFDocument.load(packBytes);
+
+    expect(pack.getPageCount()).toBe(4);
+    expect(pack.getAuthor()).toBe("TEOS on behalf of Torque Empire (Pty) Ltd");
+    expect(pack.getPage(2).getWidth()).toBe(300);
+    expect(pack.getPage(2).getHeight()).toBe(200);
+  });
+
+  it("does not manufacture certificate pages when optional evidence is missing", async () => {
+    const packBytes = await generateHygieneClientPackPdf({ ...data, disposalEvidence: [] });
+    const pack = await PDFDocument.load(packBytes);
+
+    expect(pack.getPageCount()).toBe(3);
+  });
+
+  it("uses the required client-facing file naming convention", () => {
+    expect(buildHygieneManifestFileName(data)).toBe(
+      "Torque-Empire_Hygiene_CBAVO-Services_Goldman-Crossing_Waste-Manifest_TE-WM-2026-0001_2026-07-10.pdf"
+    );
+  });
+
+  it("rejects staff-only and internal markers before client PDF rendering", () => {
+    expect(() => assertClientFacingHygienePdfContent(["client ok", "staff-only note"])).toThrow(/restricted internal marker/);
+    expect(() => assertClientFacingHygienePdfContent(["client ok", "Waste Manifest"])).not.toThrow();
+  });
+});

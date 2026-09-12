@@ -22,6 +22,7 @@ import {
   hasRealHygieneManifestId,
 } from "@/lib/hygiene/hygieneManifestDisplay";
 import { NUWKEM_PRODUCTS_URL, NUWKEM_PRODUCT_MEDIA } from "@/lib/hygiene/nuwkemProductMedia";
+import { getHygieneManifestDocumentActionVisibility } from "@/lib/hygiene/hygieneManifestDocumentActions";
 import {
   HYGIENE_PHOTO_CATEGORIES,
   type HygieneCollection,
@@ -669,6 +670,146 @@ export default function HygieneDivisionClient({ view }: { view: HygieneView }) {
     }
   }
 
+
+
+  async function readDocumentError(response: Response, fallback: string): Promise<string> {
+    const payload = (await response.json().catch(() => null)) as { error?: string } | null;
+    return payload?.error ?? fallback;
+  }
+
+  function filenameFromContentDisposition(value: string | null, fallback: string): string {
+    const encodedMatch = value?.match(/filename\*=UTF-8''([^;]+)/i);
+    if (encodedMatch?.[1]) return decodeURIComponent(encodedMatch[1]);
+    const asciiMatch = value?.match(/filename="?([^";]+)"?/i);
+    return asciiMatch?.[1] ?? fallback;
+  }
+
+  function presentPdfBlob(blob: Blob, filename: string, download: boolean): boolean {
+    const url = URL.createObjectURL(blob);
+    if (download) {
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 30000);
+      return true;
+    }
+
+    const opened = window.open(url, "_blank", "noopener,noreferrer");
+    if (!opened) {
+      URL.revokeObjectURL(url);
+      return false;
+    }
+    window.setTimeout(() => URL.revokeObjectURL(url), 60000);
+    return true;
+  }
+
+  async function fetchAndPresentManifestDocument(url: string, options: { download: boolean; pending: string; success: string; fallbackFilename: string; failure: string }) {
+    setMutationStatus(options.pending);
+    setError(null);
+    try {
+      const response = await authFetch(url);
+      if (!response.ok) throw new Error(await readDocumentError(response, options.failure));
+      const contentType = response.headers.get("Content-Type") ?? "";
+      if (!contentType.toLowerCase().includes("application/pdf")) throw new Error(options.failure);
+      const blob = await response.blob();
+      const filename = filenameFromContentDisposition(response.headers.get("Content-Disposition"), options.fallbackFilename);
+      if (!presentPdfBlob(blob, filename, options.download)) throw new Error("Browser blocked the manifest document popup. Allow popups for TEOS and try again.");
+      setMutationStatus(options.success);
+    } catch (documentError) {
+      setMutationStatus(documentError instanceof Error ? documentError.message : options.failure);
+    }
+  }
+
+  async function openManifestPdf(manifest: HygieneManifest, download = false) {
+    await fetchAndPresentManifestDocument(API_ROUTES.HYGIENE_MANIFEST_PDF(manifest.manifestId, download), {
+      download,
+      pending: download ? "Preparing manifest PDF download..." : "Opening manifest PDF...",
+      success: download ? "Manifest PDF download started." : "Manifest PDF opened.",
+      fallbackFilename: manifest.manifestId + ".pdf",
+      failure: "Manifest document could not be generated for this saved manifest.",
+    });
+  }
+
+  async function openClientPack(manifest: HygieneManifest) {
+    await fetchAndPresentManifestDocument(API_ROUTES.HYGIENE_CLIENT_PACK(manifest.manifestId), {
+      download: true,
+      pending: "Creating client pack...",
+      success: "Client pack generated; download started.",
+      fallbackFilename: manifest.manifestId + "-client-pack.pdf",
+      failure: "Client pack could not be generated for this saved manifest.",
+    });
+  }
+
+  function hasUsableCertificateReference(value: string | null | undefined): boolean {
+    return Boolean(value?.trim() && !/pending/i.test(value));
+  }
+
+  function findDisposalCertificate(manifest: HygieneManifest) {
+    const photo = data?.evidencePhotos.find((item) =>
+      item.category === "Disposal Certificate" &&
+      item.clientId === manifest.clientId &&
+      item.siteId === manifest.siteId &&
+      item.collectionId === manifest.collectionId &&
+      item.manifestId === manifest.manifestId
+    );
+    if (photo) return { kind: "photo" as const, recordId: photo.photoId, collectionId: photo.collectionId };
+    const owner = clientById.get(manifest.clientId);
+    const document = data?.complianceDocuments.find((item) =>
+      item.documentType === "Disposal Certificates" &&
+      hasUsableCertificateReference(manifest.disposalCertificateNo) &&
+      item.registrationNumber === manifest.disposalCertificateNo &&
+      item.owner === owner
+    );
+    if (document) return { kind: "compliance" as const, recordId: document.documentId, collectionId: undefined };
+    return null;
+  }
+
+  async function openManifestCertificate(manifest: HygieneManifest, actionLabel: string) {
+    const certificate = findDisposalCertificate(manifest);
+    if (!certificate) {
+      setMutationStatus("No disposal certificate is linked to this manifest yet.");
+      return;
+    }
+    await openHygieneEvidence(certificate.kind, certificate.recordId, certificate.collectionId);
+    setMutationStatus(actionLabel);
+  }
+
+  function renderManifestActions(manifest: HygieneManifest, layout: "card" | "table") {
+    const visibility = getHygieneManifestDocumentActionVisibility({
+      manifest,
+      evidencePhotos: data?.evidencePhotos ?? [],
+      complianceDocuments: data?.complianceDocuments ?? [],
+      clientName: clientById.get(manifest.clientId),
+      canOperate,
+    });
+    const certificate = visibility.viewCertificate ? findDisposalCertificate(manifest) : null;
+    const documentActions = visibility.viewManifest ? (
+      <>
+        <SmallAction variant="primary" onClick={() => void openManifestPdf(manifest)}>View Manifest</SmallAction>
+        {visibility.downloadPdf ? <SmallAction onClick={() => void openManifestPdf(manifest, true)}>Download PDF</SmallAction> : null}
+        {visibility.createClientPack ? <SmallAction variant="primary" onClick={() => void openClientPack(manifest)}>Create Client Pack</SmallAction> : null}
+        {certificate && visibility.viewCertificate ? <SmallAction onClick={() => void openManifestCertificate(manifest, "Certificate access opened.")}>View Certificate</SmallAction> : null}
+        {certificate && visibility.downloadCertificate ? <SmallAction onClick={() => void openManifestCertificate(manifest, "Certificate download access opened.")}>Download Certificate</SmallAction> : null}
+      </>
+    ) : null;
+
+    return (
+      <>
+        {documentActions}
+        {canOperate ? <SmallAction onClick={() => openModal("manifest", "Edit Manifest", manifest)}>Edit Manifest</SmallAction> : null}
+        {layout === "table" && canOperate ? <SmallAction onClick={() => openModal("manifest", "Link Manifest to Collection", manifest)}>Link Collection</SmallAction> : null}
+        {layout === "table" && canOperate ? <SmallAction onClick={() => openModal("manifest", "Add Transport Details", manifest)}>Transport Details</SmallAction> : null}
+        {canOperate ? <SmallAction onClick={() => openModal("manifest", "Add Disposal Facility", manifest)}>Disposal Facility</SmallAction> : null}
+        {canManage ? <SmallAction variant="primary" onClick={() => openModal("compliance", "Upload Disposal Certificate", { documentType: "Disposal Certificates", title: "Disposal Certificate " + manifest.manifestId, registrationNumber: manifest.disposalCertificateNo, owner: clientById.get(manifest.clientId) ?? manifest.clientId })}>Upload Certificate</SmallAction> : null}
+        {layout === "table" && canOperate ? <SmallAction onClick={() => void postJson(API_ROUTES.HYGIENE_MANIFESTS, { ...manifest, status: "Disposed" }, "Manifest marked disposed.")}>Mark Disposed</SmallAction> : null}
+        {layout === "table" && canManage ? <SmallAction onClick={() => void postJson(API_ROUTES.HYGIENE_MANIFESTS, { ...manifest, status: "Certified", disposalCertificateNo: manifest.disposalCertificateNo === "Disposal certificate pending" ? "Certificate uploaded" : manifest.disposalCertificateNo }, "Manifest certified.")}>Mark Certified</SmallAction> : null}
+      </>
+    );
+  }
+
   function openModal(kind: ModalKind, title: string, defaults?: unknown) {
     setMutationStatus("");
     setModal({ kind, title, defaults: (defaults ?? {}) as Record<string, unknown> });
@@ -886,10 +1027,13 @@ export default function HygieneDivisionClient({ view }: { view: HygieneView }) {
     if (file) void uploadEvidence(file, "Site Arrival");
   }
 
+  // Existing dashboard bootstrap loads data once auth state is resolved.
   useEffect(() => {
     if (!authLoading) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       void loadData();
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authLoading, showTestData]);
 
   return (
@@ -1411,13 +1555,7 @@ export default function HygieneDivisionClient({ view }: { view: HygieneView }) {
                   { label: "Quantity", value: `${manifest.quantity} ${manifest.unit}` },
                   { label: "Transport", value: `${manifest.collectedBy} | ${manifest.vehicleRegistration}` },
                 ]}
-                actions={(
-                  <>
-                    {canOperate ? <SmallAction onClick={() => openModal("manifest", "Edit Manifest", manifest)}>Edit Manifest</SmallAction> : null}
-                    {canOperate ? <SmallAction onClick={() => openModal("manifest", "Add Disposal Facility", manifest)}>Disposal Facility</SmallAction> : null}
-                    {canManage ? <SmallAction variant="primary" onClick={() => openModal("compliance", "Upload Disposal Certificate", { documentType: "Disposal Certificates", title: `Disposal Certificate ${manifest.manifestId}`, registrationNumber: manifest.disposalCertificateNo, owner: clientById.get(manifest.clientId) ?? manifest.clientId })}>Upload Certificate</SmallAction> : null}
-                  </>
-                )}
+                actions={renderManifestActions(manifest, "card")}
               >
                 <DisposalWarningCell manifest={manifest} />
               </BoardCard>
@@ -1431,14 +1569,8 @@ export default function HygieneDivisionClient({ view }: { view: HygieneView }) {
             <PrimaryCell key="transport" title={manifest.collectedBy} subtitle={manifest.vehicleRegistration} />,
             <DisposalWarningCell key="disposal" manifest={manifest} />,
             <StatusBadge key="status" value={manifest.status} />,
-            <div key="actions" className="flex max-w-sm flex-wrap gap-2">
-              {canOperate ? <SmallAction onClick={() => openModal("manifest", "Edit Manifest", manifest)}>Edit Manifest</SmallAction> : null}
-              {canOperate ? <SmallAction onClick={() => openModal("manifest", "Link Manifest to Collection", manifest)}>Link Collection</SmallAction> : null}
-              {canOperate ? <SmallAction onClick={() => openModal("manifest", "Add Transport Details", manifest)}>Transport Details</SmallAction> : null}
-              {canOperate ? <SmallAction onClick={() => openModal("manifest", "Add Disposal Facility", manifest)}>Disposal Facility</SmallAction> : null}
-              {canManage ? <SmallAction variant="primary" onClick={() => openModal("compliance", "Upload Disposal Certificate", { documentType: "Disposal Certificates", title: `Disposal Certificate ${manifest.manifestId}`, registrationNumber: manifest.disposalCertificateNo, owner: clientById.get(manifest.clientId) ?? manifest.clientId })}>Upload Certificate</SmallAction> : null}
-              {canOperate ? <SmallAction onClick={() => void postJson(API_ROUTES.HYGIENE_MANIFESTS, { ...manifest, status: "Disposed" }, "Manifest marked disposed.")}>Mark Disposed</SmallAction> : null}
-              {canManage ? <SmallAction onClick={() => void postJson(API_ROUTES.HYGIENE_MANIFESTS, { ...manifest, status: "Certified", disposalCertificateNo: manifest.disposalCertificateNo === "Disposal certificate pending" ? "Certificate uploaded" : manifest.disposalCertificateNo }, "Manifest certified.")}>Mark Certified</SmallAction> : null}
+            <div key="actions" className="flex min-w-[32rem] flex-wrap gap-2">
+              {renderManifestActions(manifest, "table")}
             </div>,
           ])} />
         </Panel>
