@@ -67,7 +67,8 @@ type ModalKind =
   | "manifest"
   | "compliance"
   | "report"
-  | "evidence";
+  | "evidence"
+  | "consolidatedPack";
 
 type ActionModalState = {
   kind: ModalKind;
@@ -743,6 +744,42 @@ export default function HygieneDivisionClient({ view }: { view: HygieneView }) {
     });
   }
 
+  function openConsolidatedPackModal() {
+    setModal({
+      kind: "consolidatedPack",
+      title: "Create Consolidated Client Pack",
+      defaults: {
+        clientId: data?.clients[0]?.clientId ?? "",
+        startDate: data?.collections[0]?.scheduledDate ?? "",
+        endDate: new Date().toISOString().slice(0, 10),
+      },
+    });
+  }
+
+  async function openConsolidatedClientPack(formData: FormData) {
+    const clientId = valueFromForm(formData, "clientId");
+    if (!clientId) {
+      setMutationStatus("Select a Hygiene client before creating a consolidated client pack.");
+      return;
+    }
+    const params = new URLSearchParams();
+    const startDate = valueFromForm(formData, "startDate");
+    const endDate = valueFromForm(formData, "endDate");
+    const siteId = valueFromForm(formData, "siteId");
+    if (startDate) params.set("startDate", startDate);
+    if (endDate) params.set("endDate", endDate);
+    if (siteId && siteId !== "__all__") params.set("siteId", siteId);
+    if (formData.get("includeIncomplete") === "on") params.set("includeIncomplete", "1");
+    setModal(null);
+    await fetchAndPresentManifestDocument(API_ROUTES.HYGIENE_CONSOLIDATED_CLIENT_PACK(clientId, params.toString()), {
+      download: true,
+      pending: "Creating consolidated client pack...",
+      success: "Consolidated client pack generated; download started.",
+      fallbackFilename: clientId + "-consolidated-client-pack.pdf",
+      failure: "Consolidated client pack could not be generated for this client.",
+    });
+  }
+
   function hasUsableCertificateReference(value: string | null | undefined): boolean {
     return Boolean(value?.trim() && !/pending/i.test(value));
   }
@@ -831,6 +868,11 @@ export default function HygieneDivisionClient({ view }: { view: HygieneView }) {
 
     const formData = new FormData(event.currentTarget);
     const defaults = modal.defaults ?? {};
+
+    if (modal.kind === "consolidatedPack") {
+      await openConsolidatedClientPack(formData);
+      return;
+    }
 
     if (modal.kind === "client") {
       await postJson(API_ROUTES.HYGIENE, {
@@ -1223,6 +1265,21 @@ export default function HygieneDivisionClient({ view }: { view: HygieneView }) {
                 <Field name="period" label="Report month" type="month" defaultValue={modal.defaults?.period ?? new Date().toISOString().slice(0, 7)} />
               ) : null}
 
+              {modal.kind === "consolidatedPack" ? (
+                <>
+                  <SelectField name="clientId" label="Client" defaultValue={String(modal.defaults?.clientId ?? data?.clients[0]?.clientId ?? "")} options={(data?.clients ?? []).map((client) => client.clientId)} />
+                  <Field name="startDate" label="Start date" type="date" defaultValue={modal.defaults?.startDate ?? ""} />
+                  <Field name="endDate" label="End date" type="date" defaultValue={modal.defaults?.endDate ?? ""} />
+                  <Field name="siteId" label="Site filter">
+                    <select name="siteId" defaultValue="__all__" className="rounded-xl border border-white/20 bg-slate-950/80 px-3 py-2 text-white outline-none focus:border-teal-200/70 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-200">
+                      <option value="__all__">All sites</option>
+                      {(data?.sites ?? []).map((site) => <option key={site.siteId} value={site.siteId}>{site.siteName}</option>)}
+                    </select>
+                  </Field>
+                  <label className="flex items-center gap-3 text-sm text-slate-200"><input name="includeIncomplete" type="checkbox" /> Include generated / incomplete collections</label>
+                </>
+              ) : null}
+
               {modal.kind === "evidence" ? (
                 <>
                   <SelectField name="collectionId" label="Collection" defaultValue={String(modal.defaults?.collectionId ?? data?.collections[0]?.collectionId ?? "")} options={(data?.collections ?? []).map((collection) => collection.collectionId)} />
@@ -1541,7 +1598,7 @@ export default function HygieneDivisionClient({ view }: { view: HygieneView }) {
       ) : null}
 
       {!loading && data && view === "manifests" ? (
-        <Panel title="Waste Manifest Register" eyebrow="Chain of custody" action={canOperate ? <SmallAction variant="warning" onClick={() => void postJson(API_ROUTES.HYGIENE_MANIFESTS, { action: "generate", collectionId: data.collections[0]?.collectionId }, "Manifest generated.")}>Generate Manifest</SmallAction> : null}>
+        <Panel title="Waste Manifest Register" eyebrow="Chain of custody" action={canOperate ? <div className="flex flex-wrap gap-2"><SmallAction variant="warning" onClick={() => void postJson(API_ROUTES.HYGIENE_MANIFESTS, { action: "generate", collectionId: data.collections[0]?.collectionId }, "Manifest generated.")}>Generate Manifest</SmallAction><SmallAction variant="primary" onClick={openConsolidatedPackModal}>Create Consolidated Client Pack</SmallAction></div> : null}>
           <div className="mb-5 grid gap-4 xl:grid-cols-2">
             {data.manifests.map((manifest) => (
               <BoardCard

@@ -3,6 +3,7 @@ import path from "node:path";
 import { PDFDocument, StandardFonts, rgb, type PDFImage, type PDFPage, type PDFFont } from "pdf-lib";
 import { TORQUE_EMPIRE_BRAND, TORQUE_EMPIRE_BRAND_ASSETS } from "@/lib/branding/identity";
 import { TORQUE_EMPIRE_COMPANY_PROFILE, getCorporateEmail } from "@/lib/corporate/companyProfile";
+import type { ConsolidatedHygieneClientPackData } from "@/lib/hygiene/hygieneConsolidatedPack";
 import type { HygieneClient, HygieneCollection, HygieneComplianceDocument, HygieneEvidencePhoto, HygieneManifest, HygieneSignature, HygieneSite } from "@/types/hygiene";
 
 export type HygienePdfDocumentData = {
@@ -13,6 +14,13 @@ export type HygienePdfDocumentData = {
   signatures?: HygieneSignature[];
   disposalEvidence?: Array<HygieneEvidencePhoto | HygieneComplianceDocument>;
   generatedAt?: string;
+};
+
+export type ConsolidatedCertificateAttachment = {
+  evidenceId: string;
+  manifestId: string;
+  collectionId: string;
+  bytes: Uint8Array;
 };
 
 type PdfKit = {
@@ -416,6 +424,147 @@ export async function generateHygieneManifestPdf(data: HygienePdfDocumentData): 
   const kit = await createKit();
   const page = addPage(kit, "Waste Manifest", data.manifest.manifestId);
   drawManifestBody(kit, page, data);
+  return kit.document.save();
+}
+
+
+function periodText(period: ConsolidatedHygieneClientPackData["period"]): string {
+  if (period.startDate && period.endDate) return period.startDate + " to " + period.endDate;
+  if (period.startDate) return "From " + period.startDate;
+  if (period.endDate) return "Until " + period.endDate;
+  return "All available persisted records";
+}
+
+function evidenceStatusText(entry: ConsolidatedHygieneClientPackData["entries"][number]): string {
+  if (entry.disposalEvidence.length === 0) return "Pending disposal evidence";
+  return entry.disposalEvidence
+    .map((item) => item.certificateReference ? item.label + " (" + item.certificateReference + ")" : item.label)
+    .join("; ");
+}
+
+function drawConsolidatedCover(page: PDFPage, kit: PdfKit, data: ConsolidatedHygieneClientPackData) {
+  page.drawRectangle({ x: 0, y: 0, width: PAGE_WIDTH, height: PAGE_HEIGHT, color: WHITE });
+  page.drawRectangle({ x: 0, y: PAGE_HEIGHT - 160, width: PAGE_WIDTH, height: 160, color: NAVY });
+  page.drawRectangle({ x: 0, y: PAGE_HEIGHT - 166, width: PAGE_WIDTH, height: 6, color: GOLD });
+  if (kit.brandImage) {
+    const scaled = kit.brandImage.scaleToFit(190, 70);
+    page.drawImage(kit.brandImage, { x: MARGIN, y: PAGE_HEIGHT - 116, width: scaled.width, height: scaled.height });
+  } else {
+    drawText(page, TORQUE_EMPIRE_COMPANY_PROFILE.tradingName, MARGIN, PAGE_HEIGHT - 92, { font: kit.fonts.bold, size: 22, color: WHITE });
+  }
+  drawText(page, TORQUE_EMPIRE_HYGIENE_PDF_BRAND.divisionName, MARGIN, 592, { font: kit.fonts.bold, size: 20, color: NAVY });
+  drawText(page, "Consolidated Client Manifest Pack", MARGIN, 560, { font: kit.fonts.bold, size: 28, color: BLUE, maxWidth: 480 });
+  drawText(page, TORQUE_EMPIRE_BRAND.corporateTagline, MARGIN, 534, { font: kit.fonts.bold, size: 11, color: NAVY, maxWidth: 420 });
+  drawText(page, TORQUE_EMPIRE_BRAND.tagline, MARGIN, 516, { font: kit.fonts.regular, size: 10, color: GOLD, maxWidth: 420 });
+
+  drawRows(page, kit, [
+    ["Client", data.client.clientName],
+    ["Reporting period", periodText(data.period)],
+    ["Site filter", data.siteFilter ? buildHygieneSiteLabel(data.siteFilter) : "All selected client sites"],
+    ["Generated", dateText(data.generatedAt)],
+  ], MARGIN, 466, PAGE_WIDTH - MARGIN * 2);
+
+  drawSection(page, kit, "Summary", 314);
+  drawRows(page, kit, [
+    ["Sites included", data.summary.sitesIncluded.length ? data.summary.sitesIncluded.join(", ") : "No matching sites"],
+    ["Collections", String(data.summary.collectionCount)],
+    ["Individual manifests", String(data.summary.manifestCount)],
+    ["Disposal evidence items", String(data.summary.evidenceItemCount)],
+    ["Total bins / containers", data.summary.totalBins === null ? "Not available" : String(data.summary.totalBins)],
+    ["Total recorded waste weight", "Not recorded in persisted evidence"],
+    ["Disposal status", "Disposed " + data.summary.disposalStatus.disposed + " | Pending evidence " + data.summary.disposalStatus.pendingEvidence + " | Generated / incomplete " + data.summary.disposalStatus.generatedIncomplete],
+  ], MARGIN, 292, PAGE_WIDTH - MARGIN * 2);
+  drawFooter(page, kit, 1);
+}
+
+function drawConsolidatedRegister(kit: PdfKit, data: ConsolidatedHygieneClientPackData) {
+  let page = addPage(kit, "Consolidated Collection Register", data.client.clientName);
+  let y = BODY_TOP;
+  if (data.entries.length === 0) {
+    drawRowsSection(kit, page, "Collection Register", [["Result", "No persisted collection manifests matched the selected client, site and reporting period."]], y, "Consolidated Collection Register", data.client.clientName);
+    return;
+  }
+
+  for (const entry of data.entries) {
+    const rows: Array<[string, string]> = [
+      ["Collection reference", entry.collection.collectionId],
+      ["Manifest reference", entry.manifest.manifestId],
+      ["Site", buildHygieneSiteLabel(entry.site)],
+      ["Collection date", dateText(entry.collection.scheduledDate)],
+      ["Waste type", entry.manifest.wasteType],
+      ["Quantity", entry.manifest.quantity + " " + entry.manifest.unit],
+      ["Transport / driver / vehicle", entry.manifest.collectedBy + " | " + entry.manifest.vehicleRegistration],
+      ["Disposal facility", entry.disposalEvidence.length > 0 && !/pending|not yet captured/i.test(entry.manifest.disposalFacility) ? entry.manifest.disposalFacility : "Pending disposal evidence"],
+      ["Certificate / evidence status", evidenceStatusText(entry)],
+      ["Linked certificate reference", entry.disposalEvidence.map((item) => item.certificateReference).filter(Boolean).join(", ") || "Pending disposal evidence"],
+    ];
+    ({ page, y } = drawRowsSection(kit, page, "Collection " + entry.collection.collectionId, rows, y, "Consolidated Collection Register", data.client.clientName));
+  }
+}
+
+function drawConsolidatedEvidenceIndex(kit: PdfKit, data: ConsolidatedHygieneClientPackData, attachments: ConsolidatedCertificateAttachment[]) {
+  let page = addPage(kit, "Consolidated Evidence Index", data.client.clientName);
+  let y = BODY_TOP;
+  const attachmentIds = new Set(attachments.map((item) => item.evidenceId));
+  for (const entry of data.entries) {
+    const evidenceText = entry.disposalEvidence.length
+      ? entry.disposalEvidence
+          .map((item) => item.evidenceId + ": " + (attachmentIds.has(item.evidenceId) ? "attached unchanged" : "linked record present; source PDF unavailable for append"))
+          .join("; ")
+      : "Pending disposal evidence";
+    ({ page, y } = drawRowsSection(kit, page, "Evidence for " + entry.manifest.manifestId, [
+      ["Collection", entry.collection.collectionId],
+      ["Manifest", entry.manifest.manifestId],
+      ["Evidence", evidenceText],
+    ], y, "Consolidated Evidence Index", data.client.clientName));
+  }
+}
+
+export function buildConsolidatedHygieneClientPackFileName(data: ConsolidatedHygieneClientPackData): string {
+  const period = periodText(data.period).replace(/\s+to\s+/i, "_to_");
+  return "Torque-Empire_Hygiene_" + slug(data.client.clientName) + "_Consolidated-Client-Pack_" + slug(period) + ".pdf";
+}
+
+export async function generateConsolidatedHygieneClientPackPdf(
+  data: ConsolidatedHygieneClientPackData,
+  certificateAttachments: ConsolidatedCertificateAttachment[] = [],
+): Promise<Uint8Array> {
+  assertClientFacingHygienePdfContent([
+    data.client.clientName,
+    ...data.entries.flatMap((entry) => [
+      entry.collection.collectionId,
+      entry.manifest.manifestId,
+      entry.site.siteName,
+      entry.manifest.wasteType,
+    ]),
+  ]);
+  const kit = await createKit();
+  kit.document.setTitle("Torque Empire Hygiene Consolidated Client Pack");
+  kit.document.setSubject("Consolidated Hygiene client manifest pack generated by TEOS on behalf of Torque Empire (Pty) Ltd");
+
+  const cover = kit.document.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
+  drawConsolidatedCover(cover, kit, data);
+  drawConsolidatedRegister(kit, data);
+
+  for (const entry of data.entries) {
+    const page = addPage(kit, "Waste Manifest", entry.manifest.manifestId);
+    drawManifestBody(kit, page, {
+      manifest: entry.manifest,
+      collection: entry.collection,
+      client: data.client,
+      site: entry.site,
+      disposalEvidence: [],
+      generatedAt: data.generatedAt,
+    });
+  }
+
+  drawConsolidatedEvidenceIndex(kit, data, certificateAttachments);
+  for (const attachment of certificateAttachments) {
+    const sourceDocument = await PDFDocument.load(attachment.bytes);
+    const pages = await kit.document.copyPages(sourceDocument, sourceDocument.getPageIndices());
+    pages.forEach((page) => kit.document.addPage(page));
+  }
+
   return kit.document.save();
 }
 

@@ -3,8 +3,10 @@ import {
   TORQUE_EMPIRE_HYGIENE_PDF_BRAND,
   assertClientFacingHygienePdfContent,
   buildHygieneSiteLabel,
+  buildConsolidatedHygieneClientPackFileName,
   buildHygieneManifestFileName,
   buildPdfContentDisposition,
+  generateConsolidatedHygieneClientPackPdf,
   generateHygieneClientPackPdf,
   getHygienePdfLayoutForTesting,
   loadTorqueEmpirePdfBrandImage,
@@ -190,6 +192,59 @@ describe("Hygiene PDF branding", () => {
     expect(pack.getPage(2).getHeight()).toBe(200);
   });
 
+
+
+  it("builds consolidated packs with underlying manifests and unchanged certificate evidence pages", async () => {
+    const certificate = await PDFDocument.create();
+    certificate.addPage([320, 210]);
+    const certificateBytes = await certificate.save();
+
+    const packBytes = await generateConsolidatedHygieneClientPackPdf({
+      client,
+      period: { startDate: "2026-07-01", endDate: "2026-07-31" },
+      siteFilter: null,
+      entries: [
+        {
+          collection,
+          manifest,
+          site,
+          disposalEvidence: [{
+            evidenceId: "TE-EP-1",
+            kind: "photo",
+            label: "Disposal Certificate",
+            manifestId: manifest.manifestId,
+            collectionId: collection.collectionId,
+            storagePath: "hygiene/evidence/TE-CLI-1/TE-COL-2026-0001/cert.pdf",
+            certificateReference: manifest.disposalCertificateNo,
+          }],
+          evidenceStatus: "Linked evidence",
+        },
+      ],
+      summary: {
+        sitesIncluded: [site.siteName],
+        collectionCount: 1,
+        manifestCount: 1,
+        evidenceItemCount: 1,
+        totalBins: 4,
+        totalRecordedWasteWeight: null,
+        disposalStatus: { disposed: 1, pendingEvidence: 0, generatedIncomplete: 0 },
+      },
+      generatedAt: "2026-07-31T12:00:00.000Z",
+    }, [{
+      evidenceId: "TE-EP-1",
+      manifestId: manifest.manifestId,
+      collectionId: collection.collectionId,
+      bytes: certificateBytes,
+    }]);
+    const pack = await PDFDocument.load(packBytes);
+
+    expect(pack.getPageCount()).toBe(5);
+    expect(pack.getAuthor()).toBe("TEOS on behalf of Torque Empire (Pty) Ltd");
+    expect(pack.getSubject()).toContain("Consolidated Hygiene client manifest pack");
+    expect(pack.getPage(4).getWidth()).toBe(320);
+    expect(pack.getPage(4).getHeight()).toBe(210);
+  });
+
   it("does not manufacture certificate pages when optional evidence is missing", async () => {
     const packBytes = await generateHygieneClientPackPdf({ ...data, disposalEvidence: [] });
     const pack = await PDFDocument.load(packBytes);
@@ -201,6 +256,27 @@ describe("Hygiene PDF branding", () => {
     expect(buildHygieneManifestFileName(data)).toBe(
       "Torque-Empire_Hygiene_CBAVO-Services_Goldman-Crossing_Waste-Manifest_TE-WM-2026-0001_2026-07-10.pdf"
     );
+  });
+
+
+
+  it("uses the required consolidated client-pack file naming convention", () => {
+    expect(buildConsolidatedHygieneClientPackFileName({
+      client,
+      period: { startDate: "2026-07-01", endDate: "2026-07-31" },
+      siteFilter: null,
+      entries: [],
+      summary: {
+        sitesIncluded: [],
+        collectionCount: 0,
+        manifestCount: 0,
+        evidenceItemCount: 0,
+        totalBins: null,
+        totalRecordedWasteWeight: null,
+        disposalStatus: { disposed: 0, pendingEvidence: 0, generatedIncomplete: 0 },
+      },
+      generatedAt: "2026-07-31T12:00:00.000Z",
+    })).toBe("Torque-Empire_Hygiene_CBAVO-Services_Consolidated-Client-Pack_2026-07-01-to-2026-07-31.pdf");
   });
 
   it("rejects staff-only and internal markers before client PDF rendering", () => {

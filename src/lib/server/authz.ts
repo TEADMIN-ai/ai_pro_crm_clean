@@ -1,5 +1,5 @@
 import type { NextRequest } from 'next/server';
-import { getFirebaseAdmin } from '@/lib/firebase/admin';
+import { getFirebaseAdmin } from '@/lib/firebase/adminFirestore';
 import { buildUserProfile, normalizeContractorId, resolveRole, type UserProfile } from '@/lib/auth/userProfile';
 import { ensureContractorAuthLinkage } from '@/lib/contractors/contractorAuthLink';
 import type { UserRole } from '@/lib/auth/roleUtils';

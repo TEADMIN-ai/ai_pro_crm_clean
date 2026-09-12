@@ -54,6 +54,7 @@ export const API_ROUTES = {
   HYGIENE_MANIFESTS: "/api/hygiene/manifests",
   HYGIENE_MANIFEST_PDF: (manifestId: string, download = false) => `/api/hygiene/manifests/${encodeURIComponent(manifestId)}/pdf${download ? "?download=1" : ""}`,
   HYGIENE_CLIENT_PACK: (manifestId: string) => `/api/hygiene/manifests/${encodeURIComponent(manifestId)}/client-pack`,
+  HYGIENE_CONSOLIDATED_CLIENT_PACK: (clientId: string, query = "") => `/api/hygiene/clients/${encodeURIComponent(clientId)}/consolidated-pack${query ? `?${query}` : ""}`,
   HYGIENE_ASSETS: "/api/hygiene/assets",
   HYGIENE_COMPLIANCE: "/api/hygiene/compliance",
   HYGIENE_REPORTS: "/api/hygiene/reports",
