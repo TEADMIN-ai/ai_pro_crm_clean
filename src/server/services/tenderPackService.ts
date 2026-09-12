@@ -1,11 +1,14 @@
-import admin from "firebase-admin";
 import { FieldValue } from "firebase-admin/firestore";
 
 import { getFirebaseAdmin, getFirebaseStorageBucket } from "@/lib/firebase/admin";
 
 type PersistTenderPackInput = {
+  dealId: string;
+  opportunityId: string;
+  workspaceId: string | null;
   contractorId: string;
   createdBy: string;
+  clientQuoteId: string;
   templateKey: string;
   pdfBytes: Buffer | Uint8Array | ArrayBuffer | Blob;
   missingFields: string[];
@@ -14,6 +17,9 @@ type PersistTenderPackInput = {
 };
 
 type CreateTenderPackRecordInput = {
+  dealId: string;
+  opportunityId: string;
+  workspaceId: string | null;
   storagePath: string;
   downloadURL: string;
   downloadUrl: string;
@@ -21,11 +27,13 @@ type CreateTenderPackRecordInput = {
   expiresAt: number;
   createdBy: string;
   contractorId: string;
+  clientQuoteId: string;
   templateKey: string;
   missingFields: string[];
   warnings: string[];
   fieldMapUsed: Record<string, string>;
   fileName: string;
+  filename: string;
   contentType: "application/pdf";
   size: number;
 };
@@ -68,7 +76,7 @@ export async function persistTenderPackPdf(input: PersistTenderPackInput) {
   const expiresAt = createdAt + DEFAULT_TENDER_PACK_ARTIFACT_RETENTION_MS;
   const normalizedTemplateKey = input.templateKey.trim().toLowerCase();
   const fileName = `${createdAt}-${normalizedTemplateKey}.pdf`;
-  const storagePath = `tenderPacks/${input.contractorId}/${fileName}`;
+  const storagePath = `tenderPacks/${input.workspaceId ?? "workspace"}/${input.dealId}/${input.contractorId}/${fileName}`;
   const pdfBuffer = await normalizePdfBuffer(input.pdfBytes);
   const bucket = getFirebaseStorageBucket();
   const file = bucket.file(storagePath);
@@ -78,8 +86,12 @@ export async function persistTenderPackPdf(input: PersistTenderPackInput) {
     metadata: {
       cacheControl: "private, max-age=300",
       metadata: {
+        dealId: input.dealId,
+        opportunityId: input.opportunityId,
+        workspaceId: input.workspaceId ?? "",
         contractorId: input.contractorId,
         createdBy: input.createdBy,
+        clientQuoteId: input.clientQuoteId,
         templateKey: input.templateKey,
         cleanupPolicy: "retention_window",
         expiresAt: String(expiresAt),
@@ -96,6 +108,9 @@ export async function persistTenderPackPdf(input: PersistTenderPackInput) {
 
   try {
     packId = await createTenderPackRecord({
+      dealId: input.dealId,
+      opportunityId: input.opportunityId,
+      workspaceId: input.workspaceId,
       storagePath,
       downloadURL,
       downloadUrl: downloadURL,
@@ -103,11 +118,13 @@ export async function persistTenderPackPdf(input: PersistTenderPackInput) {
       expiresAt,
       createdBy: input.createdBy,
       contractorId: input.contractorId,
+      clientQuoteId: input.clientQuoteId,
       templateKey: input.templateKey,
       missingFields: input.missingFields,
       warnings: input.warnings,
       fieldMapUsed: input.fieldMapUsed,
       fileName,
+      filename: fileName,
       contentType: "application/pdf",
       size: pdfBuffer.byteLength,
     });

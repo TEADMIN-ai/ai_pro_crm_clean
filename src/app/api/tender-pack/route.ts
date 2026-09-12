@@ -32,7 +32,13 @@ export async function GET(request: NextRequest) {
       ...(dealSnapshot.data() ?? {}),
     } as Record<string, unknown> & { id: string };
 
-    await assertApprovedClientQuote({ opportunityId: deal.id, clientQuoteId, actor: user });
+    const approvedClientQuote = await assertApprovedClientQuote({ opportunityId: deal.id, clientQuoteId, actor: user });
+    const governedWorkspaceId =
+      typeof approvedClientQuote.workspaceId === "string" && approvedClientQuote.workspaceId.trim()
+        ? approvedClientQuote.workspaceId.trim()
+        : typeof deal.workspaceId === "string" && deal.workspaceId.trim()
+          ? deal.workspaceId.trim()
+          : null;
 
     const contractorId =
       typeof deal.contractorId === "string" && deal.contractorId.trim().length > 0
@@ -62,8 +68,12 @@ export async function GET(request: NextRequest) {
     const pdfBytes = await generateMergedPack(deal, contractor);
 
     const persistedPack = await persistTenderPackPdf({
-      createdBy: user.uid,
+      dealId: deal.id,
+      opportunityId: deal.id,
+      workspaceId: governedWorkspaceId,
       contractorId: contractor.id,
+      createdBy: user.uid,
+      clientQuoteId: approvedClientQuote.clientQuoteId,
       templateKey: templateIds.join("-"),
       pdfBytes,
       missingFields: [],
@@ -75,7 +85,15 @@ export async function GET(request: NextRequest) {
       },
     });
 
-    const tenderPackDocumentId = await registerTenderPackDocument({ packId: persistedPack.packId, opportunityId: deal.id, workspaceId: typeof deal.workspaceId === "string" ? deal.workspaceId : null, clientQuoteId, storagePath: persistedPack.storagePath, filename: persistedPack.fileName, actor: user });
+    const tenderPackDocumentId = await registerTenderPackDocument({
+      packId: persistedPack.packId,
+      opportunityId: deal.id,
+      workspaceId: governedWorkspaceId,
+      clientQuoteId: approvedClientQuote.clientQuoteId,
+      storagePath: persistedPack.storagePath,
+      filename: persistedPack.fileName,
+      actor: user,
+    });
 
     return new NextResponse(Buffer.from(pdfBytes), {
       status: 200,

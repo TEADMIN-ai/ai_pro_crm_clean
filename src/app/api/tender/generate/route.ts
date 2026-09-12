@@ -7,6 +7,7 @@ import { generateTenderPdf } from "@/lib/pdf/generateTenderPdf";
 import { mergeTenderPack } from "@/lib/pdf/mergeTenderPack";
 import { recalculateContractorCompliance } from "@/lib/server/recalculateContractorCompliance";
 import { persistTenderPackPdf } from "@/server/services/tenderPackService";
+import { assertApprovedClientQuote } from "@/server/services/commercialAuthorityService";
 import {
   AuthorizationError,
   assertCanAccessContractor,
@@ -19,6 +20,7 @@ export const dynamic = "force-dynamic";
 type GenerateBody = {
   dealId?: string;
   contractorId?: string;
+  clientQuoteId?: string;
 };
 
 type TenderDealData = {
@@ -412,6 +414,7 @@ export async function POST(request: NextRequest) {
     const body = (await request.json()) as GenerateBody;
     const dealId = getString(body.dealId);
     const contractorId = getString(body.contractorId);
+    const clientQuoteId = getString(body.clientQuoteId);
     stageTracker.setContext({
       dealId: dealId || null,
       contractorId: contractorId || null,
@@ -441,6 +444,8 @@ export async function POST(request: NextRequest) {
     }
 
     const dealData = dealSnapshot.data() ?? {};
+    const opportunityId = getString(dealData.opportunityId) || dealId;
+    const workspaceId = getString(dealData.workspaceId);
     const storedContractorId = getString(dealData.contractorId);
 
     if (!storedContractorId || storedContractorId !== contractorId) {
@@ -448,6 +453,26 @@ export async function POST(request: NextRequest) {
     }
 
     assertCanAccessContractor(user, contractorId);
+
+    if (!clientQuoteId) {
+      return NextResponse.json(
+        {
+          error: "CLIENT_QUOTE_NOT_APPROVED",
+          message: "An approved Client_Quote_ID is required before a governed tender pack artifact can be persisted.",
+        },
+        { status: 409 }
+      );
+    }
+
+    const approvedClientQuote = await assertApprovedClientQuote({
+      opportunityId,
+      clientQuoteId,
+      actor: user,
+    });
+    const governedWorkspaceId =
+      typeof approvedClientQuote.workspaceId === "string" && approvedClientQuote.workspaceId.trim()
+        ? approvedClientQuote.workspaceId.trim()
+        : workspaceId;
 
     stageTracker.start("contractor_loaded");
     const contractorSnapshot = await withTimeoutWarning({
@@ -725,8 +750,12 @@ export async function POST(request: NextRequest) {
       },
       operation: () =>
         persistTenderPackPdf({
-          createdBy: user.uid,
+          dealId,
+          opportunityId,
+          workspaceId: governedWorkspaceId,
           contractorId,
+          createdBy: user.uid,
+          clientQuoteId: approvedClientQuote.clientQuoteId,
           templateKey: "tender-pack",
           pdfBytes: finalPdf,
           missingFields: unresolvedDocuments,

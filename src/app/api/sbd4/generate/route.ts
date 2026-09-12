@@ -5,7 +5,6 @@ import { PDFDocument, StandardFonts } from "pdf-lib";
 import { assertCanAccessContractor, AuthorizationError, requireAuthorizedUser } from "@/lib/server/authz";
 import { SBD4_FIELD_MAP } from "@/lib/pdf/maps/SBD4";
 import { writeToField } from "@/lib/pdf/writeToField";
-import { persistTenderPackPdf } from "@/server/services/tenderPackService";
 
 type SBD4RequestBody = {
   contractorId?: string;
@@ -136,20 +135,6 @@ export async function POST(request: NextRequest) {
 
     const pdfBytes = await pdfDoc.save();
     const responseBody = Buffer.from(pdfBytes);
-    await persistTenderPackPdf({
-      contractorId,
-      createdBy: user.uid,
-      templateKey: "sbd4",
-      pdfBytes: new Blob([responseBody], { type: "application/pdf" }),
-      missingFields: [],
-      warnings: [],
-      fieldMapUsed: {
-        companyName: clean(body.companyName),
-        companyRegistrationNumber: clean(body.companyRegistrationNumber),
-        contactPerson: clean(body.contactPerson),
-      },
-    });
-
     return new NextResponse(responseBody, {
       status: 200,
       headers: {
