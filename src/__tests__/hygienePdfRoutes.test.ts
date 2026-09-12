@@ -1,7 +1,10 @@
 import { GET as manifestPdfGET } from "@/app/api/hygiene/manifests/[manifestId]/pdf/route";
 import { GET as clientPackGET } from "@/app/api/hygiene/manifests/[manifestId]/client-pack/route";
+import fs from "node:fs";
+import path from "node:path";
 import { getHygieneManifestPdfData } from "@/lib/hygiene/hygienePdfData";
 import { generateHygieneClientPackPdf, generateHygieneManifestPdf } from "@/lib/hygiene/hygienePdfBranding";
+import { downloadFirebaseStorageObject } from "@/lib/firebase/storageRest";
 import { AuthorizationError, requireAuthorizedUser } from "@/lib/server/authz";
 
 jest.mock("@/lib/server/authz", () => {
@@ -27,10 +30,8 @@ jest.mock("@/lib/hygiene/hygienePdfBranding", () => ({
   generateHygieneClientPackPdf: jest.fn(),
 }));
 
-jest.mock("@/lib/firebase/admin", () => ({
-  getFirebaseStorageBucket: jest.fn(() => ({
-    file: jest.fn(() => ({ download: jest.fn().mockResolvedValue([Buffer.from("certificate")]) })),
-  })),
+jest.mock("@/lib/firebase/storageRest", () => ({
+  downloadFirebaseStorageObject: jest.fn(),
 }));
 
 const user = { uid: "admin-1", email: "admin@example.test", role: "admin" as const };
@@ -55,6 +56,7 @@ describe("Hygiene PDF routes", () => {
     (getHygieneManifestPdfData as jest.Mock).mockResolvedValue(data);
     (generateHygieneManifestPdf as jest.Mock).mockResolvedValue(Uint8Array.from([37, 80, 68, 70]));
     (generateHygieneClientPackPdf as jest.Mock).mockResolvedValue(Uint8Array.from([37, 80, 68, 70]));
+    (downloadFirebaseStorageObject as jest.Mock).mockResolvedValue(Uint8Array.from(Buffer.from("certificate")));
     jest.spyOn(console, "error").mockImplementation(() => undefined);
   });
 
@@ -135,6 +137,36 @@ describe("Hygiene PDF routes", () => {
     expect(response.headers.get("Content-Type")).toBe("application/pdf");
     expect(response.headers.get("Content-Disposition")).toBe("attachment; filename=\"Torque-Empire_Hygiene_Client_Site_Client-Pack_Waste-Manifest_TE-WM-1_2026-07-10.pdf\"");
     expect(response.headers.get("Cache-Control")).toBe("private, no-store, max-age=0");
+  });
+
+  it("downloads governed certificate evidence through the lightweight storage helper", async () => {
+    (getHygieneManifestPdfData as jest.Mock).mockResolvedValue({
+      ...data,
+      disposalEvidence: [
+        {
+          category: "Disposal Certificate",
+          storagePath: "hygiene/evidence/TE-CLI-1/TE-COL-1/certificate.pdf",
+          fileUrl: "hygiene/evidence/TE-CLI-1/TE-COL-1/certificate.pdf",
+        },
+      ],
+    });
+
+    const response = await clientPackGET(request("https://teos.example.test/api/hygiene/manifests/TE-WM-1/client-pack"), context);
+
+    expect(response.status).toBe(200);
+    expect(downloadFirebaseStorageObject).toHaveBeenCalledWith("hygiene/evidence/TE-CLI-1/TE-COL-1/certificate.pdf");
+    expect(generateHygieneClientPackPdf).toHaveBeenCalledWith(expect.any(Object), Uint8Array.from(Buffer.from("certificate")));
+  });
+
+  it("keeps the client-pack route clear of Firebase Admin Storage imports", () => {
+    const routeSource = fs.readFileSync(
+      path.join(process.cwd(), "src/app/api/hygiene/manifests/[manifestId]/client-pack/route.ts"),
+      "utf8",
+    );
+
+    expect(routeSource).not.toContain("getFirebaseStorageBucket");
+    expect(routeSource).not.toContain("@/lib/firebase/admin");
+    expect(routeSource).toContain("@/lib/firebase/storageRest");
   });
 
   it("returns safe 404 when a client pack manifest does not exist", async () => {

@@ -110,26 +110,18 @@ function slug(value: string): string {
   return cleaned || "Pending";
 }
 
-function publicAssetPath(assetUrl: string): string {
-  const cleanAsset = assetUrl.split("?")[0]?.replace(/^\/+/, "") ?? "";
-  if (!cleanAsset || cleanAsset.includes("..") || path.isAbsolute(cleanAsset)) {
-    throw new Error("Invalid brand asset path.");
-  }
-  return path.join(process.cwd(), "public", ...cleanAsset.split("/"));
-}
-
 export async function loadTorqueEmpirePdfBrandImage(document: PDFDocument): Promise<PDFImage | null> {
-  for (const assetUrl of [TORQUE_EMPIRE_HYGIENE_PDF_BRAND.approvedLetterheadAsset, TORQUE_EMPIRE_HYGIENE_PDF_BRAND.fallbackLogoAsset]) {
+  try {
+    const letterheadBytes = await readFile(path.join(process.cwd(), "public", "corporate", "letterhead", "torque-empire-business-letterhead.png"));
+    return await document.embedPng(letterheadBytes);
+  } catch {
     try {
-      const bytes = await readFile(publicAssetPath(assetUrl));
-      return assetUrl.toLowerCase().endsWith(".jpg") || assetUrl.toLowerCase().endsWith(".jpeg")
-        ? await document.embedJpg(bytes)
-        : await document.embedPng(bytes);
+      const logoBytes = await readFile(path.join(process.cwd(), "public", "corporate", "logo", "torque-empire-primary.png"));
+      return await document.embedPng(logoBytes);
     } catch {
-      continue;
+      return null;
     }
   }
-  return null;
 }
 
 export function buildPdfContentDisposition(disposition: "inline" | "attachment", filename: string): string {

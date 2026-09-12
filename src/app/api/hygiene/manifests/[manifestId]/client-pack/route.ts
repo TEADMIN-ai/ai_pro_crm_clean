@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { getFirebaseStorageBucket } from "@/lib/firebase/admin";
+import { downloadFirebaseStorageObject } from "@/lib/firebase/storageRest";
 import { buildHygieneManifestFileName, buildPdfContentDisposition, generateHygieneClientPackPdf } from "@/lib/hygiene/hygienePdfBranding";
 import { evaluateGovernedStoragePath, isExpectedHygieneCollectionEvidencePath } from "@/lib/master-data/storagePathPolicy";
 import { getHygieneManifestPdfData } from "@/lib/hygiene/hygienePdfData";
@@ -34,8 +34,7 @@ async function loadCertificatePdf(data: Awaited<ReturnType<typeof getHygieneMani
   const decision = evaluateGovernedStoragePath(storagePath, ["hygiene/evidence/", "hygiene/compliance/"]);
   if (!decision.allowed || !decision.normalizedPath) return null;
   if (decision.normalizedPath.startsWith("hygiene/evidence/") && !isExpectedHygieneCollectionEvidencePath({ path: decision.normalizedPath, clientId: data.manifest.clientId, collectionId: data.manifest.collectionId })) return null;
-  const [bytes] = await getFirebaseStorageBucket().file(decision.normalizedPath).download();
-  return Uint8Array.from(bytes);
+  return downloadFirebaseStorageObject(decision.normalizedPath);
 }
 
 export async function GET(
