@@ -142,6 +142,20 @@ describe("Hygiene manifest document action visibility", () => {
     expect(manifestRegister).toContain("DisposalWarningCell");
   });
 
+  it("renders the consolidated pack modal as an opaque foreground panel", () => {
+    const source = readFileSync("src/components/hygiene/HygieneDivisionClient.tsx", "utf8");
+    const modalSource = source.slice(source.indexOf("{modal ?"), source.indexOf('view === "home"'));
+
+    expect(modalSource).toContain("absolute inset-0 bg-slate-950/80");
+    expect(modalSource).toContain('aria-hidden="true"');
+    expect(modalSource).toContain("relative z-10");
+    expect(modalSource).toContain('backgroundColor: "#020617"');
+    expect(modalSource).not.toContain("bg-[color:var(--hygiene-surface)]");
+    expect(source).toContain("htmlFor={fieldId}");
+    expect(modalSource).toContain("hygiene-modal-siteId-help");
+    expect(modalSource).toContain("hygiene-modal-includeIncomplete");
+  });
+
   it("saved manifest UI exposes the required PDF actions through authenticated blob handling", () => {
     const source = readFileSync("src/components/hygiene/HygieneDivisionClient.tsx", "utf8");
     const renderer = source.slice(source.indexOf("function renderManifestActions"), source.indexOf("function openModal"));
@@ -151,5 +165,21 @@ describe("Hygiene manifest document action visibility", () => {
     expect(source).toContain("await authFetch(url)");
     expect(source).toContain("response.blob()");
     expect(source).toContain("Content-Type");
+    expect(source).toContain("function isPdfContentType");
+    expect(source).toContain("application/pdf");
+    expect(source).toContain("URL.createObjectURL(blob)");
+    expect(source).toContain("window.location.assign(url)");
+    expect(source).toContain("URL.revokeObjectURL(url)");
+    expect(source).not.toContain("window.open(");
+    expect(source).not.toContain("Browser blocked the manifest document popup");
+    expect(source).toContain("API_ROUTES.HYGIENE_EVIDENCE_ACCESS");
+    expect(source).toContain("fetch(payload.accessUrl)");
+    expect(source).toContain("function isViewableDocumentContentType");
+    expect(renderer).toContain("openManifestPdf(manifest)");
+    expect(renderer).toContain("View Manifest");
+    expect(renderer).toContain("openManifestPdf(manifest, true)");
+    expect(renderer).toContain("openClientPack(manifest)");
+    expect(renderer).toContain('openManifestCertificate(manifest, "Certificate opened in this tab.")');
+    expect(renderer).toContain('openManifestCertificate(manifest, "Certificate download started.", true)');
   });
 });

@@ -569,6 +569,7 @@ export default function HygieneDivisionClient({ view }: { view: HygieneView }) {
   const [modal, setModal] = useState<ActionModalState>(null)
   const [showTestData, setShowTestData] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const documentBlobUrlsRef = useRef<string[]>([]);
 
   const canSeed = role === "admin" || role === "manager";
   const canUploadEvidence = role === "admin" || role === "manager" || role === "staff";
@@ -657,8 +658,8 @@ export default function HygieneDivisionClient({ view }: { view: HygieneView }) {
     await postJson(API_ROUTES.HYGIENE_JOBS, { collectionId, action, ...extra }, successMessage);
   }
 
-  async function openHygieneEvidence(kind: "photo" | "signature" | "compliance", recordId: string, collectionId?: string) {
-    setMutationStatus("Requesting evidence access...");
+  async function openHygieneEvidence(kind: "photo" | "signature" | "compliance", recordId: string, collectionId?: string, options: { download?: boolean; success?: string; pending?: string; failure?: string; fallbackFilename?: string } = {}) {
+    setMutationStatus(options.pending ?? "Preparing evidence access...");
     setError(null);
     try {
       const params = new URLSearchParams({ kind, recordId });
@@ -669,10 +670,16 @@ export default function HygieneDivisionClient({ view }: { view: HygieneView }) {
         const reviewLabel = payload.reviewStatus === "REVIEW_REQUIRED" ? " Legacy evidence requires review." : "";
         throw new Error((payload.error ?? "Evidence unavailable.") + reviewLabel);
       }
-      window.open(payload.accessUrl, "_blank", "noopener,noreferrer");
-      setMutationStatus("Evidence access opened.");
+      const evidenceResponse = await fetch(payload.accessUrl);
+      if (!evidenceResponse.ok) throw new Error(options.failure ?? "Evidence file could not be opened.");
+      const contentType = evidenceResponse.headers.get("Content-Type") ?? "";
+      if (!isViewableDocumentContentType(contentType)) throw new Error(options.failure ?? "Evidence file type is not supported for browser viewing.");
+      const blob = await evidenceResponse.blob();
+      const filename = filenameFromContentDisposition(evidenceResponse.headers.get("Content-Disposition"), options.fallbackFilename ?? recordId);
+      presentPdfBlob(blob, filename, options.download === true);
+      setMutationStatus(options.success ?? (options.download ? "Evidence download started." : "Evidence opened in this tab."));
     } catch (accessError) {
-      setMutationStatus(accessError instanceof Error ? accessError.message : "Evidence access failed.");
+      setMutationStatus(accessError instanceof Error ? accessError.message : options.failure ?? "Evidence access failed.");
     }
   }
 
@@ -690,7 +697,21 @@ export default function HygieneDivisionClient({ view }: { view: HygieneView }) {
     return asciiMatch?.[1] ?? fallback;
   }
 
-  function presentPdfBlob(blob: Blob, filename: string, download: boolean): boolean {
+  function isPdfContentType(value: string): boolean {
+    return value.toLowerCase().includes("application/pdf");
+  }
+
+  function isViewableDocumentContentType(value: string): boolean {
+    const normalized = value.toLowerCase();
+    return normalized.includes("application/pdf") || normalized.startsWith("image/");
+  }
+
+  function releaseDocumentBlobUrl(url: string) {
+    URL.revokeObjectURL(url);
+    documentBlobUrlsRef.current = documentBlobUrlsRef.current.filter((item) => item !== url);
+  }
+
+  function presentPdfBlob(blob: Blob, filename: string, download: boolean): void {
     const url = URL.createObjectURL(blob);
     if (download) {
       const link = document.createElement("a");
@@ -699,17 +720,13 @@ export default function HygieneDivisionClient({ view }: { view: HygieneView }) {
       document.body.appendChild(link);
       link.click();
       link.remove();
-      window.setTimeout(() => URL.revokeObjectURL(url), 30000);
-      return true;
+      window.setTimeout(() => releaseDocumentBlobUrl(url), 30000);
+      return;
     }
 
-    const opened = window.open(url, "_blank", "noopener,noreferrer");
-    if (!opened) {
-      URL.revokeObjectURL(url);
-      return false;
-    }
-    window.setTimeout(() => URL.revokeObjectURL(url), 60000);
-    return true;
+    documentBlobUrlsRef.current.push(url);
+    window.setTimeout(() => releaseDocumentBlobUrl(url), 300000);
+    window.location.assign(url);
   }
 
   async function fetchAndPresentManifestDocument(url: string, options: { download: boolean; pending: string; success: string; fallbackFilename: string; failure: string }) {
@@ -719,10 +736,10 @@ export default function HygieneDivisionClient({ view }: { view: HygieneView }) {
       const response = await authFetch(url);
       if (!response.ok) throw new Error(await readDocumentError(response, options.failure));
       const contentType = response.headers.get("Content-Type") ?? "";
-      if (!contentType.toLowerCase().includes("application/pdf")) throw new Error(options.failure);
+      if (!isPdfContentType(contentType)) throw new Error(options.failure);
       const blob = await response.blob();
       const filename = filenameFromContentDisposition(response.headers.get("Content-Disposition"), options.fallbackFilename);
-      if (!presentPdfBlob(blob, filename, options.download)) throw new Error("Browser blocked the manifest document popup. Allow popups for TEOS and try again.");
+      presentPdfBlob(blob, filename, options.download);
       setMutationStatus(options.success);
     } catch (documentError) {
       setMutationStatus(documentError instanceof Error ? documentError.message : options.failure);
@@ -809,14 +826,19 @@ export default function HygieneDivisionClient({ view }: { view: HygieneView }) {
     return null;
   }
 
-  async function openManifestCertificate(manifest: HygieneManifest, actionLabel: string) {
+  async function openManifestCertificate(manifest: HygieneManifest, actionLabel: string, download = false) {
     const certificate = findDisposalCertificate(manifest);
     if (!certificate) {
       setMutationStatus("No disposal certificate is linked to this manifest yet.");
       return;
     }
-    await openHygieneEvidence(certificate.kind, certificate.recordId, certificate.collectionId);
-    setMutationStatus(actionLabel);
+    await openHygieneEvidence(certificate.kind, certificate.recordId, certificate.collectionId, {
+      download,
+      pending: download ? "Preparing certificate download..." : "Opening certificate...",
+      success: actionLabel,
+      fallbackFilename: certificate.recordId + (download ? "-certificate" : ""),
+      failure: "Certificate evidence could not be opened.",
+    });
   }
 
   function renderManifestActions(manifest: HygieneManifest, layout: "card" | "table") {
@@ -833,8 +855,8 @@ export default function HygieneDivisionClient({ view }: { view: HygieneView }) {
         <SmallAction variant="primary" onClick={() => void openManifestPdf(manifest)}>View Manifest</SmallAction>
         {visibility.downloadPdf ? <SmallAction onClick={() => void openManifestPdf(manifest, true)}>Download PDF</SmallAction> : null}
         {visibility.createClientPack ? <SmallAction variant="primary" onClick={() => void openClientPack(manifest)}>Create Client Pack</SmallAction> : null}
-        {certificate && visibility.viewCertificate ? <SmallAction onClick={() => void openManifestCertificate(manifest, "Certificate access opened.")}>View Certificate</SmallAction> : null}
-        {certificate && visibility.downloadCertificate ? <SmallAction onClick={() => void openManifestCertificate(manifest, "Certificate download access opened.")}>Download Certificate</SmallAction> : null}
+        {certificate && visibility.viewCertificate ? <SmallAction onClick={() => void openManifestCertificate(manifest, "Certificate opened in this tab.")}>View Certificate</SmallAction> : null}
+        {certificate && visibility.downloadCertificate ? <SmallAction onClick={() => void openManifestCertificate(manifest, "Certificate download started.", true)}>Download Certificate</SmallAction> : null}
       </>
     ) : null;
 
@@ -1082,6 +1104,11 @@ export default function HygieneDivisionClient({ view }: { view: HygieneView }) {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authLoading, showTestData]);
+
+  useEffect(() => () => {
+    documentBlobUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
+    documentBlobUrlsRef.current = [];
+  }, []);
 
   return (
     <div data-module="hygiene" className="tex-shell space-y-6 text-white" style={hygieneThemeStyle}>
