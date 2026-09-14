@@ -15,7 +15,7 @@ export const dynamic = "force-dynamic";
 function errorResponse(error: unknown) {
   if (error instanceof AuthorizationError) return NextResponse.json({ error: error.message }, { status: error.status });
   console.error("[HYGIENE_CONSOLIDATED_CLIENT_PACK_ERROR]", error);
-  return NextResponse.json({ error: error instanceof Error ? error.message : "Hygiene consolidated client pack request failed" }, { status: 500 });
+  return NextResponse.json({ error: "Hygiene consolidated client pack request failed" }, { status: 500 });
 }
 
 async function loadCertificateAttachments(data: Awaited<ReturnType<typeof getConsolidatedHygieneClientPackData>>): Promise<ConsolidatedCertificateAttachment[]> {

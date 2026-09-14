@@ -152,7 +152,12 @@ function firestore(overrides: Record<string, unknown[]> = {}) {
 describe("getConsolidatedHygieneClientPackData", () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    jest.spyOn(console, "error").mockImplementation(() => undefined);
     (getFirebaseAdmin as jest.Mock).mockReturnValue(firestore());
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
   });
 
   it("aggregates only selected-client collections within the reporting period", async () => {
@@ -183,6 +188,30 @@ describe("getConsolidatedHygieneClientPackData", () => {
       clientId: client.clientId,
       siteId: otherSite.siteId,
     })).rejects.toThrow("Hygiene site does not belong to the selected client.");
+  });
+
+
+  it("logs exact relationship diagnostics before blocking mismatched manifests", async () => {
+    const mismatchedManifest = { ...manifestTwo, siteId: siteOne.siteId };
+    (getFirebaseAdmin as jest.Mock).mockReturnValue(firestore({
+      hygieneManifests: [manifestOne, mismatchedManifest, manifestOld, manifestOther],
+    }));
+
+    await expect(getConsolidatedHygieneClientPackData(user, {
+      clientId: client.clientId,
+      startDate: "2026-07-01",
+      endDate: "2026-07-31",
+    })).rejects.toThrow("Hygiene consolidated pack relationship check failed.");
+
+    expect(console.error).toHaveBeenCalledWith("[HYGIENE_CONSOLIDATED_PACK_RELATIONSHIP_MISMATCH]", {
+      relationshipType: "collection-manifest-site",
+      clientId: client.clientId,
+      siteId: siteTwo.siteId,
+      collectionId: collectionTwo.collectionId,
+      manifestId: manifestTwo.manifestId,
+      expectedId: siteTwo.siteId,
+      actualId: siteOne.siteId,
+    });
   });
 
   it("keeps missing disposal evidence pending and does not invent weights", async () => {

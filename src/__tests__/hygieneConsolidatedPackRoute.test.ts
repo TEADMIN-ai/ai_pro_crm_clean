@@ -81,6 +81,18 @@ describe("Hygiene consolidated client-pack route", () => {
     expect(getConsolidatedHygieneClientPackData).not.toHaveBeenCalled();
   });
 
+
+  it("keeps internal aggregation errors out of client responses", async () => {
+    (getConsolidatedHygieneClientPackData as jest.Mock).mockRejectedValue(new Error("Hygiene consolidated pack relationship check failed."));
+
+    const response = await consolidatedPackGET(request(), context);
+    const body = await response.json();
+
+    expect(response.status).toBe(500);
+    expect(body).toEqual({ error: "Hygiene consolidated client pack request failed" });
+    expect(console.error).toHaveBeenCalledWith("[HYGIENE_CONSOLIDATED_CLIENT_PACK_ERROR]", expect.any(Error));
+  });
+
   it("uses the route clientId and canonical resolver instead of client-supplied fields", async () => {
     const response = await consolidatedPackGET(request("https://teos.example.test/api/hygiene/clients/TE-CLI-1/consolidated-pack?clientId=OTHER&startDate=2026-07-01&endDate=2026-07-31&siteId=TE-SIT-1"), context);
     const body = new Uint8Array(await response.arrayBuffer());

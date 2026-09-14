@@ -69,6 +69,22 @@ export type ConsolidatedHygieneClientPackData = {
   generatedAt: string;
 };
 
+export type HygieneConsolidatedPackRelationshipMismatch = {
+  relationshipType: "collection-manifest-client" | "collection-manifest-site" | "collection-manifest-collection";
+  clientId: string;
+  siteId: string;
+  collectionId: string;
+  manifestId: string;
+  expectedId: string;
+  actualId: string | null;
+};
+
+export class HygieneConsolidatedPackRelationshipError extends Error {
+  constructor(public readonly mismatch: HygieneConsolidatedPackRelationshipMismatch) {
+    super("Hygiene consolidated pack relationship check failed.");
+    this.name = "HygieneConsolidatedPackRelationshipError";
+  }
+}
 async function listRecords<T>(collectionName: string): Promise<T[]> {
   const snapshot = await getFirebaseAdmin().collection(collectionName).get();
   return snapshot.docs.map((doc) => doc.data() as T);
@@ -94,6 +110,46 @@ function hasUsableCertificateReference(value: string | null | undefined): boolea
   return Boolean(value?.trim() && !/pending/i.test(value));
 }
 
+function failRelationship(mismatch: HygieneConsolidatedPackRelationshipMismatch): never {
+  console.error("[HYGIENE_CONSOLIDATED_PACK_RELATIONSHIP_MISMATCH]", mismatch);
+  throw new HygieneConsolidatedPackRelationshipError(mismatch);
+}
+
+function assertManifestCollectionRelationship(collection: HygieneCollection, manifest: HygieneManifest): void {
+  if (manifest.clientId !== collection.clientId) {
+    failRelationship({
+      relationshipType: "collection-manifest-client",
+      clientId: collection.clientId,
+      siteId: collection.siteId,
+      collectionId: collection.collectionId,
+      manifestId: manifest.manifestId,
+      expectedId: collection.clientId,
+      actualId: manifest.clientId ?? null,
+    });
+  }
+  if (manifest.siteId !== collection.siteId) {
+    failRelationship({
+      relationshipType: "collection-manifest-site",
+      clientId: collection.clientId,
+      siteId: collection.siteId,
+      collectionId: collection.collectionId,
+      manifestId: manifest.manifestId,
+      expectedId: collection.siteId,
+      actualId: manifest.siteId ?? null,
+    });
+  }
+  if (manifest.collectionId !== collection.collectionId) {
+    failRelationship({
+      relationshipType: "collection-manifest-collection",
+      clientId: collection.clientId,
+      siteId: collection.siteId,
+      collectionId: collection.collectionId,
+      manifestId: manifest.manifestId,
+      expectedId: collection.collectionId,
+      actualId: manifest.collectionId ?? null,
+    });
+  }
+}
 function evidenceStoragePath(item: HygieneEvidencePhoto | HygieneComplianceDocument): string | null {
   const rawPath = "storagePath" in item ? item.storagePath : null;
   const rawUrl = "fileUrl" in item ? item.fileUrl : null;
@@ -199,13 +255,8 @@ export async function getConsolidatedHygieneClientPackData(
       const manifest = manifestIndex.get(collection.collectionId);
       const site = siteIndex.get(collection.siteId);
       if (!manifest || !site) return null;
-      if (
-        manifest.clientId !== collection.clientId ||
-        manifest.siteId !== collection.siteId ||
-        manifest.collectionId !== collection.collectionId
-      ) {
-        throw new Error("Hygiene consolidated pack relationship check failed.");
-      }
+      assertManifestCollectionRelationship(collection, manifest);
+
       if (!isEligibleCollection(collection, manifest, filters.includeIncomplete === true)) return null;
       const disposalEvidence = buildEvidenceItems({ manifest, client, photos, complianceDocuments });
       return {
