@@ -109,6 +109,8 @@ const hygieneThemeStyle = {
 const primaryButtonClass = "tex-action-button";
 const secondaryButtonClass = "tex-action-button tex-action-button--secondary";
 const smallLinkClass = enterpriseActionLinkClass;
+const modalLabelClass = "text-sm font-bold text-slate-50";
+const modalControlClass = "min-h-11 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-950 shadow-sm outline-none transition placeholder:text-slate-500 hover:border-cyan-400 focus:border-cyan-500 focus:ring-2 focus:ring-cyan-200 disabled:cursor-not-allowed disabled:border-slate-500 disabled:bg-slate-200 disabled:text-slate-700";
 
 function currency(value: number): string {
   return new Intl.NumberFormat("en-ZA", {
@@ -282,18 +284,21 @@ function Field({
   type?: string;
   children?: ReactNode;
 }) {
+  const fieldId = "hygiene-modal-" + name;
+
   return (
-    <label className="grid gap-1 text-sm text-slate-300">
-      <span className="font-semibold text-slate-200">{label}</span>
+    <div className="grid gap-2 text-sm">
+      <label htmlFor={fieldId} className={modalLabelClass}>{label}</label>
       {children ?? (
         <input
+          id={fieldId}
           name={name}
           type={type}
           defaultValue={typeof defaultValue === "number" ? defaultValue : typeof defaultValue === "string" ? defaultValue : ""}
-          className="rounded-xl border border-white/20 bg-slate-950/80 px-3 py-2 text-white outline-none focus:border-teal-200/70 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-200"
+          className={modalControlClass}
         />
       )}
-    </label>
+    </div>
   );
 }
 
@@ -310,7 +315,7 @@ function SelectField({
 }) {
   return (
     <Field name={name} label={label}>
-      <select name={name} defaultValue={typeof defaultValue === "string" ? defaultValue : options[0] ?? ""} className="rounded-xl border border-white/20 bg-slate-950/80 px-3 py-2 text-white outline-none focus:border-teal-200/70 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-200">
+      <select id={"hygiene-modal-" + name} name={name} defaultValue={typeof defaultValue === "string" ? defaultValue : options[0] ?? ""} className={modalControlClass}>
         {options.map((option) => <option key={option} value={option}>{option}</option>)}
       </select>
     </Field>
@@ -1271,12 +1276,16 @@ export default function HygieneDivisionClient({ view }: { view: HygieneView }) {
                   <Field name="startDate" label="Start date" type="date" defaultValue={modal.defaults?.startDate ?? ""} />
                   <Field name="endDate" label="End date" type="date" defaultValue={modal.defaults?.endDate ?? ""} />
                   <Field name="siteId" label="Site filter">
-                    <select name="siteId" defaultValue="__all__" className="rounded-xl border border-white/20 bg-slate-950/80 px-3 py-2 text-white outline-none focus:border-teal-200/70 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-200">
+                    <select id="hygiene-modal-siteId" name="siteId" defaultValue="__all__" className={modalControlClass} aria-describedby="hygiene-modal-siteId-help">
                       <option value="__all__">All sites</option>
                       {(data?.sites ?? []).map((site) => <option key={site.siteId} value={site.siteId}>{site.siteName}</option>)}
                     </select>
                   </Field>
-                  <label className="flex items-center gap-3 text-sm text-slate-200"><input name="includeIncomplete" type="checkbox" /> Include generated / incomplete collections</label>
+                  <p id="hygiene-modal-siteId-help" className="text-xs font-medium leading-5 text-slate-200">Leave as All sites to include every site linked to the selected client.</p>
+                  <label htmlFor="hygiene-modal-includeIncomplete" className="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-500 bg-slate-950/80 p-3 text-sm font-semibold leading-5 text-slate-50 transition hover:border-cyan-300 hover:bg-slate-900 focus-within:border-cyan-300 focus-within:ring-2 focus-within:ring-cyan-200">
+                    <input id="hygiene-modal-includeIncomplete" name="includeIncomplete" type="checkbox" className="mt-0.5 h-4 w-4 rounded border-slate-300 bg-white text-cyan-700 accent-cyan-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-200" />
+                    <span>Include generated / incomplete collections</span>
+                  </label>
                 </>
               ) : null}
 
