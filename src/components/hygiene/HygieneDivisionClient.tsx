@@ -109,7 +109,7 @@ const hygieneThemeStyle = {
 const primaryButtonClass = "tex-action-button";
 const secondaryButtonClass = "tex-action-button tex-action-button--secondary";
 const smallLinkClass = enterpriseActionLinkClass;
-const modalLabelClass = "text-sm font-bold text-slate-50";
+const modalLabelClass = "text-sm font-bold text-white";
 const modalControlClass = "min-h-11 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-950 shadow-sm outline-none transition placeholder:text-slate-500 hover:border-cyan-400 focus:border-cyan-500 focus:ring-2 focus:ring-cyan-200 disabled:cursor-not-allowed disabled:border-slate-500 disabled:bg-slate-200 disabled:text-slate-700";
 
 function currency(value: number): string {
@@ -1164,8 +1164,9 @@ export default function HygieneDivisionClient({ view }: { view: HygieneView }) {
       ) : null}
 
       {modal ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4">
-          <form onSubmit={submitModal} className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-xl border border-[color:var(--hygiene-border)] bg-[color:var(--hygiene-surface)] p-5 shadow-2xl">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-slate-950/80" aria-hidden="true" />
+          <form onSubmit={submitModal} className="relative z-10 max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-xl border border-slate-500 bg-slate-950 p-5 text-white shadow-2xl" style={{ backgroundColor: "#020617" }}>
             <div className="flex items-start justify-between gap-4">
               <div>
                 <p className="text-xs font-bold uppercase tracking-[0.18em] text-teal-100">Hygiene Action</p>
@@ -1281,8 +1282,8 @@ export default function HygieneDivisionClient({ view }: { view: HygieneView }) {
                       {(data?.sites ?? []).map((site) => <option key={site.siteId} value={site.siteId}>{site.siteName}</option>)}
                     </select>
                   </Field>
-                  <p id="hygiene-modal-siteId-help" className="text-xs font-medium leading-5 text-slate-200">Leave as All sites to include every site linked to the selected client.</p>
-                  <label htmlFor="hygiene-modal-includeIncomplete" className="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-500 bg-slate-950/80 p-3 text-sm font-semibold leading-5 text-slate-50 transition hover:border-cyan-300 hover:bg-slate-900 focus-within:border-cyan-300 focus-within:ring-2 focus-within:ring-cyan-200">
+                  <p id="hygiene-modal-siteId-help" className="text-xs font-semibold leading-5 text-slate-100">Leave as All sites to include every site linked to the selected client.</p>
+                  <label htmlFor="hygiene-modal-includeIncomplete" className="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-400 bg-slate-900 p-3 text-sm font-bold leading-5 text-white transition hover:border-cyan-300 hover:bg-slate-800 focus-within:border-cyan-300 focus-within:ring-2 focus-within:ring-cyan-200">
                     <input id="hygiene-modal-includeIncomplete" name="includeIncomplete" type="checkbox" className="mt-0.5 h-4 w-4 rounded border-slate-300 bg-white text-cyan-700 accent-cyan-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-200" />
                     <span>Include generated / incomplete collections</span>
                   </label>
